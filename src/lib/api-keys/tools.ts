@@ -1,0 +1,356 @@
+import "server-only";
+import { z } from "zod";
+import { ActionError } from "@/lib/domain/actions";
+import type { SignalType } from "@/lib/domain/types";
+import { readWorkspace } from "@/lib/store/workspace";
+import { scoreAccount, scoringContext } from "./scoring";
+import { logCall, recordBudget, type ApiKey } from "./store";
+import { ACCESS, type Scope } from "./types";
+import { accountView, icpView, nextActionsView, playbookView, searchView } from "./views";
+import { ToolError, addAccounts, completeAction, logActivity, submitDraft } from "./writes";
+
+/**
+ * The ten tools other agents call, defined once and served twice: over MCP at /api/mcp and as
+ * REST at /api/v1 (with an OpenAPI spec). Plain reads and writes; Inroad spends zero tokens on
+ * this traffic because the calling agent pays for its own inference. Order is fixed so callers'
+ * prompt caches keep hitting; descriptions are short because callers pay for them on every turn.
+ */
+
+export interface CallContext {
+  key: ApiKey;
+  via: "mcp" | "rest";
+  /** The app's origin, for review links. */
+  base: string;
+}
+
+interface Output {
+  data: Record<string, unknown>;
+  summary: string;
+  records?: number;
+}
+
+export interface ToolDef {
+  name: string;
+  title: string;
+  description: string;
+  scope: Scope;
+  schema: z.ZodType;
+  readOnly: boolean;
+  idempotent: boolean;
+  rest: { method: "GET" | "POST"; path: string };
+  run: (input: never, ctx: CallContext) => Promise<Output> | Output;
+}
+
+function tool<S extends z.ZodType>(def: Omit<ToolDef, "schema" | "run"> & { schema: S; run: (input: z.infer<S>, ctx: CallContext) => Promise<Output> | Output }): ToolDef {
+  return def as unknown as ToolDef;
+}
+
+const SIGNAL_TYPES = [
+  "champion_job_change",
+  "first_hire",
+  "jd_names_pain",
+  "community_request",
+  "new_leader",
+  "funding",
+  "stack_change",
+  "launch",
+  "compliance_deadline",
+  "persona_post",
+  "public_pain",
+  "filing",
+  "hiring",
+] as const satisfies readonly SignalType[];
+
+const domain = z.string().trim().max(253).describe("Company website or domain, e.g. acme.com");
+const company = {
+  domain: domain.optional(),
+  name: z.string().trim().max(120).optional(),
+  description: z.string().max(600).optional().describe("What the company does"),
+  industry: z.string().max(120).optional(),
+  employees: z.number().int().min(0).max(10_000_000).optional(),
+  location: z.string().max(120).optional(),
+  tags: z.array(z.string().max(40)).max(10).optional(),
+};
+const person = z.object({
+  name: z.string().max(120).optional(),
+  first_name: z.string().max(60).optional(),
+  last_name: z.string().max(60).optional(),
+  title: z.string().max(120).optional(),
+  email: z.string().max(254).optional(),
+  linkedin_url: z.string().max(300).optional(),
+  location: z.string().max(120).optional(),
+});
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+export const TOOLS: ToolDef[] = [
+  tool({
+    name: "get_icp",
+    title: "Get the ICP",
+    description: "The founder's ideal customer profile: segment, criteria, disqualifiers, personas and tier rules. Read before prospecting.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/icp" },
+    schema: z.object({}),
+    run: () => ({ data: icpView(readWorkspace()), summary: "Read the ICP" }),
+  }),
+  tool({
+    name: "get_playbook",
+    title: "Get the playbook",
+    description: "Positioning, approved claims, founder points of view, objection answers and the writing rules for a channel. Read before writing anything.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/playbook" },
+    schema: z.object({
+      channel: z.enum(["email", "linkedin", "call"]).optional().describe("Default email"),
+      persona: z.string().max(80).optional().describe("Persona id, role (economic_buyer, champion…) or a title word"),
+    }),
+    run: (a) => ({
+      data: playbookView(readWorkspace(), a),
+      summary: `Read the playbook${a.channel ? ` for ${a.channel}` : ""}${a.persona ? ` (${a.persona})` : ""}`,
+    }),
+  }),
+  tool({
+    name: "score_accounts",
+    title: "Score accounts",
+    description: "Score up to 100 companies against the ICP with fixed rules (no AI). Returns tier A/B/C/none, fit 0–100, why-now 0–4 and reasons. Use before spending enrichment credits.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "POST", path: "/accounts/score" },
+    schema: z.object({
+      accounts: z
+        .array(
+          z.object({
+            ...company,
+            signals: z
+              .array(z.object({ type: z.enum(SIGNAL_TYPES), date: z.string().regex(/^\d{4}-\d{2}-\d{2}/).describe("YYYY-MM-DD"), url: z.string().max(500).optional() }))
+              .max(10)
+              .optional()
+              .describe("Dated why-now signals you found"),
+          }),
+        )
+        .min(1)
+        .max(100),
+    }),
+    run: (a) => {
+      const ctx = scoringContext(readWorkspace());
+      const results = a.accounts.map((x) => scoreAccount(ctx, x));
+      const tiers = { A: 0, B: 0, C: 0, none: 0 };
+      for (const r of results) tiers[r.tier]++;
+      return {
+        data: { results, icp_ready: ctx.ready },
+        summary: `Scored ${plural(results.length, "company", "companies")}: ${tiers.A} A, ${tiers.B} B, ${tiers.C} C`,
+      };
+    },
+  }),
+  tool({
+    name: "search_records",
+    title: "Search records",
+    description:
+      "Look up companies, people and deals by text, domain, email or LinkedIn URL. Use it to dedupe and to check do-not-contact before outreach. Top-level do_not_contact is true when the email or domain is on the founder's suppression list, even with no record.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/records" },
+    schema: z
+      .object({
+        query: z.string().max(120).optional(),
+        domain: z.string().max(253).optional(),
+        email: z.string().max(254).optional(),
+        linkedin_url: z.string().max(300).optional(),
+        limit: z.number().int().min(1).max(25).optional().describe("Default 10"),
+      })
+      .refine((a) => a.query || a.domain || a.email || a.linkedin_url, { message: "Send query, domain, email or linkedin_url." }),
+    run: (a) => {
+      const data = searchView(readWorkspace(), a);
+      const what = a.domain ?? a.email ?? a.linkedin_url ?? a.query ?? "";
+      return { data, summary: `Searched for ${what.slice(0, 50)} · ${data.exists ? `${plural(data.accounts.length, "company", "companies")}, ${plural(data.people.length, "person", "people")}` : "no match"}` };
+    },
+  }),
+  tool({
+    name: "get_next_actions",
+    title: "Get next actions",
+    description: "The founder's next moves, ranked as they see them today. Each has an action_id.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/actions" },
+    schema: z.object({
+      limit: z.number().int().min(1).max(25).optional().describe("Default 10"),
+      channel: z.enum(["email", "linkedin", "any"]).optional(),
+    }),
+    run: (a, ctx) => {
+      const data = nextActionsView(readWorkspace(), a, ctx.base);
+      return { data, summary: `Read ${plural(data.actions.length, "next action")}` };
+    },
+  }),
+  tool({
+    name: "add_accounts",
+    title: "Add accounts",
+    description: "Upsert up to 200 companies, each with up to 10 people, keyed on domain, email or LinkedIn URL. Only fills empty fields. Safe to retry.",
+    scope: "write_records",
+    readOnly: false,
+    idempotent: true,
+    rest: { method: "POST", path: "/accounts" },
+    schema: z.object({
+      source: z.string().trim().min(1).max(40).describe("Where these came from, e.g. muse, clay, apollo"),
+      external_id: z.string().max(120).optional().describe("Your id for this batch"),
+      accounts: z
+        .array(z.object({ ...company, linkedin_url: z.string().max(300).optional(), external_id: z.string().max(120).optional(), people: z.array(person).max(10).optional() }))
+        .min(1)
+        .max(200),
+    }),
+    run: (a, ctx) => addAccounts(ctx.key, a),
+  }),
+  tool({
+    name: "log_activity",
+    title: "Log activity",
+    description: "Record an email sent, reply, LinkedIn message, call, meeting, note, bounce or unsubscribe for a person or company. Idempotent on source_tool + external_id.",
+    scope: "write_records",
+    readOnly: false,
+    idempotent: true,
+    rest: { method: "POST", path: "/activities" },
+    schema: z
+      .object({
+        type: z.enum(["email_sent", "reply", "linkedin", "call", "meeting", "note", "bounce", "unsubscribe"]),
+        email: z.string().max(254).optional(),
+        linkedin_url: z.string().max(300).optional(),
+        domain: z.string().max(253).optional(),
+        person_name: z.string().max(120).optional(),
+        occurred_at: z.string().max(40).optional().describe("ISO 8601; default now"),
+        summary: z.string().trim().min(1).max(200),
+        body: z.string().max(4000).optional().describe("The message text, if any"),
+        sentiment: z.enum(["positive", "neutral", "negative", "referral", "ooo", "unsubscribe"]).optional().describe("For replies"),
+        source_tool: z.string().trim().min(1).max(40),
+        external_id: z.string().trim().min(1).max(120).describe("Your id for this event, so retries don't duplicate it"),
+      })
+      .refine((a) => a.email || a.linkedin_url || a.domain, { message: "Send email, linkedin_url or domain." }),
+    run: (a, ctx) => logActivity(ctx.key, a),
+  }),
+  tool({
+    name: "submit_draft",
+    title: "Submit a draft",
+    description: "Put a message you wrote in the founder's approval queue, with Inroad's quality checks. Never sends. Read get_playbook first.",
+    scope: "submit_drafts",
+    readOnly: false,
+    idempotent: false,
+    rest: { method: "POST", path: "/drafts" },
+    schema: z.object({
+      to: z
+        .object({
+          email: z.string().max(254).optional(),
+          linkedin_url: z.string().max(300).optional(),
+          name: z.string().max(120).optional(),
+          title: z.string().max(120).optional(),
+          domain: z.string().max(253).optional(),
+        })
+        .refine((t) => t.email || t.linkedin_url || (t.name && t.domain), { message: "Give a work email, a LinkedIn URL, or a name plus the company domain." }),
+      channel: z.enum(["email", "linkedin"]).default("email"),
+      kind: z.enum(["cold", "follow_up", "reply"]).default("cold"),
+      subject: z.string().max(120).optional(),
+      body: z.string().trim().min(1).max(3000).describe("Plain text, no signature"),
+      note: z.string().max(300).optional().describe("Why this person and why now, for the founder"),
+      external_id: z.string().max(120).optional(),
+      evidence_ids: z.array(z.string().max(64)).max(10).optional().describe("Evidence ids from get_account the draft cites"),
+      pov_id: z.string().max(64).optional().describe("The get_playbook pov the draft rests on"),
+    }),
+    run: (a, ctx) => submitDraft(ctx.key, a, ctx.base),
+  }),
+  tool({
+    name: "complete_action",
+    title: "Complete an action",
+    description: "Record what happened with an action from get_next_actions.",
+    scope: "write_records",
+    readOnly: false,
+    idempotent: false,
+    rest: { method: "POST", path: "/actions/complete" },
+    schema: z.object({
+      action_id: z.string().trim().min(1).max(160),
+      outcome: z.enum(["done", "booked", "replied", "skipped", "not_relevant"]),
+      note: z.string().max(300).optional(),
+    }),
+    run: (a, ctx) => completeAction(ctx.key, a),
+  }),
+  // Appended, not inserted, so callers' prompt-cache prefix for the tools above keeps hitting.
+  tool({
+    name: "get_account",
+    title: "Get an account",
+    description: "One company's research: dated signals with URLs, evidence quotes, angles and people. Read before writing to someone there.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/accounts" },
+    schema: z.object({ domain }),
+    run: (a, ctx) => {
+      const data = accountView(readWorkspace(), a.domain, ctx.base);
+      if (!data) throw new ToolError("No company with that domain. Use search_records.", 404);
+      return { data, summary: `Read ${data.domain}` };
+    },
+  }),
+];
+
+const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+
+export function getTool(name: string): ToolDef | undefined {
+  return BY_NAME.get(name);
+}
+
+export function toolsFor(scopes: Scope[]): ToolDef[] {
+  return TOOLS.filter((t) => scopes.includes(t.scope));
+}
+
+/** JSON Schema for a tool's input (what MCP and OpenAPI publish). */
+export function inputSchema(t: ToolDef): Record<string, unknown> {
+  const json = z.toJSONSchema(t.schema, { io: "input", unrepresentable: "any" }) as Record<string, unknown>;
+  delete json.$schema;
+  return json;
+}
+
+export type CallResult = { ok: true; data: Record<string, unknown> } | { ok: false; status: number; message: string };
+
+function issues(err: z.ZodError): string {
+  return err.issues
+    .slice(0, 6)
+    .map((i) => `${i.path.join(".") || "input"}: ${i.message}`)
+    .join("; ");
+}
+
+function recordsWanted(name: string, input: Record<string, unknown>): number {
+  if (name !== "add_accounts") return 1;
+  const accounts = (input.accounts as { people?: unknown[] }[] | undefined) ?? [];
+  return accounts.reduce((n, a) => n + 1 + (a.people?.length ?? 0), 0);
+}
+
+/** Validates scope and input, runs the tool, and logs the call to the key's feed. */
+export async function callTool(name: string, raw: unknown, ctx: CallContext): Promise<CallResult> {
+  const t = getTool(name);
+  if (!t) return { ok: false, status: 404, message: `Unknown tool: ${name}` };
+  const started = Date.now();
+  const fail = async (status: number, message: string): Promise<CallResult> => {
+    await logCall(ctx.key.id, { tool: name, via: ctx.via, ok: false, summary: message, ms: Date.now() - started });
+    return { ok: false, status, message };
+  };
+  if (!ctx.key.scopes.includes(t.scope)) {
+    const level = ACCESS.find((a) => a.scopes.includes(t.scope))?.label ?? t.scope;
+    return fail(403, `This key can't use ${name}. Ask the founder for a key with "${level}" access.`);
+  }
+  const parsed = t.schema.safeParse(raw ?? {});
+  if (!parsed.success) return fail(400, `Invalid input. ${issues(parsed.error)}`);
+  if (!t.readOnly) {
+    const budget = recordBudget(ctx.key.id, recordsWanted(name, parsed.data as Record<string, unknown>));
+    if (!budget.ok) return fail(429, `This key has written its hourly limit of records (${budget.left} left). Try again later or send fewer.`);
+  }
+  try {
+    const out = await t.run(parsed.data as never, ctx);
+    await logCall(ctx.key.id, { tool: name, via: ctx.via, ok: true, summary: out.summary, ms: Date.now() - started });
+    return { ok: true, data: out.data };
+  } catch (err) {
+    if (err instanceof ToolError) return fail(err.status, err.message);
+    if (err instanceof ActionError) return fail(400, err.message);
+    console.error("[agents]", name, err);
+    return fail(500, "Something went wrong inside Inroad. Try again.");
+  }
+}
