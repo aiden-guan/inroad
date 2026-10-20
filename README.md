@@ -36,6 +36,24 @@ npm run mock:anthropic   # terminal 1 — fake Claude on :4010
 npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder
 ```
 
+### Running tests
+
+```bash
+npm test             # the whole suite, about 2 seconds
+npm run test:watch   # re-runs affected tests as you edit
+```
+
+The suite is [Vitest](https://vitest.dev) and covers the logic the product leans on: the workspace reducer, Today's
+moves and scoreboard, draft lint and pre-send gates, deal rules, the signal parsers (against saved responses in
+`src/test/fixtures/signals`), the SSRF guard, the proxy, the MCP endpoint and the agent engine (against the mock
+Anthropic server, started by the test). It is deterministic and offline: every test file gets its own temporary data
+folder instead of `.data/`, the clock runs in `America/Los_Angeles`, fetches to anything but localhost fail, and no
+Anthropic key is ever used. Tests sit next to the code they cover (`foo.test.ts`); shared builders are in `src/test/`.
+
+CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `next typegen`, `tsc --noEmit`,
+`eslint src`, `npm test` and `next build`. On a fresh checkout run `npx next typegen` once before `npm run typecheck`,
+so the route types Next generates (`PageProps`, `RouteContext`) exist.
+
 ## What's inside
 
 | Surface | What it's for |

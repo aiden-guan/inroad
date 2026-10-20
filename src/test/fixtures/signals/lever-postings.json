@@ -1,0 +1,16 @@
+[
+  {
+    "id": "5c0e7b1a-0d2f-4bb3-9f5a-1a2b3c4d5e6f",
+    "text": "Revenue Operations Analyst",
+    "hostedUrl": "https://jobs.lever.co/acme-labs/5c0e7b1a",
+    "createdAt": 1792238400000,
+    "categories": { "team": "Finance", "location": "New York", "commitment": "Full-time" }
+  },
+  {
+    "id": "7d1f8c2b-1e3a-4cc4-8a6b-2b3c4d5e6f70",
+    "text": "Solutions Engineer",
+    "hostedUrl": "https://jobs.lever.co/acme-labs/7d1f8c2b",
+    "createdAt": 1789646400000,
+    "categories": { "department": "Go to market", "location": "Remote" }
+  }
+]

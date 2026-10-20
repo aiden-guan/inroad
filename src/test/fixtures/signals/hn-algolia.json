@@ -1,0 +1,8 @@
+{
+  "hits": [
+    { "objectID": "41820001", "title": "Show HN: Acme – reconcile usage events with invoices", "url": "https://acme.com/launch", "created_at": "2026-10-14T15:02:11Z", "points": 212 },
+    { "objectID": "41820002", "title": null, "url": "https://acme.com/blog", "created_at": "2026-10-10T10:00:00Z" },
+    { "objectID": "41820003", "title": "Acme pricing page teardown", "url": "https://acme.com/pricing", "created_at": "2026-10-02T08:00:00Z" }
+  ],
+  "nbHits": 3
+}

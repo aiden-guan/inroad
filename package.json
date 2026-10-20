@@ -9,6 +9,8 @@
     "lint": "eslint",
     "dev:mock": "ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=mock GTM_DATA_DIR=.data-mock next dev -p 3100",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "mock:anthropic": "node scripts/mock-anthropic.mjs"
   },
   "dependencies": {
@@ -42,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "4.1.11"
   }
 }

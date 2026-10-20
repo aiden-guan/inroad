@@ -1,0 +1,7 @@
+{
+  "articles": [
+    { "url": "https://www.finextra.example/acme-funding", "title": "Acme raises $12M to automate usage invoicing", "seendate": "20261012T131500Z", "domain": "finextra.example", "language": "English" },
+    { "url": "https://www.example-news.com/acme-hires-cfo", "title": "Acme hires former Stripe finance lead as CFO", "seendate": "20261005T090000Z", "domain": "example-news.com" },
+    { "url": "https://www.example-news.com/undated", "title": "Acme profile", "seendate": "not-a-date" }
+  ]
+}

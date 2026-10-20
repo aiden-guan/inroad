@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" version="2.0">
+<channel>
+<title>"Acme" (startup OR raises) - Google News</title>
+<link>https://news.google.com/search?q=acme</link>
+<item>
+  <title><![CDATA[Acme raises $12M Series A to fix usage billing - TechCrunch]]></title>
+  <link>https://news.google.com/rss/articles/CBMiA1?oc=5</link>
+  <guid isPermaLink="false">CBMiA1</guid>
+  <pubDate>Mon, 12 Oct 2026 13:00:00 GMT</pubDate>
+  <description>&lt;a href="https://news.google.com/rss/articles/CBMiA1"&gt;Acme raises&lt;/a&gt;</description>
+  <source url="https://techcrunch.com">TechCrunch</source>
+</item>
+<item>
+  <title>Acme &amp; Tollgate partner on &quot;usage-first&quot; invoicing - Business Wire</title>
+  <link>https://news.google.com/rss/articles/CBMiB2?oc=5</link>
+  <pubDate>Thu, 01 Oct 2026 09:15:00 GMT</pubDate>
+  <source url="https://www.businesswire.com">Business Wire</source>
+</item>
+<item>
+  <title>Road Runner sues Acme Corporation over defective rockets</title>
+  <link>https://news.google.com/rss/articles/CBMiC3?oc=5</link>
+  <pubDate>Tue, 15 Sep 2026 09:15:00 GMT</pubDate>
+  <source url="https://www.example-gazette.com">Example Gazette</source>
+</item>
+<item>
+  <title></title>
+  <link>https://news.google.com/rss/articles/empty</link>
+</item>
+</channel>
+</rss>

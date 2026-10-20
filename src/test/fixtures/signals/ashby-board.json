@@ -1,0 +1,29 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "title": "Head of Finance Operations",
+      "department": "Finance",
+      "team": "Finance Ops",
+      "location": "New York",
+      "jobUrl": "https://jobs.ashbyhq.com/saltmarsh/3f1c",
+      "publishedAt": "2026-10-15T16:00:00.000+00:00",
+      "isListed": true
+    },
+    {
+      "title": "Platform Engineer",
+      "team": "Infrastructure",
+      "location": "Remote",
+      "jobUrl": "https://jobs.ashbyhq.com/saltmarsh/8a2d",
+      "publishedAt": "2026-10-01T16:00:00.000+00:00"
+    },
+    {
+      "title": "Internal Referral Role",
+      "department": "People",
+      "location": "New York",
+      "jobUrl": "https://jobs.ashbyhq.com/saltmarsh/0000",
+      "publishedAt": "2026-10-19T16:00:00.000+00:00",
+      "isListed": false
+    }
+  ]
+}
