@@ -1,6 +1,6 @@
 import "server-only";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
-import type { DeliveryLogEntry, InboundLogEntry, SyncLogEntry } from "./types";
+import type { DeliveryLogEntry, InboundLogEntry, PollStatus, SyncLogEntry } from "./types";
 
 /**
  * Hub bookkeeping in `.data/hub.json`, separate from the workspace because it's write-heavy and
@@ -9,6 +9,7 @@ import type { DeliveryLogEntry, InboundLogEntry, SyncLogEntry } from "./types";
  *  - seen: idempotency keys for inbound events and activities
  *  - known: domains imported from a CRM; companies the founder already knows, never suggested as prospects
  *  - logs: recent inbound events, outbound deliveries and CRM syncs, for the cards
+ *  - poll: per-connector change-feed cursors, for when no public URL reaches us
  */
 export interface HubState {
   refs: Record<string, { id: string; url?: string; at: string }>;
@@ -20,6 +21,7 @@ export interface HubState {
   sync: SyncLogEntry[];
   slack: { briefSentOn?: string };
   appUrl?: string;
+  poll?: Record<string, PollStatus & { cursor: Record<string, string> }>;
 }
 
 const LIMITS = { seen: 5000, inbound: 100, deliveries: 100, sync: 50 };

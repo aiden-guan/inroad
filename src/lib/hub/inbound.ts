@@ -484,7 +484,7 @@ interface Ledger {
   refs: Record<string, { id: string; at: string }>;
 }
 
-function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: Ledger, at: string): ApplyResult {
+function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: Ledger, at: string, polled = false): ApplyResult {
   const seen = ledger.seen;
   const via = inboundSourceName(source);
   const counts: InboundCounts = { accounts: 0, people: 0, activities: 0, meetings: 0, skipped: 0 };
@@ -493,7 +493,7 @@ function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: L
   const kinds: Partial<Record<ActivityKind, number>> = {};
   let canceled = 0;
   let replies = 0;
-  const meta = { source: "integration" as const, sourceDetail: `${via} webhook`, at, tag: `via:${source}` };
+  const meta = { source: "integration" as const, sourceDetail: `${via} ${polled ? "sync" : "webhook"}`, at, tag: `via:${source}` };
   const markSeen = (key: string) => {
     seen[key] = at;
   };
@@ -761,23 +761,43 @@ function summarize(r: ApplyResult, ignored: number): string {
 // One inbound delivery at a time, so two retries of the same event can't both pass the dedupe check.
 let queue: Promise<unknown> = Promise.resolve();
 
+interface ReceiveOptions {
+  /** Items read by polling the tool's API (src/lib/hub/poll.ts) instead of a POST to the hook URL. */
+  via?: "poll";
+}
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 /**
  * Handles one POST to /api/hooks/{source}/{secret}. Idempotent on the delivery id
  * (Idempotency-Key / webhook-id / body hash) and on each item's external id.
  */
 export function receiveInbound(source: string, payload: unknown, deliveryKey: string): Promise<InboundLogEntry> {
-  const run = queue.then(() => receive(source, payload, deliveryKey));
-  queue = run.catch(() => undefined);
-  return run;
+  return enqueue(async () => (await receive(source, payload, deliveryKey, {}))!);
 }
 
-async function receive(source: string, payload: unknown, deliveryKey: string): Promise<InboundLogEntry> {
+/**
+ * The same path for a batch read by polling the tool's API. A reply seen by both a webhook and a
+ * poll is recorded once (same external id). A poll that finds nothing new returns null and leaves
+ * no log line, so the event list isn't buried under "already here".
+ */
+export function receivePolled(source: string, payload: unknown, deliveryKey: string): Promise<InboundLogEntry | null> {
+  return enqueue(() => receive(source, payload, deliveryKey, { via: "poll" }));
+}
+
+async function receive(source: string, payload: unknown, deliveryKey: string, opts: ReceiveOptions): Promise<InboundLogEntry | null> {
+  const polled = opts.via === "poll";
   const at = nowISO();
   const eventKey = `evt:${source}:${deliveryKey}`;
   const zero: InboundCounts = { accounts: 0, people: 0, activities: 0, meetings: 0, skipped: 0 };
 
   const hub = readHub();
-  if (hub.seen[eventKey]) {
+  // A poll has no delivery id; its items dedupe on their own external ids.
+  if (!polled && hub.seen[eventKey]) {
     const entry: InboundLogEntry = { id: newId("inb"), source, at, status: "duplicate", summary: "Already received; ignored", counts: zero };
     await mutateHub((h) => {
       h.inbound.unshift(entry);
@@ -801,9 +821,15 @@ async function receive(source: string, payload: unknown, deliveryKey: string): P
   }
   const ledger: Ledger = { seen: { ...hub.seen }, refs: {} };
   for (const [key, v] of Object.entries(hub.refs)) if (key.startsWith(`booking:${source}:`)) ledger.refs[key] = v;
-  const { value: result } = await mutateWorkspace((ws) => applyNormalized(ws, source, n, ledger, at));
+  const { value: result } = await mutateWorkspace((ws) => applyNormalized(ws, source, n, ledger, at, polled));
 
   const nothing = !result.counts.accounts && !result.counts.people && !result.counts.activities && !result.counts.meetings && !result.labels.length && !result.canceled;
+  if (polled && nothing) {
+    await mutateHub((h) => {
+      for (const [key, v] of Object.entries(ledger.seen)) h.seen[key] = v;
+    });
+    return null;
+  }
   const unmapped = [...n.unmapped].slice(0, 12);
   const entry: InboundLogEntry = {
     id: newId("inb"),
@@ -813,11 +839,12 @@ async function receive(source: string, payload: unknown, deliveryKey: string): P
     summary: summarize(result, n.ignored),
     counts: result.counts,
     ...(unmapped.length ? { unmapped } : {}),
+    ...(polled ? { via: "poll" as const } : {}),
   };
   await mutateHub((h) => {
     for (const [key, v] of Object.entries(ledger.seen)) h.seen[key] = v;
     for (const [key, v] of Object.entries(ledger.refs)) h.refs[key] = v;
-    h.seen[eventKey] = at;
+    if (!polled) h.seen[eventKey] = at;
     h.inbound.unshift(entry);
   });
 

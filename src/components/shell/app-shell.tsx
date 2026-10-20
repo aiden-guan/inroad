@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { AskDialog } from "@/components/ask/ask-dialog";
+import { ConnectorPoller } from "@/components/integrations/connector-poller";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Orb } from "@/components/ui/orb";
 import { BRAND } from "@/lib/brand";
@@ -97,6 +98,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <CommandPalette />
       <AskDialog />
+      <ConnectorPoller />
     </div>
   );
 }

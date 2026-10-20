@@ -320,7 +320,7 @@ function PublicAddress({ origin, publicUrl }: { origin: string; publicUrl: strin
     }
     setError(null);
     // One public address for the whole app: hook URLs and agent snippets both use it.
-    const ok = await dispatch({ type: "integration.update", id: "webhook_in", patch: { config: { publicUrl: v } } });
+    const ok = await dispatch({ type: "integration.update", id: "webhook_in", patch: { config: { publicUrl: v, publicUrlTunnel: false } } });
     if (ok) {
       setEditing(false);
       toast.success(v ? "Muse and cloud tools now use your public address." : "Back to the local address.");

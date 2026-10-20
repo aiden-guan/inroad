@@ -1,6 +1,6 @@
 import "server-only";
 import { request, splitName } from "./http";
-import { fail, ok, type Connector, type ConnectorFactory, type ExternalRef, type Pipeline, type Result } from "./types";
+import { fail, ok, type Connector, type ConnectorFactory, type CrmChanges, type ExternalRef, type Pipeline, type PollCursor, type Result } from "./types";
 
 /**
  * HubSpot CRM (Service Key or legacy private app token, Bearer).
@@ -8,6 +8,11 @@ import { fail, ok, type Connector, type ConnectorFactory, type ExternalRef, type
  * Search-then-create for companies and contacts because domain upserts aren't documented, and
  * search lags writes by a few seconds, so the caller keeps its own id ledger.
  * Association type ids: contact→company 279, deal→company 341 (HUBSPOT_DEFINED, unlabeled).
+ *
+ * Polling: Service Keys get no webhooks, so changes are read by searching on the last-modified
+ * date (`hs_lastmodifieddate`; contacts use `lastmodifieddate`), oldest first, one page of 100 per
+ * object per poll, resuming from the newest date seen. Search allows 5 requests a second, so the
+ * calls are spaced 250 ms apart.
  */
 
 const BASE = "https://api.hubapi.com";
@@ -19,6 +24,10 @@ let preferV3 = false;
 
 type Obj = { id: string; properties?: Record<string, string | null> };
 type Search = { total?: number; results: Obj[]; paging?: { next?: { after?: string } } };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const FIRST_LOOKBACK_MS = 7 * 86_400_000;
+const num = (v: string | null | undefined) => (v && Number.isFinite(Number(v)) ? Number(v) : undefined);
 
 export const hubspot: ConnectorFactory = (token, config) => {
   const portalId = config.portalId ? String(config.portalId) : undefined;
@@ -204,6 +213,66 @@ export const hubspot: ConnectorFactory = (token, config) => {
           after = r.value.paging?.next?.after;
           if (!after) break;
         }
+        return ok(out);
+      },
+
+      async pullChanges(cursor: PollCursor, dealIds: string[]) {
+        const fallback = String(Date.now() - FIRST_LOOKBACK_MS);
+        const warnings: string[] = [];
+        const next: PollCursor = { ...cursor };
+
+        // One page of records modified after the cursor, oldest first. Returns rows and the newest date.
+        async function changed(object: "companies" | "contacts" | "deals", modified: string, properties: string[], extra: object[] = []) {
+          await sleep(250);
+          const since = cursor[object] ?? fallback;
+          const r = await versioned<Search>("POST", `/crm/objects/${V}/${object}/search`, `/crm/v3/objects/${object}/search`, {
+            filterGroups: [{ filters: [{ propertyName: modified, operator: "GT", value: since }, ...extra] }],
+            sorts: [{ propertyName: modified, direction: "ASCENDING" }],
+            properties: [...properties, modified],
+            limit: 100,
+          });
+          if (!r.ok) return r;
+          let newest = since;
+          for (const o of r.value.results ?? []) {
+            const t = Date.parse(o.properties?.[modified] ?? "");
+            if (Number.isFinite(t) && t > Number(newest)) newest = String(t);
+          }
+          next[object] = newest;
+          return ok(r.value.results ?? []);
+        }
+
+        const out: CrmChanges = { companies: [], people: [], deals: [], cursor: next };
+        const companies = await changed("companies", "hs_lastmodifieddate", ["name", "domain", "city"]);
+        if (!companies.ok) return companies;
+        for (const c of companies.value) if (c.properties?.domain) out.companies.push({ domain: c.properties.domain, name: c.properties.name ?? undefined, city: c.properties.city ?? undefined });
+
+        const contacts = await changed("contacts", "lastmodifieddate", ["email", "firstname", "lastname", "jobtitle"]);
+        if (contacts.ok) {
+          for (const c of contacts.value) {
+            const p = c.properties ?? {};
+            if (!p.email) continue;
+            const name = [p.firstname, p.lastname].filter(Boolean).join(" ");
+            out.people.push({ email: p.email, ...(name ? { name } : {}), ...(p.jobtitle ? { title: p.jobtitle } : {}) });
+          }
+        } else warnings.push(contacts.error.message);
+
+        // Only the deals we mirror; a portal's other deals aren't ours to read.
+        if (dealIds.length) {
+          const deals = await changed("deals", "hs_lastmodifieddate", ["dealname", "dealstage", "pipeline", "amount", "closedate"], [{ propertyName: "hs_object_id", operator: "IN", values: dealIds.slice(0, 100) }]);
+          if (deals.ok) {
+            for (const d of deals.value) {
+              const p = d.properties ?? {};
+              out.deals.push({
+                externalId: d.id,
+                ...(p.dealname ? { name: p.dealname } : {}),
+                ...(p.dealstage ? { stageId: p.dealstage } : {}),
+                ...(num(p.amount) !== undefined ? { amountUsd: num(p.amount) } : {}),
+                ...(p.closedate ? { closeDate: p.closedate.slice(0, 10) } : {}),
+              });
+            }
+          } else warnings.push(deals.error.message);
+        }
+        if (warnings.length) out.warnings = warnings;
         return ok(out);
       },
     },

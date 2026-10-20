@@ -19,6 +19,18 @@ export interface InboundLogEntry {
   counts: InboundCounts;
   /** Top-level fields we didn't recognise, so the founder can fix their mapping. */
   unmapped?: string[];
+  /** Read by polling the tool's API rather than pushed to the hook URL. */
+  via?: "poll";
+}
+
+/** Where a connector's change feed stands (GET /api/integrations/status → `poll`). */
+export interface PollStatus {
+  lastAt?: ISODateTime;
+  /** Plain sentence about the last poll that found or failed something. */
+  lastSummary?: string;
+  lastError?: string;
+  /** Not before this time (after a rate limit or an error). */
+  nextAt?: ISODateTime;
 }
 
 export interface DeliveryLogEntry {
@@ -51,4 +63,6 @@ export interface HubStatus {
   /** Which native connectors have a saved key. Never the key itself. */
   keys: Record<string, boolean>;
   slack: { briefSentOn?: string };
+  /** Connectors read by polling because no public URL reaches this app. */
+  poll?: Record<string, PollStatus>;
 }
