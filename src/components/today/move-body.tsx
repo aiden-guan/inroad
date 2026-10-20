@@ -173,6 +173,7 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
     case "cold_draft":
     case "signal":
     case "linkedin":
+    case "linkedin_dm":
     case "intro_draft":
     case "warm_path":
     case "connector": {
@@ -188,7 +189,7 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       return (
         <DraftOrCompose
           {...props}
-          compose={{ domain: target, personId: person?.id, mode: rule === "linkedin" ? "linkedin" : isIntro ? "warm_intro" : "cold", connectorId }}
+          compose={{ domain: target, personId: person?.id, mode: rule === "linkedin" || rule === "linkedin_dm" ? "linkedin" : isIntro ? "warm_intro" : "cold", connectorId }}
           label={isIntro ? "Draft the intro ask" : "Draft the first touch"}
           lead={
             isIntro ? (
@@ -587,13 +588,14 @@ function EventBody({ move, ws, onComplete }: BodyProps) {
         variant="primary"
         icon={<Check className="size-3.5" />}
         onClick={async () => {
-          const ok = index >= 0 ? await dispatch({ type: "event.toggleTask", id: ev.id, index }) : true;
+          // Set, not toggle: the task may already have been ticked on the timeline in another tab.
+          const ok = index >= 0 && ev.plan?.timeline[index] ? await dispatch({ type: "event.toggleTask", id: ev.id, index, done: true }) : true;
           if (ok) onComplete();
         }}
       >
         Mark done
       </Button>
-      <Quiet href={`/events/${encodeURIComponent(ev.id)}`}>Open {ev.title}</Quiet>
+      <Quiet href={move.href ?? `/events/${encodeURIComponent(ev.id)}?tab=timeline`}>Open the timeline</Quiet>
     </Row>
   );
 }

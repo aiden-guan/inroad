@@ -103,7 +103,9 @@ function TemplateVars({ id }: { id: SequencerId }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2.5 text-[12px] leading-[18px] text-fg-3">Keep this campaign to one step. I draft follow-ups here when they&apos;re due, for you to approve.</p>
+      <p className="mt-2.5 text-[12px] leading-[18px] text-fg-3">
+        Write your follow-ups as the campaign&apos;s later steps. {name} sends them and stops when someone replies, so I don&apos;t draft follow-ups for leads pushed there.
+      </p>
     </div>
   );
 }

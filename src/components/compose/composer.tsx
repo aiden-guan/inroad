@@ -23,7 +23,7 @@ import type { DraftStep, OutreachPackage, Person, Workspace } from "@/lib/domain
 import { currentStep, lintStep } from "@/lib/quality/context";
 import { PERSONAL_DOMAINS, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
 import { LIMITS, limitsFor } from "@/lib/quality/lint";
-import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch } from "@/lib/quality/sequence";
+import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { ease } from "@/lib/motion";
 import { CheckDetails, CheckLine, type Count } from "./check-line";
 import { AvailabilityForm, PovForm, RecipientForm, SenderForm, VerifyGuess } from "./fix-forms";
@@ -616,6 +616,9 @@ function DraftBody({
             <SentFooter pkg={pkg} next={next} replied={replied} />
           )}
           {step.status === "cancelled_by_reply" && <p className="mt-3 text-[12.5px] text-fg-3">They replied, so the rest of this sequence stopped.</p>}
+          {step.status === "approved" && step.step === 1 && senderOwnsSequence(pkg) && (
+            <p className="mt-3 text-[12.5px] text-fg-3">In {sequenceOwnerName(pkg)}. Its campaign sends the follow-ups and stops them when they reply.</p>
+          )}
 
           {/* Handoff */}
           {editable && !hardBlocked && (

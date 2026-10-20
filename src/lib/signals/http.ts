@@ -1,6 +1,8 @@
 import "server-only";
+import dns from "node:dns";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
+import { Agent, fetch, type Response } from "undici";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36";
 
@@ -23,8 +25,26 @@ function isPrivateIp(ip: string): boolean {
 }
 
 /**
+ * The address the socket actually connects to is checked again here. Without it, a host that
+ * resolves to a public IP for the pre-check and to 127.0.0.1 a moment later (DNS rebinding) would
+ * get through. IP literals skip lookup; the pre-check covers them, and they can't change.
+ */
+const guardedLookup: net.LookupFunction = (hostname, options, callback) => {
+  dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return callback(err, []);
+    const blocked = !addresses.length || addresses.some((a) => isPrivateIp(a.address));
+    if (blocked) return callback(Object.assign(new Error(`${hostname} resolves to a private address`), { code: "EADDRNOTAVAIL" }), []);
+    if (options.all) return callback(null, addresses);
+    callback(null, addresses[0].address, addresses[0].family);
+  });
+};
+
+const dispatcher = new Agent({ connect: { lookup: guardedLookup } });
+
+/**
  * Research URLs can come from outside (agents, webhooks, imports), so never let them reach this
- * machine or the local network (SSRF). Checked on every redirect hop, after DNS resolution.
+ * machine or the local network (SSRF). Checked on every redirect hop, after DNS resolution, and
+ * again at connect time by `guardedLookup`.
  */
 async function isPublicUrl(raw: string): Promise<boolean> {
   let url: URL;
@@ -59,11 +79,12 @@ export async function fetchText(
     let res: Response | null = null;
     for (let hop = 0; hop < 6; hop++) {
       if (!(await isPublicUrl(current))) return null;
+      // undici's own fetch (not Next's patched global one, so no data cache) with the guarded dispatcher.
       res = await fetch(current, {
         headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9" },
         redirect: "manual",
         signal: controller.signal,
-        cache: "no-store",
+        dispatcher,
       });
       const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
       if (!location) break;

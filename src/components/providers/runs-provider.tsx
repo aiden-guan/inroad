@@ -83,6 +83,8 @@ function reduce(state: RunState, event: AgentEvent): RunState {
       return { ...state, writingChars: event.chars };
     case "text":
       return { ...state, text: state.text + event.text };
+    case "text_reset":
+      return { ...state, text: event.text };
     case "usage":
       return { ...state, costUsd: event.costUsd };
     case "result":

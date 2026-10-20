@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
+import { proofCounts, themeNeedsProof } from "@/components/playbook/model";
 import { Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { SourceChip } from "@/components/ui/source";
@@ -52,7 +53,7 @@ function Sub({ children }: { children: ReactNode }) {
   return <h4 className="mb-1.5 text-[12px] font-medium text-fg-3">{children}</h4>;
 }
 
-function Positioning({ f, evidence }: { f: Foundation; evidence: Workspace["evidence"] }) {
+function Positioning({ f, ws }: { f: Foundation; ws: Workspace }) {
   const p = f.positioning;
   return (
     <div className="space-y-5">
@@ -110,13 +111,13 @@ function Positioning({ f, evidence }: { f: Foundation; evidence: Workspace["evid
             {p.valueThemes.map((t) => (
               <li key={t.id} className="text-pretty text-[13.5px] leading-5 text-fg">
                 <span className="font-medium">{t.theme}.</span> <span className="text-fg-2">{t.outcome}</span>{" "}
-                {t.needsProof ? (
+                {themeNeedsProof(ws, t) ? (
                   <Badge tone="outline" className="align-[1px]">
                     needs proof
                   </Badge>
                 ) : (
                   t.proof.map((pr, i) => {
-                    const ev = pr.evidenceId ? evidence[pr.evidenceId] : undefined;
+                    const ev = pr.evidenceId && proofCounts(ws, pr) ? ws.evidence[pr.evidenceId] : undefined;
                     return ev ? <SourceChip key={i} url={ev.url} quote={ev.quote} claim={ev.claim} confidence={ev.confidence} publishedAt={ev.publishedAt} /> : null;
                   })
                 )}
@@ -297,7 +298,7 @@ function Questions({ f }: { f: Foundation }) {
 function SectionBody({ k, f, ws }: { k: FoundationSection; f: Foundation; ws: Workspace }) {
   switch (k) {
     case "positioning":
-      return <Positioning f={f} evidence={ws.evidence} />;
+      return <Positioning f={f} ws={ws} />;
     case "icp":
       return <Icp f={f} />;
     case "personas":

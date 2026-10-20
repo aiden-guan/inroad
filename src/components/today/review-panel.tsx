@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CopyButton, Markdown } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { nowISO } from "@/lib/domain/ids";
-import type { Brief, ReviewProposal, Workspace } from "@/lib/domain/types";
+import type { Brief, EntityRef, ReviewProposal, Workspace } from "@/lib/domain/types";
 import { applyLabel, proposalActions } from "./proposals";
 import { RunInline } from "./parts";
 
@@ -18,6 +18,9 @@ const ABOUT = {
   friday:
     "I'll read every reply from this week, tally inputs against targets with sample sizes, quote the objections, and propose up to 3 playbook edits and one message bet for next month. About a minute.",
 } as const;
+
+/** The review workflow's run ref: one per kind, so each card shows only its own work log. */
+const reviewRef = (kind: "monday" | "friday"): EntityRef => ({ kind: "playbook", id: `review:${kind}` });
 
 /** This week's review of a kind, newest first (it may have been run on any day this week). */
 export function findReview(ws: Workspace, kind: "monday" | "friday", weekStart: string): Brief | undefined {
@@ -32,7 +35,13 @@ export function ReviewBody({ ws, kind, weekStart }: { ws: Workspace; kind: "mond
     return (
       <div className="space-y-3">
         <p className="font-serif text-[16px] leading-[25px] text-fg-2">{ABOUT[kind]}</p>
-        <RunInline workflow="review" args={{ kind }} label={kind === "monday" ? "Run the pipeline review" : "Run the learning review"} hint="Costs about $0.05" />
+        <RunInline
+          workflow="review"
+          args={{ kind }}
+          runRef={reviewRef(kind)}
+          label={kind === "monday" ? "Run the pipeline review" : "Run the learning review"}
+          hint="Costs about $0.05"
+        />
       </div>
     );
   }
@@ -62,7 +71,7 @@ export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; 
           <p className="text-[12px] text-fg-3">Nothing changes until you apply it. Stages only move when you say so.</p>
         </div>
       )}
-      <RunInline workflow="review" args={{ kind }} label="Run it again" variant="secondary" />
+      <RunInline workflow="review" args={{ kind }} runRef={reviewRef(kind)} label="Run it again" variant="secondary" />
     </div>
   );
 }

@@ -161,8 +161,9 @@ export function coldCapLeft(ws: Workspace): number {
 
 /**
  * The founder's chosen drafts as a sequencer CSV, up to what the cold cap allows today. Their steps
- * become "approved" (handed to a sender outside Inroad) with step 1 dated today, so follow-ups come
- * due from the export date; a "pushed" activity is logged, and they won't be offered again.
+ * become "approved" (handed to a sender outside Inroad) with step 1 dated today; the sequencer's own
+ * later steps are the follow-ups, so Today drafts none. A "pushed" activity is logged, and they won't
+ * be offered again.
  */
 export async function exportSequencer(packageIds: string[]): Promise<{ csv: string; fileName: string; rows: number; skipped: number }> {
   const at = nowISO();

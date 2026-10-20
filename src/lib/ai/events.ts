@@ -15,6 +15,8 @@ export type AgentEvent =
   | { type: "action"; text: string }
   | { type: "writing"; chars: number }
   | { type: "text"; text: string }
+  /** Replaces the streamed text so far: text before a tool call was working notes, or a failed attempt was re-issued. */
+  | { type: "text_reset"; text: string }
   | { type: "usage"; costUsd: number; model: "strategist" | "operator" | "fast" }
   | { type: "result"; data: unknown }
   | { type: "error"; message: string; code?: string }

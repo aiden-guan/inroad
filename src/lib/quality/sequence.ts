@@ -1,3 +1,4 @@
+import { CONNECTORS, SEQUENCER_IDS, type SequencerId } from "@/lib/connectors/catalog";
 import { addDays, todayISO } from "@/lib/domain/ids";
 import type { Activity, DraftStep, OutreachPackage } from "@/lib/domain/types";
 
@@ -40,10 +41,25 @@ export function repliedSinceFirstTouch(pkg: OutreachPackage, activities: Activit
 }
 
 /**
+ * Handed to a sequencer (pushed to a connected one, or exported as a sequencer CSV): its campaign's
+ * later steps are the follow-ups, and it stops them on a reply. A follow-up drafted here would have to
+ * go out by hand, from another mailbox, outside that thread.
+ */
+export function senderOwnsSequence(pkg: OutreachPackage): boolean {
+  return !!pkg.pushedTo?.length;
+}
+
+/** "Instantly", or "your sequencer" for a CSV export. */
+export function sequenceOwnerName(pkg: OutreachPackage): string {
+  const id = pkg.pushedTo?.find((p) => SEQUENCER_IDS.includes(p.integrationId as SequencerId))?.integrationId as SequencerId | undefined;
+  return id ? CONNECTORS[id].name : "your sequencer";
+}
+
+/**
  * The next follow-up for a cold package, or null when the sequence is over, paused by a reply,
- * or step 1 hasn't gone out. `due` is true on or after its date. Today uses this to create moves;
- * the compose workflow (mode "follow_up") writes the draft when it's due. Pass `activities` so a
- * reply logged before the next step was drafted (nothing to cancel yet) also stops the sequence.
+ * owned by a sequencer, or step 1 hasn't gone out. `due` is true on or after its date. The compose
+ * workflow (mode "follow_up") writes the draft when it's due. Pass `activities` so a reply logged
+ * before the next step was drafted (nothing to cancel yet) also stops the sequence.
  */
 export function nextFollowUp(
   pkg: OutreachPackage,
@@ -51,6 +67,7 @@ export function nextFollowUp(
   activities?: Activity[],
 ): { step: number; dueOn: string; due: boolean; drafted: boolean } | null {
   if (pkg.mode !== "cold" && pkg.mode !== "follow_up") return null;
+  if (senderOwnsSequence(pkg)) return null;
   if (pkg.steps.some((s) => s.status === "cancelled_by_reply")) return null;
   if (activities && repliedSinceFirstTouch(pkg, activities)) return null;
   const sentSteps = pkg.steps.filter((s) => s.status === "sent" || s.status === "approved").map((s) => s.step);

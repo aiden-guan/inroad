@@ -141,6 +141,13 @@ async function handle(req, res) {
   let stop = "end_turn";
   const tool = firstPass ? terminal ?? (appTools.length && /add|create|log|save/i.test(userText) ? appTools[0] : null) : null;
   if (tool) {
+    // Real models often narrate before a lookup; Ask treats that text as working notes, not the answer.
+    if (tool !== terminal) {
+      await send({ type: "content_block_start", index, content_block: { type: "text", text: "" } });
+      for (const word of "Let me check your workspace first. ".split(/(?<= )/)) await send({ type: "content_block_delta", index, delta: { type: "text_delta", text: word } });
+      await send({ type: "content_block_stop", index });
+      index++;
+    }
     const input = fake(tool.input_schema, tool.name);
     const json = JSON.stringify(input);
     const tid = id("toolu");

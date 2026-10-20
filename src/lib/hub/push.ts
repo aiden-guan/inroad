@@ -70,8 +70,9 @@ function firstLine(body: string): string {
   return sentence.trim().slice(0, 300);
 }
 
-// Only the pushed step travels. Follow-ups are drafted here when due and approved one by one, and
-// a lead's variables are never refreshed after the push, so per-step variables would go out empty.
+// Only the pushed step travels. The campaign's own later steps are the follow-ups (the sequencer sends
+// them and stops on a reply; Today drafts none for pushed leads), and a lead's variables are never
+// refreshed after the push, so per-step variables would go out empty.
 export function templateVars(step: DraftStep): Record<string, string> {
   return {
     inroad_subject: step.subject ?? "",

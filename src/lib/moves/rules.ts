@@ -1,5 +1,6 @@
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type Workspace } from "@/lib/domain/types";
+import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { awaitingOutcome } from "./replies";
 import { coldQuotaLeft, counters, INTRO_ASKS_PER_WEEK, type Counters } from "./scoreboard";
 import {
@@ -51,6 +52,7 @@ const RULES = {
   switch_channel: { base: 54, label: "Three emails without a reply" },
   cold_draft: { base: 52, label: "First-touch draft ready" },
   signal: { base: 50, label: "Fresh signal at an A-tier account" },
+  linkedin_dm: { base: 52, label: "LinkedIn invite sent, message not sent yet" },
   linkedin: { base: 50, label: "LinkedIn invite drafted" },
   pov: { base: 45, label: "Cold drafts need a point of view" },
   research: { base: 44, label: "Top account without a dossier" },
@@ -153,7 +155,11 @@ export function mergeMoves(existing: Record<ID, Move>, computed: Move[], today: 
   const fresh = new Map(computed.map((m) => [m.id, m]));
   for (const m of Object.values(existing)) {
     if (!isRuleMove(m)) {
-      next[m.id] = m; // moves other surfaces created (onboarding, imports) are theirs to manage
+      // Moves other surfaces created (onboarding, imports) are theirs to manage, except that inbound
+      // webhook cards go stale on the same clock as ours.
+      const stale = inboundStale(m, today);
+      if (stale === "drop") continue;
+      next[m.id] = stale === "expire" ? { ...m, status: "done", autoDone: true } : m;
       continue;
     }
     if (fresh.has(m.id)) continue;
@@ -179,6 +185,21 @@ export function mergeMoves(existing: Record<ID, Move>, computed: Move[], today: 
   return next;
 }
 
+/** Replies older than this drop off Today, whether a rule or a webhook made the card. */
+const REPLY_WINDOW_DAYS = 14;
+
+/**
+ * Inbound webhook cards (a reply from a sequencer, a booking with a personal email) expire like rule
+ * moves: an unanswered reply after the reply window, a booking prep card once the call's day has
+ * passed. Expired cards are kept as auto-done history for 30 days, then dropped.
+ */
+function inboundStale(m: Move, today: string): "expire" | "drop" | null {
+  if (m.rule !== "inbound.reply" && m.rule !== "inbound.booking") return null;
+  if (m.status === "done" || m.status === "skipped") return daysBetween(localDate(m.createdAt), today) > 30 ? "drop" : null;
+  const expired = m.rule === "inbound.reply" ? daysSince(m.receivedAt ?? m.createdAt, today) > REPLY_WINDOW_DAYS : m.dueOn < today;
+  return expired ? "expire" : null;
+}
+
 /** What Today shows: open (or woken) moves due today, best first. */
 export function visibleMoves(moves: Record<ID, Move>, today: string): Move[] {
   return Object.values(moves)
@@ -200,7 +221,7 @@ function replies({ ws, now, today, out }: Ctx) {
   const latest = new Map<string, (typeof ws.activities)[number]>();
   for (const a of ws.activities) {
     if (a.kind !== "reply_received" || !a.personId) continue;
-    if (daysSince(a.at, today) > 14) continue;
+    if (daysSince(a.at, today) > REPLY_WINDOW_DAYS) continue;
     const prev = latest.get(a.personId);
     if (!prev || a.at > prev.at) latest.set(a.personId, a);
   }
@@ -327,8 +348,11 @@ function angleTitle(ws: Workspace, domain: string, angleId?: ID): string | undef
   return ws.accounts[domain]?.dossier?.angles.find((a) => a.id === angleId)?.title;
 }
 
-/** Follow-ups (drafted when due), LinkedIn invites, intro asks, and the switch-channel nudge. */
-function sequences({ ws, today, out }: Ctx) {
+const LI_DM_AFTER_DAYS = 2;
+const LI_DM_UNTIL_DAYS = 21;
+
+/** Follow-ups (drafted when due), LinkedIn invites and the message after, intro asks, and the switch-channel nudge. */
+function sequences({ ws, now, today, out }: Ctx) {
   const pkgs = Object.values(ws.outreach);
   for (const pkg of pkgs) {
     if (!pkg.personId) continue;
@@ -342,15 +366,38 @@ function sequences({ ws, today, out }: Ctx) {
 
     if (pkg.mode === "linkedin") {
       const step = pkg.steps.find((s) => s.status === "draft");
-      if (step && daysSince(pkg.createdAt, today) <= 14) {
+      if (!step) continue;
+      const invite = ws.activities.find((a) => a.kind === "linkedin_connect" && a.draftRef?.packageId === pkg.id);
+      if (!invite) {
+        if (daysSince(pkg.createdAt, today) <= 14) {
+          out.push({
+            id: `mv_li_${pkg.id}`,
+            kind: "linkedin",
+            rule: "linkedin",
+            title: `Connect with ${name} on LinkedIn`,
+            why: `${pkg.linkedin?.recommendNoNote ? "Blank invite" : "Invite with a short note"} · doesn't count toward your email cap`,
+            minutes: 1,
+            priority: RULES.linkedin.base * mult,
+            ref: { kind: "person", id: pkg.personId },
+            draft: { packageId: pkg.id, step: step.step },
+            href: sheet(domain),
+          });
+        }
+        continue;
+      }
+      // Invite out, message still a draft. Nothing tells us they accepted, so ask after a couple of days,
+      // and let it go after three weeks (an invite that old rarely gets accepted).
+      const since = daysSince(invite.at, today);
+      const moved = ws.activities.some((a) => a.personId === pkg.personId && a.at > invite.at && (a.kind === "linkedin_dm" || a.kind === "reply_received"));
+      if (!moved && since >= LI_DM_AFTER_DAYS && since <= LI_DM_UNTIL_DAYS) {
         out.push({
-          id: `mv_li_${pkg.id}`,
+          id: `mv_li_dm_${pkg.id}`,
           kind: "linkedin",
-          rule: "linkedin",
-          title: `Connect with ${name} on LinkedIn`,
-          why: `${pkg.linkedin?.recommendNoNote ? "Blank invite" : "Invite with a short note"} · doesn't count toward your email cap`,
+          rule: "linkedin_dm",
+          title: `Message ${name} on LinkedIn`,
+          why: `Invite sent ${ago(invite.at, now)} · once they accept, send the message`,
           minutes: 1,
-          priority: RULES.linkedin.base * mult,
+          priority: RULES.linkedin_dm.base * mult,
           ref: { kind: "person", id: pkg.personId },
           draft: { packageId: pkg.id, step: step.step },
           href: sheet(domain),
@@ -405,6 +452,7 @@ function sequences({ ws, today, out }: Ctx) {
     }
 
     if (pkg.mode !== "cold" && pkg.mode !== "follow_up") continue;
+    if (senderOwnsSequence(pkg)) continue;
     if (pkg.steps.some((s) => s.status === "cancelled_by_reply")) continue;
     const sent = pkg.steps.filter((s) => s.status === "sent" || s.status === "approved").sort((a, b) => a.step - b.step);
     if (!sent.length) continue;
@@ -837,7 +885,7 @@ function events({ ws, today, out }: Ctx) {
         overdueDays: overdue || undefined,
         ref: { kind: "event", id: ev.id },
         subjectIds: [String(i)],
-        href: `/events/${encodeURIComponent(ev.id)}`,
+        href: `/events/${encodeURIComponent(ev.id)}?tab=timeline`,
       });
     });
   }

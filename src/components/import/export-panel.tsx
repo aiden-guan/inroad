@@ -60,7 +60,7 @@ export function ExportPanel({ className }: { className?: string }) {
       const rows = await downloadResponse(res, "inroad-sequencer.csv");
       const held = Number(res.headers.get("x-skipped") ?? 0);
       toast(
-        `Exported ${rows} draft${rows === 1 ? "" : "s"}${held ? `, ${held} held back by your cap` : ""}. Upload the file to your sequencer; follow-ups will show up on Today when they're due.`,
+        `Exported ${rows} draft${rows === 1 ? "" : "s"}${held ? `, ${held} held back by your cap` : ""}. Upload the file to your sequencer; its campaign sends the follow-ups.`,
       );
       void refresh();
       await load();
@@ -163,8 +163,9 @@ export function ExportPanel({ className }: { className?: string }) {
                   </span>
                 )}
                 <p className="min-w-0 basis-full text-[12px] leading-[17px] text-fg-3">
-                  Exporting counts as approving them. Use a one-step campaign with <code className="font-mono text-[11.5px]">{"{{subject}}"}</code> and{" "}
-                  <code className="font-mono text-[11.5px]">{"{{body}}"}</code>; I draft each follow-up on Today when it&apos;s due.
+                  Exporting counts as approving them. Use <code className="font-mono text-[11.5px]">{"{{subject}}"}</code> and{" "}
+                  <code className="font-mono text-[11.5px]">{"{{body}}"}</code> in the campaign&apos;s first step and write the follow-ups as its later steps. Your sequencer
+                  sends them, so I don&apos;t draft follow-ups for exported leads.
                 </p>
               </div>
             </>

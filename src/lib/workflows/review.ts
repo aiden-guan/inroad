@@ -388,6 +388,8 @@ export default defineWorkflow({
   id: "review",
   args: z.object({ kind: z.enum(["monday", "friday"]) }),
   title: (a) => (a.kind === "monday" ? "Monday pipeline review" : "Friday learning review"),
+  // One ref per kind, so the Monday and Friday cards each follow only their own run.
+  ref: (a) => ({ kind: "playbook", id: `review:${a.kind}` }),
   heavy: false,
   run: async (ctx) => {
     const now = new Date();

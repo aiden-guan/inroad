@@ -42,6 +42,8 @@ function firstWords(text: string, n: number): string {
 /** Reveals `total` words at a steady pace, faster when far behind. Returns how many to show. */
 export function useWordReveal(total: number, animate: boolean): number {
   const [shown, setShown] = useState(animate ? 0 : total);
+  // The text was replaced by a shorter one (working notes cleared at a tool call): reveal it from the start.
+  if (shown > total) setShown(0);
   const caughtUp = shown >= total;
   useEffect(() => {
     if (!animate || caughtUp) return;

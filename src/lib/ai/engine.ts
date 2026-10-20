@@ -162,6 +162,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   );
   const messages: Anthropic.Beta.BetaMessageParam[] = [...opts.messages];
   let text = "";
+  // Where the answer starts in `text`: what came before the latest tool call was working notes.
+  let answerStart = 0;
   let result: T | undefined;
   let stopReason: string | null = null;
   let compat = false;
@@ -294,6 +296,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         // re-issue the turn (capped) and drop the text the failed attempt streamed. Errors from our
         // own code are not retried.
         if (err instanceof Anthropic.AnthropicError && jsonRetries++ < 2) {
+          if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
           text = text.slice(0, textStart);
           console.warn("[agent] stream failed mid-turn, re-issuing the turn:", err.message);
           turn--;
@@ -347,6 +350,9 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       }
 
       messages.push({ role: "assistant", content: message.content });
+      // Chat answers are what comes after the last tool result, so the live text starts over here.
+      if (text.length > answerStart) emit({ type: "text_reset", text: "" });
+      answerStart = text.length;
 
       const toolResults: Anthropic.Beta.BetaToolResultBlockParam[] = [];
       let finished = false;

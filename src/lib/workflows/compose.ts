@@ -27,7 +27,7 @@ import { lintStep, recentDraftsFor } from "@/lib/quality/context";
 import { preflight, resolveEmail } from "@/lib/quality/gates";
 import { countWords } from "@/lib/quality/lint";
 import { pickReference } from "@/lib/quality/references";
-import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch } from "@/lib/quality/sequence";
+import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { stripGreeting, sentences } from "@/lib/quality/similarity";
 import { defineWorkflow, type WorkflowContext } from "./types";
 
@@ -651,7 +651,9 @@ async function runCold(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account
         ? `The follow-up is due ${shortDate(next.dueOn)}.`
         : repliedSinceFirstTouch(sent, ws.activities)
           ? "They replied, so answer in that thread."
-          : "Give it 60 days and a new signal before another first touch.";
+          : senderOwnsSequence(sent)
+            ? `${sequenceOwnerName(sent)} sends the follow-ups. Give it 60 days and a new signal before another first touch.`
+            : "Give it 60 days and a new signal before another first touch.";
       throw new AgentError(`You wrote to ${person.name.split(" ")[0]} on ${shortDate(recentFirstTouch(sent)?.sentAt ?? sent.createdAt)}. ${then}`, "bad_request");
     }
   }
@@ -765,6 +767,9 @@ async function runFollowUp(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, acc
   if (!pkg) throw new AgentError(`There's no first email to ${account.name} to follow up on yet.`, "bad_request");
   if (pkg.steps.some((s) => s.status === "cancelled_by_reply") || repliedSinceFirstTouch(pkg, ws.activities)) {
     throw new AgentError("They replied, so the sequence stopped. Paste their reply and I'll draft a response.", "bad_request");
+  }
+  if (senderOwnsSequence(pkg)) {
+    throw new AgentError(`This lead is in ${sequenceOwnerName(pkg)}, so its campaign sends the follow-ups and stops them on a reply.`, "bad_request");
   }
   const next = nextFollowUp(pkg, undefined, ws.activities);
   if (!next) {
