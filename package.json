@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dev:mock": "ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=mock GTM_DATA_DIR=.data-mock next dev -p 3100",
+    "dev:mock": "ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=mock FIRECRAWL_API_URL=http://localhost:4010 GTM_DATA_DIR=.data-mock next dev -p 3100",
     "typecheck": "tsc --noEmit",
     "mock:anthropic": "node scripts/mock-anthropic.mjs"
   },

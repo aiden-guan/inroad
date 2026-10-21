@@ -9,8 +9,8 @@ operating rhythm. **You do the selling.** Inroad never sends, posts, or changes 
 approve.
 
 It's also a **hub**: plug in the tools you already use (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay,
-Zapier/n8n, any AI SDR) and let other agents — Meta Muse, Claude, Cursor, ChatGPT — read your playbook and push leads in
-through Inroad's MCP server and REST API.
+Zapier/n8n, any AI SDR, and Firecrawl for people data) and let other agents — Meta Muse, Claude, Cursor, ChatGPT —
+read your playbook and push leads in through Inroad's MCP server and REST API.
 
 ---
 
@@ -32,9 +32,12 @@ machine), or set `ANTHROPIC_API_KEY` before starting. Want to look around first?
 A mock of the Anthropic API ships with the repo, so you can click through every workflow for free:
 
 ```bash
-npm run mock:anthropic   # terminal 1 — fake Claude on :4010
+npm run mock:anthropic   # terminal 1 — fake Claude (and fake Firecrawl) on :4010
 npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder
 ```
+
+In mock mode any key starting with `fc-` connects Firecrawl; `fc-terms…` shows what happens when a data provider's
+terms haven't been accepted yet.
 
 ## What's inside
 
@@ -45,6 +48,7 @@ npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data fold
 | **Events** | Virtual roundtables and exec dinners: themes, scored guest lists, invite copy, timeline, run of show, follow-ups. |
 | **Playbook** | What Inroad believes about your business — ICP bet, positioning, messaging, objections, assets, your points of view — all editable. It becomes your first AE's onboarding doc. |
 | **Integrations** | Connect your stack, import CSVs and LinkedIn connections, generate keys for other agents. |
+| **People data** | With a Firecrawl key, every company's People section can find who works there (Apollo, free) and add them with a work email (up to 30 credits), and any person or draft missing an email gets a one-click lookup (FullEnrich, up to 20 credits). Misses cost nothing, there's a monthly credit limit, and personal emails and phone numbers are never requested. |
 | **Ask (⌘K)** | Ask anything, with your workspace as context. Proposed changes come back as one-click actions. |
 
 ## How it keeps your token spend low
@@ -57,6 +61,8 @@ npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data fold
 4. **Results are reused** (dossiers stay fresh for 7 days) and prompts are laid out for prompt caching.
 5. **Your other tools and agents do their own inference.** When Muse or Claude calls Inroad's MCP server, Inroad
    spends zero tokens.
+6. **People data comes from a data provider, not a model.** Who works at a company and their work email come from
+   Apollo and FullEnrich through Firecrawl Alexandria, in code, so finding a contact never costs a web search or a token.
 
 Every run ends with a receipt — *Worked for 1m 52s · 9 sources · $0.04* — and Settings → Usage shows spend by workflow,
 free lookups done in code, and a monthly budget cap.

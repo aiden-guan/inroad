@@ -45,6 +45,9 @@ anything in `docs/SPEC.md` where they disagree.
 4. **Reuse results:** dossiers are fresh for 7 days; don't regenerate unless asked or a high-strength signal arrived.
 5. **Deterministic first:** ranking, scoring, dedupe, lint, templated titles — all in code. No LLM for things code can do.
 6. Effort: `low` for Haiku and simple Sonnet copy, `medium` for synthesis, `high` only for the Opus playbook.
+7. **People data is a lookup, not a search.** With Firecrawl connected, contacts come from Apollo and FullEnrich via
+   `src/lib/people/directory.ts` (code, zero tokens). Search is free; every paid lookup is one founder click with its
+   most-cost shown first, checked against the monthly credit limit. Work emails only: never personal email or phone.
 
 ## Architecture you must use
 
@@ -86,9 +89,12 @@ anything in `docs/SPEC.md` where they disagree.
   - `ImportFlow({ kind: "csv" | "linkedin", onDone })` — `src/components/import/import-flow.tsx` (owner: agents-api).
   - `AgentsCard()` — `src/components/agents/agents-card.tsx` (owner: agents-api), rendered on /integrations.
   - `POST /api/integrations/push { packageId, step, integrationId?, campaignId? }` (owner: integrations) — composer calls it.
+  - `FindPeople({ account })` and `FindEmailButton({ person })` — `src/components/people/find-people.tsx` (owner:
+    integrations): the company sheet's People section and the composer's missing-email form use them. They call
+    `POST /api/people/find { domain, titles? }`, `POST /api/people/add { domain, id }` and `POST /api/people/email { personId }`.
 - **URL params other surfaces rely on:** `/companies?c=<domain>` (open sheet), `/companies?add=<domain>` (add &
   research), `/companies?view=prospects|talking|customers`, `/companies?log=1` (log a call), `/events?new=1`,
-  `/integrations?import=linkedin`, `/settings#usage`.
+  `/integrations?import=linkedin`, `/integrations#firecrawl` (opens that row), `/settings#usage`.
 
 ## Design system (follow exactly)
 

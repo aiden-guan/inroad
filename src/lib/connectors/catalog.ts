@@ -4,13 +4,13 @@
  */
 import type { HubEventType, IntegrationId, Stage } from "@/lib/domain/types";
 
-export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack";
+export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack" | "firecrawl";
 export type CrmId = "hubspot" | "attio";
 export type SequencerId = "instantly" | "smartlead" | "lemlist";
 
 export const CRM_IDS: CrmId[] = ["hubspot", "attio"];
 export const SEQUENCER_IDS: SequencerId[] = ["instantly", "smartlead", "lemlist"];
-export const NATIVE_IDS: NativeConnectorId[] = ["hubspot", "attio", "instantly", "smartlead", "lemlist", "slack"];
+export const NATIVE_IDS: NativeConnectorId[] = ["hubspot", "attio", "instantly", "smartlead", "lemlist", "slack", "firecrawl"];
 
 export function isNative(id: string): id is NativeConnectorId {
   return (NATIVE_IDS as string[]).includes(id);
@@ -27,7 +27,7 @@ export interface ConnectorMeta {
   name: string;
   /** For the favicon mark. */
   domain: string;
-  kind: "crm" | "sequencer" | "notify";
+  kind: "crm" | "sequencer" | "notify" | "data";
   blurb: string;
   secretLabel: string;
   placeholder: string;
@@ -140,7 +140,35 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     scopes: [],
     note: "The URL is the secret. For a private channel you need to be a member.",
   },
+  firecrawl: {
+    id: "firecrawl",
+    name: "Firecrawl",
+    domain: "firecrawl.dev",
+    kind: "data",
+    blurb: "Look up who works at a company and their work email, from Apollo and FullEnrich, with one key.",
+    secretLabel: "API key",
+    placeholder: "fc-…",
+    where: {
+      href: "https://www.firecrawl.dev/app/api-keys",
+      linkLabel: "Open Firecrawl",
+      path: "Firecrawl → API Keys → copy your key",
+    },
+    scopes: [],
+    note: "People data comes through Firecrawl Alexandria and is paid in Firecrawl credits. The first time a provider is used, an admin of your Firecrawl team accepts its data terms once.",
+  },
 };
+
+/* ───────────── People data through Firecrawl Alexandria ───────────── */
+
+/** Most a paid lookup can cost, in Firecrawl credits. Misses cost nothing. Published on each provider's Alexandria page. */
+export const PEOPLE_DATA_PRICE = { search: 0, add: 30, workEmail: 20 } as const;
+export const DEFAULT_MONTHLY_DATA_CREDITS = 500;
+
+/** `via` on an address a data provider returned. Such an address is never "guessed from a format". */
+const DATA_PROVIDERS = new Set(["Apollo", "FullEnrich"]);
+export function isDataProvider(via: string | undefined): via is string {
+  return !!via && DATA_PROVIDERS.has(via);
+}
 
 /* ───────────── Template variables pushed into sequencer campaigns ───────────── */
 

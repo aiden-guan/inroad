@@ -3,6 +3,7 @@ import type { Workspace } from "@/lib/domain/types";
 import { getSecret, readWorkspace } from "@/lib/store/workspace";
 import { attio } from "./attio";
 import type { NativeConnectorId } from "./catalog";
+import { firecrawl } from "./firecrawl";
 import { hubspot } from "./hubspot";
 import { instantly } from "./instantly";
 import { lemlist } from "./lemlist";
@@ -10,7 +11,7 @@ import { smartlead } from "./smartlead";
 import { slack } from "./slack";
 import type { Connector, ConnectorConfig, ConnectorFactory } from "./types";
 
-const FACTORIES: Record<NativeConnectorId, ConnectorFactory> = { hubspot, attio, instantly, smartlead, lemlist, slack };
+const FACTORIES: Record<NativeConnectorId, ConnectorFactory> = { hubspot, attio, instantly, smartlead, lemlist, slack, firecrawl };
 
 /** The secret for a native connector lives under this key in secrets.json. */
 export const SECRET_KEY = "key";

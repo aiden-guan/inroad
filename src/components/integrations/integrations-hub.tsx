@@ -15,6 +15,7 @@ import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isCrm, isSequenc
 import type { Workspace } from "@/lib/domain/types";
 import type { InboundLogEntry } from "@/lib/hub/types";
 import { CrmPanel } from "./crm-panel";
+import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
 import { ConnectedFooter, KeyConnect } from "./key-connect";
 import { OutboundPanel } from "./outbound-panel";
@@ -108,6 +109,8 @@ export function IntegrationsHub() {
             <CrmPanel id={id} state={st} status={status} />
           ) : isSequencer(id) ? (
             <SequencerPanel id={id} state={st} status={status} onRefresh={refresh} />
+          ) : id === "firecrawl" ? (
+            <FirecrawlPanel />
           ) : (
             <SlackPanel state={st} status={status} onRefresh={refresh} />
           )}
@@ -184,6 +187,10 @@ export function IntegrationsHub() {
         >
           <HookPanel sources={LEAD_SOURCES} status={status} onRefresh={refresh} />
         </IntegrationRow>
+      </Group>
+
+      <Group id="people" question="Where do you look people up?" note="Searching is free. Adding someone or finding an email spends Firecrawl credits, only when it finds something.">
+        {native("firecrawl")}
       </Group>
 
       <Group id="outreach" question="What sends your outreach?" note="Or send from your own inbox: approved drafts open in Gmail, with nothing to connect.">

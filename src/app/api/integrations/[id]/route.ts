@@ -17,8 +17,8 @@ const ACCOUNT_KEYS = ["pipelineId", "defaultCampaignId", "defaultCampaignName", 
 /** True when the new key belongs to a different account than the saved settings and record ids. */
 function otherAccount(id: string, prev: ConnectorConfig, next: { accountLabel: string; config?: ConnectorConfig }): boolean {
   if (id === "hubspot") return prev.portalId !== undefined && next.config?.portalId !== undefined && String(prev.portalId) !== String(next.config.portalId);
-  // Smartlead's label is a campaign count and Slack's never changes.
-  if (id === "smartlead" || id === "slack") return false;
+  // Smartlead's and Firecrawl's labels are counts, and Slack's never changes.
+  if (id === "smartlead" || id === "slack" || id === "firecrawl") return false;
   const before = prev.accountLabel;
   return typeof before === "string" && before !== next.accountLabel && !GENERIC_LABELS.has(before) && !GENERIC_LABELS.has(next.accountLabel);
 }

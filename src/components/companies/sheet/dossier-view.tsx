@@ -15,6 +15,7 @@ import { age, hostOf, shortDate } from "@/lib/client/format";
 import { daysBetween } from "@/lib/domain/ids";
 import { listItem } from "@/lib/motion";
 import type { Account, Angle, Dossier, Signal, SignalType } from "@/lib/domain/types";
+import { usePeopleData } from "@/components/people/use-people-data";
 import { PeopleSection } from "./people";
 import { Cited, ROLE_LABEL, Section, StrengthDots, useEvidence, useFlagWrong, useHasFlagged, useToday } from "./shared";
 
@@ -62,6 +63,8 @@ export function EnrichmentView({ account, onResearch, researching, lastRun }: { 
           {lastRun?.status === "error" && <span className="text-[13px] text-danger">{lastRun.error?.message ?? "The last attempt failed."} Try again.</span>}
         </div>
       </div>
+
+      <EarlyPeople account={account} />
 
       {e && (
         <>
@@ -454,4 +457,11 @@ function SourceList({ ids }: { ids: string[] }) {
       ))}
     </ul>
   );
+}
+
+/** Before a dossier: who's on file, and a free people search when Firecrawl is connected. */
+function EarlyPeople({ account }: { account: Account }) {
+  const { connected } = usePeopleData();
+  if (!connected && account.peopleIds.length === 0) return null;
+  return <PeopleSection account={account} committee={[]} />;
 }

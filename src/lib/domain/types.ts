@@ -515,6 +515,8 @@ export interface Person {
   champion?: "coach" | "untested" | "tested";
   notes?: string;
   source?: DiscoverySource;
+  /** Apollo's id once the founder added this person from a people search, so the search can show who's on file. */
+  apolloId?: string;
 }
 
 /* ─────────────────────────────── Outreach ─────────────────────────────── */
@@ -1070,6 +1072,7 @@ export type IntegrationId =
   | "smartlead"
   | "lemlist"
   | "apollo"
+  | "firecrawl"
   | "slack"
   | "webhook_out"
   | "webhook_in"
@@ -1170,6 +1173,8 @@ export interface UsageMonth {
   runs: number;
   byWorkflow: Partial<Record<WorkflowId, number>>;
   freeSignals: number; // signal lookups done in code (zero tokens)
+  /** Firecrawl credits spent on people data (adding a person, finding an email). Searching is free. */
+  dataCredits?: number;
 }
 
 /* ─────────────────────────────── Workspace ─────────────────────────────── */

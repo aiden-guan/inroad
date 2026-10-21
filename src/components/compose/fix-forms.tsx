@@ -2,10 +2,12 @@
 
 import { Check } from "lucide-react";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { FindEmailButton } from "@/components/people/find-people";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
+import { isDataProvider } from "@/lib/connectors/catalog";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { OutreachPackage, Person } from "@/lib/domain/types";
 
@@ -147,7 +149,12 @@ export function RecipientForm({ pkg, person }: { pkg: OutreachPackage; person?: 
           <Input id={`${id}-e`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="font-mono text-[12.5px]" />
         </div>
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex items-center justify-end gap-2">
+        {person && (
+          <div className="mr-auto -ml-2">
+            <FindEmailButton person={person} size="sm" />
+          </div>
+        )}
         <Button type="submit" variant="primary" size="sm" disabled={!ready} loading={saving}>
           {person ? "Save email" : "Add and address it"}
         </Button>
@@ -160,6 +167,7 @@ export function RecipientForm({ pkg, person }: { pkg: OutreachPackage; person?: 
 export function VerifyGuess({ person, address }: { person: Person; address: string }) {
   const { dispatch } = useWorkspace();
   const id = useId();
+  const via = person.contactPaths.find((p) => p.value.toLowerCase() === address.toLowerCase())?.via;
   return (
     <div className="flex items-start gap-2.5 rounded-md bg-bg-subtle p-3 ring-1 ring-border">
       <input
@@ -176,7 +184,9 @@ export function VerifyGuess({ person, address }: { person: Person; address: stri
       />
       <label htmlFor={id} className="text-[13px] leading-5 text-fg">
         I verified <span className="font-mono text-[12.5px]">{address}</span>
-        <span className="block text-fg-3">It&apos;s a guess from their email format. Guesses that bounce hurt your domain; check it first.</span>
+        <span className="block text-fg-3">
+          {isDataProvider(via) ? `${via} couldn't confirm this mailbox exists.` : "It's a guess from their email format."} Addresses that bounce hurt your domain; check it first.
+        </span>
       </label>
     </div>
   );

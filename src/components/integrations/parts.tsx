@@ -30,7 +30,8 @@ export function StatusDot({ tone, className }: { tone: Tone; className?: string 
 export function Ago({ iso, className }: { iso?: string; className?: string }) {
   const now = useNow();
   if (!iso || !now) return null;
-  return <span className={cn("tnum", className)}>{relativeTime(iso, now)}</span>;
+  // Everything shown here already happened; the shared clock can lag it by a tick, which would read "soon".
+  return <span className={cn("tnum", className)}>{relativeTime(iso, Math.max(now, Date.parse(iso) || 0))}</span>;
 }
 
 /** The tool's mark: its favicon, framed so every logo sits on the same paper. */

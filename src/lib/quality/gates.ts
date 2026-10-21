@@ -1,4 +1,5 @@
 import { shortDate } from "@/lib/client/format";
+import { isDataProvider } from "@/lib/connectors/catalog";
 import { todayISO, weekOf } from "@/lib/domain/ids";
 import type { ContactPath, DraftStep, Jurisdiction, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { recentFirstTouch } from "./sequence";
@@ -164,7 +165,9 @@ export function preflight(ws: Workspace, pkg: OutreachPackage, step: DraftStep |
   const warnings: string[] = [];
   const caps = capUsage(ws, today);
   const confidence = rawConfidence;
-  const sourceHost = path?.sourceUrl ? host(path.sourceUrl) : path?.kind === "integration" ? (path.via ?? null) : null;
+  // An address from Apollo or FullEnrich names its source, verified or not; only our own format guesses say "guessed".
+  const fromProvider = isDataProvider(path?.via);
+  const sourceHost = path?.sourceUrl ? host(path.sourceUrl) : path?.kind === "integration" || fromProvider ? (path?.via ?? null) : null;
 
   const suppressed = ws.suppression.some(
     (s) => (s.email && to && s.email.toLowerCase() === to.toLowerCase()) || (s.domain && s.domain.toLowerCase() === pkg.accountDomain.toLowerCase()),
@@ -193,7 +196,11 @@ export function preflight(ws: Workspace, pkg: OutreachPackage, step: DraftStep |
           fix: "linkedin",
         });
       } else if (rawConfidence === "guess") {
-        blockers.push({ code: "guess_unverified", text: "Unverified address: a guess from their email format.", fix: "verify" });
+        blockers.push({
+          code: "guess_unverified",
+          text: fromProvider ? `Unverified address: ${path?.via} couldn't confirm the mailbox.` : "Unverified address: a guess from their email format.",
+          fix: "verify",
+        });
       }
       if (jurisdiction.value === "CA") {
         const firstParty = path?.kind === "published_email" && sourceHost && sourceHost.endsWith(pkg.accountDomain);
@@ -231,7 +238,7 @@ export function preflight(ws: Workspace, pkg: OutreachPackage, step: DraftStep |
 
   const footer =
     channel === "email" && !isReply
-      ? buildFooter(ws, { jurisdiction: jurisdiction.value, sourceHost, guessed: path?.kind === "pattern_guess" && !path.verified, companyName })
+      ? buildFooter(ws, { jurisdiction: jurisdiction.value, sourceHost, guessed: path?.kind === "pattern_guess" && !path.verified && !fromProvider, companyName })
       : null;
 
   return {

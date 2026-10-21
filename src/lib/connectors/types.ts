@@ -22,6 +22,8 @@ export interface ConnectorError {
   /** Plain sentence the UI can show as-is: what happened and what to do. Secrets are redacted. */
   message: string;
   status?: number;
+  /** Where the founder fixes it, when the tool says (e.g. a page to accept a data provider's terms). */
+  fixUrl?: string;
 }
 
 export type Result<T> = { ok: true; value: T; warnings?: string[] } | { ok: false; error: ConnectorError };
@@ -106,6 +108,54 @@ export interface NotifyAdapter {
   post(message: { text: string; blocks?: unknown[] }): Promise<Result<void>>;
 }
 
+/** A search hit before anything is paid for: first name and a masked surname. */
+export interface PersonPreview {
+  /** The provider's id, which `add` takes. */
+  id: string;
+  firstName: string;
+  /** Masked by the provider ("S•••") until the person is added. */
+  lastName: string;
+  title: string;
+  companyName?: string;
+  hasEmail: boolean;
+}
+
+export interface FoundEmail {
+  address: string;
+  /** The provider checked the mailbox (Apollo "verified", FullEnrich "DELIVERABLE"). Anything less is a guess. */
+  verified: boolean;
+  /** The provider's own word for it, kept for the record. */
+  status: string;
+}
+
+export interface FoundPerson {
+  id: string;
+  name: string;
+  title: string;
+  linkedinUrl?: string;
+  location?: string;
+  /** The employer the provider has on file, to catch people who moved on. */
+  companyDomain?: string;
+  email?: FoundEmail;
+}
+
+/** Paid calls report what they cost; a miss costs nothing. */
+export interface Billed<T> {
+  value: T;
+  credits: number;
+}
+
+export interface PeopleAdapter {
+  /** Free. People at a company whose title matches any of `titles`. */
+  search(q: { domain: string; titles: string[]; perPage?: number }): Promise<Result<Billed<{ people: PersonPreview[]; total?: number }>>>;
+  /** Paid on a match: full name, LinkedIn and a work email from a search hit. Never personal email or phone. */
+  add(id: string): Promise<Result<Billed<FoundPerson | null>>>;
+  /** Paid only when found: a work email from a LinkedIn URL, or a name plus employer. */
+  workEmail(q: { linkedinUrl?: string; firstName?: string; lastName?: string; domain?: string; companyName?: string }): Promise<Result<Billed<FoundEmail | null>>>;
+  /** Credits left on the Firecrawl team this billing period. */
+  credits(): Promise<Result<{ remaining: number; plan?: number }>>;
+}
+
 export interface Connector {
   id: NativeConnectorId;
   name: string;
@@ -114,6 +164,7 @@ export interface Connector {
   crm?: CrmAdapter;
   sequencer?: SequencerAdapter;
   notify?: NotifyAdapter;
+  people?: PeopleAdapter;
 }
 
 export type ConnectorFactory = (secret: string, config: ConnectorConfig) => Connector;

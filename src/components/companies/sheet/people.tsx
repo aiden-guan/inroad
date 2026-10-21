@@ -3,8 +3,10 @@
 import { ArrowUpRight, Copy, Handshake, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { ComposeButton } from "@/components/compose/composer";
+import { FindEmailButton, FindPeople } from "@/components/people/find-people";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
+import { isDataProvider } from "@/lib/connectors/catalog";
 import { rankPaths, PATH_LABEL } from "@/lib/deals/rules";
 import type { Account, ContactPath, Dossier, Person } from "@/lib/domain/types";
 import { Cited, ROLE_LABEL, Section, useEvidence } from "./shared";
@@ -58,7 +60,7 @@ export function PeopleSection({ account, committee, topAngleId }: { account: Acc
 
         {others.length > 0 && (
           <div>
-            <p className="text-[13px] font-medium text-fg">Also on file</p>
+            <p className="text-[13px] font-medium text-fg">{committee.length ? "Also on file" : "On file"}</p>
             <ul className="mt-2 space-y-2">
               {others.slice(0, 6).map((p) => (
                 <PersonRow key={p.id} person={p} domain={account.domain} angleId={topAngleId} />
@@ -66,6 +68,8 @@ export function PeopleSection({ account, committee, topAngleId }: { account: Acc
             </ul>
           </div>
         )}
+
+        <FindPeople key={account.domain} account={account} />
       </div>
     </Section>
   );
@@ -78,6 +82,7 @@ function PersonRow({ person, domain, angleId }: { person: Person; domain: string
   const direct = top?.kind === "warm_intro" && top.via === "connection";
   const mode = direct ? "linkedin" : top?.kind === "warm_intro" ? "warm_intro" : top?.kind === "linkedin" ? "linkedin" : "cold";
   const label = direct ? "Message on LinkedIn" : top?.kind === "warm_intro" ? "Ask for an intro" : top?.kind === "linkedin" ? "Draft a LinkedIn note" : "Write";
+  const hasEmail = !!person.email || paths.some((p) => p.value.includes("@"));
   return (
     <li className="rounded-md bg-surface px-3 py-2.5 ring-1 ring-border">
       <Cited evidence={ev(person.evidenceIds).slice(0, 2)} chips="below">
@@ -103,6 +108,11 @@ function PersonRow({ person, domain, angleId }: { person: Person; domain: string
               </ul>
             ) : (
               <p className="mt-1 text-[12px] text-fg-3">No contact path yet. Ask for an intro or find them on LinkedIn.</p>
+            )}
+            {!hasEmail && (
+              <div className="-ml-2 mt-1">
+                <FindEmailButton person={person} />
+              </div>
             )}
           </div>
           {!person.doNotContact && <ComposeButton domain={domain} personId={person.id} angleId={angleId} mode={mode} label={label} />}
@@ -146,7 +156,13 @@ function PathItem({ path }: { path: ContactPath }) {
         {path.value}
         <Copy className="size-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
       </button>
-      {path.kind === "pattern_guess" ? <Badge tone="warning">Guessed · unverified</Badge> : <span className="text-fg-3">{PATH_LABEL[path.kind].toLowerCase()}</span>}
+      {path.kind === "pattern_guess" ? (
+        <Badge tone="warning">{isDataProvider(path.via) ? `${path.via} · unverified` : "Guessed · unverified"}</Badge>
+      ) : path.kind === "integration" && path.via ? (
+        <span className="text-fg-3">{path.verified ? `verified by ${path.via}` : `from ${path.via}`}</span>
+      ) : (
+        <span className="text-fg-3">{PATH_LABEL[path.kind].toLowerCase()}</span>
+      )}
     </li>
   );
 }
