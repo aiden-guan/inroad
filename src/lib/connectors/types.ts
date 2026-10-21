@@ -87,6 +87,36 @@ export interface LeadInput extends PersonInput {
   vars: Record<string, string>;
 }
 
+/** Where a change feed left off, per connector. Plain strings so it can live in hub.json. */
+export type PollCursor = Record<string, string>;
+
+/**
+ * A polled change feed for when no public URL reaches us. Items are shaped like the vendor's own
+ * webhook payload, so they go through the same inbound parser, dedupe and moves as a webhook.
+ */
+export interface SequencerPoll {
+  events: Record<string, unknown>[];
+  cursor: PollCursor;
+  warnings?: string[];
+}
+
+/** A deal the CRM changed, in the CRM's own terms (stage id as stored in our stage map). */
+export interface CrmDealChange {
+  externalId: string;
+  name?: string;
+  stageId?: string;
+  amountUsd?: number;
+  closeDate?: string;
+}
+
+export interface CrmChanges {
+  companies: CompanyInput[];
+  people: PersonInput[];
+  deals: CrmDealChange[];
+  cursor: PollCursor;
+  warnings?: string[];
+}
+
 export interface CrmAdapter {
   upsertCompany(company: CompanyInput, knownId?: string): Promise<Result<ExternalRef>>;
   upsertPerson(person: PersonInput, company?: ExternalRef, knownId?: string): Promise<Result<ExternalRef>>;
@@ -95,6 +125,8 @@ export interface CrmAdapter {
   listPipelines(): Promise<Result<Pipeline[]>>;
   /** Most recently updated companies that have a domain. */
   pullCompanies(limit: number): Promise<Result<CompanyInput[]>>;
+  /** Companies and people changed since the cursor, plus the current state of the deals we mirror. */
+  pullChanges?(cursor: PollCursor, dealIds: string[]): Promise<Result<CrmChanges>>;
 }
 
 export interface SequencerAdapter {
@@ -102,6 +134,8 @@ export interface SequencerAdapter {
   pushLead(campaignId: string, lead: LeadInput): Promise<Result<{ externalId?: string }>>;
   /** Registers our inbound URL for reply events, where the tool's API allows it. */
   registerReplyWebhook?(url: string): Promise<Result<{ webhookId: string }>>;
+  /** Replies, labels, bounces and unsubscribes since the cursor, for when webhooks can't reach us. */
+  pollEvents?(cursor: PollCursor): Promise<Result<SequencerPoll>>;
 }
 
 export interface NotifyAdapter {

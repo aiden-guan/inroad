@@ -1,6 +1,6 @@
 import "server-only";
 import { request } from "./http";
-import { fail, ok, type Connector, type ConnectorFactory, type ExternalRef, type Result } from "./types";
+import { fail, ok, type Connector, type ConnectorFactory, type CrmChanges, type ExternalRef, type PollCursor, type Result } from "./types";
 
 /**
  * Attio (workspace access token, Bearer). Assert-by-domain / assert-by-email gives natural
@@ -10,12 +10,21 @@ import { fail, ok, type Connector, type ConnectorFactory, type ExternalRef, type
  * to a note on the company so the stage change is still visible.
  * UNVERIFIED against research 06: `GET /v2/self`, the Deals object attribute slugs, and the
  * statuses listing; each has a graceful fallback.
+ *
+ * Polling: records have no documented last-modified attribute, so a poll reads companies and
+ * people created since the cursor (`created_at` filter and sort: UNVERIFIED) and re-reads each
+ * deal we mirror by id (at most 20 a poll; reads allow 100 a second).
  */
 
 const BASE = "https://api.attio.com/v2";
 const TOOL = "Attio";
 
 type RecordRes = { data: { id: { record_id: string }; web_url?: string; values?: Record<string, { value?: unknown; domain?: string }[]> } };
+
+type Values = Record<string, Record<string, unknown>[] | undefined>;
+const FIRST_LOOKBACK_MS = 7 * 86_400_000;
+const first = (values: Values | undefined, attr: string, key: string): unknown => values?.[attr]?.[0]?.[key];
+const text = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
 export const attio: ConnectorFactory = (token) => {
   const call = <T>(method: "GET" | "POST" | "PUT" | "PATCH", path: string, body?: unknown, opts: { createsRecord?: boolean } = {}) =>
@@ -136,6 +145,66 @@ export const attio: ConnectorFactory = (token) => {
           if (typeof domain === "string" && domain) out.push({ domain, name: typeof name === "string" ? name : undefined });
         }
         return ok(out.slice(0, limit));
+      },
+
+      async pullChanges(cursor: PollCursor, dealIds: string[]) {
+        const fallback = new Date(Date.now() - FIRST_LOOKBACK_MS).toISOString();
+        const next: PollCursor = { ...cursor };
+        const warnings: string[] = [];
+
+        async function created(object: "companies" | "people") {
+          const since = cursor[object] ?? fallback;
+          const r = await call<{ data?: { values?: Values; created_at?: string }[] }>("POST", `/objects/${object}/records/query`, {
+            filter: { created_at: { $gt: since } },
+            sorts: [{ attribute: "created_at", direction: "asc" }],
+            limit: 100,
+          });
+          if (!r.ok) return r;
+          let newest = since;
+          for (const rec of r.value?.data ?? []) {
+            const at = text(first(rec.values, "created_at", "value")) ?? rec.created_at;
+            if (at && at > newest) newest = at;
+          }
+          next[object] = newest;
+          return ok(r.value?.data ?? []);
+        }
+
+        const out: CrmChanges = { companies: [], people: [], deals: [], cursor: next };
+        const companies = await created("companies");
+        if (!companies.ok) return companies;
+        for (const rec of companies.value) {
+          const domain = text(first(rec.values, "domains", "domain"));
+          if (domain) out.companies.push({ domain, name: text(first(rec.values, "name", "value")) });
+        }
+        const people = await created("people");
+        if (people.ok) {
+          for (const rec of people.value) {
+            const email = text(first(rec.values, "email_addresses", "email_address"));
+            if (!email) continue;
+            const name = text(first(rec.values, "name", "full_name"));
+            const title = text(first(rec.values, "job_title", "value"));
+            out.people.push({ email, ...(name ? { name } : {}), ...(title ? { title } : {}) });
+          }
+        } else warnings.push(people.error.message);
+
+        for (const id of dealIds.slice(0, 20)) {
+          const r = await call<{ data?: { values?: Values } }>("GET", `/objects/deals/records/${encodeURIComponent(id)}`);
+          if (!r.ok) {
+            if (r.error.code !== "not_found") warnings.push(r.error.message);
+            continue;
+          }
+          const v = r.value?.data?.values;
+          const status = first(v, "stage", "status") as { title?: string } | undefined;
+          const amount = first(v, "value", "currency_value");
+          out.deals.push({
+            externalId: id,
+            ...(text(first(v, "name", "value")) ? { name: text(first(v, "name", "value")) } : {}),
+            ...(status?.title ? { stageId: status.title } : {}),
+            ...(typeof amount === "number" ? { amountUsd: amount } : {}),
+          });
+        }
+        if (warnings.length) out.warnings = warnings;
+        return ok(out);
       },
     },
   };

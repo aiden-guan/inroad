@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/client/cn";
 import { inboundSourceName, type InboundSourceMeta } from "@/lib/connectors/catalog";
 import type { HubStatus, InboundLogEntry } from "@/lib/hub/types";
 import { ease } from "@/lib/motion";
-import { Ago, Callout, CodeBlock, ConfirmButton, CopyField, Disclosure, ExternalLink, Steps, SubLabel } from "./parts";
+import { Ago, Callout, CodeBlock, ConfirmButton, CopyField, Disclosure, ExternalLink, Steps, SubLabel, ToggleRow } from "./parts";
 import { useHubApi, usePolling } from "./use-hub";
 
 /* ───────────── Where hooks point ───────────── */
@@ -33,14 +33,85 @@ export function hookPath(source: string, secret: string) {
 
 /* ───────────── Public URL (tunnel) ───────────── */
 
+interface Tunnel {
+  installed: boolean;
+  running: boolean;
+  starting: boolean;
+  url?: string;
+  error?: string;
+  installCommand: string;
+}
+
+async function fetchTunnel(): Promise<Tunnel | null> {
+  const res = await fetch("/api/integrations/tunnel", { cache: "no-store" });
+  return res.ok ? ((await res.json()) as Tunnel) : null;
+}
+
+/** "Enable public URL": a Cloudflare quick tunnel the app starts and stops itself. */
+function TunnelToggle({ tunnel, onChange }: { tunnel: Tunnel; onChange: (t: Tunnel) => void }) {
+  const { refresh } = useWorkspace();
+  // The state being switched to, while the request is in flight.
+  const [pending, setPending] = useState<boolean | null>(null);
+
+  async function toggle(on: boolean) {
+    setPending(on);
+    try {
+      const res = await fetch("/api/integrations/tunnel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) });
+      const body = (await res.json().catch(() => null)) as (Tunnel & { error?: string }) | null;
+      if (!res.ok || !body) throw new Error(body?.error ?? "That didn't work. Try again.");
+      onChange(body);
+      await refresh();
+      if (!on) toast("Public URL is off. Hook URLs point at this computer again.");
+      else if (body.running) toast.success("Public URL is on. Hook URLs now use it.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "That didn't work. Try again.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const on = pending ?? (tunnel.running || tunnel.starting);
+  return (
+    <div className="space-y-2">
+      <ToggleRow title="Enable public URL" checked={on} onChange={(v) => void toggle(v)} disabled={pending !== null || !tunnel.installed}>
+        {pending === true ? (
+          "Starting a Cloudflare tunnel…"
+        ) : tunnel.running ? (
+          <>
+            Cloud tools reach this app at <span className="break-all font-mono text-fg-2">{tunnel.url}</span>. Only hook URLs, the agent API and MCP answer there. The address changes
+            each time the tunnel starts.
+          </>
+        ) : tunnel.installed ? (
+          "Starts a free Cloudflare tunnel while Inroad runs, so cloud tools and remote agents can reach it. Only hook URLs, the agent API and MCP answer through it."
+        ) : (
+          "Needs cloudflared, Cloudflare's free tunnel tool. Install it, then turn this on."
+        )}
+      </ToggleRow>
+      {!tunnel.installed && <CopyField value={tunnel.installCommand} />}
+      <FieldError>{pending === null && !tunnel.running ? tunnel.error : null}</FieldError>
+    </div>
+  );
+}
+
 /** Webhooks from cloud tools need a public https address; a local app doesn't have one without a tunnel. */
 export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
   const { dispatch } = useWorkspace();
   const { publicUrl, appUrl, isLocal } = useHookBase(status);
+  const [tunnel, setTunnel] = useState<Tunnel | null>(null);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(publicUrl);
   const [error, setError] = useState<string | null>(null);
   const port = appUrl.match(/:(\d+)$/)?.[1] ?? "3000";
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTunnel()
+      .then((t) => !cancelled && setTunnel(t))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function save(next: string) {
     const v = next.trim().replace(/\/+$/, "");
@@ -49,28 +120,34 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
       return;
     }
     setError(null);
-    const ok = await dispatch({ type: "integration.update", id: "webhook_in", patch: { config: { publicUrl: v } } });
+    const ok = await dispatch({ type: "integration.update", id: "webhook_in", patch: { config: { publicUrl: v, publicUrlTunnel: false } } });
     if (ok) {
       setEditing(false);
       toast.success(v ? "Hook URLs now use your public address." : "Back to the local address.");
     }
   }
 
+  const toggle = tunnel && <TunnelToggle tunnel={tunnel} onChange={setTunnel} />;
+  if (tunnel?.running) return toggle;
+
   if (!isLocal && !editing) {
     return (
-      <p className="text-[12px] leading-[18px] text-fg-3">
-        Using the public address <span className="break-all font-mono text-fg-2">{publicUrl || appUrl}</span>.{" "}
-        <button
-          type="button"
-          className="font-medium text-fg-2 underline decoration-border-strong underline-offset-2 hover:decoration-fg"
-          onClick={() => {
-            setValue(publicUrl);
-            setEditing(true);
-          }}
-        >
-          Change
-        </button>
-      </p>
+      <div className="space-y-3">
+        {toggle}
+        <p className="text-[12px] leading-[18px] text-fg-3">
+          Using the public address <span className="break-all font-mono text-fg-2">{publicUrl || appUrl}</span>.{" "}
+          <button
+            type="button"
+            className="font-medium text-fg-2 underline decoration-border-strong underline-offset-2 hover:decoration-fg"
+            onClick={() => {
+              setValue(publicUrl);
+              setEditing(true);
+            }}
+          >
+            Change
+          </button>
+        </p>
+      </div>
     );
   }
 
@@ -101,15 +178,8 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
     </form>
   );
 
-  return (
-    <Callout tone={isLocal ? "warning" : "neutral"}>
-      {isLocal ? (
-        <p>
-          <span className="font-medium">This address only works on this computer.</span> Cloud tools can&apos;t reach it. Start a tunnel, then paste the https address it prints.
-        </p>
-      ) : (
-        <p>Paste the https address your tunnel prints. Tunnel addresses change when you restart them.</p>
-      )}
+  const ownTunnel = (
+    <>
       <div className="mt-2.5 grid gap-1.5">
         <CopyField value={`cloudflared tunnel --url ${appUrl || `http://localhost:${port}`}`} />
         <p className="text-[12px] text-fg-3">
@@ -118,7 +188,30 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
       </div>
       {form}
       <FieldError>{error}</FieldError>
-    </Callout>
+    </>
+  );
+
+  return (
+    <div className="space-y-3">
+      {toggle}
+      <Callout tone={isLocal ? "warning" : "neutral"}>
+        {isLocal ? (
+          <p>
+            <span className="font-medium">This address only works on this computer.</span> Cloud tools can&apos;t reach it. Until it&apos;s public, I check connected sequencers for
+            replies every few minutes while Inroad is open.
+          </p>
+        ) : (
+          <p>Paste the https address your tunnel prints. Tunnel addresses change when you restart them.</p>
+        )}
+        {tunnel?.installed && !editing ? (
+          <div className="mt-2.5">
+            <Disclosure title="Use your own tunnel instead">{ownTunnel}</Disclosure>
+          </div>
+        ) : (
+          ownTunnel
+        )}
+      </Callout>
+    </div>
   );
 }
 
