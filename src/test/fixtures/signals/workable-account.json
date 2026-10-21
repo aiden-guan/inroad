@@ -1,0 +1,7 @@
+{
+  "name": "Acme",
+  "jobs": [
+    { "title": "Billing Support Specialist", "department": "Support", "city": "Lisbon", "country": "Portugal", "url": "https://apply.workable.com/j/AB12", "published_on": "2026-10-10" },
+    { "title": "Data Analyst", "department": "Data", "city": "", "country": "", "url": "https://apply.workable.com/j/CD34", "published_on": "2026-09-28" }
+  ]
+}
