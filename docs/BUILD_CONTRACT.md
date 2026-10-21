@@ -52,6 +52,9 @@ anything in `docs/SPEC.md` where they disagree.
    ledger and every company's ways in; `templates.ts` writes the nudge, reply-to-intro and thank-you notes. Pure
    and shared by Today, /intros, the sheet and the agent API. One nudge per ask; one open ask per connector and
    per company; nothing about one side of a give reaches the other until both said yes.
+9. **Places are code.** `src/lib/geo/places.ts` (built-in cities, parsing, distance) and `leads.ts` (where each
+   lead is, nearby, metros) are pure; `geocode.ts` asks OpenStreetMap only for places the list doesn't know, with
+   the place text alone, cached and rate-limited, and only when Settings allows it. The map is `LeadMap`.
 
 ## Architecture you must use
 
@@ -99,7 +102,8 @@ anything in `docs/SPEC.md` where they disagree.
 - **URL params other surfaces rely on:** `/companies?c=<domain>` (open sheet), `/companies?add=<domain>` (add &
   research), `/companies?view=prospects|talking|customers`, `/companies?log=1` (log a call), `/events?new=1`,
   `/integrations?import=linkedin`, `/integrations#firecrawl` (opens that row), `/intros?i=<id>` (open an intro),
-  `/intros?new=give|ask|connector`, `/settings#usage`.
+  `/intros?new=give|ask|connector`, `/companies?view=map&focus=<domain>`, `/events?new=1&city=<city>`,
+  `/events/<id>?tab=nearby`, `/settings#usage`.
 
 ## Design system (follow exactly)
 

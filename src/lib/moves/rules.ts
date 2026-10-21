@@ -1,5 +1,7 @@
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type Workspace } from "@/lib/domain/types";
+import { leadPoints, nearby } from "@/lib/geo/leads";
+import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { awaitingOutcome } from "./replies";
@@ -67,6 +69,7 @@ const RULES = {
   pov: { base: 45, label: "Cold drafts need a point of view" },
   research: { base: 44, label: "Top account without a dossier" },
   event_task: { base: 40, label: "Event task due" },
+  event_nearby: { base: 47, label: "Warm or pipeline leads near an upcoming dinner aren't on its list" },
   question: { base: 35, label: "Open founder question" },
   import: { base: 30, label: "Connections import missing or older than 30 days" },
   discover: { base: 28, label: "Fewer than 10 untouched A/B prospects" },
@@ -121,6 +124,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   introFollowThrough(ctx);
   setup(ctx);
   events(ctx);
+  dinnerNeighbors(ctx);
   questions(ctx);
   reviews(ctx);
 
@@ -980,6 +984,43 @@ function events({ ws, today, out }: Ctx) {
         subjectIds: [String(i)],
         href: `/events/${encodeURIComponent(ev.id)}?tab=timeline`,
       });
+    });
+  }
+}
+
+/**
+ * An upcoming dinner with people nearby the founder knows (or is already selling to) who aren't on
+ * the guest list. Places come from the built-in city list only, so this stays pure and offline.
+ */
+function dinnerNeighbors({ ws, today, out }: Ctx) {
+  const dinners = Object.values(ws.events).filter((ev) => ev.kind === "dinner" && ev.plan && ev.status !== "done" && ev.status !== "cancelled");
+  if (!dinners.length) return;
+  const { points } = leadPoints(ws, resolvePlace);
+  for (const ev of dinners) {
+    const day = ev.date?.slice(0, 10) ?? ev.plan?.targetDate;
+    if (!day || day < today || daysBetween(today, day) > 45) continue;
+    const place = ev.location ?? (() => {
+      const p = resolvePlace(ev.venue?.address) ?? resolvePlace(ev.plan?.city) ?? resolvePlace(ev.request?.city);
+      return p ? { label: placeLabel(p), lat: p.lat, lng: p.lng, radiusKm: 25 * 1.609344 } : null;
+    })();
+    if (!place) continue;
+    const listed = new Set(Object.values(ev.guests).map((g) => g.personId).filter(Boolean));
+    const missing = nearby(points, place, place.radiusKm).filter((p) => p.personId && !listed.has(p.personId) && p.group !== "customer" && (p.warm || p.group === "pipeline"));
+    if (missing.length < 2) continue;
+    const city = place.label.split(",")[0];
+    const names = missing.slice(0, 2).map((p) => first(p.name));
+    out.push({
+      id: `mv_event_nearby_${ev.id}`,
+      kind: "event_task",
+      rule: "event_nearby",
+      title: `${plural(missing.length, "warm lead")} near your ${city} dinner ${missing.length === 1 ? "isn't" : "aren't"} invited`,
+      why: `${names.join(", ")}${missing.length > 2 ? ` and ${missing.length - 2} more` : ""} · ${shortDay(day)} · people you know fill seats first`,
+      minutes: 3,
+      // Invites go out three to four weeks ahead: inside 30 days, the seats are being decided now.
+      priority: RULES.event_nearby.base + (daysBetween(today, day) <= 30 ? 10 : 0) + Math.min(5, missing.length),
+      ref: { kind: "event", id: ev.id },
+      subjectIds: missing.slice(0, 8).map((p) => p.personId!),
+      href: `/events/${encodeURIComponent(ev.id)}?tab=nearby`,
     });
   }
 }

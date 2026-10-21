@@ -50,9 +50,12 @@ export function usePeopleData() {
 
   const find = useCallback((domain: string, titles?: string[]) => post<{ people: Preview[]; titles: string[]; total?: number }>("/api/people/find", { domain, titles }, "Couldn't search for people."), []);
 
+  /** Free: buyers by title around a place ("New York, NY"), at any company. */
+  const findNear = useCallback((near: string, titles?: string[]) => post<{ people: Preview[]; titles: string[]; total?: number }>("/api/people/find", { near, titles }, "Couldn't search near there."), []);
+
   const add = useCallback(
-    async (domain: string, id: string) => {
-      const r = await post<{ personId: string; credits: number; email: FoundEmail | null; movedOn: boolean }>("/api/people/add", { domain, id }, "Couldn't add that person.");
+    async (domain: string | undefined, id: string) => {
+      const r = await post<{ personId: string; credits: number; email: FoundEmail | null; movedOn: boolean; domain: string }>("/api/people/add", { domain, id }, "Couldn't add that person.");
       if (r) await refresh();
       return r;
     },
@@ -68,5 +71,5 @@ export function usePeopleData() {
     [refresh],
   );
 
-  return { connected, used, limit, find, add, workEmail };
+  return { connected, used, limit, find, findNear, add, workEmail };
 }

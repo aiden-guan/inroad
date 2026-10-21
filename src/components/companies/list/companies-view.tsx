@@ -18,15 +18,16 @@ import { AddCompany, FindCompanies, ImportLink, MoreActions, lookupDomain, type 
 import { customerRows, isScored, nameFromDomain, normalizeDomainInput, touchIndex, useToday } from "./lib";
 import { LogPicker } from "./log-picker";
 import { Prospects } from "./prospects";
+import { MapView } from "./map-view";
 import { Talking, type ClosedView } from "./talking";
 
-type View = "prospects" | "talking" | "customers";
-const VIEWS: View[] = ["prospects", "talking", "customers"];
+type View = "prospects" | "talking" | "customers" | "map";
+const VIEWS: View[] = ["prospects", "talking", "customers", "map"];
 const CLOSED: ClosedView[] = ["won", "lost", "nurture"];
 
 /**
  * Companies: Prospects · Talking · Customers. Everything is addressable by URL:
- *   ?view=prospects|talking|customers  ?c=<domain> (sheet)  ?add=<domain> (add & research)
+ *   ?view=prospects|talking|customers|map  ?c=<domain> (sheet)  ?add=<domain> (add & research)
  *   ?log=1 (pick a deal, then the sheet opens with &intent=log)  ?layout=table  ?closed=won|lost|nurture
  */
 export function CompaniesView() {
@@ -234,6 +235,7 @@ export function CompaniesView() {
             { value: "prospects", label: "Prospects", count: counts?.prospects },
             { value: "talking", label: "Talking", count: counts?.talking },
             { value: "customers", label: "Customers", count: counts?.customers },
+            { value: "map", label: "Map" },
           ]}
         />
       </div>
@@ -282,6 +284,8 @@ export function CompaniesView() {
             onOpen={(d) => openSheet(d)}
             onProspects={() => setParams({ view: null, closed: null, layout: null })}
           />
+        ) : view === "map" ? (
+          <MapView onOpen={(d) => openSheet(d)} focusDomain={params.get("focus")} />
         ) : (
           <Customers ws={ws} today={today} onOpen={(d) => openSheet(d)} onTalking={() => setParams({ view: "talking" })} />
         )}

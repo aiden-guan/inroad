@@ -10,6 +10,11 @@ export interface Settings {
    * allow personal, non-commercial use only, so it is opt-in. GDELT is open but noisier.
    */
   newsSource?: "gdelt" | "google_news" | "off";
+  /**
+   * Places the built-in city list doesn't know (and venue addresses) are looked up on OpenStreetMap's
+   * Nominatim. Only the place text is sent, never a name or company. "off" keeps the map to known cities.
+   */
+  geocoder?: "osm" | "off";
 }
 
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");

@@ -500,6 +500,27 @@ export const candidateKey = (c: Pick<GuestCandidate, "personId" | "accountDomain
  * 5–6 prospects, ≤1 connector (8 guest seats, 10 at the table). Confirm ~125% of seats; senior buyers
  * accept 15–25% of cold invites, warm and co-host lists far more. Roundtables: 15–25 invites; dinners 30–50.
  */
+/** A person on file as a guest candidate, scored like the planner scores the room. Manual: survives re-plans. */
+export function guestFromPerson(ws: Workspace, ev: Pick<GtmEvent, "kind" | "plan">, p: Person, id: string, role: Guest["role"] = "prospect"): Guest {
+  const scored = ev.plan ? scoreCandidates(ws, { kind: ev.kind, city: ev.plan.city, goal: ev.plan.goal }).candidates.find((c) => c.personId === p.id) : undefined;
+  return {
+    id,
+    status: "candidate",
+    manual: true,
+    personId: p.id,
+    name: p.name,
+    title: p.title,
+    accountDomain: p.accountDomain,
+    role,
+    score: scored?.score ?? 0,
+    dealId: ws.accounts[p.accountDomain]?.dealId,
+    personalLine: "",
+    warmPath: scored?.warmPath,
+    scoreParts: scored?.scoreParts,
+    evidenceIds: scored?.evidenceIds,
+  };
+}
+
 export function composeRoom(
   cands: ScoredCandidate[],
   ws: Workspace,

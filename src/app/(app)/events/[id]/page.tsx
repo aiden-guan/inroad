@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EventPage } from "@/components/events/event-page";
+import { PageTransition } from "@/components/shell/page-transition";
 
 export const metadata: Metadata = { title: "Event" };
 
@@ -11,8 +12,10 @@ export const instant = false;
 export default async function Page({ params }: PageProps<"/events/[id]">) {
   const { id } = await params;
   return (
-    <Suspense>
-      <EventPage id={decodeURIComponent(id)} />
-    </Suspense>
+    <PageTransition>
+      <Suspense>
+        <EventPage id={decodeURIComponent(id)} />
+      </Suspense>
+    </PageTransition>
   );
 }

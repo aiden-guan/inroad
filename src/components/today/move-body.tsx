@@ -323,6 +323,29 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       );
     case "event_task":
       return <EventBody {...props} />;
+    case "event_nearby": {
+      const ids = move.subjectIds ?? [];
+      const names = ids.map((id) => ws.people[id]?.name).filter(Boolean) as string[];
+      return (
+        <div className="space-y-3">
+          <Lead>
+            {names.slice(0, 4).join(", ")}
+            {names.length > 4 ? ` and ${names.length - 4} more` : ""} {names.length === 1 ? "is" : "are"} close enough to come and {names.length === 1 ? "isn't" : "aren't"} on the guest list.
+            People you already know or are selling to fill a table first, and a seat moves a deal faster than another call.
+          </Lead>
+          <Row>
+            {move.href && (
+              <Link href={move.href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+                See them on the map <ArrowUpRight className="size-3.5 opacity-70" />
+              </Link>
+            )}
+            <Button variant="ghost" onClick={onComplete}>
+              Not this time
+            </Button>
+          </Row>
+        </div>
+      );
+    }
     case "question":
       return <QuestionBody {...props} />;
     case "pov":

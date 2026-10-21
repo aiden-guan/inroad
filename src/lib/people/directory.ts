@@ -4,7 +4,7 @@ import { splitName } from "@/lib/connectors/http";
 import { jurisdictionOf } from "@/lib/deals/rules";
 import { monthKey, nowISO } from "@/lib/domain/ids";
 import type { ContactPath, Person, Workspace } from "@/lib/domain/types";
-import { ensurePerson } from "@/lib/hub/records";
+import { ensureAccount, ensurePerson } from "@/lib/hub/records";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 
 /**
@@ -110,6 +110,40 @@ export interface Preview extends PersonPreview {
   personId?: string;
 }
 
+/** Free: buyers by title around a place ("New York, NY"), at any company. For an event's "Nearby". */
+export async function findPeopleNear(location: string, titles?: string[]): Promise<{ people: Preview[]; titles: string[]; total?: number }> {
+  const ws = readWorkspace();
+  const people = adapter(ws);
+  const wanted = (titles ?? personaTitles(ws)).map((t) => t.trim()).filter(Boolean).slice(0, 10);
+  if (!wanted.length) throw new PeopleDataError("Add buyer titles to your personas in Playbook first, so the search knows who to look for.", 400, "validation");
+  const r = await people.search({ locations: [location], titles: wanted, perPage: 15 });
+  await record(r.ok ? r.value.credits : 0, r.ok ? undefined : r.error);
+  const { value } = unwrap(r);
+  const byApollo = new Map(Object.values(ws.people).filter((p) => p.apolloId).map((p) => [p.apolloId!, p.id]));
+  // Customers and companies already ruled out aren't new leads.
+  const skip = new Set(Object.values(ws.accounts).filter((a) => a.status === "disqualified" || a.status === "customer").map((a) => a.domain));
+  const suppressed = new Set(ws.suppression.map((x) => x.domain).filter(Boolean));
+  return {
+    titles: wanted,
+    total: value.total,
+    people: value.people
+      .filter((p) => !p.companyDomain || (!skip.has(p.companyDomain) && !suppressed.has(p.companyDomain)))
+      .map((p) => (byApollo.has(p.id) ? { ...p, personId: byApollo.get(p.id) } : p)),
+  };
+}
+
+function personaTitles(ws: Workspace): string[] {
+  const seen = new Set<string>();
+  return (ws.foundation?.personas ?? [])
+    .flatMap((p) => p.titles.slice(0, 3))
+    .filter((t) => {
+      const k = t.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+}
+
 export async function findPeople(domain: string, titles?: string[]): Promise<{ people: Preview[]; titles: string[]; total?: number }> {
   const ws = readWorkspace();
   if (!ws.accounts[domain]) throw new PeopleDataError("That company isn't in your list.", 404, "not_found");
@@ -146,22 +180,26 @@ function addEmail(person: Person, email: FoundEmail, via: string) {
 const sameCompany = (a: string, b: string) => a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
 
 /** Reveals a search hit and files it on the company. Billed only on a match. */
-export async function addPerson(domain: string, apolloId: string): Promise<{ personId: string; credits: number; email: FoundEmail | null; movedOn: boolean }> {
+export async function addPerson(domain: string | undefined, apolloId: string): Promise<{ personId: string; credits: number; email: FoundEmail | null; movedOn: boolean; domain: string }> {
   const ws = readWorkspace();
-  if (!ws.accounts[domain]) throw new PeopleDataError("That company isn't in your list.", 404, "not_found");
+  if (domain && !ws.accounts[domain]) throw new PeopleDataError("That company isn't in your list.", 404, "not_found");
   const onFile = Object.values(ws.people).find((p) => p.apolloId === apolloId);
-  if (onFile) return { personId: onFile.id, credits: 0, email: null, movedOn: onFile.mayHaveLeft };
+  if (onFile) return { personId: onFile.id, credits: 0, email: null, movedOn: onFile.mayHaveLeft, domain: onFile.accountDomain };
   assertBudget(ws, PEOPLE_DATA_PRICE.add);
   const r = await adapter(ws).add(apolloId);
   await record(r.ok ? r.value.credits : 0, r.ok ? undefined : r.error);
   const { value: found, credits } = unwrap(r);
   if (!found) throw new PeopleDataError("Apollo couldn't match that person anymore, so nothing was charged. They may have changed jobs.", 404, "no_match");
+  // Found by place rather than company: file them under their employer, adding the company if it's new.
+  const home = domain ?? found.companyDomain;
+  if (!home) throw new PeopleDataError("Apollo matched them but didn't say where they work, so I couldn't file them under a company.", 422, "validation");
 
-  const movedOn = !!found.companyDomain && !sameCompany(found.companyDomain, domain);
+  const movedOn = !!domain && !!found.companyDomain && !sameCompany(found.companyDomain, domain);
   const { value: personId } = await mutateWorkspace((w) => {
+    if (!domain) ensureAccount(w, { domain: home, name: found.companyName }, { source: "integration", sourceDetail: "Apollo, near an event", at: nowISO() });
     const { person } = ensurePerson(
       w,
-      { domain, name: found.name, title: found.title, linkedinUrl: found.linkedinUrl ?? null, location: found.location },
+      { domain: home, name: found.name, title: found.title, linkedinUrl: found.linkedinUrl ?? null, location: found.location },
       { via: "Apollo", source: "integration" },
     );
     person.apolloId = found.id;
@@ -170,7 +208,7 @@ export async function addPerson(domain: string, apolloId: string): Promise<{ per
     if (found.email) addEmail(person, found.email, "Apollo");
     return person.id;
   });
-  return { personId, credits, email: found.email ?? null, movedOn };
+  return { personId, credits, email: found.email ?? null, movedOn, domain: home };
 }
 
 /** A work email for someone already on file. Billed only when one is found. */

@@ -4,7 +4,8 @@ import { errorResponse, readJSON } from "@/lib/server/http";
 import { publicWorkspace, readWorkspace } from "@/lib/store/workspace";
 
 const Body = z.object({
-  domain: z.string().trim().toLowerCase().min(3).max(253),
+  /** Omitted for people found near a place: they're filed under their employer. */
+  domain: z.string().trim().toLowerCase().min(3).max(253).optional(),
   id: z.string().trim().min(1).max(64),
 });
 

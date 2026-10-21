@@ -18,13 +18,14 @@ import { ease } from "@/lib/motion";
 import { AfterTab } from "./after-tab";
 import { FunnelBar } from "./funnel-bar";
 import { GuestsTab } from "./guests-tab";
+import { NearbyTab } from "./nearby-tab";
 import { KIND_LABEL, STATUS_LABEL, eventDay, formatEventDate, funnelOf } from "./plan-math";
 import { PlanTab } from "./plan-tab";
 import { RoomTab } from "./room-tab";
 import { TimelineTab } from "./timeline-tab";
 import { KindIcon, StatusBadge, SummaryReceipt, useEventRuns } from "./ui";
 
-const TABS = ["plan", "guests", "timeline", "room", "after"] as const;
+const TABS = ["plan", "guests", "nearby", "timeline", "room", "after"] as const;
 type Tab = (typeof TABS)[number];
 
 /** Re-plan with the inputs the founder gave last time (and the date they may have moved since). */
@@ -286,6 +287,7 @@ export function EventPage({ id }: { id: string }) {
               options={[
                 { value: "plan", label: "Plan" },
                 { value: "guests", label: "Guests", count: counts.guests },
+                ...(ev.kind === "dinner" ? [{ value: "nearby" as const, label: "Nearby" }] : []),
                 { value: "timeline", label: "Timeline", count: counts.due || undefined },
                 { value: "room", label: "Room" },
                 { value: "after", label: "After" },
@@ -304,6 +306,7 @@ export function EventPage({ id }: { id: string }) {
             >
               {tab === "plan" && <PlanTab ev={ev} />}
               {tab === "guests" && <GuestsTab ev={ev} />}
+              {tab === "nearby" && <NearbyTab ev={ev} />}
               {tab === "timeline" && <TimelineTab ev={ev} />}
               {tab === "room" && <RoomTab ev={ev} />}
               {tab === "after" && <AfterTab ev={ev} />}

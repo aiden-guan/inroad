@@ -46,14 +46,15 @@ function Chip({ active, onClick, children, disabled }: { active: boolean; onClic
  * The planner expands in place at the top of /events (never a modal). It asks five things and
  * recommends the room that fits the founder's stage: a roundtable until there's a customer to host.
  */
-export function PlanForm({ ws, onClose }: { ws: Workspace; onClose: () => void }) {
+export function PlanForm({ ws, onClose, initialCity }: { ws: Workspace; onClose: () => void; initialCity?: string }) {
   const router = useRouter();
   const { start } = useRuns();
   const s = useMemo(() => stats(ws), [ws]);
   const clusters = useMemo(() => cityClusters(ws), [ws]);
 
-  const [kind, setKind] = useState<EventKind>(s.won > 0 ? "dinner" : "roundtable");
-  const [city, setCity] = useState(clusters[0]?.city ?? "");
+  // Arriving from the map ("Plan a dinner here") means a dinner in that city.
+  const [kind, setKind] = useState<EventKind>(initialCity ? "dinner" : s.won > 0 ? "dinner" : "roundtable");
+  const [city, setCity] = useState(initialCity ?? clusters[0]?.city ?? "");
   const months = upcomingMonths(kind);
   const [monthPick, setMonth] = useState<string | null>(null);
   const month = monthPick && months.includes(monthPick) ? monthPick : months[0];

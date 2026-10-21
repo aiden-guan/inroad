@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, Keyboard, Map as MapIcon, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAsk } from "@/components/providers/ask-provider";
@@ -10,6 +10,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/client/cn";
+import { readRecent } from "@/lib/client/recent";
 
 /**
  * ⌘K. Opens instantly, no animation on navigation or filtering (it's used constantly).
@@ -18,12 +19,15 @@ import { cn } from "@/lib/client/cn";
 export function CommandPalette() {
   const [open, setOpenState] = useState(false);
   const [query, setQuery] = useState("");
+  const [recent, setRecent] = useState<string[]>([]);
   const setOpen = useCallback((next: boolean | ((o: boolean) => boolean)) => {
     setOpenState((o) => {
       const value = typeof next === "function" ? next(o) : next;
       if (!value) setQuery("");
       return value;
     });
+    // Read on open (an event, not a render): what the founder opened lately comes first.
+    setRecent(readRecent());
   }, []);
   const router = useRouter();
   const { ws } = useWorkspace();
@@ -54,6 +58,8 @@ export function CommandPalette() {
         .slice(0, 200),
     [ws],
   );
+
+  const recentCompanies = recent.map((d) => ws?.accounts[d]).filter((a): a is NonNullable<typeof a> => !!a && a.status !== "disqualified").slice(0, 5);
 
   const run = (fn: () => void) => {
     setOpen(false);
@@ -118,6 +124,21 @@ export function CommandPalette() {
               Research {query.trim()}
             </Item>
           )}
+          {!query.trim() && recentCompanies.length > 0 && (
+            <Command.Group heading="Recent">
+              {recentCompanies.map((a) => (
+                <Item
+                  key={`recent-${a.domain}`}
+                  value={`recent ${a.name} ${a.domain}`}
+                  icon={<Favicon domain={a.domain} name={a.name} size={16} />}
+                  onSelect={() => run(() => router.push(`/companies?c=${encodeURIComponent(a.domain)}`))}
+                  hint={<ArrowRight className="size-3.5" />}
+                >
+                  {a.name} <span className="font-mono text-[12px] text-fg-3">{a.domain}</span>
+                </Item>
+              ))}
+            </Command.Group>
+          )}
           <Command.Group heading="Go to">
             <Item value="today" icon={<Sunrise className="size-4" />} onSelect={() => run(() => router.push("/today"))} hint="G T">
               Today
@@ -160,8 +181,14 @@ export function CommandPalette() {
             <Item value="plan a dinner roundtable event" icon={<CalendarHeart className="size-4" />} onSelect={() => run(() => router.push("/events?new=1"))}>
               Plan a dinner or roundtable
             </Item>
+            <Item value="map where are my leads nearby location" icon={<MapIcon className="size-4" />} onSelect={() => run(() => router.push("/companies?view=map"))}>
+              Map of your leads
+            </Item>
             <Item value="toggle theme dark light" icon={<Moon className="size-4" />} onSelect={() => run(toggleTheme)}>
               Toggle dark mode
+            </Item>
+            <Item value="keyboard shortcuts help keys" icon={<Keyboard className="size-4" />} onSelect={() => run(() => window.dispatchEvent(new Event("inroad:shortcuts")))} hint="?">
+              Keyboard shortcuts
             </Item>
           </Command.Group>
           {companies.length > 0 && (

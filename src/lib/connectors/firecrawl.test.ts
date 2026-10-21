@@ -73,6 +73,16 @@ async function main() {
     assert.deepEqual((call.options as Record<string, unknown>).person_titles, ["Controller", "CFO"]);
   });
 
+  await check("a search near a place sends locations and no company filter, and keeps each employer's domain", async () => {
+    queue.push(item({ people: [{ id: "n1", first_name: "Ravi", last_name: "I***", title: "CFO", organization: { name: "Tallyrock", primary_domain: "www.tallyrock.com" }, has_email: false }] }));
+    const r = await people.search({ locations: ["New York, NY"], titles: ["CFO"] });
+    assert.ok(r.ok);
+    assert.equal(r.value.value.people[0].companyDomain, "tallyrock.com");
+    const options = (seen[0].body!.alexandria as Record<string, unknown>[])[0].options as Record<string, unknown>;
+    assert.deepEqual(options.person_locations, ["New York, NY"]);
+    assert.equal(options.q_organization_domains_list, undefined);
+  });
+
   await check("add never asks for personal emails or phones, and keeps a verified work email", async () => {
     queue.push(
       item(

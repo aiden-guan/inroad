@@ -179,7 +179,7 @@ export function EventsPage() {
         )}
       </header>
 
-      <AnimatePresence initial={false}>{open && ws && <PlanForm key="form" ws={ws} onClose={close} />}</AnimatePresence>
+      <AnimatePresence initial={false}>{open && ws && <PlanForm key="form" ws={ws} onClose={close} initialCity={params.get("city")?.trim().slice(0, 80) || undefined} />}</AnimatePresence>
 
       {error && !ws && <p className="mt-10 text-[13px] text-danger">{error} Reload the page to try again.</p>}
 

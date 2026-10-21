@@ -10,6 +10,7 @@ import { Orb } from "@/components/ui/orb";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { CommandPalette } from "./command-palette";
+import { ShortcutsDialog } from "./shortcuts";
 import { NAV, SECONDARY, Sidebar } from "./sidebar";
 
 const GO: Record<string, string> = { t: "/today", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
@@ -96,6 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="min-w-0">{children}</main>
       </div>
       <CommandPalette />
+      <ShortcutsDialog />
       <AskDialog />
     </div>
   );

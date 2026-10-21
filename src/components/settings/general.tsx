@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { Segmented, Skeleton } from "@/components/ui/misc";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
-import type { NewsSource } from "./types";
+import type { Geocoder, NewsSource } from "./types";
 import { useThemePref, type ThemePref, type useSettingsStatus } from "./use-settings";
 
 type Settings = ReturnType<typeof useSettingsStatus>;
@@ -21,6 +21,7 @@ export function GeneralSection({ settings }: { settings: Settings }) {
         <ThemeRow />
       </Group>
       <NewsGroup settings={settings} />
+      <PlacesGroup settings={settings} />
     </SettingsSection>
   );
 }
@@ -229,6 +230,49 @@ function ThemeRow() {
         />
       </div>
     </Row>
+  );
+}
+
+/* ───────────── Places (the lead map) ───────────── */
+
+function PlacesGroup({ settings }: { settings: Settings }) {
+  const { status, save } = settings;
+  const [pending, setPending] = useState<Geocoder | null>(null);
+  const value = pending ?? status?.geocoder ?? "osm";
+
+  const choose = async (next: Geocoder) => {
+    if (next === value) return;
+    setPending(next);
+    const problem = await save({ geocoder: next });
+    setPending(null);
+    if (problem) toast.error(problem);
+  };
+
+  return (
+    <Group id="places" title="Places on the map" hint="About 200 startup cities are built in and need no network. Map tiles come from OpenFreeMap; your leads never leave this computer.">
+      {status ? (
+        <ChoiceList<Geocoder>
+          name="geocoder"
+          label="Places outside the built-in list"
+          value={value}
+          onChange={(v) => void choose(v)}
+          options={[
+            {
+              value: "osm",
+              label: "Look them up on OpenStreetMap",
+              badge: <Badge tone="outline">Default</Badge>,
+              hint: "Only the place text is sent (“Boise, ID”, a venue address), never a name or company. Cached, one lookup a second.",
+            },
+            { value: "off", label: "Built-in cities only", hint: "Nothing is sent. Leads in other places stay off the map." },
+          ]}
+        />
+      ) : (
+        <div className="space-y-3 px-4 py-3.5">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+      )}
+    </Group>
   );
 }
 

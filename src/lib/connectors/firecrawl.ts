@@ -131,6 +131,8 @@ function workEmail(address: string, status: string, verified: boolean): FoundEma
   return { address: a, verified, status: status || "unknown" };
 }
 
+const orgDomain = (org: unknown) => normalizeDomain(str(obj(org).primary_domain) || str(obj(org).website_url));
+
 function toPreview(raw: unknown): PersonPreview | null {
   const p = obj(raw);
   const id = str(p.id);
@@ -142,6 +144,7 @@ function toPreview(raw: unknown): PersonPreview | null {
     lastName: str(p.last_name) || str(p.last_name_obfuscated),
     title: str(p.title),
     companyName: str(obj(p.organization).name) || undefined,
+    ...(orgDomain(p.organization) ? { companyDomain: orgDomain(p.organization)! } : {}),
     hasEmail: p.has_email === true,
   };
 }
@@ -163,6 +166,7 @@ function toPerson(raw: unknown): FoundPerson | null {
     ...(/^https?:\/\/([a-z]+\.)?linkedin\.com\/in\//i.test(linkedin) ? { linkedinUrl: linkedin } : {}),
     ...(location ? { location } : {}),
     ...(normalizeDomain(str(org.primary_domain) || str(org.website_url)) ? { companyDomain: normalizeDomain(str(org.primary_domain) || str(org.website_url))! } : {}),
+    ...(str(org.name) ? { companyName: str(org.name) } : {}),
     ...(email ? { email } : {}),
   };
 }
@@ -206,13 +210,14 @@ export const firecrawl: ConnectorFactory = (key) => {
         return ok({ remaining, ...(Number.isFinite(plan) ? { plan } : {}) });
       },
 
-      async search({ domain, titles, perPage = 10 }) {
+      async search({ domain, locations, titles, perPage = 10 }) {
         const r = await alexandria(
           k,
           "apollo",
           "people/search",
           {
-            q_organization_domains_list: [domain],
+            ...(domain ? { q_organization_domains_list: [domain] } : {}),
+            ...(locations?.length ? { person_locations: locations.slice(0, 5) } : {}),
             ...(titles.length ? { person_titles: titles.slice(0, 10) } : {}),
             page: 1,
             per_page: Math.min(25, Math.max(1, perPage)),

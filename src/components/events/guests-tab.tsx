@@ -29,7 +29,7 @@ import {
   mergeTokens,
   peerFor,
   roleLabel,
-  scoreCandidates,
+  guestFromPerson,
 } from "./plan-math";
 import { DraftBlock, Sources, useGuestActions } from "./ui";
 
@@ -322,25 +322,7 @@ function AddGuest({ ev, ws }: { ev: GtmEvent; ws: Workspace }) {
   }, [q, ws, taken]);
 
   const add = (p: Person) => {
-    const plan = ev.plan!;
-    const scored = scoreCandidates(ws, { kind: ev.kind, city: plan.city, goal: plan.goal }).candidates.find((c) => c.personId === p.id);
-    const guest: Guest = {
-      id: newId("gst"),
-      status: "candidate",
-      manual: true,
-      personId: p.id,
-      name: p.name,
-      title: p.title,
-      accountDomain: p.accountDomain,
-      role: "prospect",
-      score: scored?.score ?? 0,
-      dealId: ws.accounts[p.accountDomain]?.dealId,
-      personalLine: "",
-      warmPath: scored?.warmPath,
-      scoreParts: scored?.scoreParts,
-      evidenceIds: scored?.evidenceIds,
-    };
-    void actions.save(guest);
+    void actions.save(guestFromPerson(ws, ev, p, newId("gst")));
     setOpen(false);
     setQ("");
     toast(`Added ${p.name}. Write their personal line before you invite them.`);

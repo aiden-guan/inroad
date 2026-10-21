@@ -46,6 +46,7 @@ terms haven't been accepted yet.
 | **Today** | One number, at most five moves, each with the draft or action ready. Reviews, reply checks and close-out are moves too. |
 | **Companies** | Prospects (with why-now signals and warm paths), Talking (a 6-stage board), Customers. Every company opens a sheet with a sourced dossier, angles, people, the deal, call prep and debriefs. |
 | **Intros** | Every warm intro, double opt-in, from the ask to the thank-you, always showing whose move it is. Drafts the one nudge, the reply to the intro (connector to BCC, your times) and the close-the-loop note in code. Tracks the people who introduce you with a give/get ledger (one open ask each, two weeks between asks, give before a fourth ask), and intros you make for others. Every company shows its **Ways in**: people you know there, connections who work or used to work there, connectors who can reach it, ranked with why and concerns. |
+| **Map** | Companies → Map shows where your leads are, which metros would fill a dinner (one click plans it there), and “I'm in…” lists who's near any city or address. Each dinner gets a **Nearby** tab: set the venue and a radius, see every pipeline deal, prospect and customer inside it, and add them to the guest list in one click. With Firecrawl, buyers near the venue who aren't in Inroad yet are a free search away. About 200 startup cities are built in; anything else is looked up on OpenStreetMap (place text only, cached, can be turned off). |
 | **Events** | Virtual roundtables and exec dinners: themes, scored guest lists, invite copy, timeline, run of show, follow-ups. |
 | **Playbook** | What Inroad believes about your business — ICP bet, positioning, messaging, objections, assets, your points of view — all editable. It becomes your first AE's onboarding doc. |
 | **Integrations** | Connect your stack, import CSVs and LinkedIn connections, generate keys for other agents. |
@@ -64,7 +65,9 @@ terms haven't been accepted yet.
    spends zero tokens.
 6. **Warm intros run on rules, not tokens.** Whose move it is, the nudge, the reply to the intro and the thank-you,
    the connector ledger and every company's ways in are all computed and drafted in code.
-7. **People data comes from a data provider, not a model.** Who works at a company and their work email come from
+7. **Places are code, too.** Leads are placed from a built-in city list, distances and radii are plain math, and
+   the map's tiles come from OpenFreeMap. No model ever sees a location.
+8. **People data comes from a data provider, not a model.** Who works at a company and their work email come from
    Apollo and FullEnrich through Firecrawl Alexandria, in code, so finding a contact never costs a web search or a token.
 
 Every run ends with a receipt — *Worked for 1m 52s · 9 sources · $0.04* — and Settings → Usage shows spend by workflow,

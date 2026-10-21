@@ -1122,6 +1122,8 @@ export interface GtmEvent {
   chosenThemeIdx?: number;
   date?: ISODateTime;
   venue?: { name: string; address?: string };
+  /** Where the room is, for "Nearby": a city center or a geocoded venue, and how far guests would travel. */
+  location?: { label: string; lat: number; lng: number; radiusKm: number; precision: "city" | "address" };
   guests: Record<ID, Guest>;
   createdAt: ISODateTime;
   runId?: ID;

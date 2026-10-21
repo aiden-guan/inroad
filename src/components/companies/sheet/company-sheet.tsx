@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpRight, Eye, EyeOff, MoreHorizontal, Phone, RefreshCw, Search } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, MapPin, MoreHorizontal, Phone, RefreshCw, Search } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -14,9 +15,11 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { EmptyState, Segmented, Skeleton } from "@/components/ui/misc";
 import { Sheet } from "@/components/ui/sheet";
 import { WorkLog } from "@/components/ui/work-log";
+import { pushRecent } from "@/lib/client/recent";
 import { OPEN_STAGES, STAGE_LABELS, type Account, type Deal, type EntityRef, type Workspace } from "@/lib/domain/types";
 import { newId, nowISO } from "@/lib/domain/ids";
 import { newDeal } from "@/lib/deals/rules";
+import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { DealPanel } from "./deal-panel";
 import { DossierView, EnrichmentView } from "./dossier-view";
 import { LogCall } from "./meetings";
@@ -76,6 +79,10 @@ export function CompanySheet({ domain, onClose }: { domain: string | null; onClo
   const params = useSearchParams();
   const intentLog = params.get("intent") === "log" || params.get("log") === "1";
   const account = shown ? ws?.accounts[shown] : undefined;
+  // ⌘K lists recently opened companies first.
+  useEffect(() => {
+    if (domain) pushRecent(domain);
+  }, [domain]);
   const deal = openDeal(ws, account);
   const [tabs, setTabs] = useState<Record<string, Tab>>({});
   const defaultTab: Tab = intentLog ? "deal" : deal && OPEN_STAGES.includes(deal.stage) ? "deal" : "dossier";
@@ -141,6 +148,9 @@ function Header({ domain, account, deal, tab, onTab }: { domain: string; account
   const disqualified = account.status === "disqualified";
   const hasOpenDeal = !!deal && OPEN_STAGES.includes(deal.stage);
 
+  // Where they are, from the built-in city list (no network); opens the map focused on them.
+  const place = resolvePlace(account.hqCity);
+  const hq = place ? placeLabel(place) : null;
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
       <div className="flex min-w-0 items-center gap-3">
@@ -156,10 +166,22 @@ function Header({ domain, account, deal, tab, onTab }: { domain: string; account
               !(account.status === "tracked" && account.watch) && <Badge tone={disqualified ? "danger" : "neutral"}>{STATUS_LABEL[account.status]}</Badge>
             )}
           </div>
-          <a href={`https://${account.domain}`} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-0.5 font-mono text-[12px] text-fg-3 hover:text-fg-2">
-            <span className="truncate">{account.domain}</span>
-            <ArrowUpRight className="size-3 shrink-0" aria-hidden />
-          </a>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+            <a href={`https://${account.domain}`} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-0.5 font-mono text-[12px] text-fg-3 hover:text-fg-2">
+              <span className="truncate">{account.domain}</span>
+              <ArrowUpRight className="size-3 shrink-0" aria-hidden />
+            </a>
+            {hq && (
+              <Link
+                href={`/companies?view=map&focus=${encodeURIComponent(account.domain)}`}
+                className="inline-flex items-center gap-1 text-[12px] text-fg-3 hover:text-fg-2"
+                title="See it on the map, with your other leads nearby"
+              >
+                <MapPin className="size-3 shrink-0" aria-hidden />
+                {hq}
+              </Link>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">

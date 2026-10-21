@@ -102,6 +102,22 @@ async function firecrawl(req, res) {
     if (key.startsWith("fc-terms") && provider !== "firecrawl") {
       return { provider, capability, error: { code: "THIRD_PARTY_DATA_TERMS_REQUIRED", message: "Accept the provider's data terms first.", status: 403 }, requiresAction: { type: "accept_terms", url: "https://www.firecrawl.dev/app/alexandria" } };
     }
+    if (provider === "apollo" && capability === "people/search" && !options.q_organization_domains_list && options.person_locations?.length) {
+      // Near a place: buyers at several companies in that city.
+      const where = String(options.person_locations[0]);
+      const city = where.split(",")[0].trim();
+      const firms = ["Tallyrock", "Meterly", "Brightledger", "Quantaloop", "Northpeak", "Sablewire", "Coppergate"];
+      const people = FIRST.slice(0, 7).map((first, i) => {
+        const firm = firms[i];
+        const p = { id: `ap_near_${city.toLowerCase().replace(/\W/g, "")}_${i}`, first, last: LAST[(i + 3) % LAST.length], title: (options.person_titles ?? [])[i % Math.max(1, (options.person_titles ?? []).length)] ?? "Controller", hasEmail: i % 3 !== 1, domain: `${firm.toLowerCase()}.example`, firm, where };
+        fcIndex.set(p.id, p);
+        return p;
+      });
+      return {
+        provider, capability, creditsCost: 0, records: people.length,
+        data: { people: people.map((p) => ({ id: p.id, first_name: p.first, last_name: `${p.last[0]}***`, title: p.title, organization: { name: p.firm, primary_domain: p.domain }, has_email: p.hasEmail })), total_entries: 140 },
+      };
+    }
     if (provider === "apollo" && capability === "people/search") {
       const domain = options.q_organization_domains_list?.[0] ?? "example.com";
       const people = fcPeople(domain, options.person_titles ?? []);
@@ -122,8 +138,8 @@ async function firecrawl(req, res) {
             linkedin_url: `https://www.linkedin.com/in/${p.first.toLowerCase()}-${p.last.toLowerCase()}`,
             email: p.hasEmail ? `${p.first.toLowerCase()}@${p.domain}` : "email_not_unlocked@domain.com",
             email_status: p.hasEmail ? "verified" : "unavailable",
-            city: "San Francisco", state: "California", country: "United States",
-            organization: { name: p.domain.split(".")[0], primary_domain: p.domain },
+            ...(p.where ? { city: p.where.split(",")[0].trim(), country: "United States" } : { city: "San Francisco", state: "California", country: "United States" }),
+            organization: { name: p.firm ?? p.domain.split(".")[0], primary_domain: p.domain },
           },
         },
       };

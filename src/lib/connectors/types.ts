@@ -117,6 +117,8 @@ export interface PersonPreview {
   lastName: string;
   title: string;
   companyName?: string;
+  /** The employer's domain, when the provider includes it in previews. */
+  companyDomain?: string;
   hasEmail: boolean;
 }
 
@@ -136,6 +138,7 @@ export interface FoundPerson {
   location?: string;
   /** The employer the provider has on file, to catch people who moved on. */
   companyDomain?: string;
+  companyName?: string;
   email?: FoundEmail;
 }
 
@@ -146,8 +149,8 @@ export interface Billed<T> {
 }
 
 export interface PeopleAdapter {
-  /** Free. People at a company whose title matches any of `titles`. */
-  search(q: { domain: string; titles: string[]; perPage?: number }): Promise<Result<Billed<{ people: PersonPreview[]; total?: number }>>>;
+  /** Free. People at a company (or anywhere in `locations`) whose title matches any of `titles`. */
+  search(q: { domain?: string; locations?: string[]; titles: string[]; perPage?: number }): Promise<Result<Billed<{ people: PersonPreview[]; total?: number }>>>;
   /** Paid on a match: full name, LinkedIn and a work email from a search hit. Never personal email or phone. */
   add(id: string): Promise<Result<Billed<FoundPerson | null>>>;
   /** Paid only when found: a work email from a LinkedIn URL, or a name plus employer. */
