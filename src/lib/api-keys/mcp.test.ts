@@ -140,10 +140,36 @@ describe("tools", () => {
   const names = async (token: string) => (await rpc("tools/list", undefined, { token })).result?.tools?.map((t) => t.name);
 
   it("lists only the tools a key's scopes allow, in a fixed order", async () => {
-    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account"];
+    // New tools are appended, never inserted, so callers' prompt caches over the earlier ones keep hitting.
+    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros"];
     expect(await names(tokens.read)).toEqual(read);
-    expect(await names(tokens.records)).toEqual(["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "add_accounts", "log_activity", "complete_action", "get_account"]);
-    expect(await names(tokens.drafts)).toEqual(["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "add_accounts", "log_activity", "submit_draft", "complete_action", "get_account"]);
+    expect(await names(tokens.records)).toEqual([
+      "get_icp",
+      "get_playbook",
+      "score_accounts",
+      "search_records",
+      "get_next_actions",
+      "add_accounts",
+      "log_activity",
+      "complete_action",
+      "get_account",
+      "find_warm_paths",
+      "list_intros",
+    ]);
+    expect(await names(tokens.drafts)).toEqual([
+      "get_icp",
+      "get_playbook",
+      "score_accounts",
+      "search_records",
+      "get_next_actions",
+      "add_accounts",
+      "log_activity",
+      "submit_draft",
+      "complete_action",
+      "get_account",
+      "find_warm_paths",
+      "list_intros",
+    ]);
   });
 
   it("publishes a JSON Schema and hints for each tool", async () => {

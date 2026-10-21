@@ -1,9 +1,9 @@
 /**
- * Intro engine checks. Run: npx tsx src/lib/intros/rules.test.ts
- * Plain node:assert, no test runner: whose move it is at every stage, the one-nudge rule, the
+ * Intro engine checks (Vitest, plain node:assert): whose move it is at every stage, the one-nudge rule, the
  * connector ledger, "ways in" ranking, the reducer's double opt-in, and the drafted notes.
  */
 import assert from "node:assert/strict";
+import { describe, it } from "vitest";
 import { applyAction } from "@/lib/domain/actions";
 import { addDays } from "@/lib/domain/ids";
 import type { Connection, Connector, Intro, Workspace } from "@/lib/domain/types";
@@ -12,12 +12,6 @@ import { ledger, nextStep, reachMatch, waysIn, yourMoves } from "./rules";
 import { messageFor } from "./templates";
 
 const TODAY = "2026-10-21";
-const results: string[] = [];
-function check(name: string, fn: () => void) {
-  fn();
-  results.push(name);
-  console.log(`  ok   ${name}`);
-}
 
 function base(): Workspace {
   const ws = sampleWorkspace(new Date(`${TODAY}T10:00:00`));
@@ -44,9 +38,9 @@ function ask(over: Partial<Intro> = {}): Intro {
 
 const connector = (over: Partial<Connector> = {}): Connector => ({ id: "con_x", name: "Claire Donovan", relationship: "investor", introsMade: 0, ...over });
 
-console.log("intros");
+describe("intros", () => {
 
-check("asked: the connector's move until day 5, then one nudge, then let it go a week later", () => {
+it("asked: the connector's move until day 5, then one nudge, then let it go a week later", () => {
   const ws = base();
   assert.equal(nextStep(ask({ askedOn: addDays(TODAY, -2) }), ws, TODAY).owner, "connector");
   const due = nextStep(ask({ askedOn: addDays(TODAY, -5) }), ws, TODAY);
@@ -59,7 +53,7 @@ check("asked: the connector's move until day 5, then one nudge, then let it go a
   assert.equal(quiet.overdueDays, undefined, "due today, not late");
 });
 
-check("forwarded: waiting on the target, one check-in after a week", () => {
+it("forwarded: waiting on the target, one check-in after a week", () => {
   const ws = base();
   const waiting = nextStep(ask({ stage: "forwarded", askedOn: addDays(TODAY, -6), forwardedOn: addDays(TODAY, -3) }), ws, TODAY);
   assert.equal(waiting.owner, "target");
@@ -67,7 +61,7 @@ check("forwarded: waiting on the target, one check-in after a week", () => {
   assert.equal(check.action, "check_in");
 });
 
-check("introduced: reply within a day, then one follow-up to book; a held meeting asks for the thank-you", () => {
+it("introduced: reply within a day, then one follow-up to book; a held meeting asks for the thank-you", () => {
   const ws = base();
   assert.equal(nextStep(ask({ stage: "introduced", introducedOn: TODAY }), ws, TODAY).action, "reply");
   const replied = ask({ stage: "introduced", introducedOn: addDays(TODAY, -6), repliedOn: addDays(TODAY, -5) });
@@ -78,7 +72,7 @@ check("introduced: reply within a day, then one follow-up to book; a held meetin
   assert.equal(nextStep(ask({ stage: "done", thankedOn: TODAY }), ws, TODAY).owner, null);
 });
 
-check("give: nothing moves until both sides said yes", () => {
+it("give: nothing moves until both sides said yes", () => {
   const ws = base();
   const give: Intro = {
     ...ask(),
@@ -104,7 +98,7 @@ check("give: nothing moves until both sides said yes", () => {
   assert.equal(nextStep(ws.intros[give.id], ws, addDays(TODAY, 14)).action, "check_how");
 });
 
-check("give: one side passing closes it, and the other side is never told", () => {
+it("give: one side passing closes it, and the other side is never told", () => {
   const ws = base();
   ws.intros.g = { ...ask({ id: "g" }), kind: "give", sides: [{ name: "A B", why: "x", consent: "pending", askedOn: TODAY }, { name: "C D", why: "y", consent: "pending" }] };
   applyAction(ws, { type: "intro.consent", id: "g", side: 0, consent: "no", at: `${TODAY}T10:00:00.000Z` });
@@ -112,7 +106,7 @@ check("give: one side passing closes it, and the other side is never told", () =
   assert.equal(ws.intros.g.sides![1].askedOn, undefined);
 });
 
-check("approving a warm-intro draft opens a tracked intro once and marks the connector asked", () => {
+it("approving a warm-intro draft opens a tracked intro once and marks the connector asked", () => {
   const ws = base();
   const pkg = Object.values(ws.outreach).find((p) => p.mode === "warm_intro")!;
   const step = pkg.steps[0].step;
@@ -127,7 +121,7 @@ check("approving a warm-intro draft opens a tracked intro once and marks the con
   if (c) assert.equal(c.lastAskedOn, TODAY);
 });
 
-check("undoing a sent intro ask removes its intro and restores the connector's last ask", () => {
+it("undoing a sent intro ask removes its intro and restores the connector's last ask", () => {
   const ws = base();
   const pkg = Object.values(ws.outreach).find((p) => p.mode === "warm_intro")!;
   const c = ws.connectors.find((x) => x.id === pkg.connectorId || x.name === pkg.intro?.connectorName)!;
@@ -140,7 +134,7 @@ check("undoing a sent intro ask removes its intro and restores the connector's l
   assert.equal(ws.connectors.find((x) => x.id === c.id)!.lastAskedOn, before);
 });
 
-check("introduced counts once on the connector, even when the stage is set twice", () => {
+it("introduced counts once on the connector, even when the stage is set twice", () => {
   const ws = base();
   ws.connectors.push(connector());
   ws.intros.i1 = ask();
@@ -151,7 +145,7 @@ check("introduced counts once on the connector, even when the stage is set twice
   assert.equal(ws.activities.filter((a) => a.kind === "intro_made" && a.summary.includes("Claire")).length, 1);
 });
 
-check("ledger: one open ask at a time, two weeks' rest, give before a fourth ask", () => {
+it("ledger: one open ask at a time, two weeks' rest, give before a fourth ask", () => {
   const ws = base();
   const c = connector({ relationship: "advisor" });
   ws.connectors.push(c);
@@ -168,7 +162,7 @@ check("ledger: one open ask at a time, two weeks' rest, give before a fourth ask
   assert.equal(ledger(ws, { ...c, relationship: "investor", gives: [] }, TODAY).status, "ready", "investors don't owe a give");
 });
 
-check("reach matching: domains and names are exact, industry words are topic, generic words match nothing", () => {
+it("reach matching: domains and names are exact, industry words are topic, generic words match nothing", () => {
   const acc = { domain: "northwind.example", name: "Northwind Metrics", oneLiner: "Kubernetes observability, priced per GB ingested.", tags: [] };
   assert.equal(reachMatch("northwind.example", acc), "exact");
   assert.equal(reachMatch("Northwind Metrics", acc), "exact");
@@ -178,7 +172,7 @@ check("reach matching: domains and names are exact, industry words are topic, ge
   assert.equal(reachMatch("fintech CFOs", acc), null);
 });
 
-check("ways in: direct first, then insiders, connectors and alumni, with blocking concerns sorted last", () => {
+it("ways in: direct first, then insiders, connectors and alumni, with blocking concerns sorted last", () => {
   const ws = base();
   const acc = ws.accounts["glassmoor.example"];
   const rows: Connection[] = [
@@ -194,7 +188,7 @@ check("ways in: direct first, then insiders, connectors and alumni, with blockin
   for (let i = 1; i < ways.length; i++) assert.ok(!(ways[i].ready && !ways[i - 1].ready), "ready paths come first");
 });
 
-check("ways in: a connector who passed on this company isn't suggested as ready for 90 days", () => {
+it("ways in: a connector who passed on this company isn't suggested as ready for 90 days", () => {
   const ws = base();
   const c = ws.connectors.find((x) => x.reach?.includes("glassmoor.example"))!;
   ws.intros.p = ask({ id: "p", connectorId: c.id, connectorName: c.name, accountDomain: "glassmoor.example", stage: "declined", askedOn: addDays(TODAY, -30), closedOn: addDays(TODAY, -28) });
@@ -203,7 +197,7 @@ check("ways in: a connector who passed on this company isn't suggested as ready 
   assert.ok(way.concerns.some((x) => /passed/.test(x)));
 });
 
-check("your moves: the reply to an intro outranks a nudge", () => {
+it("your moves: the reply to an intro outranks a nudge", () => {
   const ws = base();
   ws.intros.n = ask({ id: "n", askedOn: addDays(TODAY, -9) });
   ws.intros.r = ask({ id: "r", stage: "introduced", introducedOn: TODAY });
@@ -213,7 +207,7 @@ check("your moves: the reply to an intro outranks a nudge", () => {
   );
 });
 
-check("notes: short, no em dashes or exclamation marks, connector's email on the To line", () => {
+it("notes: short, no em dashes or exclamation marks, connector's email on the To line", () => {
   const ws = base();
   ws.connectors.push(connector({ email: "claire@fund.example" }));
   const intro = ask({ stage: "introduced", introducedOn: TODAY, repliedOn: undefined });
@@ -226,4 +220,4 @@ check("notes: short, no em dashes or exclamation marks, connector's email on the
   assert.match(messageFor("reply", intro, ws, TODAY).body, /BCC/);
 });
 
-console.log(`\nall passing (${results.length})`);
+});

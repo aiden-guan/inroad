@@ -1,11 +1,11 @@
 /**
- * Firecrawl connector checks against a local fake of the API. Run:
- *   npx tsx --conditions=react-server src/lib/connectors/firecrawl.test.ts
- * Plain node:assert, no test runner: request shape, response mapping, error mapping and retries.
+ * Firecrawl connector checks against a local fake of the API (Vitest, plain node:assert): request
+ * shape, response mapping, error mapping and retries.
  */
 import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 type Reply = { status: number; body: unknown; headers?: Record<string, string> };
 type Seen = { method: string; url: string; headers: http.IncomingHttpHeaders; body: Record<string, unknown> | null };
@@ -23,30 +23,34 @@ const server = http.createServer(async (req, res) => {
 
 const item = (data: unknown, creditsCost = 0) => ({ status: 200, body: { success: true, scrape_id: "s1", data: { alexandria: [{ provider: "p", capability: "c", creditsCost, data }], creditsCost } } });
 
-const results: string[] = [];
-async function check(name: string, fn: () => Promise<void>) {
-  queue.length = 0;
-  seen.length = 0;
-  await fn();
-  results.push(name);
-  console.log(`  ok   ${name}`);
-}
+describe("firecrawl", () => {
+  let firecrawl: typeof import("./firecrawl").firecrawl;
+  let fc: ReturnType<typeof import("./firecrawl").firecrawl>;
+  let people: NonNullable<ReturnType<typeof import("./firecrawl").firecrawl>["people"]>;
 
-async function main() {
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  process.env.FIRECRAWL_API_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const { firecrawl } = await import("./firecrawl");
-  const fc = firecrawl("fc-test_key_123456", {});
-  const people = fc.people!;
-  console.log("firecrawl");
+  beforeAll(async () => {
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    // The connector reads its base URL at import, so point it at the fake first.
+    process.env.FIRECRAWL_API_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    ({ firecrawl } = await import("./firecrawl"));
+    fc = firecrawl("fc-test_key_123456", {});
+    people = fc.people!;
+  });
+  afterAll(() => {
+    server.close();
+  });
+  beforeEach(() => {
+    queue.length = 0;
+    seen.length = 0;
+  });
 
-  await check("validate rejects a key that isn't fc-…, without a network call", async () => {
+  it("validate rejects a key that isn't fc-…, without a network call", async () => {
     const r = await firecrawl("sk-ant-nope-123456", {}).validate();
     assert.equal(r.ok, false);
     assert.equal(seen.length, 0);
   });
 
-  await check("validate reads the credit balance into the account label", async () => {
+  it("validate reads the credit balance into the account label", async () => {
     queue.push({ status: 200, body: { success: true, data: { remainingCredits: 4200, planCredits: 5000 } } });
     const r = await fc.validate();
     assert.ok(r.ok);
@@ -56,7 +60,7 @@ async function main() {
     assert.equal(seen[0].headers.authorization, "Bearer fc-test_key_123456");
   });
 
-  await check("search sends one Apollo call by domain and titles, and maps masked previews", async () => {
+  it("search sends one Apollo call by domain and titles, and maps masked previews", async () => {
     queue.push(item({ people: [{ id: "a1", first_name: "Maya", last_name: "O***", title: "Controller", organization: { name: "Acme" }, has_email: true }, { id: "", first_name: "x" }], total_entries: 23 }));
     const r = await people.search({ domain: "acme.com", titles: ["Controller", "CFO"] });
     assert.ok(r.ok);
@@ -73,7 +77,7 @@ async function main() {
     assert.deepEqual((call.options as Record<string, unknown>).person_titles, ["Controller", "CFO"]);
   });
 
-  await check("a search near a place sends locations and no company filter, and keeps each employer's domain", async () => {
+  it("a search near a place sends locations and no company filter, and keeps each employer's domain", async () => {
     queue.push(item({ people: [{ id: "n1", first_name: "Ravi", last_name: "I***", title: "CFO", organization: { name: "Tallyrock", primary_domain: "www.tallyrock.com" }, has_email: false }] }));
     const r = await people.search({ locations: ["New York, NY"], titles: ["CFO"] });
     assert.ok(r.ok);
@@ -83,7 +87,7 @@ async function main() {
     assert.equal(options.q_organization_domains_list, undefined);
   });
 
-  await check("add never asks for personal emails or phones, and keeps a verified work email", async () => {
+  it("add never asks for personal emails or phones, and keeps a verified work email", async () => {
     queue.push(
       item(
         {
@@ -119,7 +123,7 @@ async function main() {
     assert.equal(options.reveal_phone_number, false);
   });
 
-  await check("add drops Apollo's locked placeholder and personal mailboxes; a miss is null", async () => {
+  it("add drops Apollo's locked placeholder and personal mailboxes; a miss is null", async () => {
     queue.push(item({ person: { id: "a2", name: "Tom B", email: "email_not_unlocked@domain.com", email_status: "verified" } }, 30));
     const locked = await people.add("a2");
     assert.ok(locked.ok);
@@ -135,7 +139,7 @@ async function main() {
     assert.equal(miss.value.credits, 0);
   });
 
-  await check("work email: DELIVERABLE is verified, CATCH_ALL is not, nothing found is null", async () => {
+  it("work email: DELIVERABLE is verified, CATCH_ALL is not, nothing found is null", async () => {
     queue.push(item({ results: [{ contact_info: { most_probable_work_email: { email: "kenji@acme.com", status: "DELIVERABLE" } } }] }, 20));
     const good = await people.workEmail({ linkedinUrl: "https://www.linkedin.com/in/kenji" });
     assert.ok(good.ok);
@@ -156,7 +160,7 @@ async function main() {
     assert.equal(none.value.value, null);
   });
 
-  await check("terms not accepted (top level or per call) names the provider and links the fix", async () => {
+  it("terms not accepted (top level or per call) names the provider and links the fix", async () => {
     queue.push({ status: 403, body: { success: false, error: "Terms required", code: "THIRD_PARTY_DATA_TERMS_REQUIRED", requiresAction: { type: "accept_terms", url: "https://www.firecrawl.dev/app/terms" } } });
     const top = await people.search({ domain: "acme.com", titles: [] });
     assert.ok(!top.ok);
@@ -173,7 +177,7 @@ async function main() {
     assert.equal(perCall.error.fixUrl, "https://www.firecrawl.dev/app/fe");
   });
 
-  await check("401 is a bad key, 402 is out of credits, and the key never appears in a message", async () => {
+  it("401 is a bad key, 402 is out of credits, and the key never appears in a message", async () => {
     queue.push({ status: 401, body: { success: false, error: "Unauthorized: fc-test_key_123456 is invalid" } });
     const auth = await people.credits();
     assert.ok(!auth.ok);
@@ -185,7 +189,7 @@ async function main() {
     assert.equal(plan.error.code, "plan");
   });
 
-  await check("a 503 is retried with the same request id, so a retry is never billed twice", async () => {
+  it("a 503 is retried with the same request id, so a retry is never billed twice", async () => {
     queue.push({ status: 503, body: { success: false, error: "busy" }, headers: { "retry-after": "0" } });
     queue.push(item({ people: [] }));
     const r = await people.search({ domain: "acme.com", titles: [] });
@@ -194,12 +198,4 @@ async function main() {
     assert.equal(seen[0].headers["x-request-id"], seen[1].headers["x-request-id"]);
   });
 
-  server.close();
-  console.log(`\nall passing (${results.length})`);
-}
-
-main().catch((err) => {
-  server.close();
-  console.error(err);
-  process.exit(1);
 });

@@ -188,6 +188,72 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.connectors).toHaveLength(sample.connectors.length - 1);
   },
 
+  "connector.give": () => {
+    const id = sample.connectors[1].id;
+    const s = apply(ws(), { type: "connector.give", id, what: `  Sent a customer lead ${"x".repeat(200)}`, at: at(0) });
+    const gives = s.connectors.find((c) => c.id === id)!.gives!;
+    expect(gives.at(-1)).toEqual({ at: TODAY, what: `Sent a customer lead ${"x".repeat(200)}`.slice(0, 140) });
+    expect(() => apply(s, { type: "connector.give", id: "con_missing", what: "x", at: at(0) })).toThrow(ActionError);
+  },
+
+  "intro.create": () => {
+    const intro = { id: "intro_t", kind: "ask" as const, stage: "asked" as const, targetName: "Rafael Ortiz", askedOn: TODAY, history: [], createdAt: at(0), updatedAt: at(0) };
+    const s = apply(ws(), { type: "intro.create", intro });
+    expect(s.intros.intro_t).toEqual(intro);
+    // Idempotent: a second create with the same id keeps the first.
+    apply(s, { type: "intro.create", intro: { ...intro, targetName: "Someone else" } });
+    expect(s.intros.intro_t.targetName).toBe("Rafael Ortiz");
+  },
+
+  "intro.advance": () => {
+    const s = ws();
+    const id = Object.values(s.intros).find((i) => i.kind === "ask" && i.stage === "asked" && i.connectorId)!.id;
+    const connector = () => s.connectors.find((c) => c.id === s.intros[id].connectorId)!;
+    const before = connector().introsMade;
+    apply(s, { type: "intro.advance", id, stage: "forwarded", at: at(0) });
+    expect(s.intros[id]).toMatchObject({ stage: "forwarded", forwardedOn: TODAY });
+    apply(s, { type: "intro.advance", id, stage: "introduced", at: at(0), activityId: "act_intro" });
+    expect(s.intros[id].introducedOn).toBe(TODAY);
+    expect(connector().introsMade).toBe(before + 1);
+    expect(s.activities.find((a) => a.id === "act_intro")).toMatchObject({ kind: "intro_made", channel: "intro" });
+    // Setting it again doesn't count twice.
+    apply(s, { type: "intro.advance", id, stage: "meeting", at: at(0) }, { type: "intro.advance", id, stage: "introduced", at: at(0), activityId: "act_again" });
+    expect(connector().introsMade).toBe(before + 1);
+    apply(s, { type: "intro.advance", id, stage: "done", outcome: "pilot", at: at(0) });
+    expect(s.intros[id]).toMatchObject({ stage: "done", outcome: "pilot", closedOn: TODAY });
+    expect(s.intros[id].history.map((h) => h.stage)).toEqual(expect.arrayContaining(["forwarded", "introduced", "meeting", "done"]));
+  },
+
+  "intro.mark": () => {
+    const s = ws();
+    const ask = Object.values(s.intros).find((i) => i.kind === "ask")!.id;
+    apply(s, { type: "intro.mark", id: ask, field: "nudgedOn", at: at(0) });
+    expect(s.intros[ask].nudgedOn).toBe(TODAY);
+    const give = Object.values(s.intros).find((i) => i.kind === "give")!.id;
+    apply(s, { type: "intro.mark", id: give, field: "nudgedOn", side: 1, at: at(0) });
+    expect(s.intros[give].sides![1].nudgedOn).toBe(TODAY);
+    expect(() => apply(s, { type: "intro.mark", id: "intro_missing", field: "repliedOn", at: at(0) })).toThrow(ActionError);
+  },
+
+  "intro.consent": () => {
+    const s = ws();
+    const give = Object.values(s.intros).find((i) => i.kind === "give")!;
+    const pending = give.sides!.findIndex((x) => x.consent === "pending") as 0 | 1;
+    apply(s, { type: "intro.consent", id: give.id, side: pending, consent: "yes", at: at(0) });
+    expect(s.intros[give.id].sides![pending].consent).toBe("yes");
+    expect(s.intros[give.id].stage).toBe("asked");
+    // One side passing closes the give.
+    const fresh = ws();
+    apply(fresh, { type: "intro.consent", id: give.id, side: pending, consent: "no", at: at(0) });
+    expect(fresh.intros[give.id]).toMatchObject({ stage: "declined", closedOn: TODAY });
+  },
+
+  "intro.remove": () => {
+    const id = Object.keys(sample.intros)[0];
+    const s = apply(ws(), { type: "intro.remove", id });
+    expect(s.intros[id]).toBeUndefined();
+  },
+
   "evidence.flagWrong": () => {
     const s = apply(ws(), { type: "evidence.flagWrong", id: "ev_ll_home", note: "Old pricing", at: at(0) });
     expect(s.evidence.ev_ll_home.flaggedWrong).toEqual({ at: at(0), note: "Old pricing" });
