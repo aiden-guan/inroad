@@ -4,6 +4,7 @@ import { ArrowUpRight, Check, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode, type Ref } from "react";
 import { DraftView } from "@/components/compose/composer";
+import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
@@ -11,12 +12,34 @@ import { Input, Textarea } from "@/components/ui/field";
 import { SourceChip } from "@/components/ui/source";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import { nextStep } from "@/lib/intros/rules";
 import { RULE_PREFIX } from "@/lib/moves/rules";
 import { ago, clip, clockTime, companyName, first, knowsDirectly } from "@/lib/moves/util";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { DealResolver } from "./deal-resolver";
 import { RunInline } from "./parts";
 import { ReviewBody } from "./review-panel";
+
+/** Intro follow-through: the same panel as the Intros page, finishing the card when the founder records the move. */
+function IntroMoveBody({ move, ws, today, onComplete }: BodyProps) {
+  const intro = move.subjectIds?.[0] ? ws.intros?.[move.subjectIds[0]] : undefined;
+  if (!intro) return <Lead>This intro was removed.</Lead>;
+  const next = nextStep(intro, ws, today);
+  if (next.owner !== "you" || !next.action) {
+    return (
+      <div className="space-y-3">
+        <Lead>{next.line}.</Lead>
+        <Row>
+          <Quiet href={`/intros?i=${encodeURIComponent(intro.id)}`}>Open in Intros</Quiet>
+          <Button variant="ghost" onClick={onComplete}>
+            Done
+          </Button>
+        </Row>
+      </div>
+    );
+  }
+  return <IntroNextPanel intro={intro} next={next} today={today} onDone={onComplete} />;
+}
 
 export interface BodyProps {
   move: Move;
@@ -209,6 +232,16 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
         />
       );
     }
+    case "intro_reply":
+    case "intro_send":
+    case "intro_close_loop":
+    case "intro_nudge":
+    case "intro_check_in":
+    case "intro_book":
+    case "intro_check_how":
+    case "intro_thank":
+    case "intro_let_go":
+      return <IntroMoveBody {...props} />;
     case "switch_channel":
       return (
         <div className="space-y-3">

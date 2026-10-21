@@ -95,4 +95,6 @@ export const TOOL_VERBS: Record<string, string> = {
   submit_draft: "submit a draft",
   complete_action: "complete an action",
   get_account: "read an account",
+  find_warm_paths: "find warm paths",
+  list_intros: "list intros",
 };

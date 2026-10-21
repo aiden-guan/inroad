@@ -10,7 +10,7 @@ approve.
 
 It's also a **hub**: plug in the tools you already use (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay,
 Zapier/n8n, any AI SDR, and Firecrawl for people data) and let other agents — Meta Muse, Claude, Cursor, ChatGPT —
-read your playbook and push leads in through Inroad's MCP server and REST API.
+read your playbook, check your warm paths and push leads in through Inroad's MCP server and REST API.
 
 ---
 
@@ -45,6 +45,7 @@ terms haven't been accepted yet.
 |---|---|
 | **Today** | One number, at most five moves, each with the draft or action ready. Reviews, reply checks and close-out are moves too. |
 | **Companies** | Prospects (with why-now signals and warm paths), Talking (a 6-stage board), Customers. Every company opens a sheet with a sourced dossier, angles, people, the deal, call prep and debriefs. |
+| **Intros** | Every warm intro, double opt-in, from the ask to the thank-you, always showing whose move it is. Drafts the one nudge, the reply to the intro (connector to BCC, your times) and the close-the-loop note in code. Tracks the people who introduce you with a give/get ledger (one open ask each, two weeks between asks, give before a fourth ask), and intros you make for others. Every company shows its **Ways in**: people you know there, connections who work or used to work there, connectors who can reach it, ranked with why and concerns. |
 | **Events** | Virtual roundtables and exec dinners: themes, scored guest lists, invite copy, timeline, run of show, follow-ups. |
 | **Playbook** | What Inroad believes about your business — ICP bet, positioning, messaging, objections, assets, your points of view — all editable. It becomes your first AE's onboarding doc. |
 | **Integrations** | Connect your stack, import CSVs and LinkedIn connections, generate keys for other agents. |
@@ -61,7 +62,9 @@ terms haven't been accepted yet.
 4. **Results are reused** (dossiers stay fresh for 7 days) and prompts are laid out for prompt caching.
 5. **Your other tools and agents do their own inference.** When Muse or Claude calls Inroad's MCP server, Inroad
    spends zero tokens.
-6. **People data comes from a data provider, not a model.** Who works at a company and their work email come from
+6. **Warm intros run on rules, not tokens.** Whose move it is, the nudge, the reply to the intro and the thank-you,
+   the connector ledger and every company's ways in are all computed and drafted in code.
+7. **People data comes from a data provider, not a model.** Who works at a company and their work email come from
    Apollo and FullEnrich through Firecrawl Alexandria, in code, so finding a contact never costs a web search or a token.
 
 Every run ends with a receipt — *Worked for 1m 52s · 9 sources · $0.04* — and Settings → Usage shows spend by workflow,

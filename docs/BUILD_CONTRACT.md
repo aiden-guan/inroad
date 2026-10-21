@@ -48,6 +48,10 @@ anything in `docs/SPEC.md` where they disagree.
 7. **People data is a lookup, not a search.** With Firecrawl connected, contacts come from Apollo and FullEnrich via
    `src/lib/people/directory.ts` (code, zero tokens). Search is free; every paid lookup is one founder click with its
    most-cost shown first, checked against the monthly credit limit. Work emails only: never personal email or phone.
+8. **Intros are rules, not prompts.** `src/lib/intros/rules.ts` decides whose move an intro is, the connector
+   ledger and every company's ways in; `templates.ts` writes the nudge, reply-to-intro and thank-you notes. Pure
+   and shared by Today, /intros, the sheet and the agent API. One nudge per ask; one open ask per connector and
+   per company; nothing about one side of a give reaches the other until both said yes.
 
 ## Architecture you must use
 
@@ -94,7 +98,8 @@ anything in `docs/SPEC.md` where they disagree.
     `POST /api/people/find { domain, titles? }`, `POST /api/people/add { domain, id }` and `POST /api/people/email { personId }`.
 - **URL params other surfaces rely on:** `/companies?c=<domain>` (open sheet), `/companies?add=<domain>` (add &
   research), `/companies?view=prospects|talking|customers`, `/companies?log=1` (log a call), `/events?new=1`,
-  `/integrations?import=linkedin`, `/integrations#firecrawl` (opens that row), `/settings#usage`.
+  `/integrations?import=linkedin`, `/integrations#firecrawl` (opens that row), `/intros?i=<id>` (open an intro),
+  `/intros?new=give|ask|connector`, `/settings#usage`.
 
 ## Design system (follow exactly)
 

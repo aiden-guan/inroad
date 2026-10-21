@@ -19,7 +19,7 @@ const SERVER_INFO = { name: "inroad", title: "Inroad", version: "1.0.0" };
 const INSTRUCTIONS = `Inroad is the founder's go-to-market hub: their ICP, playbook, accounts, people, deals and next moves.
 - Read get_icp and get_playbook before prospecting or writing. Use only approved_claims for statements about the founder's company.
 - Use score_accounts before spending enrichment credits, and search_records to dedupe and check do-not-contact before any outreach.
-- Read get_account before writing to someone at a company.
+- Read get_account before writing to someone at a company, and find_warm_paths before any cold outreach: a warm intro beats a cold email. Suggest the ask; the founder sends it.
 - Save leads with add_accounts and log what happened with log_activity.
 - Anything written in the founder's name goes through submit_draft. Inroad never sends; the founder approves.
 - Respect the caps in get_playbook: fewer, better conversations.`;

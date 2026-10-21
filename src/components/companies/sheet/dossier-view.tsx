@@ -15,6 +15,7 @@ import { age, hostOf, shortDate } from "@/lib/client/format";
 import { daysBetween } from "@/lib/domain/ids";
 import { listItem } from "@/lib/motion";
 import type { Account, Angle, Dossier, Signal, SignalType } from "@/lib/domain/types";
+import { WaysIn } from "@/components/intros/ways-in";
 import { usePeopleData } from "@/components/people/use-people-data";
 import { PeopleSection } from "./people";
 import { Cited, ROLE_LABEL, Section, StrengthDots, useEvidence, useFlagWrong, useHasFlagged, useToday } from "./shared";
@@ -63,6 +64,8 @@ export function EnrichmentView({ account, onResearch, researching, lastRun }: { 
           {lastRun?.status === "error" && <span className="text-[13px] text-danger">{lastRun.error?.message ?? "The last attempt failed."} Try again.</span>}
         </div>
       </div>
+
+      <WaysIn account={account} />
 
       <EarlyPeople account={account} />
 
@@ -219,6 +222,8 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
           <p className="font-serif text-[16px] leading-[24px] text-fg-2">Nothing dated and relevant in the last 90 days. That&apos;s a reason to watch, not to write.</p>
         </Section>
       )}
+
+      <WaysIn account={account} />
 
       <PeopleSection account={account} committee={d.committee} topAngleId={bestAngle?.id} />
 

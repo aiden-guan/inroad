@@ -16,9 +16,10 @@ import { Orb } from "@/components/ui/orb";
 import { MarginNote, SourceChip } from "@/components/ui/source";
 import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
+import { ledger } from "@/lib/intros/rules";
 import { firstName, shortDate } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
-import { newId, nowISO } from "@/lib/domain/ids";
+import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { DraftStep, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { currentStep, lintStep } from "@/lib/quality/context";
 import { PERSONAL_DOMAINS, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
@@ -260,11 +261,15 @@ function DraftBody({
     once(async () => {
       if (!canApprove) return;
       await flush();
-      await copyText(outgoing);
+      await copyText(pkg.mode === "warm_intro" ? introText() : outgoing);
       const activityId = newId("act");
       const ok = await dispatch({ type: "outreach.approveStep", packageId: pkg.id, step: step.step, at: nowISO(), activityId });
       if (!ok) return;
-      toast(`Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`, {
+      const sentTo =
+        pkg.mode === "warm_intro"
+          ? `Asked ${firstName(pkg.intro?.connectorName || "your connector")}. I'll track it in Intros and tell you when it's your move.`
+          : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
+      toast(sentTo, {
         duration: 10_000,
         action: { label: "Undo", onClick: () => void dispatch({ type: "outreach.unapproveStep", packageId: pkg.id, step: step.step, activityId }) },
       });
@@ -326,7 +331,7 @@ function DraftBody({
     }
     const subj = pkg.mode === "warm_intro" ? `Intro to ${person?.name ?? account?.name ?? pkg.accountDomain}?` : subject;
     const text = pkg.mode === "warm_intro" ? introText() : outgoing;
-    const url = gmailComposeUrl(ws, { to: pkg.mode === "warm_intro" ? null : pf.to, subject: subj, body: text });
+    const url = gmailComposeUrl(ws, { to: pkg.mode === "warm_intro" ? (ws.connectors.find((c) => c.id === pkg.connectorId)?.email ?? null) : pf.to, subject: subj, body: text });
     if (!url) {
       await copyText(text);
       toast("Too long for a Gmail link, so I copied it instead.");
@@ -455,6 +460,7 @@ function DraftBody({
           {pkg.mode === "warm_intro" && pkg.intro && (
             <div className="mt-3">
               <p className="mb-1 text-[11.5px] font-medium text-fg-3">To {pkg.intro.connectorName || "your connector"}</p>
+              {editable && <ConnectorAdvice ws={ws} connectorId={pkg.connectorId} />}
               <div className={cn(ink ? "text-fg" : "text-fg-2")}>
                 <SpanEditor value={wrapper} onChange={(v) => edit({ wrapper: v })} onBlur={() => void flush()} spans={[]} readOnly={locked} ariaLabel="Note to the connector" />
               </div>
@@ -985,7 +991,7 @@ function latestLoggedReply(ws: Workspace, domain: string, personId?: string) {
 }
 
 /** An open draft we can reuse instead of paying for a new one. */
-function findOpenDraft(ws: Workspace, q: { domain: string; personId?: string; angleId?: string; mode: OutreachPackage["mode"] }): OutreachPackage | undefined {
+function findOpenDraft(ws: Workspace, q: { domain: string; personId?: string; angleId?: string; mode: OutreachPackage["mode"]; connectorId?: string }): OutreachPackage | undefined {
   if (q.mode === "reply") {
     const reply = latestLoggedReply(ws, q.domain, q.personId);
     if (!reply) return undefined;
@@ -1001,6 +1007,8 @@ function findOpenDraft(ws: Workspace, q: { domain: string; personId?: string; an
   const wanted = q.mode === "follow_up" ? "cold" : q.mode;
   return Object.values(ws.outreach)
     .filter((p) => p.accountDomain === q.domain && p.mode === wanted && (!q.personId || p.personId === q.personId))
+    // An intro ask through a named connector opens that connector's draft, not another path's.
+    .filter((p) => !q.connectorId || p.connectorId === q.connectorId)
     .filter((p) => !q.angleId || p.angleId === q.angleId || [...p.steps, ...p.alternates].some((s) => s.angleId === q.angleId))
     .filter((p) => (q.mode === "follow_up" ? p.steps.some((s) => s.step > 1 && s.status === "draft") : p.steps.some((s) => s.status === "draft")))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
@@ -1017,12 +1025,20 @@ export function ComposeButton({
   angleId,
   mode = "cold",
   label = "Write outreach",
+  connectorId,
+  ensureConnector,
+  variant,
 }: {
   domain: string;
   personId?: string;
   angleId?: string;
   mode?: OutreachPackage["mode"];
   label?: string;
+  /** Warm intros: ask through this connector. */
+  connectorId?: string;
+  /** Warm intros through someone not yet listed as a connector: files them, then returns their id. */
+  ensureConnector?: () => Promise<string | undefined>;
+  variant?: "agent" | "secondary";
 }) {
   const { ws } = useWorkspace();
   const { runs, start } = useRuns();
@@ -1033,19 +1049,21 @@ export function ComposeButton({
   const [reply, setReply] = useState("");
   const [receivedAt, setReceivedAt] = useState("");
 
-  const existing = useMemo(() => (ws ? findOpenDraft(ws, { domain, personId, angleId, mode }) : undefined), [ws, domain, personId, angleId, mode]);
+  const existing = useMemo(() => (ws && (connectorId || !ensureConnector) ? findOpenDraft(ws, { domain, personId, angleId, mode, connectorId }) : undefined), [ws, domain, personId, angleId, mode, connectorId, ensureConnector]);
   const pkg = packageId ? ws?.outreach[packageId] : undefined;
   const account = ws?.accounts[domain];
   const research = researchId ? runs[researchId] : undefined;
 
   const run = async (replyText?: string) => {
     setPhase("work");
+    const via = connectorId ?? (ensureConnector ? await ensureConnector() : undefined);
     const state = await compose.begin(
       {
         domain,
         personId,
         angleId,
         mode,
+        ...(via ? { connectorId: via } : {}),
         replyText,
         receivedAt: replyText && receivedAt ? new Date(receivedAt).toISOString() : undefined,
       },
@@ -1090,7 +1108,7 @@ export function ComposeButton({
     // Once open, take a full row: in flex-wrap parents (person rows, angle cards) the draft must never be squeezed beside other content.
     <div className={cn("min-w-0 space-y-3", phase !== "idle" && "w-full basis-full")}>
       {phase === "idle" && (
-        <Button variant={existing ? "secondary" : "agent"} size="sm" icon={<PenLine className="size-3.5" />} onClick={open} disabled={!ws}>
+        <Button variant={existing ? "secondary" : (variant ?? "agent")} size="sm" icon={<PenLine className="size-3.5" />} onClick={open} disabled={!ws}>
           {existing ? (mode === "follow_up" ? "Open follow-up" : existing.steps.some((s) => s.status === "draft") ? "Open draft" : "Open sequence") : label}
         </Button>
       )}
@@ -1170,4 +1188,14 @@ export function ComposeButton({
       )}
     </div>
   );
+}
+
+/** Before an intro ask goes out: is this connector already carrying one, resting, or owed a give? */
+function ConnectorAdvice({ ws, connectorId }: { ws: Workspace; connectorId?: string }) {
+  const connector = connectorId ? ws.connectors.find((c) => c.id === connectorId) : undefined;
+  if (!connector) return null;
+  const l = ledger(ws, connector, todayISO());
+  // The ask being drafted is still a draft, so an "in flight" ask here is a different one.
+  if (l.status === "ready" || !l.advice) return null;
+  return <p className="mb-2 rounded-sm bg-warning-subtle px-2.5 py-1.5 text-[12.5px] leading-[18px] text-warning">{l.advice}</p>;
 }

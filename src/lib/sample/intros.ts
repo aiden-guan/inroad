@@ -1,0 +1,121 @@
+import type { Intro, IntroStage } from "@/lib/domain/types";
+import type { Clock } from "./clock";
+import { CONNECTOR, DOMAIN, PERSON } from "./ids";
+
+/**
+ * Intros in every state the Intros page shows: an ask waiting on Claire, one due a nudge (Ines),
+ * one Ava is checking on, a closed one Rohan heard back about, one that went quiet, and a customer
+ * reference the founder is making (Ava ↔ Marcus), waiting on Marcus's yes.
+ */
+export function intros(c: Clock): Record<string, Intro> {
+  const h = (...steps: [IntroStage, number, string, string?][]) => steps.map(([stage, n, hhmm, note]) => ({ at: c.at(n, hhmm), stage, ...(note ? { note } : {}) }));
+  const list: Intro[] = [
+    {
+      id: "intro_claire_quayside",
+      kind: "ask",
+      stage: "asked",
+      connectorId: CONNECTOR.claire,
+      connectorName: "Claire Donovan",
+      accountDomain: DOMAIN.quayside,
+      targetName: "the Head of Finance",
+      askedOn: c.d(-4),
+      history: h(["asked", -4, "09:40"]),
+      createdAt: c.at(-4, "09:40"),
+      updatedAt: c.at(-4, "09:40"),
+    },
+    {
+      id: "intro_ines_cinderpath",
+      kind: "ask",
+      stage: "asked",
+      connectorId: CONNECTOR.ines,
+      connectorName: "Ines Duarte",
+      personId: PERSON.sam,
+      accountDomain: DOMAIN.cinderpath,
+      targetName: "Sam Whitlock, Controller",
+      askedOn: c.d(-6),
+      history: h(["asked", -6, "11:15"]),
+      createdAt: c.at(-6, "11:15"),
+      updatedAt: c.at(-6, "11:15"),
+    },
+    {
+      id: "intro_ava_second_controller",
+      kind: "ask",
+      stage: "forwarded",
+      connectorId: CONNECTOR.ava,
+      connectorName: "Ava Whitman",
+      targetName: "a second controller Ava knows",
+      askedOn: c.d(-6),
+      forwardedOn: c.d(-4),
+      history: h(["asked", -6, "17:00"], ["forwarded", -4, "15:05", "Ava is asking her first"]),
+      createdAt: c.at(-6, "17:00"),
+      updatedAt: c.at(-4, "15:05"),
+    },
+    {
+      id: "intro_rohan_rowanstack",
+      kind: "ask",
+      stage: "done",
+      connectorId: CONNECTOR.rohan,
+      connectorName: "Rohan Mehta",
+      personId: PERSON.tom,
+      accountDomain: DOMAIN.rowanstack,
+      targetName: "Tom Becker, Director of Billing Operations",
+      askedOn: c.d(-46),
+      forwardedOn: c.d(-45),
+      introducedOn: c.d(-44),
+      repliedOn: c.d(-44),
+      meetingOn: c.d(-41),
+      closedOn: c.d(-27),
+      thankedOn: c.d(-27),
+      outcome: "useful",
+      history: h(["asked", -46, "10:00"], ["forwarded", -45, "08:30"], ["introduced", -44, "16:20"], ["meeting", -41, "13:00"], ["done", -27, "17:00", "Qualified; told Rohan"]),
+      createdAt: c.at(-46, "10:00"),
+      updatedAt: c.at(-27, "17:00"),
+    },
+    {
+      id: "intro_rohan_driftglass",
+      kind: "ask",
+      stage: "no_answer",
+      connectorId: CONNECTOR.rohan,
+      connectorName: "Rohan Mehta",
+      accountDomain: DOMAIN.driftglass,
+      targetName: "the Controller",
+      askedOn: c.d(-19),
+      nudgedOn: c.d(-13),
+      closedOn: c.d(-6),
+      history: h(["asked", -19, "09:10"], ["no_answer", -6, "10:00"]),
+      createdAt: c.at(-19, "09:10"),
+      updatedAt: c.at(-6, "10:00"),
+    },
+    {
+      id: "intro_give_ava_marcus",
+      kind: "give",
+      stage: "asked",
+      targetName: "Ava Whitman and Marcus Lindqvist",
+      sides: [
+        {
+          personId: PERSON.ava,
+          name: "Ava Whitman",
+          title: "Controller at Wrenfield",
+          email: "ava@wrenfield.example",
+          why: "Marcus is weighing a usage reconciliation tool for Northwind and would value fifteen minutes with a controller who runs one",
+          consent: "yes",
+          askedOn: c.d(-1),
+        },
+        {
+          personId: PERSON.marcus,
+          name: "Marcus Lindqvist",
+          title: "VP Finance at Northwind Metrics",
+          email: "marcus@northwind.example",
+          why: "Ava runs Wrenfield's month-end close on Ledgerline and can tell you what changed, unvarnished",
+          consent: "pending",
+          askedOn: c.d(-1),
+        },
+      ],
+      askedOn: c.d(-1),
+      history: h(["asked", -1, "18:05", "Customer reference for Northwind"]),
+      createdAt: c.at(-1, "18:05"),
+      updatedAt: c.at(-1, "18:05"),
+    },
+  ];
+  return Object.fromEntries(list.map((i) => [i.id, i]));
+}

@@ -12,6 +12,9 @@ import type {
   ID,
   IntegrationId,
   IntegrationState,
+  Intro,
+  IntroSide,
+  IntroStage,
   Meeting,
   ObjectionCard,
   OutboundWebhook,
@@ -53,6 +56,16 @@ export type Action =
   | { type: "asset.remove"; id: ID }
   | { type: "connector.upsert"; connector: Connector }
   | { type: "connector.remove"; id: ID }
+  /** Something the founder did for a connector: it balances the ledger against asks. */
+  | { type: "connector.give"; id: ID; what: string; at: string }
+  | { type: "intro.create"; intro: Intro }
+  /** Move an intro to a stage (forward, or reopened). Dates, history and the intro_made activity follow in code. */
+  | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID }
+  /** The founder sent the note behind a move: a nudge, the reply to the intro, the thank-you. Give: `side` asks or nudges one side. */
+  | { type: "intro.mark"; id: ID; field: "nudgedOn" | "repliedOn" | "thankedOn" | "askedOn"; at: string; side?: 0 | 1 }
+  /** Give: one side said yes or no. Nothing moves to the other side until both said yes. */
+  | { type: "intro.consent"; id: ID; side: 0 | 1; consent: IntroSide["consent"]; at: string }
+  | { type: "intro.remove"; id: ID }
   | { type: "evidence.flagWrong"; id: ID; note?: string; at: string }
   | { type: "account.add"; account: Account }
   | { type: "account.update"; domain: string; patch: Partial<Account> }
@@ -115,6 +128,70 @@ export class ActionError extends Error {}
 function need<T>(value: T | undefined | null, what: string): T {
   if (value === undefined || value === null) throw new ActionError(`${what} not found`);
   return value;
+}
+
+/** An approved intro ask becomes a tracked intro (stage "asked"). Idempotent per package; the id is derived so both sides agree. */
+function openIntroFromAsk(ws: Workspace, packageId: ID, at: string) {
+  const pkg = ws.outreach[packageId];
+  if (!pkg) return;
+  ws.intros ??= {};
+  const id = `intro_${pkg.id}`;
+  if (ws.intros[id]) return;
+  const connector = ws.connectors.find((c) => c.id === pkg.connectorId) ?? ws.connectors.find((c) => !!pkg.intro?.connectorName && c.name === pkg.intro.connectorName);
+  const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+  const acc = ws.accounts[pkg.accountDomain];
+  const on = todayISO(new Date(at));
+  ws.intros[id] = {
+    id,
+    kind: "ask",
+    stage: "asked",
+    connectorId: connector?.id,
+    connectorName: pkg.intro?.connectorName || connector?.name,
+    personId: person?.id,
+    accountDomain: pkg.accountDomain,
+    targetName: person ? `${person.name}${person.title ? `, ${person.title}` : ""}` : `the right person at ${acc?.name ?? pkg.accountDomain}`,
+    packageId: pkg.id,
+    askedOn: on,
+    history: [{ at, stage: "asked" }],
+    createdAt: at,
+    updatedAt: at,
+    ...(connector?.lastAskedOn ? { priorAskedOn: connector.lastAskedOn } : {}),
+  };
+  if (connector) connector.lastAskedOn = on;
+}
+
+function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "intro.advance" }>) {
+  if (intro.stage === a.stage && a.outcome === undefined) return;
+  const on = todayISO(new Date(a.at));
+  const was = intro.stage;
+  intro.stage = a.stage;
+  intro.history.push({ at: a.at, stage: a.stage, ...(a.note ? { note: a.note.slice(0, 200) } : {}) });
+  intro.updatedAt = a.at;
+  if (a.outcome) intro.outcome = a.outcome;
+  if (a.stage === "forwarded") intro.forwardedOn ??= on;
+  if (a.stage === "meeting") intro.meetingOn ??= on;
+  if (a.stage === "done" || a.stage === "declined" || a.stage === "no_answer") intro.closedOn = on;
+  else delete intro.closedOn;
+  if (a.stage === "declined") intro.declinedBy = a.declinedBy ?? intro.declinedBy;
+  if (a.stage === "introduced" && !intro.introducedOn) {
+    intro.introducedOn = on;
+    const connector = ws.connectors.find((c) => c.id === intro.connectorId);
+    if (intro.kind === "ask" && connector) connector.introsMade += 1;
+    const sides = intro.sides?.map((s) => s.name).join(" and ");
+    ws.activities.push({
+      id: a.activityId ?? `act_${intro.id}_introduced`,
+      at: a.at,
+      kind: "intro_made",
+      personId: intro.personId,
+      accountDomain: intro.accountDomain,
+      dealId: intro.accountDomain ? ws.accounts[intro.accountDomain]?.dealId : undefined,
+      channel: "intro",
+      summary: intro.kind === "give" ? `You introduced ${sides}` : `${intro.connectorName ?? "Your connector"} introduced you to ${intro.targetName}`,
+      source: "founder",
+    });
+  }
+  // Reopening (a "no answer" that came back) keeps the original dates; only a fresh forward restarts its clock.
+  if (was === "no_answer" && a.stage === "forwarded") intro.forwardedOn = on;
 }
 
 function upsertBy<T extends { id: string }>(list: T[], item: T) {
@@ -249,6 +326,48 @@ export function applyAction(ws: Workspace, action: Action): void {
       return;
     case "connector.remove":
       ws.connectors = ws.connectors.filter((c) => c.id !== action.id);
+      return;
+    case "connector.give": {
+      const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
+      (c.gives ??= []).push({ at: todayISO(new Date(action.at)), what: action.what.trim().slice(0, 140) });
+      return;
+    }
+    case "intro.create":
+      ws.intros ??= {};
+      if (!ws.intros[action.intro.id]) ws.intros[action.intro.id] = action.intro;
+      return;
+    case "intro.advance": {
+      const intro = need(ws.intros?.[action.id], "Intro");
+      advanceIntro(ws, intro, action);
+      return;
+    }
+    case "intro.mark": {
+      const intro = need(ws.intros?.[action.id], "Intro");
+      const on = todayISO(new Date(action.at));
+      if (action.side !== undefined) {
+        const side = need(intro.sides?.[action.side], "Side");
+        if (action.field === "askedOn" || action.field === "nudgedOn") side[action.field] = on;
+      } else if (action.field !== "askedOn") {
+        intro[action.field] = on;
+      }
+      intro.updatedAt = action.at;
+      return;
+    }
+    case "intro.consent": {
+      const intro = need(ws.intros?.[action.id], "Intro");
+      const side = need(intro.sides?.[action.side], "Side");
+      side.consent = action.consent;
+      side.askedOn ??= todayISO(new Date(action.at));
+      if (action.consent === "no" && intro.stage === "asked") {
+        intro.stage = "declined";
+        intro.closedOn = todayISO(new Date(action.at));
+        intro.history.push({ at: action.at, stage: "declined", note: `${side.name} passed` });
+      }
+      intro.updatedAt = action.at;
+      return;
+    }
+    case "intro.remove":
+      if (ws.intros) delete ws.intros[action.id];
       return;
     case "evidence.flagWrong": {
       const ev = need(ws.evidence[action.id], "Evidence");
@@ -397,6 +516,7 @@ export function applyAction(ws: Workspace, action: Action): void {
       });
       const acc = ws.accounts[pkg.accountDomain];
       if (acc && acc.status === "new") acc.status = "tracked";
+      if (pkg.mode === "warm_intro") openIntroFromAsk(ws, pkg.id, action.at);
       for (const move of Object.values(ws.moves)) {
         if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "done";
       }
@@ -443,6 +563,16 @@ export function applyAction(ws: Workspace, action: Action): void {
       ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
       for (const move of Object.values(ws.moves)) {
         if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "open";
+      }
+      // Undoing an intro ask also undoes the intro it opened, if nothing has happened on it since.
+      const intro = ws.intros?.[`intro_${pkg.id}`];
+      if (intro && intro.stage === "asked" && intro.history.length <= 1 && !intro.nudgedOn) {
+        const connector = ws.connectors.find((c) => c.id === intro.connectorId);
+        if (connector && connector.lastAskedOn === intro.askedOn) {
+          if (intro.priorAskedOn) connector.lastAskedOn = intro.priorAskedOn;
+          else delete connector.lastAskedOn;
+        }
+        delete ws.intros[intro.id];
       }
       return;
     }

@@ -33,6 +33,7 @@ export function emptyWorkspace(): Workspace {
     },
     caps: { firstTouchesPerWeek: 25, firstTouchesPerDayMax: 20, contactsPerAccountPerWeek: 2, monthlyBudgetUsd: 100 },
     connectors: [],
+    intros: {},
     evidence: {},
     accounts: {},
     people: {},

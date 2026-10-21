@@ -899,7 +899,7 @@ async function runLinkedIn(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, acc
 
 async function runWarmIntro(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account: Account): Promise<ComposeResult> {
   const a = ctx.args;
-  const rank: Record<string, number> = { investor: 0, angel: 1, advisor: 2, customer: 3, ex_colleague: 4, friend: 5 };
+  const rank: Record<string, number> = { investor: 0, angel: 1, advisor: 2, customer: 3, ex_colleague: 4, friend: 5, connection: 6 };
   const connector =
     (a.connectorId ? ws.connectors.find((c) => c.id === a.connectorId) : undefined) ??
     [...ws.connectors].sort((x, y) => rank[x.relationship] - rank[y.relationship] || (x.lastAskedOn ?? "").localeCompare(y.lastAskedOn ?? ""))[0];
@@ -912,7 +912,7 @@ async function runWarmIntro(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, ac
 
   const task = lines(
     taskHeader(),
-    `<task>Ask ${connector ? `${connector.name} (${connector.relationship.replace("_", " ")})` : "a mutual connection"} for a double opt-in intro to ${target} at ${account.name}. Write the short note to the connector and the forwardable note they can pass on.</task>`,
+    `<task>Ask ${connector ? `${connector.name} (${connector.relationship === "connection" ? "a LinkedIn connection" : connector.relationship.replace("_", " ")}${connector.company ? `, works at ${connector.company}` : ""})` : "a mutual connection"} for a double opt-in intro to ${target} at ${account.name}. Write the short note to the connector and the forwardable note they can pass on.</task>`,
     `<recipient>\n${fmtRecipient(person, personaFor(ws, person), account.name, account.domain)}\n</recipient>`,
     angle && `<angle>\n${fmtAngle(angle)}\n</angle>`,
     evidence.length ? `<evidence>\n${evidence.map(fmtEvidence).join("\n")}\n</evidence>` : "<evidence>none usable</evidence>",

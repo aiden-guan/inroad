@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowRight, Building2, CalendarHeart, Compass, FileUp, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAsk } from "@/components/providers/ask-provider";
@@ -125,6 +125,9 @@ export function CommandPalette() {
             <Item value="companies" icon={<Building2 className="size-4" />} onSelect={() => run(() => router.push("/companies"))} hint="G C">
               Companies
             </Item>
+            <Item value="intros warm introductions connectors" icon={<Handshake className="size-4" />} onSelect={() => run(() => router.push("/intros"))} hint="G N">
+              Intros
+            </Item>
             <Item value="events dinners" icon={<CalendarHeart className="size-4" />} onSelect={() => run(() => router.push("/events"))} hint="G E">
               Events
             </Item>
@@ -144,6 +147,12 @@ export function CommandPalette() {
             </Item>
             <Item value="import linkedin connections warm network csv" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=linkedin"))}>
               Import LinkedIn connections
+            </Item>
+            <Item value="make an intro introduce two people give" icon={<ArrowLeftRight className="size-4" />} onSelect={() => run(() => router.push("/intros?new=give"))}>
+              Make an intro
+            </Item>
+            <Item value="add a connector investor advisor who introduces me" icon={<UserPlus className="size-4" />} onSelect={() => run(() => router.push("/intros?new=connector"))}>
+              Add someone who introduces you
             </Item>
             <Item value="log a call debrief notes" icon={<Phone className="size-4" />} onSelect={() => run(() => router.push("/companies?view=talking&log=1"))}>
               Log a call

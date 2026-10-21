@@ -2,6 +2,10 @@ import "server-only";
 import { z } from "zod";
 import { ActionError } from "@/lib/domain/actions";
 import type { SignalType } from "@/lib/domain/types";
+import { todayISO } from "@/lib/domain/ids";
+import { normalizeDomain } from "@/lib/hub/records";
+import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules";
+import { readConnections } from "@/lib/network/store";
 import { readWorkspace } from "@/lib/store/workspace";
 import { scoreAccount, scoringContext } from "./scoring";
 import { logCall, recordBudget, type ApiKey } from "./store";
@@ -10,7 +14,7 @@ import { accountView, icpView, nextActionsView, playbookView, searchView } from 
 import { ToolError, addAccounts, completeAction, logActivity, submitDraft } from "./writes";
 
 /**
- * The ten tools other agents call, defined once and served twice: over MCP at /api/mcp and as
+ * The tools other agents call, defined once and served twice: over MCP at /api/mcp and as
  * REST at /api/v1 (with an OpenAPI spec). Plain reads and writes; Inroad spends zero tokens on
  * this traffic because the calling agent pays for its own inference. Order is fixed so callers'
  * prompt caches keep hitting; descriptions are short because callers pay for them on every turn.
@@ -288,6 +292,81 @@ export const TOOLS: ToolDef[] = [
       const data = accountView(readWorkspace(), a.domain, ctx.base);
       if (!data) throw new ToolError("No company with that domain. Use search_records.", 404);
       return { data, summary: `Read ${data.domain}` };
+    },
+  }),
+  tool({
+    name: "find_warm_paths",
+    title: "Find warm paths",
+    description:
+      "Who can introduce the founder to a company: people they know there, connectors who can reach it, alumni, customers, investors. Ranked, each with why and concerns. Check before any cold outreach.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/warm-paths" },
+    schema: z.object({ domain }),
+    run: (a, ctx) => {
+      const ws = readWorkspace();
+      const d = normalizeDomain(a.domain);
+      if (!d || !ws.accounts[d]) throw new ToolError("No company with that domain. Add it with add_accounts first.", 404);
+      const today = todayISO();
+      const open = openIntroFor(ws, d);
+      const paths = waysIn(ws, d, readConnections(), today).map((w) => ({
+        kind: w.kind,
+        via: { name: w.via.name, title: w.via.title ?? null, company: w.via.company ?? null },
+        to: w.target?.name ?? null,
+        why: w.why,
+        concerns: w.concerns,
+        ready: w.ready,
+      }));
+      return {
+        data: {
+          domain: d,
+          intro_in_flight: open ? { with: open.connectorName ?? null, to: open.targetName, stage: open.stage, next: nextStep(open, ws, today).line } : null,
+          paths,
+          rule: "The founder sends every ask. Don't contact these people yourself; suggest the ask, and Inroad drafts it for approval.",
+          review_url: `${ctx.base}/companies?c=${encodeURIComponent(d)}`,
+        },
+        summary: `Warm paths into ${d}: ${plural(paths.length, "path")}`,
+        records: paths.length,
+      };
+    },
+  }),
+  tool({
+    name: "list_intros",
+    title: "List intros",
+    description: "Intros in flight and whose move each one is (the founder's, the connector's, or the other person's), with the next step and when it's due.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/intros" },
+    schema: z.object({ include_closed: z.boolean().optional().describe("Also return finished, passed and unanswered intros") }),
+    run: (a, ctx) => {
+      const ws = readWorkspace();
+      const today = todayISO();
+      const intros = Object.values(ws.intros ?? {})
+        .filter((i) => a.include_closed || isOpenIntro(i) || nextStep(i, ws, today).owner === "you")
+        .sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))
+        .slice(0, 50)
+        .map((i) => {
+          const next = nextStep(i, ws, today);
+          return {
+            id: i.id,
+            kind: i.kind,
+            connector: i.connectorName ?? null,
+            to: i.kind === "give" ? (i.sides ?? []).map((s) => s.name) : i.targetName,
+            domain: i.accountDomain ?? null,
+            stage: i.stage,
+            asked_on: i.askedOn,
+            whose_move: next.owner,
+            next: next.line,
+            due: next.due ?? null,
+          };
+        });
+      return {
+        data: { intros, review_url: `${ctx.base}/intros` },
+        summary: `${plural(intros.length, "intro")}, ${intros.filter((i) => i.whose_move === "you").length} the founder's move`,
+        records: intros.length,
+      };
     },
   }),
 ];

@@ -706,10 +706,52 @@ export function voice(c: Clock): VoiceCard {
 
 export function connectors(c: Clock): Connector[] {
   return [
-    { id: CONNECTOR.claire, name: "Claire Donovan", relationship: "investor", linkedinUrl: "https://linkedin.example/in/claire-donovan", lastAskedOn: c.d(-4), introsMade: 2 },
-    { id: CONNECTOR.rohan, name: "Rohan Mehta", relationship: "angel", linkedinUrl: "https://linkedin.example/in/rohan-mehta", lastAskedOn: c.d(-19), introsMade: 1 },
-    { id: CONNECTOR.ava, name: "Ava Whitman", relationship: "customer", linkedinUrl: "https://linkedin.example/in/ava-whitman", introsMade: 1 },
-    { id: CONNECTOR.ines, name: "Ines Duarte", relationship: "advisor", linkedinUrl: "https://linkedin.example/in/ines-duarte", introsMade: 0 },
+    {
+      id: CONNECTOR.claire,
+      name: "Claire Donovan",
+      relationship: "investor",
+      linkedinUrl: "https://linkedin.example/in/claire-donovan",
+      email: "claire@alderstreet.example",
+      company: "Alder Street Ventures",
+      reach: ["Alder Street portfolio", "infra and API founders", "quayside.example"],
+      notes: "Led the pre-seed. Prefers a forwardable note she can send unchanged.",
+      lastAskedOn: c.d(-4),
+      introsMade: 2,
+      gives: [{ at: c.d(-20), what: "Sent her portfolio CEO our month-end close checklist" }],
+    },
+    {
+      id: CONNECTOR.rohan,
+      name: "Rohan Mehta",
+      relationship: "angel",
+      linkedinUrl: "https://linkedin.example/in/rohan-mehta",
+      email: "rohan@mehta.example",
+      reach: ["data infrastructure", "vector databases", "Rowanstack"],
+      lastAskedOn: c.d(-19),
+      introsMade: 1,
+    },
+    {
+      id: CONNECTOR.ava,
+      name: "Ava Whitman",
+      relationship: "customer",
+      linkedinUrl: "https://linkedin.example/in/ava-whitman",
+      email: "ava@wrenfield.example",
+      company: "Wrenfield",
+      reach: ["controllers", "revenue accounting"],
+      notes: "Design partner turned customer. Happy to take reference calls; ask at most monthly.",
+      lastAskedOn: c.d(-6),
+      introsMade: 1,
+    },
+    {
+      id: CONNECTOR.ines,
+      name: "Ines Duarte",
+      relationship: "advisor",
+      linkedinUrl: "https://linkedin.example/in/ines-duarte",
+      email: "ines@duarte.example",
+      reach: ["observability", "feature flags", "glassmoor.example"],
+      notes: "Ex-VP Finance at a usage-priced infra company.",
+      lastAskedOn: c.d(-6),
+      introsMade: 0,
+    },
   ];
 }
 

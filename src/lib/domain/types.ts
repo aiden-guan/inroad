@@ -369,10 +369,81 @@ export interface Asset {
 export interface Connector {
   id: ID;
   name: string;
-  relationship: "investor" | "angel" | "advisor" | "customer" | "friend" | "ex_colleague";
+  /** "connection": a LinkedIn connection asked through a path (a colleague inside, an alum), not someone the founder listed. */
+  relationship: "investor" | "angel" | "advisor" | "customer" | "friend" | "ex_colleague" | "connection";
   linkedinUrl?: string;
+  /** Pre-fills the To line when an ask or a thank-you opens in Gmail. */
+  email?: string;
+  /** Who they can reach, in the founder's words: companies, domains, roles, circles ("fintech CFOs", "stripe.com"). Matched in code. */
+  reach?: string[];
+  /** Where they work now, for "Ways in" (an advisor at a target counts as inside). */
+  company?: string;
+  notes?: string;
   lastAskedOn?: ISODate;
   introsMade: number;
+  /** What the founder did for them: intros, favors. The ledger weighs asks against these. */
+  gives?: { at: ISODate; what: string }[];
+}
+
+/* ─────────────────────────────── Intros ─────────────────────────────── */
+
+/**
+ * Double opt-in, end to end. Ask: a connector introduces the founder to someone (asked → the connector
+ * checks with them → both said yes and the intro email exists → meeting → closed with a thank-you).
+ * Give: the founder introduces two people, asking each side separately before anyone's details move.
+ */
+export type IntroStage = "asked" | "forwarded" | "introduced" | "meeting" | "done" | "declined" | "no_answer";
+
+export interface IntroSide {
+  personId?: ID;
+  name: string;
+  /** "Controller at Northwind" */
+  title?: string;
+  email?: string;
+  /** Why this side would want to meet the other, in the founder's words (≤30 words). Goes into the opt-in note. */
+  why: string;
+  consent: "pending" | "yes" | "no";
+  askedOn?: ISODate;
+  nudgedOn?: ISODate;
+}
+
+export interface Intro {
+  id: ID;
+  kind: "ask" | "give";
+  stage: IntroStage;
+  /** Ask: who makes the intro. The name stays even if the connector is removed. */
+  connectorId?: ID;
+  connectorName?: string;
+  /** Ask: who the founder wants to meet. */
+  personId?: ID;
+  accountDomain?: string;
+  /** "Rafael Ortiz, VP Finance at Ashgrove", or the role when no one is named yet. */
+  targetName: string;
+  /** Give: the two people, each asked separately. */
+  sides?: [IntroSide, IntroSide];
+  /** The drafted ask (a warm_intro package), when it came from the composer. */
+  packageId?: ID;
+  askedOn: ISODate;
+  /** One nudge per ask, ever: connectors are relationships, not a sequence. */
+  nudgedOn?: ISODate;
+  /** Ask: when the connector said the target is in and they're checking (stage forwarded). */
+  forwardedOn?: ISODate;
+  introducedOn?: ISODate;
+  /** Ask: the founder answered the intro email (connector moved to BCC, times offered). */
+  repliedOn?: ISODate;
+  meetingOn?: ISODate;
+  meetingId?: ID;
+  /** Ask: the connector heard how it went. Give: the founder checked in on how it went. */
+  thankedOn?: ISODate;
+  outcome?: "useful" | "pilot" | "not_a_fit";
+  declinedBy?: "connector" | "target" | "both";
+  closedOn?: ISODate;
+  note?: string;
+  /** Undo support: the connector's last-asked date before this ask was marked sent. */
+  priorAskedOn?: ISODate;
+  history: { at: ISODateTime; stage: IntroStage; note?: string }[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
 }
 
 /* ─────────────────────────────── Accounts & people ─────────────────────────────── */
@@ -1299,6 +1370,8 @@ export interface Workspace {
   goal: Goal;
   caps: Caps;
   connectors: Connector[];
+  /** Every intro asked for or made, by id. */
+  intros: Record<ID, Intro>;
   evidence: Record<ID, Evidence>;
   accounts: Record<string, Account>;
   people: Record<ID, Person>;

@@ -20,6 +20,7 @@ import {
 } from "./company";
 import { connections, networkSummary } from "./connections";
 import { events } from "./events";
+import { intros } from "./intros";
 import { DEAL, DOMAIN, MEETING, RUN } from "./ids";
 import { activities, outreach } from "./outreach";
 import { deals, meetings } from "./pipeline";
@@ -80,6 +81,7 @@ function assemble(now: Date): Workspace {
     goal,
     caps: CAPS,
     connectors: connectors(c),
+    intros: intros(c),
     evidence: Object.fromEntries(evidenceList.map((e) => [e.id, e])),
     accounts: accountsByDomain,
     people: peopleById,

@@ -24,7 +24,7 @@ How to use it:
 - Before prospecting or writing for me, call get_icp and get_playbook. Describe my company only with approved_claims.
 - Before enriching or researching a list, call score_accounts and drop tier "none".
 - Call search_records before contacting anyone, and skip anyone marked do_not_contact.
-- Read get_account before writing to someone at a company.
+- Read get_account before writing to someone at a company, and call find_warm_paths first: if I have a warm path, suggest the intro instead of cold outreach.
 - Save leads with add_accounts (source "muse") and record what happens with log_activity.
 - Never send email or messages in my name. Put every draft in my approval queue with submit_draft.`;
 }

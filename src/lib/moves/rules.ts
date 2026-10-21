@@ -1,5 +1,6 @@
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type Workspace } from "@/lib/domain/types";
+import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { awaitingOutcome } from "./replies";
 import { coldQuotaLeft, counters, INTRO_ASKS_PER_WEEK, type Counters } from "./scoreboard";
@@ -46,6 +47,15 @@ const RULES = {
   warm_path: { base: 58, label: "Warm path at an ICP company" },
   connector: { base: 58, label: "Weekly intro asks not met and a connector exists" },
   intro_draft: { base: 58, label: "Intro ask drafted" },
+  intro_reply: { base: 96, label: "An intro landed: reply within a day" },
+  intro_send: { base: 80, label: "Both sides said yes to an intro you're making" },
+  intro_close_loop: { base: 61, label: "Met through an intro; the connector hasn't heard how it went" },
+  intro_nudge: { base: 57, label: "An intro ask has been quiet for five days" },
+  intro_check_in: { base: 55, label: "A forwarded intro has been quiet for a week" },
+  intro_book: { base: 53, label: "Replied to an intro, no time picked yet" },
+  intro_check_how: { base: 42, label: "Two weeks after an intro you made" },
+  intro_thank: { base: 40, label: "A connector passed; thank them for checking" },
+  intro_let_go: { base: 34, label: "Quiet after the one nudge" },
   review_friday: { base: 56, label: "Friday learning review" },
   single_threaded: { base: 55, label: "Qualified or later with one contact" },
   unpaid: { base: 55, label: "Unpaid pilot past 30 days" },
@@ -108,6 +118,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   deals(ctx);
   firstTouches(ctx);
   warmPaths(ctx);
+  introFollowThrough(ctx);
   setup(ctx);
   events(ctx);
   questions(ctx);
@@ -706,6 +717,86 @@ function firstTouches({ ws, today, c, out }: Ctx) {
   }
 }
 
+const INTRO_RULE: Record<IntroAction, RuleKey> = {
+  reply: "intro_reply",
+  send_intro: "intro_send",
+  close_loop: "intro_close_loop",
+  nudge: "intro_nudge",
+  check_in: "intro_check_in",
+  book: "intro_book",
+  check_how: "intro_check_how",
+  thank: "intro_thank",
+  let_go: "intro_let_go",
+};
+
+/** Intro follow-through: one card per founder move, from the same rules as the Intros page. */
+function introFollowThrough({ ws, today, out }: Ctx) {
+  for (const { intro, next } of yourMoves(ws, today)) {
+    const action = next.action!;
+    const c = first(intro.connectorName) || "your connector";
+    const t = targetLabel(intro);
+    const company = intro.accountDomain ? companyName(ws, intro.accountDomain) : undefined;
+    const about = company && !intro.targetName.toLowerCase().includes(company.toLowerCase()) ? `${t} at ${company}` : intro.targetName.replace(/^the /, "");
+    const [a, b] = intro.sides ?? [];
+    const sideName = next.side !== undefined && intro.sides ? first(intro.sides[next.side].name) : "";
+    const otherName = next.side !== undefined && intro.sides ? first(intro.sides[next.side === 0 ? 1 : 0].name) : "";
+    const title =
+      intro.kind === "give"
+        ? action === "send_intro"
+          ? `Introduce ${first(a?.name)} and ${first(b?.name)}`
+          : action === "check_how"
+            ? `Ask ${first(a?.name)} and ${first(b?.name)} how it went`
+            : action === "let_go"
+              ? `Let the ${sideName} and ${otherName} intro go`
+              : next.side !== undefined && !intro.sides?.[next.side].askedOn
+                ? `Ask ${sideName} about meeting ${otherName}`
+                : `Nudge ${sideName} about meeting ${otherName}`
+        : {
+            reply: `Reply to ${c}'s intro to ${t}`,
+            nudge: `Nudge ${c} about ${about}`,
+            check_in: `Check in with ${c} about ${t}`,
+            let_go: `Let the ${company ?? about} ask go`,
+            book: `Follow up with ${t} to book`,
+            close_loop: `Tell ${c} how it went with ${t}`,
+            thank: `Thank ${c} for checking`,
+            send_intro: "",
+            check_how: "",
+          }[action];
+    const why =
+      intro.kind === "give"
+        ? action === "send_intro"
+          ? "Both said yes · double opt-in done, send it today"
+          : action === "check_how"
+            ? `Introduced ${when(intro.introducedOn ?? today, today)} · a reason to stay in touch`
+            : "Double opt-in: nothing moves until both say yes"
+        : {
+            reply: `Intro made ${when(intro.introducedOn ?? today, today)} · reply within a day, ${c} to BCC`,
+            nudge: `Asked ${when(intro.askedOn, today)} · one nudge, never two`,
+            check_in: `${c} checked with ${t} ${when(intro.forwardedOn ?? intro.askedOn, today)}`,
+            let_go: `No answer since your nudge ${when(intro.nudgedOn ?? intro.askedOn, today)} · close it kindly, try another way in`,
+            book: `You replied ${when(intro.repliedOn ?? today, today)}, no time picked yet`,
+            close_loop: `Connectors who hear back introduce again`,
+            thank: `${c} checked for you · say thanks either way`,
+            send_intro: "",
+            check_how: "",
+          }[action];
+    const rule = INTRO_RULE[action];
+    out.push({
+      id: `mv_intro_${intro.id}_${action}${next.side !== undefined ? `_${next.side}` : ""}`,
+      kind: "intro_ask",
+      rule,
+      title,
+      why,
+      minutes: action === "send_intro" || action === "reply" ? 3 : 2,
+      priority: RULES[rule].base + overdueBoost(next.overdueDays ?? 0) / 3,
+      ref: intro.personId ? { kind: "person", id: intro.personId } : intro.accountDomain ? { kind: "account", id: intro.accountDomain } : undefined,
+      subjectIds: [intro.id],
+      overdueDays: next.overdueDays,
+      href: `/intros?i=${encodeURIComponent(intro.id)}`,
+    });
+  }
+}
+
 const RELATIONSHIP: Record<string, string> = {
   investor: "Investor",
   angel: "Angel",
@@ -713,12 +804,13 @@ const RELATIONSHIP: Record<string, string> = {
   customer: "Customer",
   friend: "Friend",
   ex_colleague: "Ex-colleague",
+  connection: "LinkedIn connection",
 };
 
 function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
   const asks = c.introAsksThisWeek;
   const quotaMet = asks >= INTRO_ASKS_PER_WEEK;
-  const recentPkg = (domain: string) => Object.values(ws.outreach).some((p) => p.accountDomain === domain && daysSince(p.createdAt, today) <= 30);
+  const recentPkg = (domain: string) => Object.values(ws.outreach).some((p) => p.accountDomain === domain && daysSince(p.createdAt, today) <= 30) || !!openIntroFor(ws, domain);
   const prospects = Object.values(ws.accounts)
     // Any deal, open or closed, rules a company out: open ones have their own moves, and lost or nurture ones aren't intro targets.
     .filter((a) => (a.tier === "A" || a.tier === "B") && a.status !== "disqualified" && a.status !== "customer" && !(a.dealId && ws.deals[a.dealId]) && !recentPkg(a.domain))
@@ -766,9 +858,10 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
   if (quotaMet || !ws.connectors.length) return;
   const target = prospects.find((a) => a.warmPathCount === 0);
   if (!target) return;
+  // Only a connector the ledger says is ready: no open ask, rested two weeks, not owed a give first.
   const connector = [...ws.connectors]
-    .filter((x) => !x.lastAskedOn || daysSince(x.lastAskedOn, today) >= 14)
-    .sort((a, b) => (a.lastAskedOn ?? "").localeCompare(b.lastAskedOn ?? ""))[0];
+    .filter((x) => x.relationship !== "connection" && ledger(ws, x, today).status === "ready")
+    .sort((a, b) => (ledger(ws, a, today).lastAskedOn ?? "").localeCompare(ledger(ws, b, today).lastAskedOn ?? ""))[0];
   if (!connector) return;
   out.push({
     id: `mv_connector_${connector.id}_${weekStart}`,
