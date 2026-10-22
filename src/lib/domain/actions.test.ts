@@ -105,6 +105,16 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.voice?.suggested).toBeUndefined();
   },
 
+  "voice.addBadExamples": () => {
+    const long = "Hi Dana, I hope this email finds you well. Companies like yours struggle with finance ops and our platform helps.";
+    const s = apply(makeWorkspace(), { type: "voice.addBadExamples", texts: [long, "  too short  ", long.replace("Dana", "Sam")], at: at(0) });
+    // Fragments too short to judge are dropped; only the last five are kept.
+    expect(s.voice?.badExamples?.map((b) => b.text)).toEqual([long, long.replace("Dana", "Sam")]);
+    apply(s, { type: "voice.addBadExamples", texts: [1, 2, 3, 4].map((i) => `${long} ${i}`), at: at(0) });
+    expect(s.voice?.badExamples).toHaveLength(5);
+    expect(s.voice?.badExamples?.[0].text).toBe(long.replace("Dana", "Sam"));
+  },
+
   "voice.noteToneOff": () => {
     const s = apply(ws(), { type: "voice.noteToneOff", text: "Hope this finds you well!", at: at(0), moveId: "mv_x" });
     expect(s.voice?.toneOff).toEqual([{ at: at(0), text: "Hope this finds you well!", moveId: "mv_x" }]);

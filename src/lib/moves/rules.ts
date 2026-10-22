@@ -100,6 +100,7 @@ const RULES = {
   discover: { base: 28, label: "Fewer than 10 untouched A/B prospects" },
   review_monthly: { base: 60, label: "Monthly review: the message bet, a playbook refresh, the pricing log" },
   refresh_bet: { base: 42, label: "Five calls debriefed (or a deal won) since the bet was last revised" },
+  bad_examples: { base: 28, label: "Day 3: paste a few AI-written sales emails so drafts stay away from them" },
 } as const;
 
 type RuleKey = keyof typeof RULES;
@@ -174,6 +175,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   reviews(ctx);
   monthlyReview(ctx);
   refreshBet(ctx);
+  badExamples(ctx);
   weeklyPost(ctx);
 
   // Other surfaces (inbound webhooks, agent API) create their own reply and prep cards. When one already
@@ -1667,6 +1669,27 @@ function refreshBet({ ws, out }: Ctx) {
     minutes: 10,
     priority: RULES.refresh_bet.base + Math.min(8, offer.won * 4),
     href: "/playbook#refresh",
+  });
+}
+
+/**
+ * "Show me what bad looks like" (SPEC §4.0 critic): from day 3 to day 14 after hiring, once there's a cold draft,
+ * an optional card asks for a few AI-written sales emails the founder received. Lint warns when a draft reads like
+ * one, the critic eval adds them as negatives, and drafting gets one as a counter-example.
+ */
+function badExamples({ ws, today, out }: Ctx) {
+  const hired = ws.onboarding.hiredAt;
+  if (!hired || ws.voice?.badExamples?.length) return;
+  const days = daysSince(hired, today);
+  if (days < 3 || days > 14 || !Object.values(ws.outreach).some((p) => p.mode === "cold")) return;
+  out.push({
+    id: "mv_bad_examples",
+    kind: "setup",
+    rule: "bad_examples",
+    title: "Show me what bad looks like",
+    why: "Paste 3 AI-written sales emails you got · 2 minutes · drafts stay away from them",
+    minutes: 2,
+    priority: RULES.bad_examples.base,
   });
 }
 

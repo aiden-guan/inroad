@@ -59,6 +59,8 @@ export type Action =
   | { type: "voice.extract"; at: string }
   /** A draft skipped as "tone off", kept as an example of what not to write. */
   | { type: "voice.noteToneOff"; text: string; at: string; moveId?: ID }
+  /** "Show me what bad looks like": AI-written emails the founder got, kept (up to 5) for lint, the critic eval and drafts. */
+  | { type: "voice.addBadExamples"; texts: string[]; at: string }
   | { type: "company.correctChip"; key: string; text: string | null }
   | { type: "foundation.set"; path: (string | number)[]; value: unknown }
   | { type: "foundation.answerQuestion"; questionId: ID; answer: string; at: string }
@@ -333,6 +335,12 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "voice.noteToneOff":
       noteToneOff(ws, action.text, action.at, action.moveId);
       return;
+    case "voice.addBadExamples": {
+      ws.voice ??= emptyVoice(action.at);
+      const texts = action.texts.map((t) => t.trim().slice(0, 3000)).filter((t) => t.split(/\s+/).length >= 15);
+      ws.voice.badExamples = [...(ws.voice.badExamples ?? []), ...texts.map((text) => ({ at: action.at, text }))].slice(-5);
+      return;
+    }
     case "voice.update": {
       ws.voice ??= { samples: [], summary: "", signOff: "", updatedAt: action.at };
       if (action.patch.summary !== undefined) ws.voice.summary = action.patch.summary.slice(0, 600);

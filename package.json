@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "mock:anthropic": "node scripts/mock-anthropic.mjs"
+    "mock:anthropic": "node scripts/mock-anthropic.mjs",
+    "eval:critic": "vitest run --config vitest.eval.config.mts scripts/eval-critic.ts",
+    "eval:classify": "vitest run --config vitest.eval.config.mts scripts/eval-classify.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

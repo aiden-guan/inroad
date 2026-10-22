@@ -1,6 +1,9 @@
 import type { DraftFrame, LintCode, LintResult } from "@/lib/domain/types";
 import { aOrAn } from "@/lib/moves/util";
-import { convergence, sentences, stripGreeting, type RecentDraft } from "./similarity";
+import { convergence, sentences, stripGreeting, tfidfSimilarities, type RecentDraft } from "./similarity";
+
+/** TF-IDF similarity above which a draft "reads like" a pasted AI-written email. */
+export const BAD_EXAMPLE_SIMILARITY = 0.45;
 
 /**
  * Deterministic outbound lint. Frame-aware, no model calls; the compose workflow runs it after
@@ -34,6 +37,8 @@ export interface LintInput {
   knownNames?: string[];
   /** Recent cold drafts, for skeleton diversity and near-duplicates. */
   recent?: RecentDraft[];
+  /** AI-written sales emails the founder pasted as what bad looks like; a draft that reads like one gets a warning. */
+  badExamples?: string[];
 }
 
 type Severity = "error" | "warn";
@@ -427,6 +432,11 @@ export function lintDraft(input: LintInput): LintResult {
   }
   if (input.recent?.length && input.kind === "email" && input.step === 1) {
     for (const issue of convergence(body, input.recent)) add(issue.code, issue.detail);
+  }
+  if (input.badExamples?.length && input.kind === "email") {
+    // A founder draft scores under 0.15 against typical AI-SDR mail; a lightly reworded one scores over 0.6.
+    const worst = Math.max(...tfidfSimilarities(body, input.badExamples));
+    if (worst > BAD_EXAMPLE_SIMILARITY) add("NEAR_DUPLICATE", `Reads like one of the AI-written emails you pasted (${worst.toFixed(2)}). Say it the way you would.`, "warn");
   }
 
   const violations = sortViolations(out);

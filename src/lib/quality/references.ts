@@ -4,8 +4,9 @@ import type { DraftFrame, Workspace } from "@/lib/domain/types";
  * Reference emails for the blind pairwise critic ("which would you answer, A or B?").
  * The founder's own sent emails win when they've pasted some (voice samples). Otherwise these
  * bundled references are used: written to the playbook's rules (research 01 §3, SPEC W5 example),
- * for hypothetical companies. They're a calibration floor, not real customer emails.
- * TODO: replace with permissioned human emails that got replies (SPEC §4.0 critic, 24 by frame).
+ * for hypothetical companies. They're a calibration floor, not real customer emails. Permissioned human emails that
+ * got replies (SPEC §4.0 critic: 24, matched by frame) replace them from `references.json` in the data folder
+ * (references-store.ts); the critic eval (npm run eval:critic) measures whichever set is in place.
  */
 export interface ReferenceEmail {
   id: string;
@@ -71,15 +72,15 @@ export const REFERENCES: ReferenceEmail[] = [
  * Picks the reference to compare against: one of the founder's pasted emails if any, else the
  * bundled reference closest to this frame and step.
  */
-export function pickReference(ws: Workspace, frame: DraftFrame, step: number, rand = Math.random): { id: string; text: string } {
+export function pickReference(ws: Workspace, frame: DraftFrame, step: number, rand = Math.random, bundled: ReferenceEmail[] = REFERENCES): { id: string; text: string } {
   const own = (ws.voice?.samples ?? []).filter((s) => s.kind === "email" && s.text.split(/\s+/).length >= 25);
   if (own.length) {
     const i = Math.floor(rand() * own.length);
     return { id: `voice-${i}`, text: own[i].text.slice(0, 1200) };
   }
-  const exact = REFERENCES.filter((r) => r.frames.includes(frame) && r.step === step);
-  const byFrame = REFERENCES.filter((r) => r.frames.includes(frame));
-  const pool = exact.length ? exact : byFrame.length ? byFrame : REFERENCES.filter((r) => r.step === Math.min(step, 3));
-  const ref = pool[Math.floor(rand() * pool.length)] ?? REFERENCES[0];
+  const exact = bundled.filter((r) => r.frames.includes(frame) && r.step === step);
+  const byFrame = bundled.filter((r) => r.frames.includes(frame));
+  const pool = exact.length ? exact : byFrame.length ? byFrame : bundled.filter((r) => r.step === Math.min(step, 3));
+  const ref = pool[Math.floor(rand() * pool.length)] ?? bundled[0];
   return { id: ref.id, text: ref.subject ? `Subject: ${ref.subject}\n\n${ref.body}` : ref.body };
 }

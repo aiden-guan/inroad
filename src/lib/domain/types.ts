@@ -306,6 +306,8 @@ export interface VoiceCard {
   samplesSinceExtract?: number;
   /** Drafts skipped as "tone off" (the last 10): examples of what not to write. */
   toneOff?: { at: ISODateTime; text: string; moveId?: ID }[];
+  /** AI-written sales emails the founder received and pasted ("Show me what bad looks like"): drafts stay away from them. */
+  badExamples?: { at: ISODateTime; text: string }[];
 }
 
 /** How the founder writes, read from their samples and edits in code (SPEC §6 VoiceCard). Unknown traits are left out. */
