@@ -2,6 +2,9 @@ import "server-only";
 import type { ID, Person, RunStep, Workspace } from "@/lib/domain/types";
 import { mutateHub, readHub } from "@/lib/hub/store";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
+import { invalidate } from "@/lib/signals/cache";
+import { githubOwnerKey } from "@/lib/signals/github";
+import { personPodcastKeys } from "@/lib/signals/podcasts";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { rewriteThreads } from "@/lib/store/threads";
 import { connectionIdentity, connectionIsPerson, forgetInImports, forgetInThread, hubRefsOf, redactRunSteps, threadMentions, wasForgotten } from "./forget";
@@ -10,7 +13,8 @@ import { connectionIdentity, connectionIsPerson, forgetInImports, forgetInThread
  * The part of "Delete their details" that lives outside workspace.json: their row in the founder's
  * LinkedIn connections (a re-import brings it back from LinkedIn's file, but nothing here keeps it),
  * the import history in network.json, their name in the step logs of runs about them, the Ask
- * conversations that mention them (threads.json), and the links to their CRM records (hub.json).
+ * conversations that mention them (threads.json), the links to their CRM records (hub.json), and the
+ * public lookups cached about them (podcast searches by their name, their GitHub profile).
  * Each file is only rewritten when something in it matches.
  */
 
@@ -56,7 +60,15 @@ export async function forgetInFiles({ person, company, runIds, namesake }: Forgo
   );
   const refs = hubRefsOf(readHub().refs, person);
   if (refs.length) await mutateHub((h) => refs.forEach((k) => delete h.refs[k]));
+  forgetCachedLookups(person, company);
   return { connections, threads };
+}
+
+/** Public lookups made about them: podcast searches by their name, and their GitHub profile (a stargazer's notes link it). */
+function forgetCachedLookups(person: Person, company: string | undefined) {
+  for (const key of personPodcastKeys(person.name, company)) invalidate(key);
+  const logins = new Set([...JSON.stringify(person).matchAll(/github\.com\/([A-Za-z0-9-]{1,39})(?![A-Za-z0-9-])/g)].map((m) => m[1]));
+  for (const login of logins) invalidate(githubOwnerKey(login));
 }
 
 /** Drops LinkedIn connection rows of anyone who asked to be deleted (by address or fingerprint). Returns how many went. */

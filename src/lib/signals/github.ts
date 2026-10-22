@@ -62,6 +62,9 @@ function budget(): Budget {
   return g.__inroadGithub;
 }
 
+/** The cache key of a GitHub user or org profile. */
+export const githubOwnerKey = (login: string) => `gh:owner:${login.toLowerCase()}`;
+
 /** Tests start with a fresh budget. */
 export function resetGithubBudget() {
   (globalThis as unknown as { __inroadGithub?: Budget }).__inroadGithub = {};
@@ -165,7 +168,7 @@ const LOGIN = /^[a-z\d](?:[a-z\d-]{0,38})$/i;
 export async function githubOrg(org: string): Promise<GithubOrg | null> {
   const login = org.trim().replace(/^@/, "");
   if (!LOGIN.test(login)) return null;
-  const owner = await cachedGet<RawOwner>(`gh:owner:${login.toLowerCase()}`, TTL.week, `/users/${login}`);
+  const owner = await cachedGet<RawOwner>(githubOwnerKey(login), TTL.week, `/users/${login}`);
   if (!owner.data) return owner.rateLimited ? { org: login, repos: [], publicMembers: [], rateLimited: true } : null;
   const isOrg = owner.data.type === "Organization";
   const repos = await cachedGet<RawRepo[]>(`gh:repos:${login.toLowerCase()}`, TTL.day, `/${isOrg ? "orgs" : "users"}/${login}/repos?sort=pushed&per_page=30`);
@@ -217,7 +220,7 @@ async function companyDomain(p: RawOwner): Promise<Pick<Stargazer, "domain" | "d
   const company = p.company?.trim() ?? "";
   const handle = company.match(/^@([a-z\d][a-z\d-]{0,38})\b/i)?.[1];
   if (handle) {
-    const org = await cachedGet<RawOwner>(`gh:owner:${handle.toLowerCase()}`, TTL.week, `/users/${handle}`);
+    const org = await cachedGet<RawOwner>(githubOwnerKey(handle), TTL.week, `/users/${handle}`);
     const d = org.data?.type === "Organization" && org.data.blog ? toDomain(org.data.blog) : null;
     if (d && !PERSONAL.test(d)) return { domain: d, domainBasis: "company_org" };
     if (org.rateLimited) return { rateLimited: true };
@@ -270,7 +273,7 @@ export async function githubStargazers(repo: string, opts: { maxProfiles?: numbe
       if (login) out.push({ login, url: s.user?.html_url ?? `https://github.com/${login}`, ...(s.starred_at ? { starredAt: s.starred_at } : {}) });
       continue;
     }
-    const p = await cachedGet<RawOwner>(`gh:owner:${login.toLowerCase()}`, 4 * TTL.week, `/users/${login}`);
+    const p = await cachedGet<RawOwner>(githubOwnerKey(login), 4 * TTL.week, `/users/${login}`);
     if (p.rateLimited) limited = true;
     const profile = p.data ?? s.user!;
     const where = p.data ? await companyDomain(p.data) : {};
