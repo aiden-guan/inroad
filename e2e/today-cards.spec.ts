@@ -152,3 +152,17 @@ test("a dossier with nothing citable says watch, as Today does, and offers no dr
   await expect(page.getByText("Watch, don't write yet")).toBeVisible();
   await expect(page.getByRole("button", { name: "Write the first email" })).toHaveCount(0);
 });
+
+// Last: it starts a first run on a fresh workspace and leaves it reading.
+test("skipping the two questions while the site is read keeps the list drop", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/reset")).ok()).toBe(true);
+  await page.goto("/welcome");
+  await page.locator("#site").fill("acme.com");
+  await page.locator("#note").fill("We reconcile usage data with invoices so finance teams close the month in hours.");
+  await page.getByRole("button", { name: /^Start/ }).click();
+  await expect(page.getByRole("heading", { name: /Two quick ones while I read/ })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("Got a list? Drop it here")).toBeVisible();
+  await page.getByRole("button", { name: "Skip", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Two quick ones while I read/ })).toHaveCount(0);
+  await expect(page.getByText("Got a list? Drop it here")).toBeVisible();
+});
