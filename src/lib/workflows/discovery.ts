@@ -587,6 +587,8 @@ ${batch.map((c, i) => card(c, i + 1)).join("\n")}`;
           effort: "low",
           maxTokens: 8000,
           requireTerminal: true,
+          // Screening batches share their prefix; a 1-hour cache pays off from the third.
+          cacheTtl: "1h",
           system: [EMBER_CORE, SCREEN_RULES, companyContext(ws)],
           messages: [{ role: "user", content }],
           tools: [screenTool],
