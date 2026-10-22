@@ -105,11 +105,52 @@ export function monthSpend(): number {
   return readWorkspace().usage[monthKey()]?.costUsd ?? 0;
 }
 
-export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown): Promise<RunSummary> {
+/**
+ * What a run may cost before it ends, held against the budget while it runs (its real cost is only
+ * booked at the end): the top of each workflow's range in SPEC's route table.
+ */
+const RESERVE_USD: Partial<Record<WorkflowDef<unknown>["id"], number>> = {
+  foundation: 0.9,
+  brief: 0.15,
+  discovery: 2,
+  dossier: 0.8,
+  compose: 0.15,
+  prep: 0.4,
+  debrief: 0.25,
+  review: 0.4,
+  network: 0.4,
+  ask: 0.5,
+  dinner_plan: 0.8,
+};
+const RESERVE_DEFAULT_USD = 0.3;
+
+/** Reservations of the runs in flight, by run id. */
+const reserved = (() => {
+  const g = globalThis as unknown as { __inroadReserved?: Map<string, number> };
+  g.__inroadReserved ??= new Map();
+  return g.__inroadReserved;
+})();
+
+/** This month's spend plus what the runs in flight may still cost. */
+export function committedSpend(): number {
+  return monthSpend() + [...reserved.values()].reduce((n, v) => n + v, 0);
+}
+
+export interface StartOptions {
+  /**
+   * Started by Inroad itself (Today's brief, briefs and drafts prepared ahead, a network screen), not by the
+   * founder: it only starts when its whole reservation fits under the budget, so a burst of them can't
+   * run past it before any has booked its cost.
+   */
+  automatic?: boolean;
+}
+
+export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: StartOptions = {}): Promise<RunSummary> {
   const args = def.args.parse(rawArgs);
   const ws = readWorkspace();
   const budget = ws.caps.monthlyBudgetUsd;
-  if (budget > 0 && monthSpend() >= budget) {
+  const hold = RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
+  if (budget > 0 && (committedSpend() >= budget || (opts.automatic && committedSpend() + hold > budget))) {
     throw new AgentError(`This month's AI budget ($${budget}) is used up. Raise it in Settings → Usage to keep going.`, "rate_limit");
   }
 
@@ -123,6 +164,7 @@ export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown): Promis
   };
   const live: LiveRun = { summary, events: [], listeners: new Set(), done: false, abort: new AbortController() };
   state.live.set(summary.id, live);
+  if (budget > 0) reserved.set(summary.id, hold);
   await saveSummary(summary);
 
   void execute(def, args, live);
@@ -248,7 +290,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     ws.usage[key].costUsd += costUsd;
     ws.usage[key].runs += 1;
     ws.usage[key].byWorkflow[def.id] = (ws.usage[key].byWorkflow[def.id] ?? 0) + costUsd;
-  });
+  }).finally(() => reserved.delete(live.summary.id));
   await saveSummary(live.summary);
   // One of the first three finished its research: Today re-prepares before anyone hears it ended, so the draft it
   // unlocks is already running when the page refreshes, wherever the founder is (moves/prepare).
