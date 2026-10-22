@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/field";
 import { Markdown } from "@/components/ui/misc";
+import { ProposalRow } from "@/components/today/review-panel";
 import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
 import { nowISO } from "@/lib/domain/ids";
@@ -130,9 +131,10 @@ function Reviews() {
     .slice(0, 26)
     .map(([key, b]) => ({ ...b, key }));
   const keyOf = (b: (typeof reviews)[number]) => b.key;
+  const undecided = (b: Brief) => (b.proposals ?? []).filter((p) => p.status === "open").length;
   const [open, setOpen] = useState<string | null>(reviews[0] ? keyOf(reviews[0]) : null);
   return (
-    <Sub id="reviews" title="Reviews" hint="The Monday pipeline review, the Friday learning review, the monthly review and every bet refresh, kept here so the reasoning behind each change stays visible.">
+    <Sub id="reviews" title="Reviews" hint="The Monday pipeline review, the Friday learning review, the monthly review and every bet refresh, kept here so the reasoning behind each change stays visible. Anything still open can be decided here.">
       {reviews.length === 0 ? (
         <p className="text-[13px] leading-5 text-fg-3">Your first pipeline review lands on Monday, and the first learning review on Friday afternoon.</p>
       ) : (
@@ -149,13 +151,24 @@ function Reviews() {
                   className="flex w-full items-baseline gap-3 py-3 text-left transition-colors duration-150 hover:text-fg"
                 >
                   <span className="min-w-0 flex-1 font-serif text-[17px] leading-6 text-fg">{longDay(r.date)}</span>
-                  <span className="text-[12.5px] text-fg-3">{REVIEW_LABELS[r.reviewKind ?? r.kind]}</span>
+                  <span className="text-[12.5px] text-fg-3">
+                    {REVIEW_LABELS[r.reviewKind ?? r.kind]}
+                    {undecided(r) > 0 && ` · ${undecided(r)} to decide`}
+                  </span>
                   <ChevronDown className={cn("size-4 shrink-0 self-center text-fg-3 transition-transform duration-200", isOpen && "rotate-180")} aria-hidden />
                 </button>
                 <motion.div initial={false} animate={{ height: isOpen ? "auto" : 0, opacity: isOpen ? 1 : 0 }} transition={spring.smooth} className="overflow-hidden">
                   {isOpen && (
                     <div className="pb-5">
                       <Markdown>{r.review!}</Markdown>
+                      {/* A review run from Ask, or one whose Today card has gone, is still decided here. */}
+                      {(r.proposals?.length ?? 0) > 0 && (
+                        <ul className="mt-4 space-y-2">
+                          {r.proposals!.map((p) => (
+                            <ProposalRow key={p.id} ws={ws} date={r.date} p={p} />
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </motion.div>

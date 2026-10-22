@@ -96,7 +96,7 @@ export function Markdown({ children, className }: { children: string; className?
   return (
     <div
       className={cn(
-        "prose-agent space-y-3 [&_a]:text-accent-text [&_a]:underline-offset-2 hover:[&_a]:underline [&_h1]:text-[24px] [&_h1]:leading-[30px] [&_h2]:mt-5 [&_h2]:text-[19px] [&_h2]:font-medium [&_h3]:font-sans [&_h3]:text-[13px] [&_h3]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_strong]:font-semibold [&_table]:w-full [&_table]:text-[14px] [&_td]:border-t [&_td]:border-border [&_td]:py-1.5 [&_th]:text-left [&_th]:font-sans [&_th]:text-[12px] [&_th]:text-fg-3 [&_ul]:list-disc",
+        "prose-agent space-y-3 [&_a]:text-accent-text [&_a]:underline-offset-2 hover:[&_a]:underline [&_h1]:text-[24px] [&_h1]:leading-[30px] [&_h2]:mt-5 [&_h2]:text-[19px] [&_h2]:font-medium [&_h3]:font-sans [&_h3]:text-[13px] [&_h3]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_strong]:font-semibold [&_table]:w-full [&_table]:text-[14px] [&_td]:border-t [&_td]:border-border [&_td]:py-1.5 [&_td]:pr-3 [&_td:last-child]:pr-0 [&_th]:pr-3 [&_th:last-child]:pr-0 [&_th]:text-left [&_th]:font-sans [&_th]:text-[12px] [&_th]:text-fg-3 [&_ul]:list-disc",
         className,
       )}
     >
