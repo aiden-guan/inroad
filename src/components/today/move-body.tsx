@@ -339,6 +339,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       return <ReviewBody ws={ws} kind="monthly" weekStart={`${today.slice(0, 8)}01`} />;
     case "refresh_bet":
       return <RefreshBet ws={ws} onResult={props.onChanged} />;
+    case "bad_examples":
+      return <BadExamplesBody {...props} />;
     case "research": {
       const acc = domain ? ws.accounts[domain] : undefined;
       if (!acc) break;
@@ -1094,6 +1096,42 @@ function PostBody({ move, ws, onComplete }: BodyProps) {
         <CopyButton text={text} label="Copy post" onCopied={() => setTimeout(() => void decide("applied"), 600)} />
         <Button variant="ghost" onClick={() => void decide("dismissed")}>
           Not this week
+        </Button>
+      </Row>
+    </div>
+  );
+}
+
+/** "Show me what bad looks like": a few AI-written sales emails the founder got, as counter-examples. */
+function BadExamplesBody({ onComplete }: BodyProps) {
+  const { dispatch } = useWorkspace();
+  const [texts, setTexts] = useState(["", "", ""]);
+  const filled = texts.filter((t) => t.trim().split(/\s+/).length >= 15);
+  const save = async () => {
+    if (filled.length && (await dispatch({ type: "voice.addBadExamples", texts: filled, at: nowISO() }))) onComplete();
+  };
+  return (
+    <div className="space-y-2.5">
+      <Lead>
+        The quickest way to sound different is to know what everyone else sends. Paste up to three AI-written sales emails from your inbox. I warn you when a draft reads like one, and they keep my own checks honest. They stay on this
+        machine.
+      </Lead>
+      {texts.map((t, i) => (
+        <Textarea
+          key={i}
+          aria-label={`AI-written email ${i + 1}`}
+          value={t}
+          onChange={(e) => setTexts((all) => all.map((x, j) => (j === i ? e.target.value : x)))}
+          placeholder={i === 0 ? "Paste one here, greeting to sign-off" : "Another, if you have it"}
+          className="min-h-16 text-[13.5px] leading-[21px]"
+        />
+      ))}
+      <Row>
+        <Button variant="primary" disabled={!filled.length} onClick={() => void save()}>
+          {filled.length > 1 ? `Keep these ${filled.length}` : "Keep it"}
+        </Button>
+        <Button variant="ghost" onClick={onComplete}>
+          Not now
         </Button>
       </Row>
     </div>

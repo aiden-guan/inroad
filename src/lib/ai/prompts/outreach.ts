@@ -152,7 +152,7 @@ export function fmtRecipient(person: Person | undefined, persona: Persona | unde
 export function fmtVoice(ws: Workspace): string {
   const v = ws.voice;
   const traits = traitLines(v?.traits);
-  if (!v || (!v.summary && !v.samples.length && !traits.length && !v.edits?.length)) return "No samples yet. Write plainly, short sentences, contractions, no flourishes.";
+  if (!v || (!v.summary && !v.samples.length && !traits.length && !v.edits?.length && !v.badExamples?.length)) return "No samples yet. Write plainly, short sentences, contractions, no flourishes.";
   const samples = v.samples
     .filter((s) => s.kind === "email")
     .slice(-2)
@@ -163,5 +163,6 @@ export function fmtVoice(ws: Workspace): string {
     .slice(-2)
     .map((e, i) => `<edit ${i + 1}>\nI drafted: ${e.before.slice(0, 350)}\nThey sent: ${e.after.slice(0, 350)}\n</edit>`);
   const off = (v.toneOff ?? []).slice(-2).map((t, i) => `<tone_off ${i + 1} note="they skipped this draft as off-tone; don't write like it">\n${t.text.slice(0, 300)}\n</tone_off>`);
-  return [v.summary && `Summary: ${v.summary}`, traits.length && `Traits (confirmed by the founder):\n${traits.map((t) => `- ${t}`).join("\n")}`, ...samples, ...edits, ...off].filter(Boolean).join("\n");
+  const bad = (v.badExamples ?? []).slice(-1).map((b) => `<bad_example note="an AI-written sales email they received; nothing like this">\n${b.text.slice(0, 300)}\n</bad_example>`);
+  return [v.summary && `Summary: ${v.summary}`, traits.length && `Traits (confirmed by the founder):\n${traits.map((t) => `- ${t}`).join("\n")}`, ...samples, ...edits, ...off, ...bad].filter(Boolean).join("\n");
 }

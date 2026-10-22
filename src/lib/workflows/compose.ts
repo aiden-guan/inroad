@@ -28,6 +28,7 @@ import { lintStep, recentDraftsFor } from "@/lib/quality/context";
 import { preflight, resolveEmail } from "@/lib/quality/gates";
 import { countWords } from "@/lib/quality/lint";
 import { pickReference } from "@/lib/quality/references";
+import { localReferences } from "@/lib/quality/references-store";
 import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { stripGreeting, sentences } from "@/lib/quality/similarity";
 import { activeBet, betSteer, nextArm, steerable } from "@/lib/learning/bets";
@@ -153,7 +154,7 @@ const submitEmail = defineTool({ name: "submit_draft", description: "Submit the 
 const submitLinkedIn = defineTool({ name: "submit_linkedin", description: "Submit the LinkedIn note and message. Call exactly once.", schema: LinkedInDraft, terminal: true });
 const submitIntro = defineTool({ name: "submit_intro", description: "Submit the intro ask and the forwardable note. Call exactly once.", schema: IntroDraft, terminal: true });
 const submitReply = defineTool({ name: "submit_reply", description: "Submit the reply draft. Call exactly once.", schema: ReplyDraft, terminal: true });
-const submitRead = defineTool({ name: "submit_reply_read", description: "Submit how you read the reply. Call exactly once.", schema: ReplyRead, terminal: true });
+export const submitRead = defineTool({ name: "submit_reply_read", description: "Submit how you read the reply. Call exactly once.", schema: ReplyRead, terminal: true });
 const submitCritique = defineTool({ name: "submit_critique", description: "Submit your judgment. Call exactly once.", schema: Critique, terminal: true });
 
 /* ─────────────────────────────── Workspace reads (code gathers, ranks and trims) ─────────────────────────────── */
@@ -368,8 +369,9 @@ function fixable(lint: DraftStep["lint"], ws: Workspace): boolean {
 
 /* ─────────────────────────────── Critic (Haiku, blind, pairwise) ─────────────────────────────── */
 
-async function critique(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, step: DraftStep, person: Person | undefined, account: Account): Promise<DraftCritic | null> {
-  const ref = pickReference(ws, step.frame, step.step);
+/** Exported for the critic eval (src/lib/quality/critic-eval.ts), which runs it on a labeled set. */
+export async function critique(ctx: Pick<WorkflowContext<unknown>, "agent">, ws: Workspace, step: DraftStep, person: Pick<Person, "title"> | undefined, account: Account): Promise<DraftCritic | null> {
+  const ref = pickReference(ws, step.frame, step.step, Math.random, localReferences());
   const draftIsA = Math.random() < 0.5;
   const draftText = step.subject ? `Subject: ${step.subject}\n\n${step.body}` : step.body;
   const [a, b] = draftIsA ? [draftText, ref.text] : [ref.text, draftText];
@@ -424,7 +426,7 @@ async function critique(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, step: 
   }
 }
 
-function criticPassed(c: DraftCritic | null): boolean {
+export function criticPassed(c: DraftCritic | null): boolean {
   return !c || (c.wouldReply && c.fatal.length === 0 && c.unsupportedSpans.length === 0 && !c.povObvious);
 }
 
@@ -1012,11 +1014,14 @@ const UNSUB =
   /\b(unsubscribe( me)?|remove me from (your|the|this) (list|mailing list|emails?|sequence|database)|take me off (your|the|this) (list|mailing list)|opt me out|stop (emailing|contacting|messaging) me|(do not|don'?t) (contact|email|message) me)\b|^\s*(stop|remove( me)?)\.?\s*$/i;
 // Phrases auto-responders use and people rarely write by hand.
 const OOO = /\b(automatic reply|auto-?reply|autoreply|this is an automated|limited access to (my )?e-?mail|(respond|reply|get back to you) (when|upon|on) (my |I )?return)/i;
+// Words a person adds to an auto-reply when they're actually answering.
+const LIVE_CUE = /\b(yes|yeah|sure|let'?s (talk|chat|meet)|interested|relevant|happy to (chat|talk|meet)|works for me)\b/i;
 
-function readInCode(text: string): ReplyIntent | null {
+export function readInCode(text: string): ReplyIntent | null {
   if (text.includes("?")) return null; // a question means a person is talking: let Haiku read it
   if (!text.includes("@") && countWords(text) <= 25 && UNSUB.test(text)) return "unsubscribe";
-  if (countWords(text) < 120 && OOO.test(text)) return "ooo";
+  // "Automatic reply: away until Thursday. Actually yes, let's talk" is a person answering: the model reads it.
+  if (countWords(text) < 120 && OOO.test(text) && !LIVE_CUE.test(text)) return "ooo";
   return null;
 }
 
