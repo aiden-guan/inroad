@@ -1237,7 +1237,8 @@ export interface RunSummary {
   endedAt?: ISODateTime;
   status: "queued" | "running" | "done" | "error" | "stopped";
   receipt?: RunReceipt;
-  error?: { code: string; message: string };
+  /** requestId and detail (what the API said) are for "Copy details"; message is the plain sentence. */
+  error?: { code: string; message: string; requestId?: string; detail?: string };
   seen?: boolean; // founder has looked at the result
 }
 

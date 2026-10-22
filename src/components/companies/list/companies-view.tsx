@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CompanySheet } from "@/components/companies/sheet/company-sheet";
+import { unlessSheetOpen } from "@/components/companies/sheet/open-sheet";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ export function CompaniesView() {
       // Free signal check either way; the dossier (a few cents) only when asked.
       void start("enrich", { domains: [domain] }, { notify: false });
       if (research) {
-        void start("dossier", { domain });
+        void start("dossier", { domain }, { notify: unlessSheetOpen(domain) });
         openSheet(domain, extra);
       } else {
         if (Object.keys(extra).length) setParams(extra);

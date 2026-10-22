@@ -193,7 +193,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
 
   emit({ type: "status", text: "Starting" });
   let result: unknown = null;
-  let error: { code: string; message: string } | undefined;
+  let error: { code: string; message: string; requestId?: string; detail?: string } | undefined;
   try {
     // Stopped while queued: end now instead of running against a slot it never got.
     if (live.abort.signal.aborted) throw new AgentError("Stopped.", "stopped");
@@ -206,6 +206,8 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     const message = err instanceof Error ? err.message : "Something went wrong.";
     if (!(err instanceof AgentError)) console.error(`[run ${live.summary.id}] ${def.id} failed:`, err);
     error = { code, message };
+    if (err instanceof AgentError && err.requestId) error.requestId = err.requestId;
+    if (err instanceof AgentError && err.detail) error.detail = err.detail;
   } finally {
     if (slot) releaseHeavySlot();
   }
@@ -250,7 +252,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
 
   if (error) {
     // The client maps code "stopped" to status "stopped" (and shows no toast for it).
-    const errEvent: AgentEvent = stopped ? { type: "error", code: "stopped", message: "Stopped." } : { type: "error", message: error.message, code: error.code };
+    const errEvent: AgentEvent = stopped ? { type: "error", code: "stopped", message: "Stopped." } : { type: "error", ...error };
     live.events.push(errEvent);
     for (const l of live.listeners) l(errEvent);
   } else {
@@ -297,7 +299,7 @@ export function subscribe(runId: string, listener: (event: AgentEvent) => void):
       else if (s.type === "read" && s.url) listener({ type: "read", url: s.url, host: s.host ?? s.text });
       else if (s.type === "status" || s.type === "thinking" || s.type === "action") listener({ type: s.type, text: s.text });
     }
-    if (summary?.error) listener({ type: "error", message: summary.error.message, code: summary.error.code });
+    if (summary?.error) listener({ type: "error", ...summary.error });
     else if (summary?.status === "stopped") listener({ type: "error", code: "stopped", message: "Stopped." });
     if (summary?.receipt) listener({ type: "usage", costUsd: summary.receipt.costUsd, model: summary.receipt.model === "none" ? "fast" : summary.receipt.model });
     listener({ type: "done" });

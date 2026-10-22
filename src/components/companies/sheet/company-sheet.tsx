@@ -23,6 +23,7 @@ import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { DealPanel } from "./deal-panel";
 import { DossierView, EnrichmentView } from "./dossier-view";
 import { LogCall } from "./meetings";
+import { setOpenSheet, unlessSheetOpen } from "./open-sheet";
 import { Callout, useToday } from "./shared";
 import { Timeline } from "./timeline";
 
@@ -83,6 +84,10 @@ export function CompanySheet({ domain, onClose }: { domain: string | null; onClo
   useEffect(() => {
     if (domain) pushRecent(domain);
   }, [domain]);
+  useEffect(() => {
+    setOpenSheet(domain);
+    return () => setOpenSheet(null);
+  }, [domain]);
   const deal = openDeal(ws, account);
   const [tabs, setTabs] = useState<Record<string, Tab>>({});
   const defaultTab: Tab = intentLog ? "deal" : deal && OPEN_STAGES.includes(deal.stage) ? "deal" : "dossier";
@@ -122,7 +127,7 @@ function useResearch(domain: string, account: Account | undefined) {
   const ref = useMemo<EntityRef>(() => ({ kind: "account", id: domain }), [domain]);
   const run = useRunFor(ref, "dossier");
   const active = !!run && (run.status === "running" || run.status === "queued");
-  const research = () => void start("dossier", { domain, force: !!account?.dossier });
+  const research = () => void start("dossier", { domain, force: !!account?.dossier }, { notify: unlessSheetOpen(domain) });
   return { run, active, research };
 }
 
@@ -295,7 +300,7 @@ function Body({
             variant="agent"
             onClick={async () => {
               const ok = await dispatch({ type: "account.add", account: newAccount(domain) });
-              if (ok) void start("dossier", { domain });
+              if (ok) void start("dossier", { domain }, { notify: unlessSheetOpen(domain) });
             }}
           >
             Add and research
@@ -324,7 +329,8 @@ function Body({
             {account.disqualified.note ? ` · ${account.disqualified.note}` : ""}
           </Callout>
         )}
-        {run && (active || run.status === "error") && tab !== "ask" && <WorkLog run={run} className="mb-6" />}
+        {/* On the dossier tab a failed run is explained once, next to the Research button; elsewhere the log says it. */}
+        {run && (active || (run.status === "error" && tab !== "dossier")) && tab !== "ask" && <WorkLog run={run} className="mb-6" />}
 
         <div key={tab} className="animate-[fade-in_150ms_var(--ease-out)]">
           {tab === "dossier" &&
