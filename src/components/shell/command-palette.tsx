@@ -77,6 +77,9 @@ export function CommandPalette() {
   const [open, setOpenState] = useState(false);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState<Page | null>(null);
+  // The highlighted item. Cleared on a page change so the new page's first item takes it: left alone,
+  // it names an item that's gone (the one clicked), and Enter would pick nothing.
+  const [selected, setSelected] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const setOpen = useCallback((next: boolean | ((o: boolean) => boolean)) => {
     setOpenState((o) => {
@@ -84,6 +87,7 @@ export function CommandPalette() {
       if (!value) {
         setQuery("");
         setPage(null);
+        setSelected("");
       }
       return value;
     });
@@ -100,6 +104,7 @@ export function CommandPalette() {
   const go = useCallback((next: Page | null) => {
     setPage(next);
     setQuery("");
+    setSelected("");
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
@@ -356,6 +361,8 @@ export function CommandPalette() {
       open={open}
       onOpenChange={setOpen}
       label="Command menu"
+      value={selected}
+      onValueChange={setSelected}
       loop
       onKeyDown={(e) => {
         if (e.key === "Backspace" && !query && page && page.kind !== "reply") {
