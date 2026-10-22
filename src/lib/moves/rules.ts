@@ -86,6 +86,8 @@ const RULES = {
   event_nearby: { base: 47, label: "Warm or pipeline leads near an upcoming dinner aren't on its list" },
   question: { base: 35, label: "Open founder question" },
   import: { base: 30, label: "Connections import missing or older than 30 days" },
+  network: { base: 57, label: "No LinkedIn import and no investors or advisors listed yet" },
+  connectors: { base: 57, label: "No investors or advisors listed to ask for intros" },
   asset: { base: 30, label: "A draft offers an asset that doesn't exist yet" },
   post: { base: 32, label: "Optional post from last Friday's best insight" },
   room: { base: 38, label: "Tracked companies cluster on a theme or a city: worth a room" },
@@ -1255,29 +1257,59 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
   }
 
   if (ws.onboarding.status === "hired") {
-    if (!ws.network) {
+    // Warm before cold: who already knows the founder, and who their investors and advisors can reach. Without
+    // either, intros never start (the connector card needs a connector), so this ranks above cold touches; while
+    // the first three are on the desk it sits second, as on arrival (SPEC §3.2 step 4).
+    const noConnectors = !ws.connectors.some((x) => x.relationship !== "connection");
+    const warmRank = covered.size ? 48 : RULES.network.base;
+    if (!ws.network && noConnectors) {
       out.push({
-        id: "mv_import_linkedin",
+        id: "mv_network",
         kind: "import",
-        rule: "import",
-        title: "Import your LinkedIn connections",
-        why: "Finds people you already know at the companies you want to reach",
-        minutes: 3,
-        // Warm before cold: matters most while the list is short.
-        priority: accounts.length <= 10 ? 48 : RULES.import.base,
+        rule: "network",
+        title: "Bring in your network",
+        why: "Warm intros beat cold email · your LinkedIn connections, and who your investors and advisors know",
+        minutes: 5,
+        priority: warmRank,
         href: "/integrations?import=linkedin",
       });
-    } else if (daysSince(ws.network.importedAt, today) > 30) {
-      out.push({
-        id: `mv_import_${monthKey(now)}`,
-        kind: "import",
-        rule: "import",
-        title: "Re-import your LinkedIn connections",
-        why: `Last import ${ago(ws.network.importedAt, now)} · finds champions who changed jobs`,
-        minutes: 3,
-        priority: RULES.import.base,
-        href: "/integrations?import=linkedin",
-      });
+    } else {
+      if (noConnectors) {
+        out.push({
+          id: "mv_setup_connectors",
+          kind: "setup",
+          rule: "connectors",
+          title: "Add your investors and advisors",
+          why: "2 minutes · say who each can reach, and I'll match them to the companies you want",
+          minutes: 2,
+          priority: warmRank,
+          href: "/intros",
+        });
+      }
+      if (!ws.network) {
+        out.push({
+          id: "mv_import_linkedin",
+          kind: "import",
+          rule: "import",
+          title: "Import your LinkedIn connections",
+          why: "Finds people you already know at the companies you want to reach",
+          minutes: 3,
+          // Warm before cold: matters most while the list is short.
+          priority: accounts.length <= 10 ? 48 : RULES.import.base,
+          href: "/integrations?import=linkedin",
+        });
+      } else if (daysSince(ws.network.importedAt, today) > 30) {
+        out.push({
+          id: `mv_import_${monthKey(now)}`,
+          kind: "import",
+          rule: "import",
+          title: "Re-import your LinkedIn connections",
+          why: `Last import ${ago(ws.network.importedAt, now)} · finds champions who changed jobs`,
+          minutes: 3,
+          priority: RULES.import.base,
+          href: "/integrations?import=linkedin",
+        });
+      }
     }
   }
 

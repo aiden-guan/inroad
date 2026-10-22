@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowUpRight, Check, ExternalLink } from "lucide-react";
+import { ArrowUpRight, Check, ExternalLink, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode, type Ref } from "react";
 import { DraftView } from "@/components/compose/composer";
+import { ConnectorDialog } from "@/components/intros/connectors";
 import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
 import { ForgetPerson } from "@/components/people/forget-person";
@@ -431,6 +432,9 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       return <QuestionBody {...props} />;
     case "pov":
       return <PovBody {...props} />;
+    case "network":
+    case "connectors":
+      return <NetworkBody {...props} />;
     case "import":
       return (
         <div className="space-y-3">
@@ -986,6 +990,82 @@ function PilotBody({ move, ws, today, onComplete, deal, rule }: BodyProps & { de
           {rule === "map_overdue" ? "Dates updated" : "Handled"}
         </Button>
       </Row>
+    </div>
+  );
+}
+
+/**
+ * Warm before cold: who can introduce the founder (investors and advisors, with who each can reach) and, when
+ * there's no import yet, the LinkedIn connections. Both are things only the founder can bring in.
+ */
+function NetworkBody({ move, ws, onComplete, onChanged }: BodyProps) {
+  const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const withImport = ruleOf(move) === "network";
+  const listed = ws.connectors.filter((c) => c.relationship !== "connection");
+  const step = (n: number) => (
+    <span aria-hidden className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">
+      {n}
+    </span>
+  );
+  return (
+    <div className="space-y-4">
+      <Lead>
+        {withImport
+          ? "Warm intros get answered far more often than cold email, and people who already know you answer first. Two things only you can bring in:"
+          : "Your investors and advisors are the best channel you have once they know exactly who to ask for. Name each one and who they can reach; I match them to the companies you want and ask for one intro at a time."}
+      </Lead>
+      <ol className="space-y-4">
+        <li className="flex gap-3">
+          {withImport && step(1)}
+          <div className="min-w-0 flex-1 space-y-2">
+            {withImport && (
+              <p className="text-[13.5px] leading-5 text-fg">
+                Your investors and advisors, and who each can reach <span className="text-fg-3">· 2 min</span>
+              </p>
+            )}
+            {listed.length > 0 && <p className="text-[12.5px] text-fg-3">Added {listed.map((c) => first(c.name)).join(", ")}.</p>}
+            <Button size="sm" icon={<UserPlus className="size-3.5" />} onClick={() => setAdding(true)}>
+              {listed.length ? "Add another" : "Add an investor or advisor"}
+            </Button>
+          </div>
+        </li>
+        {withImport && (
+          <li className="flex gap-3">
+            {step(2)}
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-[13.5px] leading-5 text-fg">
+                Your LinkedIn connections <span className="text-fg-3">· LinkedIn emails the export in about 10 minutes</span>
+              </p>
+              {importing ? (
+                <ImportFlow
+                  kind="linkedin"
+                  onDone={() => {
+                    onChanged();
+                    setImporting(false);
+                  }}
+                />
+              ) : (
+                <Button size="sm" variant="secondary" onClick={() => setImporting(true)}>
+                  Import Connections.csv
+                </Button>
+              )}
+            </div>
+          </li>
+        )}
+      </ol>
+      <Row>
+        <Button variant="ghost" onClick={onComplete}>
+          Done for now
+        </Button>
+      </Row>
+      <ConnectorDialog
+        open={adding}
+        onOpenChange={(o) => {
+          setAdding(o);
+          if (!o) onChanged();
+        }}
+      />
     </div>
   );
 }

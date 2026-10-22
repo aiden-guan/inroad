@@ -40,7 +40,7 @@ describe("the first three on day one", () => {
   it("gives each company its own card, the best first, then the network and one questions card", () => {
     expect(top(dayOne()).map(line)).toEqual([
       "56 today.first_three | Write to Al at Alpha",
-      "48 today.import | Import your LinkedIn connections",
+      "48 today.network | Bring in your network",
       "47 today.questions | Answer 3 questions that change the plan",
       "45 today.first_three | Write to Bana at Beta",
       "44 today.first_three | Write to Gus at Gamma",
@@ -116,5 +116,21 @@ describe("the first three on day one", () => {
     // Outside onboarding week the card sits at the base priority.
     ws.onboarding.hiredAt = at(-10);
     expect(card()[0].priority).toBe(35);
+  });
+});
+
+describe("warm network first", () => {
+  const hired = (patch: Partial<Workspace> = {}) => makeWorkspace({ onboarding: { status: "hired", hiredAt: at(-10) }, ...patch });
+  const warm = (ws: Workspace) => computeMoves(ws, NOW).filter((m) => ["today.network", "today.connectors", "today.import"].includes(m.rule)).map((m) => `${m.priority} ${m.rule} | ${m.title}`);
+  const ivy = { id: "con_ivy", name: "Ivy Chen", relationship: "investor" as const, introsMade: 0 };
+  const network = { importedAt: at(-2), total: 1240, atIcpCompanies: 37, buyerTitles: 6, jobChanges: 0 };
+
+  it("asks for the network and the investors in one card, above cold touches, until either is in", () => {
+    expect(warm(hired())).toEqual(["57 today.network | Bring in your network"]);
+    expect(warm(hired({ network }))).toEqual(["57 today.connectors | Add your investors and advisors"]);
+    expect(warm(hired({ connectors: [ivy] }))).toEqual(["48 today.import | Import your LinkedIn connections"]);
+    expect(warm(hired({ network, connectors: [ivy] }))).toEqual([]);
+    // A LinkedIn connection asked through a path isn't an investor or advisor.
+    expect(warm(hired({ network, connectors: [{ ...ivy, relationship: "connection" }] }))).toEqual(["57 today.connectors | Add your investors and advisors"]);
   });
 });

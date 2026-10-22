@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingBrief, RunSummary, Workspace } from "@/lib/domain/types";
 import { NOW, TODAY, at, day, makeAccount, makeActivity, makeDeal, makeDossier, makeMeeting, makePackage, makePerson, makeSignal, makeStep, makeWorkspace } from "@/test/factories";
-import { AHEAD_DRAFTS_PER_DAY, AHEAD_PREPS_PER_DAY, draftsToStart, meetingsToPrep, planAhead } from "./ahead";
+import { AHEAD_DRAFTS_PER_DAY, AHEAD_PREPS_PER_DAY, draftsToStart, meetingsToPrep, networkToScreen, planAhead } from "./ahead";
 import { computeMoves, mergeMoves } from "./rules";
 
 const acme = "acme.example";
@@ -104,5 +104,27 @@ describe("planAhead", () => {
       ahead: [...Array.from({ length: AHEAD_PREPS_PER_DAY }, (_, i) => `mtg:x${i}:none`), ...Array.from({ length: AHEAD_DRAFTS_PER_DAY }, (_, i) => `acc:x${i}:mv`)],
     };
     expect(planAhead(ws, NOW)).toEqual({ preps: [], drafts: [], keys: [] });
+  });
+});
+
+describe("the network screen", () => {
+  const foundation = (generatedAt: string) => ({ generatedAt, icp: { criteria: [{ id: "c1" }] } }) as unknown as Workspace["foundation"];
+  const net = (patch: Partial<NonNullable<Workspace["network"]>> = {}): Workspace["network"] => ({ importedAt: at(-1), total: 1240, atIcpCompanies: 0, buyerTitles: 0, jobChanges: 0, ...patch });
+
+  it("screens a list dropped in before the bet existed, and again when the bet changes", () => {
+    expect(networkToScreen(makeWorkspace({ network: net() }), NOW)).toBeNull();
+    expect(networkToScreen(makeWorkspace({ network: net(), foundation: foundation(at(0, "08:00")) }), NOW)).toMatchObject({ reason: "import" });
+    expect(networkToScreen(makeWorkspace({ network: net({ screenedAt: at(-1, "11:00") }), foundation: foundation(at(0, "08:00")) }), NOW)).toMatchObject({ reason: "rescreen" });
+    expect(networkToScreen(makeWorkspace({ network: net({ screenedAt: at(0, "09:00") }), foundation: foundation(at(0, "08:00")) }), NOW)).toBeNull();
+  });
+
+  it("waits for a screen already running, and is claimed once a day", () => {
+    const ws = makeWorkspace({ network: net(), foundation: foundation(at(0, "08:00")), runs: [run("network", undefined, at(0, "09:00"), "running")] });
+    expect(networkToScreen(ws, NOW)).toBeNull();
+    ws.runs = [];
+    const plan = planAhead(ws, NOW);
+    expect(plan.screen).toBe("import");
+    ws.briefs[TODAY] = { date: TODAY, kind: "daily", greeting: "", matters: [], generatedAt: at(0, "08:00"), ahead: plan.keys };
+    expect(planAhead(ws, NOW).screen).toBeUndefined();
   });
 });
