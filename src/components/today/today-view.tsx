@@ -147,7 +147,10 @@ export function Today({ ws }: { ws: Workspace }) {
         : how === "skip"
           ? { type: "move.skip", id: move.id, reason: opts.reason ?? "other" }
           : { type: "move.snooze", id: move.id, until: addDays(today, 1) };
-    const ok = await dispatch(action);
+    // A draft skipped as "tone off" teaches the voice card what not to write.
+    const draft = how === "skip" && opts.reason === "tone_off" ? cardDraft(ws, move) : undefined;
+    const offText = draft?.steps.find((st) => st.status === "draft")?.body;
+    const ok = await dispatch(offText ? [action, { type: "voice.noteToneOff", text: offText, at: new Date().toISOString(), moveId: move.id }] : action);
     schedule();
     if (!ok || opts.quiet) return;
     const undo = {

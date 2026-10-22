@@ -70,6 +70,47 @@ const cases: Record<Action["type"], () => void> = {
     // Only the last five are kept.
     expect(fresh.voice?.samples.map((s) => s.text)).toEqual(["sample 1", "sample 2", "sample 3", "sample 4", "sample 5"]);
     expect(fresh.voice?.updatedAt).toBe(at(0));
+    // Every 3rd sample re-reads the voice (7 added: after the 6th, one since).
+    expect(fresh.voice?.samplesSinceExtract).toBe(1);
+    expect(fresh.voice?.suggested).toMatchObject({ basis: "5 samples", contractions: false });
+  },
+
+  "voice.setTraits": () => {
+    const s = ws();
+    s.voice!.suggested = { greeting: "hi_first_name", at: at(-1), basis: "3 samples" };
+    apply(s, { type: "voice.setTraits", traits: { greeting: "first_name", contractions: true }, at: at(0) });
+    expect(s.voice?.traits).toEqual({ greeting: "first_name", contractions: true });
+    expect(s.voice?.suggested).toBeUndefined();
+    const fresh = apply(makeWorkspace(), { type: "voice.setTraits", traits: { formality: 2 }, at: at(0) });
+    expect(fresh.voice?.traits).toEqual({ formality: 2 });
+  },
+
+  "voice.dismissSuggestion": () => {
+    const s = ws();
+    s.voice!.suggested = { greeting: "hi_first_name", at: at(-1), basis: "3 samples" };
+    apply(s, { type: "voice.dismissSuggestion", at: at(0) });
+    expect(s.voice?.suggested).toBeUndefined();
+    apply(makeWorkspace(), { type: "voice.dismissSuggestion", at: at(0) });
+  },
+
+  "voice.extract": () => {
+    const s = ws();
+    apply(s, { type: "voice.extract", at: at(0) });
+    expect(s.voice?.suggested?.basis).toBe(`${sample.voice!.samples.length} samples`);
+    // Accepting what it found, then re-reading: nothing new to suggest.
+    const traits: Partial<NonNullable<Workspace["voice"]>["suggested"]> = { ...s.voice!.suggested! };
+    delete traits.at;
+    delete traits.basis;
+    apply(s, { type: "voice.setTraits", traits, at: at(0) }, { type: "voice.extract", at: at(0) });
+    expect(s.voice?.suggested).toBeUndefined();
+  },
+
+  "voice.noteToneOff": () => {
+    const s = apply(ws(), { type: "voice.noteToneOff", text: "Hope this finds you well!", at: at(0), moveId: "mv_x" });
+    expect(s.voice?.toneOff).toEqual([{ at: at(0), text: "Hope this finds you well!", moveId: "mv_x" }]);
+    // Skipping the same card again replaces its example rather than adding a second one.
+    apply(s, { type: "voice.noteToneOff", text: "Second try.", at: at(0), moveId: "mv_x" });
+    expect(s.voice?.toneOff?.map((t) => t.text)).toEqual(["Second try."]);
   },
 
   "voice.update": () => {
@@ -463,9 +504,12 @@ const cases: Record<Action["type"], () => void> = {
   "outreach.editStep": () => {
     const s = apply(ws(), { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 1, body: "Owen, new body." });
     const step = s.outreach[PACKAGE.fernwickCold].steps[0];
-    expect(step).toMatchObject({ body: "Owen, new body.", edited: true, subject: sample.outreach[PACKAGE.fernwickCold].steps[0].subject });
+    const drafted = sample.outreach[PACKAGE.fernwickCold].steps[0];
+    expect(step).toMatchObject({ body: "Owen, new body.", edited: true, subject: drafted.subject });
     apply(s, { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 1, subject: null });
     expect(s.outreach[PACKAGE.fernwickCold].steps[0].subject).toBeNull();
+    // The draft as written is kept once, from before the first edit.
+    expect(step.original).toEqual({ subject: drafted.subject, body: drafted.body });
     expect(() => apply(s, { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 4, body: "x" })).toThrow("Step not found");
     expect(() => apply(s, { type: "outreach.editStep", packageId: "pkg_missing", step: 1, body: "x" })).toThrow("Draft not found");
   },
@@ -501,6 +545,8 @@ const cases: Record<Action["type"], () => void> = {
         // What the learning reviews compare: the why-now signal behind the angle, frame, POV, persona and subject.
         signalType: "jd_names_pain",
         tags: { frame: "founder_card", povId: "pov_script_black_box", credentialClaimId: "clm_tollgate_credential", persona: "champion", subjectStyle: "trigger" },
+        // Sent as drafted.
+        editDistance: 0,
       }),
     ]);
     expect(s.moves[card.id].status).toBe("done");
@@ -776,6 +822,39 @@ describe("Undo after Mark as sent on Today", () => {
     expect(s.outreach.out_reply.steps[0].status).toBe("draft");
     expect(s.moves[card.id].status).toBe("open");
     expect(visibleMoves(s.moves, TODAY).map((m) => m.id)).toContain(card.id);
+  });
+});
+
+describe("edits teach the voice card", () => {
+  it("measures how far the send moved from the draft, keeps the diff, and takes it back on Undo", () => {
+    const s = ws();
+    const drafted = structuredClone(s.outreach[PACKAGE.fernwickCold].steps[0]);
+    expect(drafted.body.startsWith("Owen,")).toBe(true);
+    const edited = drafted.body.replace(/^Owen,/, "Hi Owen,");
+    apply(s, { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 1, body: edited, subject: drafted.subject?.toLowerCase() });
+    apply(s, { type: "outreach.approveStep", packageId: PACKAGE.fernwickCold, step: 1, at: at(0, "09:45"), activityId: "act_edit" });
+    const sent = s.activities.find((a) => a.id === "act_edit")!;
+    expect(sent.editDistance).toBeGreaterThan(0);
+    expect(sent.editDistance).toBeLessThan(0.2);
+    expect(s.voice?.edits?.at(-1)).toMatchObject({ before: drafted.body, after: edited, distance: sent.editDistance });
+    expect(s.voice?.editsSinceExtract).toBe(1);
+    apply(s, { type: "outreach.unapproveStep", packageId: PACKAGE.fernwickCold, step: 1, activityId: "act_edit" });
+    expect(s.voice?.edits ?? []).toEqual([]);
+    expect(s.voice?.editsSinceExtract).toBe(0);
+  });
+
+  it("re-reads the voice on the 20th edit", () => {
+    const s = makeWorkspace();
+    for (let i = 0; i < 20; i++) {
+      const id = `out_${i}`;
+      s.outreach[id] = makePackage(id, "acme.example", { steps: [makeStep(1, { body: "Dana, I wanted to reach out about your close process." })] });
+      apply(s, { type: "outreach.editStep", packageId: id, step: 1, body: "Hi Dana,\n\nYour close runs nine days. It's the reconciliation, isn't it?" });
+      apply(s, { type: "outreach.approveStep", packageId: id, step: 1, at: at(0), activityId: `act_${i}` });
+    }
+    expect(s.voice?.editsSinceExtract).toBe(0);
+    expect(s.voice?.suggested).toMatchObject({ greeting: "hi_first_name", contractions: true, basis: "0 samples, 20 edits to drafts" });
+    expect(s.voice?.suggested?.avoidsWords).toEqual(expect.arrayContaining(["wanted", "reach", "process"]));
+    expect(s.voice?.traits).toBeUndefined();
   });
 });
 

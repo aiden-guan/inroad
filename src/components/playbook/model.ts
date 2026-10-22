@@ -64,6 +64,7 @@ export const SECTIONS = [
     label: "Voice",
     children: [
       { id: "voice-card", label: "How you write" },
+      { id: "voice-traits", label: "What I've learned" },
       { id: "povs", label: "Points of view" },
     ],
   },

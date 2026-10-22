@@ -1,6 +1,7 @@
 import "server-only";
 import type { Angle, Evidence, Person, Persona, Workspace } from "@/lib/domain/types";
 import { AI_VOCAB_FOR_PROMPT, BANNED_FOR_PROMPT, HYPE_FOR_PROMPT, LIMITS } from "@/lib/quality/lint";
+import { traitLines } from "@/lib/quality/voice";
 
 /**
  * Outreach expertise for the compose workflow (W5). Static, so it caches with EMBER_CORE.
@@ -150,10 +151,17 @@ export function fmtRecipient(person: Person | undefined, persona: Persona | unde
 
 export function fmtVoice(ws: Workspace): string {
   const v = ws.voice;
-  if (!v || (!v.summary && !v.samples.length)) return "No samples yet. Write plainly, short sentences, contractions, no flourishes.";
+  const traits = traitLines(v?.traits);
+  if (!v || (!v.summary && !v.samples.length && !traits.length && !v.edits?.length)) return "No samples yet. Write plainly, short sentences, contractions, no flourishes.";
   const samples = v.samples
     .filter((s) => s.kind === "email")
     .slice(-2)
     .map((s, i) => `<sample ${i + 1}>\n${s.text.slice(0, 700)}\n</sample>`);
-  return [v.summary && `Summary: ${v.summary}`, ...samples].filter(Boolean).join("\n");
+  // How the founder changed recent drafts before sending: the clearest signal of their voice.
+  const edits = (v.edits ?? [])
+    .filter((e) => e.distance >= 0.1)
+    .slice(-2)
+    .map((e, i) => `<edit ${i + 1}>\nI drafted: ${e.before.slice(0, 350)}\nThey sent: ${e.after.slice(0, 350)}\n</edit>`);
+  const off = (v.toneOff ?? []).slice(-2).map((t, i) => `<tone_off ${i + 1} note="they skipped this draft as off-tone; don't write like it">\n${t.text.slice(0, 300)}\n</tone_off>`);
+  return [v.summary && `Summary: ${v.summary}`, traits.length && `Traits (confirmed by the founder):\n${traits.map((t) => `- ${t}`).join("\n")}`, ...samples, ...edits, ...off].filter(Boolean).join("\n");
 }
