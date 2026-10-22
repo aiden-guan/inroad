@@ -23,7 +23,7 @@ import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { OPEN_STAGES, type DraftStep, type OutreachPackage, type Person, type Workspace } from "@/lib/domain/types";
 import { currentStep, lintStep } from "@/lib/quality/context";
-import { PERSONAL_DOMAINS, jurisdictionFor, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
+import { PERSONAL_DOMAINS, footerPromisesDeletion, jurisdictionFor, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
 import { LIMITS, limitsFor } from "@/lib/quality/lint";
 import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { ease } from "@/lib/motion";
@@ -971,7 +971,7 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
   // One person opting out suppresses that address (and marks them do-not-contact), never their whole company.
   const suppressed = Boolean(person?.doNotContact) || ws.suppression.some((s) => (email && s.email?.toLowerCase() === email.toLowerCase()) || (!person && s.domain === pkg.accountDomain));
   // EU, UK and unknown places got the footer that promises deletion on "stop": offer it first there.
-  const promised = person ? ["EU", "UK", "unknown"].includes(jurisdictionFor(ws, person, pkg.accountDomain).value) : false;
+  const promised = person ? footerPromisesDeletion(jurisdictionFor(ws, person, pkg.accountDomain).value) : false;
   const [forgetting, setForgetting] = useState(promised);
   return (
     <div className="draft-rule rounded-md py-3 pr-3 pl-4">
