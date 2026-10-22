@@ -27,11 +27,11 @@ export interface Price {
 
 /**
  * USD per million tokens. Cache writes bill at 1.25x input for the 5-minute TTL and 2x for 1 hour. Cache
- * reads are 0.05x input on Opus 5.5 and Sonnet 5.5, 0.1x on Haiku 5.5 (Anthropic pricing page).
+ * reads are 0.05x input on Opus 5.5, 0.1x on Sonnet 5.5 and Haiku 5.5 (Anthropic pricing page).
  */
-const PRICING: Record<ModelTier, Price> = {
+export const PRICING: Record<ModelTier, Price> = {
   strategist: { input: 4, output: 20, cacheRead: 0.2 },
-  operator: { input: 2, output: 10, cacheRead: 0.1 },
+  operator: { input: 2, output: 10, cacheRead: 0.2 },
   fast: { input: 0.1, output: 0.5, cacheRead: 0.01 },
 };
 
@@ -44,7 +44,7 @@ const LONG_PROMPT: Partial<Record<ModelTier, { above: number; multiplier: number
  * Models a server-side fallback (`fallbacks: "default"`) can answer a refused turn with. That turn bills
  * at the fallback model's own rates, so receipts and the budget price it as such.
  */
-const FALLBACK_PRICING: Record<string, Price> = {
+export const FALLBACK_PRICING: Record<string, Price> = {
   "claude-opus-4-8": { input: 5, output: 25, cacheRead: 0.5 },
   "claude-opus-5": { input: 5, output: 25, cacheRead: 0.5 },
   "claude-sonnet-5": { input: 2, output: 10, cacheRead: 0.2 },
