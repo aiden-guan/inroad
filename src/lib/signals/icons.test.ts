@@ -110,7 +110,7 @@ describe("reading an icon off a company's own site", () => {
 describe("GET /api/favicon", () => {
   it("serves nothing for a prospect while icons are off, and fetches nothing", async () => {
     const res = await get("northwind.io");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(204);
     expect(fetchText).not.toHaveBeenCalled();
     expect(fetchBytes).not.toHaveBeenCalled();
   });
