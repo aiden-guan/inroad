@@ -5,7 +5,7 @@ import { getAnthropicClient } from "./client";
 import type { AgentEvent, Source } from "./events";
 import { apiErrorParts, droppableFeatures, toAgentError, type CompatFeature } from "./api-errors";
 import { AgentError } from "./errors";
-import { MODEL_IDS, addUsage, costOf, emptyUsage, webToolTypes, type ModelTier, type Usage } from "./models";
+import { MODEL_IDS, addUsage, emptyUsage, requestCost, webToolTypes, type ModelTier, type Usage } from "./models";
 
 export { AgentError };
 
@@ -195,6 +195,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   let nudged = false;
   let emittedAnything = false;
   let usage = emptyUsage();
+  // Priced per request by the model that served it (a fallback bills at its own rates).
+  let spent = 0;
   const seenSources = new Set<string>();
 
   try {
@@ -337,14 +339,9 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       }
 
       stopReason = message.stop_reason;
-      usage = addUsage(usage, {
-        inputTokens: message.usage.input_tokens ?? 0,
-        outputTokens: message.usage.output_tokens ?? 0,
-        cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
-        cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
-        webSearches: message.usage.server_tool_use?.web_search_requests ?? 0,
-        webFetches: message.usage.server_tool_use?.web_fetch_requests ?? 0,
-      });
+      const turnUsage = billedUsage(tier, message);
+      usage = addUsage(usage, turnUsage.usage);
+      spent += turnUsage.costUsd;
 
       if (message.stop_reason === "refusal") {
         throw new AgentError("Claude declined this request. Try rephrasing it.", "refusal");
@@ -429,13 +426,13 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
     // Turns already billed travel with the error, so receipts and the monthly budget count them.
     if (err instanceof AgentError && !err.usage) {
       err.usage = usage;
-      err.costUsd = costOf(tier, usage);
+      err.costUsd = spent;
       err.compat ??= compatInfo();
     }
     throw err;
   }
 
-  const costUsd = costOf(tier, usage);
+  const costUsd = spent;
   emit({ type: "usage", costUsd, model: tier });
   return { result, text, messages, stopReason, usage, costUsd, compat: compatInfo() };
 
@@ -453,6 +450,43 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       emit({ type: "status", text: "Filtering results" });
     }
   }
+}
+
+type UsageCounts = { input_tokens?: number | null; output_tokens?: number | null; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null; cache_creation?: { ephemeral_1h_input_tokens?: number } | null };
+
+function countsOf(u: UsageCounts): Usage {
+  return {
+    ...emptyUsage(),
+    inputTokens: u.input_tokens ?? 0,
+    outputTokens: u.output_tokens ?? 0,
+    cacheReadTokens: u.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
+    cacheWrite1hTokens: u.cache_creation?.ephemeral_1h_input_tokens ?? 0,
+  };
+}
+
+/**
+ * What one response bills. Normally its top-level usage at the rates of the model that answered. When a
+ * server-side fallback served the turn, top-level usage covers only the serving attempt, so every attempt
+ * in usage.iterations is priced at its own model's rates (the declined one included).
+ */
+export function billedUsage(tier: ModelTier, message: Pick<Anthropic.Beta.BetaMessage, "model" | "usage">): { usage: Usage; costUsd: number } {
+  const u = message.usage;
+  const tools = { webSearches: u.server_tool_use?.web_search_requests ?? 0, webFetches: u.server_tool_use?.web_fetch_requests ?? 0 };
+  const attempts = (u.iterations ?? []).filter((i): i is Anthropic.Beta.BetaMessageIterationUsage | Anthropic.Beta.BetaFallbackMessageIterationUsage => i.type === "message" || i.type === "fallback_message");
+  if (attempts.some((i) => i.type === "fallback_message")) {
+    let total = emptyUsage();
+    let costUsd = 0;
+    for (const a of attempts) {
+      const counts = countsOf(a);
+      total = addUsage(total, counts);
+      costUsd += requestCost(tier, a.model ?? message.model, counts);
+    }
+    const searches = { ...emptyUsage(), ...tools };
+    return { usage: addUsage(total, searches), costUsd: costUsd + requestCost(tier, message.model, searches) };
+  }
+  const counts = { ...countsOf(u), ...tools };
+  return { usage: counts, costUsd: requestCost(tier, message.model, counts) };
 }
 
 function latestLine(buffer: string): string | null {
