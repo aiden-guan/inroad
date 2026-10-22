@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isLocalRequest } from "@/lib/server/local-request";
+import { isLocalRequest, peerGuarded, UNGUARDED } from "@/lib/server/local-request";
 
 /**
  * Inroad runs on the founder's machine, so the browser is the attack surface:
@@ -13,10 +13,20 @@ import { isLocalRequest } from "@/lib/server/local-request";
  *    inbound webhooks with a secret in the path) are reachable through it.
  *  - X-Forwarded-Host is client-controlled, so locality is decided by the real Host header and
  *    the absence of tunnel/forwarding headers (see isLocalRequest), never by a forwarded host.
+ *  - Another device on the same network can write any header it likes, so a request is local only
+ *    when its socket is: the launcher (scripts/serve.mjs) stamps the real address on every request.
+ *    Started without it, the app refuses everything but the agent endpoints and says how to fix it.
  */
 
 const AGENT_ROUTES = /^\/api\/(mcp$|v1(\/|$)|hooks\/)/;
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+let warned = false;
+function warnUnguarded() {
+  if (warned) return;
+  warned = true;
+  console.warn(`[inroad] ${UNGUARDED}`);
+}
 
 function hostOf(value: string | null): string | null {
   if (!value) return null;
@@ -34,6 +44,13 @@ export function proxy(request: NextRequest) {
 
   // Agent endpoints authenticate every call with a bearer key or path secret; they may be public.
   if (AGENT_ROUTES.test(pathname)) return NextResponse.next();
+
+  if (!peerGuarded()) {
+    warnUnguarded();
+    return pathname.startsWith("/api/")
+      ? NextResponse.json({ error: UNGUARDED }, { status: 403 })
+      : new NextResponse(UNGUARDED, { status: 403, headers: { "content-type": "text/plain" } });
+  }
 
   if (!isLocal) {
     return pathname.startsWith("/api/")
