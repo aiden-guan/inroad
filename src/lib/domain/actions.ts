@@ -25,6 +25,7 @@ import type {
   Workspace,
 } from "./types";
 import { addDays, todayISO } from "./ids";
+import { forgetPerson } from "@/lib/people/forget";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -74,6 +75,8 @@ export type Action =
   | { type: "account.restore"; domain: string }
   | { type: "person.upsert"; person: Person }
   | { type: "person.remove"; id: ID }
+  /** "Delete their details": the person and everything naming them, keeping only their email as `requested_delete`. */
+  | { type: "person.forget"; id: ID; at: string; suppressionId: ID }
   | { type: "deal.create"; deal: Deal }
   | { type: "deal.update"; id: ID; patch: Partial<Deal>; at: string }
   | { type: "deal.setStage"; id: ID; stage: Stage; at: string; lossReason?: Deal["lossReason"]; nurtureUntil?: string }
@@ -418,6 +421,10 @@ export function applyAction(ws: Workspace, action: Action): void {
       for (const deal of Object.values(ws.deals)) deal.contacts = deal.contacts.filter((c) => c.personId !== action.id);
       return;
     }
+    case "person.forget":
+      // Unknown ids are a no-op: two tabs may delete the same person.
+      forgetPerson(ws, action.id, action.at, action.suppressionId);
+      return;
     case "deal.create": {
       ws.deals[action.deal.id] = action.deal;
       const acc = ws.accounts[action.deal.accountDomain];
