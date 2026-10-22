@@ -4,7 +4,7 @@ import { leadPoints, nearby } from "@/lib/geo/leads";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
-import { awaitingOutcome } from "./replies";
+import { awaitingOutcome, BOOKING_NUDGES, bookingLoops, searchDays } from "./replies";
 import { coldQuotaLeft, counters, INTRO_ASKS_PER_WEEK, type Counters } from "./scoreboard";
 import {
   ago,
@@ -42,6 +42,7 @@ const RULES = {
   debrief: { base: 88, label: "Meeting ended with no notes" },
   recap: { base: 85, label: "Debrief drafted but not applied" },
   follow_up: { base: 70, label: "Follow-up step due" },
+  reply_book: { base: 74, label: "They said yes and you answered; no call booked yet" },
   next_step: { base: 65, label: "Open deal without a dated next step" },
   review_monday: { base: 62, label: "Monday pipeline review" },
   close_out: { base: 60, label: "End-of-day close-out" },
@@ -116,6 +117,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
 
   replies(ctx);
   checkReplies(ctx);
+  bookings(ctx);
   meetings(ctx);
   sequences(ctx);
   deals(ctx);
@@ -278,11 +280,48 @@ function checkReplies({ ws, now, today, out }: Ctx) {
     kind: "check_replies",
     rule: "check_replies",
     title: `Check replies from ${plural(people.length, "person", "people")}`,
-    why: `${plural(touches, "touch", "touches")} in 14 days · one Gmail search`,
+    why: `${plural(touches, "touch", "touches")} in ${searchDays(people, today)} days · one Gmail search`,
     minutes: Math.min(15, 2 + Math.ceil(people.length / 3)),
     priority: RULES.check_replies.base,
     subjectIds: people.map((p) => p.personId),
   });
+}
+
+/**
+ * A yes the founder answered, with no time picked: a one-line nudge two working days later, one more
+ * three days after that, then "decide". Each nudge gets a fresh card id, so marking one done waits for the next.
+ */
+function bookings({ ws, now, today, out }: Ctx) {
+  for (const loop of bookingLoops(ws, now)) {
+    if (loop.dueOn > today) continue;
+    const name = first(loop.person.name) || "them";
+    const deal = loop.dealId ? ws.deals[loop.dealId] : undefined;
+    const on = shortDay(localDate(loop.reply.at));
+    const decide = loop.nudges >= BOOKING_NUDGES;
+    const overdue = Math.max(0, daysBetween(loop.dueOn, today));
+    out.push({
+      id: `mv_book_${loop.reply.id}_${loop.nudges}`,
+      kind: "follow_up",
+      rule: "reply_book",
+      title: decide
+        ? `Decide on ${name} at ${loop.company}: book it, park it or let it go`
+        : loop.intent === "positive"
+          ? `Book ${name}: said yes ${on}, no time picked`
+          : `Follow up with ${name}: asked for info ${on}, no call yet`,
+      why: decide
+        ? `${plural(loop.nudges, "nudge")} since you answered · close the loop either way`
+        : loop.nudges
+          ? `Nudged ${ago(loop.lastTouch.at, now)} · one more line, with times`
+          : `You answered ${ago(loop.answeredAt, now)} · a one-line nudge${loop.intent === "positive" ? " with two times" : ""}`,
+      minutes: 2,
+      priority: RULES.reply_book.base * stageMult(deal?.stage) + overdueBoost(overdue),
+      overdueDays: overdue || undefined,
+      ref: { kind: "person", id: loop.personId },
+      activityId: loop.reply.id,
+      ...(deal ? { subjectIds: [deal.id] } : {}),
+      href: sheet(loop.domain),
+    });
+  }
 }
 
 const CALL_TYPES: Record<string, string> = {
@@ -523,6 +562,8 @@ function sequences({ ws, now, today, out }: Ctx) {
 
 function deals({ ws, now, today, out }: Ctx) {
   const missing: { deal: Deal; cand: Cand }[] = [];
+  // A deal waiting on a time they haven't picked is the booking card's (see bookings).
+  const awaitingTime = new Set(bookingLoops(ws, now).map((l) => l.dealId));
   for (const deal of Object.values(ws.deals)) {
     const domain = deal.accountDomain;
     const company = companyName(ws, domain);
@@ -549,7 +590,7 @@ function deals({ ws, now, today, out }: Ctx) {
     const stage = STAGE_LABELS[deal.stage];
 
     const dated = deal.nextStep?.date;
-    if (!dated || dated < today) {
+    if ((!dated || dated < today) && !awaitingTime.has(deal.id)) {
       const overdue = dated ? daysBetween(dated, today) : 0;
       const without = dated ? overdue : daysSince(deal.lastActivityAt || deal.updatedAt, today);
       const decide = without >= 14;

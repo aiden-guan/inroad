@@ -21,6 +21,17 @@ export function addDays(date: string, days: number): string {
   return todayISO(new Date(y, m - 1, d + days));
 }
 
+/** `days` working days after `date` (Saturdays and Sundays don't count). */
+export function addBusinessDays(date: string, days: number): string {
+  let d = date;
+  for (let left = days; left > 0; ) {
+    d = addDays(d, 1);
+    const dow = new Date(`${d}T12:00:00`).getDay();
+    if (dow !== 0 && dow !== 6) left--;
+  }
+  return d;
+}
+
 /** Monday of the week containing `date` (local). */
 export function weekOf(date = todayISO()): string {
   const [y, m, d] = date.split("-").map(Number);

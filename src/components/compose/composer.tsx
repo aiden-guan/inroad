@@ -20,7 +20,7 @@ import { ledger } from "@/lib/intros/rules";
 import { firstName, shortDate } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
-import type { DraftStep, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import { OPEN_STAGES, type DraftStep, type OutreachPackage, type Person, type Workspace } from "@/lib/domain/types";
 import { currentStep, lintStep } from "@/lib/quality/context";
 import { PERSONAL_DOMAINS, jurisdictionFor, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
 import { ForgetPerson } from "@/components/people/forget-person";
@@ -270,12 +270,16 @@ function DraftBody({
       await flush();
       await copyText(pkg.mode === "warm_intro" ? introText() : outgoing);
       const activityId = newId("act");
+      // Answering a yes opens a deal at Talking when there's no open one (see the reducer).
+      const opensDeal = pkg.mode === "reply" && pkg.replyAction === "book" && !(account?.dealId && OPEN_STAGES.includes(ws.deals[account.dealId]?.stage));
       const ok = await dispatch({ type: "outreach.approveStep", packageId: pkg.id, step: step.step, at: nowISO(), activityId });
       if (!ok) return;
       const sentTo =
         pkg.mode === "warm_intro"
           ? `Asked ${firstName(pkg.intro?.connectorName || "your connector")}. I'll track it in Intros and tell you when it's your move.`
-          : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
+          : opensDeal
+            ? `Marked as sent and copied. ${account?.name ?? "They"} ${account ? "is" : "are"} now a deal at Talking; I'll keep it on Today until the call is booked.`
+            : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
       toast(sentTo, {
         duration: 10_000,
         // Undo also reopens the card this approval finished (onApproved marks it done).

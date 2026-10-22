@@ -16,6 +16,7 @@ import type { Move, OutreachPackage, Person, Workspace } from "@/lib/domain/type
 import { nextStep } from "@/lib/intros/rules";
 import { RULE_PREFIX } from "@/lib/moves/rules";
 import { ago, clip, clockTime, companyName, first, knowsDirectly } from "@/lib/moves/util";
+import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { DealResolver } from "./deal-resolver";
 import { RunInline } from "./parts";
@@ -178,6 +179,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       return <ReplyBody {...props} />;
     case "check_replies":
       return <CheckReplies ws={ws} now={props.now} active={props.focused} onFinished={onComplete} onChanged={props.onChanged} ref={repliesHandle} />;
+    case "reply_book":
+      return <BookBody {...props} />;
     case "meeting_prep":
       return <PrepBody {...props} />;
     case "debrief":
