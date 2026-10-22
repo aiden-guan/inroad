@@ -120,6 +120,11 @@ function guessesBlockedByBounces(ws: Workspace): boolean {
   return bounces / sends.length > 0.02;
 }
 
+/** Where the footer's strict wording goes, and with it the promise: Reply "stop" and I'll delete your details. */
+export function footerPromisesDeletion(jurisdiction: Jurisdiction): boolean {
+  return jurisdiction === "EU" || jurisdiction === "UK" || jurisdiction === "unknown";
+}
+
 export function buildFooter(
   ws: Workspace,
   opts: { jurisdiction: Jurisdiction; sourceHost: string | null; guessed: boolean; companyName: string },
@@ -127,8 +132,7 @@ export function buildFooter(
   const s = ws.sender;
   if (!s || !senderComplete(ws)) return null;
   const lines = [`${s.name} · ${s.title}, ${s.company} · ${s.postalAddress.replace(/\s*\n\s*/g, ", ")}`, `If this isn't relevant, reply "no" and I won't follow up.`];
-  const strict = opts.jurisdiction === "EU" || opts.jurisdiction === "UK" || opts.jurisdiction === "unknown";
-  if (!strict) return lines.join("\n");
+  if (!footerPromisesDeletion(opts.jurisdiction)) return lines.join("\n");
   const del = `Reply "stop" and I'll delete your details.`;
   if (opts.guessed) lines.push(`I guessed your work email from ${opts.companyName}'s address format. ${del}`);
   else if (opts.sourceHost) lines.push(`I found your work email on ${opts.sourceHost}. ${del}`);

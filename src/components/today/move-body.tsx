@@ -20,6 +20,7 @@ import type { Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domai
 import { nextStep } from "@/lib/intros/rules";
 import { QUESTIONS_PER_CARD, RULE_PREFIX } from "@/lib/moves/rules";
 import { ago, clip, clockTime, companyName, first, knowsDirectly, plural, shortDay } from "@/lib/moves/util";
+import { footerPromisesDeletion, jurisdictionFor } from "@/lib/quality/gates";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
@@ -493,21 +494,33 @@ function ReplyBody(props: BodyProps) {
 
   if (reply.sentiment === "unsubscribe") {
     const email = person.email ?? person.contactPaths.find((c) => c.value.includes("@"))?.value;
+    // EU, UK and unknown places got the footer that promises deletion on "stop": that comes first there.
+    const promised = footerPromisesDeletion(jurisdictionFor(ws, person, person.accountDomain).value);
+    const suppress = async () => {
+      const ok = await dispatch([
+        { type: "suppression.add", entry: { id: newId("sup"), email: email?.toLowerCase(), reason: "unsubscribe", at: nowISO() } },
+        { type: "person.upsert", person: { ...person, doNotContact: true } },
+      ]);
+      if (ok) onComplete();
+    };
+    if (promised) {
+      return (
+        <div className="space-y-3">
+          <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
+          <Lead>Your footer told {name} you&apos;d delete their details if they asked, so that&apos;s the answer to a stop. Don&apos;t reply.</Lead>
+          <ForgetPerson person={person} reveal={false} />
+          <Button variant="secondary" size="sm" onClick={() => void suppress()}>
+            Only suppress {name}
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3">
         <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
         <Lead>They asked not to be contacted. Suppressing them cancels every draft and keeps them out of future lists. Don&apos;t reply.</Lead>
         <Row>
-          <Button
-            variant="primary"
-            onClick={async () => {
-              const ok = await dispatch([
-                { type: "suppression.add", entry: { id: newId("sup"), email: email?.toLowerCase(), reason: "unsubscribe", at: nowISO() } },
-                { type: "person.upsert", person: { ...person, doNotContact: true } },
-              ]);
-              if (ok) onComplete();
-            }}
-          >
+          <Button variant="primary" onClick={() => void suppress()}>
             Suppress {name}
           </Button>
           <DeleteDetails person={person} />

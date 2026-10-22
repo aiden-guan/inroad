@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ContactPath, Person, SenderIdentity, Workspace } from "@/lib/domain/types";
 import { TODAY, at, makeAccount, makeActivity, makeDossier, makePackage, makePerson, makeStep, makeWorkspace } from "@/test/factories";
-import { buildFooter, capUsage, jurisdictionFor, outgoingText, preflight, resolveEmail, senderComplete, signOff, type Preflight } from "./gates";
+import { buildFooter, capUsage, footerPromisesDeletion, jurisdictionFor, outgoingText, preflight, resolveEmail, senderComplete, signOff, type Preflight } from "./gates";
 
 const acme = "acme.example";
 const SENDER: SenderIdentity = { name: "Priya Raman", title: "CEO", company: "Ledgerline", email: "priya@ledgerline.example", postalAddress: "450 Example St\n  San Francisco, CA" };
@@ -82,6 +82,11 @@ describe("buildFooter", () => {
     expect(footer("EU", "acme.example")?.split("\n")[2]).toBe(`I found your work email on acme.example. Reply "stop" and I'll delete your details.`);
     expect(footer("UK", null, true)?.split("\n")[2]).toBe(`I guessed your work email from Acme's address format. Reply "stop" and I'll delete your details.`);
     expect(footer("unknown", null)?.split("\n")[2]).toBe(`Reply "stop" and I'll delete your details.`);
+  });
+
+  it("promises deletion exactly where the stop flows offer it first", () => {
+    for (const j of ["US", "EU", "UK", "unknown"] as const) expect(footerPromisesDeletion(j)).toBe(!!footer(j, null)?.includes("delete your details"));
+    expect(footerPromisesDeletion("US")).toBe(false);
   });
 
   it("is withheld until the sender details are complete", () => {
