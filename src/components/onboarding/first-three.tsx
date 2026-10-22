@@ -145,7 +145,8 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       actions.push({ type: "founder.update", patch: { name: name.trim(), title: title.trim() || undefined } });
     }
     for (const a of research) if (!a.watch) actions.push({ type: "account.track", domain: a.domain, watch: true });
-    actions.push({ type: "onboarding.update", patch: { status: "hired", hiredAt: nowISO(), dossierRunIds: ids } });
+    // Today keeps a card for each of these until the first note goes, whatever their signals say.
+    actions.push({ type: "onboarding.update", patch: { status: "hired", hiredAt: nowISO(), dossierRunIds: ids, firstThree: research.map((a) => a.domain) } });
     if (!(await dispatch(actions))) {
       setBusy(false);
       return;

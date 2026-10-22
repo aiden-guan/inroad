@@ -86,6 +86,18 @@ export function codeGreeting(ws: Workspace, visible: Move[], now: Date): string 
   const name = first(ws.founder.name);
   const hello = name ? `${salutation(now)}, ${name}.` : `${salutation(now)}.`;
 
+  // Arrival (SPEC §3.2 step 4): the day the founder hired Ember, say what's being worked on while the first three are researched.
+  const o = ws.onboarding;
+  if (o.status === "hired" && o.hiredAt && localDate(o.hiredAt) === today) {
+    const domains = o.firstThree ?? [];
+    const researching = domains.map((d) => ws.accounts[d]).filter((a) => a && !a.dossier && a.status !== "disqualified");
+    if (researching.length) {
+      const names = researching.map((a) => a!.name);
+      const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+      return `${name ? `Thanks, ${name}.` : "Thanks."} I'm researching ${list} now. First draft in about 3 minutes.`;
+    }
+  }
+
   const missing = dealsMissingNextStep(ws, today).length;
   const yesterday = addDays(today, -1);
   const yesterdayCloseOut = ws.moves[`mv_closeout_${yesterday}`];
