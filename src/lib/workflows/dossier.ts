@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
+import { AgentError } from "@/lib/ai/errors";
 import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
 import { firstAttemptOnly, Ledger, cleanDate, hostOf, normUrl, readConnections, seenWebUrls, staleAfter, type LedgerSource } from "@/lib/deals/ledger";
 import { jurisdictionOf, rankPaths } from "@/lib/deals/rules";
@@ -490,7 +491,8 @@ export default defineWorkflow({
       maxTokens: 16_000,
     });
     const out = res.result;
-    if (!out) throw new Error("I couldn't finish the dossier. Try Refresh.");
+    // Cause only: the sheet puts "Research again" (and what it costs) next to this line.
+    if (!out) throw new AgentError("I couldn't finish the dossier.", "no_submit");
 
     // 4. Code checks what it can, then persists.
     if (webSearch > 0) ledger.verifySnippets(seenWebUrls(res.messages));

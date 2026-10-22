@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getAnthropicClient } from "./client";
 import type { AgentEvent, Source } from "./events";
+import { toAgentError } from "./api-errors";
 import { AgentError } from "./errors";
 import { MODEL_IDS, addUsage, costOf, emptyUsage, webToolTypes, type ModelTier, type Usage } from "./models";
 
@@ -291,7 +292,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         }
         // APIConnectionError (and its timeout subclass) extends APIError, so check it first.
         if (err instanceof Anthropic.APIConnectionError) throw new AgentError("Couldn't reach Claude. Check your connection.", "network");
-        if (err instanceof Anthropic.APIError) throw toAgentError(err);
+        if (err instanceof Anthropic.APIError) throw toAgentError(err, tier);
         // SDK stream errors (unparseable tool JSON from eager input streaming, a mid-stream drop):
         // re-issue the turn (capped) and drop the text the failed attempt streamed. Errors from our
         // own code are not retried.
@@ -425,20 +426,4 @@ function latestLine(buffer: string): string | null {
   const last = sentences.length > 1 ? sentences[sentences.length - 2] : sentences[0];
   const clean = last.replace(/^[#*\-\s]+/, "").replace(/\*\*/g, "");
   return clean.length > 140 ? clean.slice(0, 137) + "…" : clean;
-}
-
-function toAgentError(err: InstanceType<typeof Anthropic.APIError>): AgentError {
-  if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
-    return new AgentError("Your Anthropic API key was rejected. Update it in Settings.", "auth");
-  }
-  if (err instanceof Anthropic.RateLimitError) {
-    return new AgentError("Rate limited by the Anthropic API. Wait a minute and try again.", "rate_limit");
-  }
-  if (err instanceof Anthropic.BadRequestError) {
-    return new AgentError(err.message, "bad_request");
-  }
-  if (err instanceof Anthropic.InternalServerError || err.status === 529) {
-    return new AgentError("Claude is overloaded right now. Try again in a moment.", "overloaded");
-  }
-  return new AgentError(err.message, "unknown");
 }

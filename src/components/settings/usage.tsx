@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
+import { AgentErrorNote } from "@/components/ui/agent-error";
 import { Badge } from "@/components/ui/badge";
 import { Num, Skeleton } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
@@ -348,7 +349,11 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
     : [];
   return (
     <div className="bg-bg-subtle/50 px-4 pb-4 pt-1 sm:pl-[34px]">
-      {run.error && <p className="mb-2 text-[12.5px] text-danger">{run.error.message}</p>}
+      {run.error && (
+        <p className="mb-2">
+          <AgentErrorNote error={run.error} className="text-[12.5px]" />
+        </p>
+      )}
       {fields.length > 0 && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
           {fields.map(([k, v]) => (
