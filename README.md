@@ -176,6 +176,11 @@ other way (a bare `next dev` listens on every interface), Inroad refuses every p
 `INROAD_HOST=0.0.0.0` (or `-- -H …`) listens elsewhere, for a VM or a container; other devices then reach only the
 endpoints that check a key or secret on every call (MCP, the REST API and hook URLs).
 
+The computer itself is the trust boundary: while Inroad runs, anything on it that can open a connection to
+127.0.0.1, including another user account on a shared computer, can use the app as you do (read the workspace,
+download a backup). The data files are readable by your user only, but that protects them on disk, not through the
+running app. Run Inroad on a computer only you use.
+
 ### Where your data lives
 
 Everything is a set of JSON files in one folder: `.data/` inside this repository unless `GTM_DATA_DIR` says
@@ -192,7 +197,8 @@ $env:GTM_DATA_DIR = "$env:APPDATA\Inroad"; npm start                # Windows Po
 ```
 
 Settings → Data shows which folder is in use. The files are readable by your user only (0600, folder 0700), and
-older files are tightened when Inroad starts. Your Anthropic key is in `settings.json`, connector keys and the named
+older files are tightened when Inroad starts. That keeps other accounts from reading them on disk; while Inroad is
+running, the app itself answers anyone on this computer (see "Only this computer" above). Your Anthropic key is in `settings.json`, connector keys and the named
 tunnel's token in `secrets.json`, agent keys (hashed) in `keys.json`: those three belong to this computer and are
 never in a backup or an export.
 
