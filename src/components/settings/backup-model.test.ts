@@ -44,6 +44,8 @@ describe("reading a chosen file in the browser", () => {
     expect(restoredMessage("Today, 9:05 AM")).toBe("Restored the backup from Today, 9:05 AM. What was here before is saved in Backups.");
     expect(restoredMessage("Oct 14, 9:05 AM", 1)).toMatch(/I kept the suppression added since, so no one who opted out is emailed again\.$/);
     expect(restoredMessage("Oct 14, 9:05 AM", 3)).toMatch(/I kept the 3 suppressions added since/);
+    expect(restoredMessage("Oct 14, 9:05 AM", 1, 1)).toMatch(/emailed again\. The person in it who asked to be deleted is deleted again\.$/);
+    expect(restoredMessage("Oct 14, 9:05 AM", 2, 2)).toMatch(/The 2 people in it who asked to be deleted are deleted again\.$/);
   });
 
   it("gzips a chosen file for the upload, and sends one that's already gzipped as it is", async () => {

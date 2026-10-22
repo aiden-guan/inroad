@@ -44,11 +44,11 @@ export function BackupsGroup({ refresh, version }: { refresh: () => Promise<void
     };
   }, [version]);
 
-  const restored = async (from: string, keptSuppressions?: number) => {
+  const restored = async (from: string, keptSuppressions?: number, forgotten?: number) => {
     setOpen(null);
     await refresh();
     load();
-    toast(restoredMessage(from, keptSuppressions));
+    toast(restoredMessage(from, keptSuppressions, forgotten));
   };
 
   const backups = list?.backups ?? [];
@@ -98,7 +98,7 @@ export function BackupsGroup({ refresh, version }: { refresh: () => Promise<void
   );
 }
 
-type OnRestored = (from: string, keptSuppressions?: number) => Promise<void>;
+type OnRestored = (from: string, keptSuppressions?: number, forgotten?: number) => Promise<void>;
 
 function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; open: boolean; onToggle: () => void; onRestored: OnRestored }) {
   const [summary, setSummary] = useState<BackupSummary | null>(null);
@@ -120,7 +120,7 @@ function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; 
       const res = await fetch(`/api/workspace/restore?backup=${encodeURIComponent(entry.name)}`, { method: "POST" });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error ?? "That didn't restore. Try again.");
-      await onRestored(when, body?.restored?.keptSuppressions);
+      await onRestored(when, body?.restored?.keptSuppressions, body?.restored?.forgotten);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "That didn't restore. Try again.");
     } finally {
@@ -197,7 +197,7 @@ function RestoreFromFile({ onRestored }: { onRestored: OnRestored }) {
       if (!res.ok) throw new Error(body?.error ?? "That didn't restore. Try again.");
       setFile(null);
       if (input.current) input.current.value = "";
-      await onRestored(body?.restored?.createdAt ? backupWhen(body.restored.createdAt) : file.file.name, body?.restored?.keptSuppressions);
+      await onRestored(body?.restored?.createdAt ? backupWhen(body.restored.createdAt) : file.file.name, body?.restored?.keptSuppressions, body?.restored?.forgotten);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "That didn't restore. Try again.");
     } finally {

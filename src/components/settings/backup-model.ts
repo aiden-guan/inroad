@@ -60,13 +60,17 @@ export function describeSummary(s: BackupSummary): string {
   return `${who}: ${n(s.companies, "company", "companies")}, ${n(s.people, "person", "people")}, ${n(s.deals, "deal", "deals")}`;
 }
 
-/** The toast after a restore, which says when suppressions added since the backup were kept. */
-export function restoredMessage(from: string, keptSuppressions = 0): string {
+/**
+ * The toast after a restore, which says when suppressions added since the backup were kept, and when
+ * people the backup held were deleted again because they asked to be.
+ */
+export function restoredMessage(from: string, keptSuppressions = 0, forgotten = 0): string {
   const kept =
     keptSuppressions > 0
       ? ` I kept the ${keptSuppressions === 1 ? "suppression" : `${keptSuppressions} suppressions`} added since, so no one who opted out is emailed again.`
       : "";
-  return `Restored the backup from ${from}. What was here before is saved in Backups.${kept}`;
+  const gone = forgotten > 0 ? ` ${forgotten === 1 ? "The person" : `The ${forgotten} people`} in it who asked to be deleted ${forgotten === 1 ? "is" : "are"} deleted again.` : "";
+  return `Restored the backup from ${from}. What was here before is saved in Backups.${kept}${gone}`;
 }
 
 /**

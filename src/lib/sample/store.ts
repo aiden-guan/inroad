@@ -1,7 +1,10 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
+import { newId, nowISO } from "@/lib/domain/ids";
 import type { RunStep, Workspace } from "@/lib/domain/types";
+import { emailsOf, forgetPerson, runsAbout } from "@/lib/people/forget";
+import { forgetInFiles, type ForgottenPerson } from "@/lib/people/forget-files";
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
@@ -81,15 +84,18 @@ export async function resetToEmptyWorkspace(): Promise<Workspace> {
  * A full bundle replaces every workspace file, removing the ones it doesn't have (they didn't exist when
  * it was made); hub.json, the sync bookkeeping, is only replaced when the bundle has it. An older
  * workspace-only export replaces workspace.json alone and leaves the rest as it is. Either way the
- * suppression list keeps everyone on it now (keepSuppressions), unless what's here now is the sample.
+ * suppression list keeps everyone on it now (keepSuppressions), unless what's here now is the sample,
+ * and anyone on it as requested_delete whom the backup still holds is deleted again (forgetRequested).
  */
-export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Workspace; backup: BackupEntry | null; files: string[]; keptSuppressions: number }> {
+export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Workspace; backup: BackupEntry | null; files: string[]; keptSuppressions: number; forgotten: number }> {
   await stopLiveRuns();
   const backup = snapshotBefore("before_restore");
   const current = readWorkspace();
   const restored = migrateWorkspace(bundle.files["workspace.json"]);
   const { list, kept: keptSuppressions } = keepSuppressions(restored.suppression ?? [], current.sample ? [] : (current.suppression ?? []));
-  const ws = await replaceWorkspace({ ...restored, suppression: list });
+  const next: Workspace = { ...restored, suppression: list };
+  const forgotten = forgetRequested(next);
+  const ws = await replaceWorkspace(next);
   const files = ["workspace.json"];
   if (!bundle.legacy) {
     for (const name of WORKSPACE_FILES) {
@@ -104,5 +110,24 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
     await replaceRunSteps(steps && typeof steps === "object" && !Array.isArray(steps) ? (steps as Record<string, RunStep[]>) : {});
     if (steps !== undefined) files.push("runs.json");
   }
-  return { ws, backup, files, keptSuppressions };
+  // The files just restored (connections, Ask threads, run logs, CRM links) may still hold them too.
+  for (const f of forgotten) await forgetInFiles(f);
+  return { ws, backup, files, keptSuppressions, forgotten: forgotten.length };
+}
+
+/**
+ * A backup made before someone asked to be deleted still holds their record. Their address is on the
+ * suppression list as requested_delete (keepSuppressions carries it over), so "Delete their details"
+ * runs on them again: a restore never brings back someone the founder promised to forget. In place.
+ */
+function forgetRequested(ws: Workspace): ForgottenPerson[] {
+  const deleted = new Set(ws.suppression.filter((s) => s.reason === "requested_delete" && s.email).map((s) => s.email!.trim().toLowerCase()));
+  if (!deleted.size) return [];
+  const out: ForgottenPerson[] = [];
+  for (const person of Object.values(ws.people)) {
+    if (!emailsOf(person).some((e) => deleted.has(e))) continue;
+    out.push({ person: structuredClone(person), company: ws.accounts[person.accountDomain]?.name, runIds: runsAbout(ws, person) });
+    forgetPerson(ws, person.id, nowISO(), newId("sup"));
+  }
+  return out;
 }
