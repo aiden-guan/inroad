@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/misc";
-import { backupWhen, describeSummary, fileSize, REASON_LABEL, summarizeFile, type BackupEntry, type BackupsResponse, type BackupSummary } from "./backup-model";
+import { backupWhen, describeSummary, fileSize, REASON_LABEL, summarizeFile, uploadBody, type BackupEntry, type BackupsResponse, type BackupSummary } from "./backup-model";
 import { Expand, Group, Row } from "./parts";
 
 const SHOWN = 5;
@@ -190,7 +190,7 @@ function RestoreFromFile({ onRestored }: { onRestored: (from: string) => Promise
     if (!file) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/workspace/restore", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file.file });
+      const res = await fetch("/api/workspace/restore", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: await uploadBody(file.file) });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error ?? "That didn't restore. Try again.");
       setFile(null);

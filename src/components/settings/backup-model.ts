@@ -60,6 +60,18 @@ export function describeSummary(s: BackupSummary): string {
   return `${who}: ${n(s.companies, "company", "companies")}, ${n(s.people, "person", "people")}, ${n(s.deals, "deal", "deals")}`;
 }
 
+/**
+ * The chosen file as it's uploaded: gzipped here first, because Next.js passes at most 10 MB of a
+ * request body through the app's proxy, and a backup with months of run history can be bigger than
+ * that. Backups are JSON, so they shrink about tenfold; the server unzips them (src/lib/store/backup.ts).
+ * A file that's already gzipped, or a browser without CompressionStream, goes up as it is.
+ */
+export async function uploadBody(file: Blob): Promise<Blob> {
+  const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+  if ((head[0] === 0x1f && head[1] === 0x8b) || typeof CompressionStream === "undefined") return file;
+  return new Response(file.stream().pipeThrough(new CompressionStream("gzip"))).blob();
+}
+
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const count = (v: unknown) => (isObj(v) ? Object.keys(v).length : 0);
 
