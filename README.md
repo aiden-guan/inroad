@@ -16,6 +16,8 @@ read your playbook, check your warm paths and push leads in through Inroad's MCP
 
 ## Quick start
 
+You need [Node.js](https://nodejs.org) 20.9 or newer (24 is what CI uses; `.nvmrc` says so for `nvm use`).
+
 ```bash
 npm install
 npm run dev
@@ -24,8 +26,13 @@ npm run dev
 Open http://localhost:3000, paste your website, and in about two minutes you'll have three real companies to talk to,
 each with a dated reason why now.
 
-Inroad runs on your Anthropic API key. Paste it on the first screen (it's saved only in `.data/settings.json` on this
-machine), or set `ANTHROPIC_API_KEY` before starting. Want to look around first? Choose **Explore a sample workspace**.
+Inroad runs on your Anthropic API key. Paste it on the first screen (it's saved only in `settings.json` in your data
+folder, readable by you alone), or set `ANTHROPIC_API_KEY` before starting. Want to look around first? Choose
+**Explore a sample workspace**; it's labelled as made up everywhere, and **Start with my company** leaves it in one
+click.
+
+For using Inroad every day (a production server, where your data lives, backups, a public URL that doesn't change),
+see [Running Inroad day to day](#running-inroad-day-to-day).
 
 ### Try it without an API key
 
@@ -33,8 +40,11 @@ A mock of the Anthropic API ships with the repo, so you can click through every 
 
 ```bash
 npm run mock:anthropic   # terminal 1 — fake Claude (and fake Firecrawl) on :4010
-npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder
+npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder (.data-mock)
 ```
+
+Both work the same in bash, zsh, PowerShell and cmd: `dev:mock` is a small Node launcher, not shell syntax. To move
+the mock, set `MOCK_PORT` for both commands.
 
 The mock works each workflow's tools the way a model would, from what the request contains (it quotes your site,
 saves the bet section by section, screens every candidate, records evidence before it writes a dossier), and it
@@ -89,8 +99,10 @@ npm run e2e
 [Playwright](https://playwright.dev) walks a founder's first session in Chromium: paste a site and a sentence on the
 welcome screen, watch the bet get written, land on Today, then add a company and read its researched dossier. Then, at
 390px on that workspace, Today and the dossier must fit without sideways scroll, and research the API turns down (an
-out-of-credits fault queued on the mock) must say why once, in plain words, with the Add credits link. It starts the
-mock and `next dev` on ports 4301 and 3301 (`E2E_MOCK_PORT`, `E2E_APP_PORT`) with a fresh data folder (a new temp
+out-of-credits fault queued on the mock) must say why once, in plain words, with the Add credits link. Last, it tries
+the sample workspace (labelled as made up, left with one click) and brings the founder's own work back from the backup
+taken before the sample replaced it. It starts the mock and the app (through the launcher, as `npm run dev` does) on
+ports 4301 and 3301 (`E2E_MOCK_PORT`, `E2E_APP_PORT`) with a fresh data folder (a new temp
 folder, or `E2E_DATA_DIR`, emptied first) and with outbound DNS off (`e2e/offline.cjs`), so it reads nothing from the
 web, spends nothing and runs the same on every machine. A preinstalled Chromium is used when
 `PLAYWRIGHT_BROWSERS_PATH` points at one. Traces and screenshots of a failure land in `test-results/`.
@@ -117,6 +129,98 @@ CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `
 `eslint src`, `npm test` and `next build`, and the browser tests above as a separate `e2e` job that uploads the
 Playwright report when it fails. On a fresh checkout run `npx next typegen` once before `npm run typecheck`,
 so the route types Next generates (`PageProps`, `RouteContext`) exist.
+
+## Running Inroad day to day
+
+Inroad is a single-user app that runs on your own computer, and it is built that way on purpose (SPEC non-goal 6):
+your prospects, notes and keys never sit on someone else's server.
+
+### The production server
+
+```bash
+npm run build      # once, and again after each update
+npm start          # http://localhost:3000; `npm start -- -p 3001` for another port
+```
+
+It's faster and lighter than `npm run dev`. To have it running whenever you are, make `npm start` (run in this
+folder) a login item: a LaunchAgent on macOS, a Task Scheduler task "at log on" on Windows, a systemd user service on
+Linux. Webhooks, the public URL and remote agents only reach Inroad while the computer is awake and Inroad is running;
+while it's open, connected sequencers, booking tools and CRMs are also polled every few minutes, so nothing is lost
+when a webhook can't get through.
+
+### Only this computer
+
+`npm run dev` and `npm start` go through `scripts/serve.mjs`, which listens on 127.0.0.1 only, so other devices on
+your network can't connect at all. It also stamps every request with the address its connection really comes from,
+and Inroad decides "this is the founder's computer" from that, never from headers a caller can write. Started any
+other way (a bare `next dev` listens on every interface), Inroad refuses every page and says how to start it.
+`INROAD_HOST=0.0.0.0` (or `-- -H …`) listens elsewhere, for a VM or a container; other devices then reach only the
+endpoints that check a key or secret on every call (MCP, the REST API and hook URLs).
+
+### Where your data lives
+
+Everything is a set of JSON files in one folder: `.data/` inside this repository unless `GTM_DATA_DIR` says
+otherwise. Deleting or re-cloning the repository, or `git clean -xfd`, deletes `.data/` with it, so point
+`GTM_DATA_DIR` at a folder of its own, ideally one your computer already backs up:
+
+```bash
+GTM_DATA_DIR="$HOME/Library/Application Support/Inroad" npm start   # macOS
+GTM_DATA_DIR="$HOME/.local/share/inroad" npm start                  # Linux
+```
+
+```powershell
+$env:GTM_DATA_DIR = "$env:APPDATA\Inroad"; npm start                # Windows PowerShell
+```
+
+Settings → Data shows which folder is in use. The files are readable by your user only (0600, folder 0700), and
+older files are tightened when Inroad starts. Your Anthropic key is in `settings.json`, connector keys and the named
+tunnel's token in `secrets.json`, agent keys (hashed) in `keys.json`: those three belong to this computer and are
+never in a backup or an export.
+
+### Backups
+
+- **Automatic:** a copy of every workspace file each day you open Inroad (the last 14 kept) and before every reset,
+  sample or restore (the last 10), gzipped in `backups/` inside the data folder.
+- **Download:** Settings → Data → **Download backup** gives one JSON file with everything: playbook, companies,
+  people, deals, drafts, Ask threads, LinkedIn connections, imports and run history.
+- **Restore:** Settings → Data → Backups restores any automatic backup or a downloaded file, here or on another
+  computer, after backing up what's there. A workspace JSON exported by an older version restores too.
+
+The automatic backups live in the data folder, so they don't survive deleting it: keep a downloaded backup somewhere
+else now and then.
+
+### A public URL that doesn't change
+
+Cloud tools (Calendly, Cal.com, Clay, Zapier, n8n) and remote agents (Meta Muse) need a public https address to
+reach Inroad. Integrations → **Enable public URL** starts a Cloudflare tunnel (`cloudflared` must be installed; the
+page shows the command). A quick tunnel needs no account but gets a new address every start, so tools stop reaching
+Inroad until you paste the new one. **Keep the same address after restarts** sets up a named tunnel on your own domain
+(free with a Cloudflare account): one address forever, started again by itself whenever Inroad starts. Only MCP, the
+REST API and hook URLs answer through either kind.
+
+No public URL? Instantly, Smartlead, lemlist, HubSpot and Attio are polled for replies and changes while Inroad is
+open, and Calendly and Cal.com can be connected with a key so bookings are polled too (Calendly's webhooks need a
+paid plan anyway).
+
+### What it can't do
+
+Inroad can't be deployed to Vercel, a serverless platform or a shared host, and two people can't share one
+workspace. Every page and internal API answers only the computer it runs on; data is files on local disk (read-only
+or temporary on serverless); each server process keeps its own copy of each file in memory, so two processes would
+overwrite each other; research runs keep working after the request that started them has been answered, which
+serverless platforms stop; and the tunnel is a child process. A hosted, multi-user Inroad would need a login and a
+real database; that isn't v1.
+
+### Environment variables
+
+| Variable | What it does |
+|---|---|
+| `GTM_DATA_DIR` | The data folder (default `.data/` in this repository). |
+| `ANTHROPIC_API_KEY` | Your Anthropic key, if you'd rather not paste it in the app. A key saved in the app wins. |
+| `PORT` | The port (default 3000; `-- -p` works too). |
+| `INROAD_HOST` | The address to listen on (default 127.0.0.1). |
+| `ANTHROPIC_BASE_URL`, `FIRECRAWL_API_URL` | Where those APIs are; `npm run dev:mock` points both at the mock. |
+| `MOCK_PORT` | The mock's port (default 4010), for `npm run mock:anthropic` and `npm run dev:mock`. |
 
 ## What's inside
 
@@ -160,9 +264,13 @@ free lookups done in code, and a monthly budget cap.
   accounting per run.
 - **Run registry** (`src/lib/runs`): runs outlive the request; any tab can attach to the live log, and finished runs
   keep their receipt and steps.
-- **Local-first data** (`src/lib/store`): one JSON workspace with atomic writes in `.data/`. Integration secrets live in
-  `.data/secrets.json` and never reach the browser. Nothing leaves your machine except calls to the Anthropic API and
-  the tools you connect.
+- **Local-first data** (`src/lib/store`): one JSON workspace with atomic, owner-only writes in the data folder, daily and
+  pre-change backups, and restore. Integration secrets live in `secrets.json` and never reach the browser. What leaves
+  your machine: calls to the Anthropic API with the context a task needs; free public lookups that carry company
+  names and domains (company websites, job boards, news, Hacker News, DNS); place names to OpenStreetMap (can be
+  turned off) and map tiles from OpenFreeMap; and what you push to the tools you connect. Company icons are first
+  letters unless you turn on fetching each company's icon from its own site (Settings → General); no favicon service
+  ever sees your list.
 - **Signals** (`src/lib/signals`): the free, deterministic research layer.
 
 The research behind the product — GTM methodology, how elite operators work, the AI GTM landscape, design references,

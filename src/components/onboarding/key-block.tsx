@@ -94,7 +94,7 @@ export const KeyBlock = forwardRef<
         )}
       </div>
       <p id="anthropic-key-help" className="mt-1.5 text-[12px] text-fg-3">
-        Saved only in <span className="font-mono">.data/settings.json</span> on this machine.
+        Saved only in <span className="font-mono">settings.json</span> in your data folder on this machine, readable by you alone.
       </p>
       <FieldError>{error}</FieldError>
     </div>
