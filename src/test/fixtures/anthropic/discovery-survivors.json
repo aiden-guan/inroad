@@ -1,0 +1,475 @@
+{
+ "version": 1,
+ "name": "discovery-survivors",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-haiku-5-5|submit_screen|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "submit_screen"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 3712,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 3712
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Checking each card against the criteria. Unknown is not false: most situational facts aren't on a card. One result per candidate. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock3",
+      "name": "submit_screen",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"results\":[{\"i\":1,\"domain\":\"billcraftpartners.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":2,\"domain\":\"meterwiseadvisory.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":3,\"domain\":\"usageopscollective.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"false\",\"why\":\"Card says Billing consultancy agency for usage-priced SaaS\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":4,\"domain\":\"ratebookconsulting.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":5,\"domain\":\"invoicewellagency.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":6,\"domain\":\"revrecpartners.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":7,\"domain\":\"pricingguild.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"},{\"i\":8,\"domain\":\"cloudbilladvisors.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Billing consultancy agency for usage-priced SaaS and infrastructure\"}],\"antiIcp\":\"Agencies and consultancies\",\"note\":\"Billing consultancy agency for usage-priced SaaS and infrastructure companies\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 3712,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 3712
+      },
+      "output_tokens": 1838,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-sonnet-5-5|submit_candidates,web_search|1",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "submit_candidates",
+     "web_search"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock5"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock4",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 3055,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 3055,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading what was asked: Find up to 15 companies that fit this ICP, using at most 2 searches. Checking the material I was given before writing. Making sure every claim has a source. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "server_tool_use",
+      "id": "srvtoolu_mock6",
+      "name": "web_search",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"query\":\"site:jobs.ashbyhq.com OR site:boards.greenhouse.io \\\"Controller\\\"\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "content_block_start",
+     "index": 2,
+     "content_block": {
+      "type": "server_tool_use",
+      "id": "srvtoolu_mock7",
+      "name": "bash_code_execution",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 2,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"command\":\"python3 -c \\\"filter_results(min_relevance=0.6)\\\"\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 2
+    },
+    {
+     "type": "content_block_start",
+     "index": 3,
+     "content_block": {
+      "type": "bash_code_execution_tool_result",
+      "tool_use_id": "srvtoolu_mock7",
+      "content": {
+       "type": "bash_code_execution_result",
+       "stdout": "5 results kept",
+       "stderr": "",
+       "return_code": 0,
+       "content": []
+      }
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 3
+    },
+    {
+     "type": "content_block_start",
+     "index": 4,
+     "content_block": {
+      "type": "web_search_tool_result",
+      "tool_use_id": "srvtoolu_mock6",
+      "content": [
+       {
+        "type": "web_search_result",
+        "title": "Head of Controller at Tallyrock",
+        "url": "https://jobs.ashbyhq.com/tallyrock/1000",
+        "encrypted_content": "x",
+        "page_age": "1 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Founding Controller at Meterly",
+        "url": "https://jobs.ashbyhq.com/meterly/1001",
+        "encrypted_content": "x",
+        "page_age": "2 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Head of Controller at Brightledger",
+        "url": "https://jobs.ashbyhq.com/brightledger/1002",
+        "encrypted_content": "x",
+        "page_age": "3 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Founding Controller at Quantaloop",
+        "url": "https://jobs.ashbyhq.com/quantaloop/1003",
+        "encrypted_content": "x",
+        "page_age": "4 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Head of Controller at Northpeak",
+        "url": "https://jobs.ashbyhq.com/northpeak/1004",
+        "encrypted_content": "x",
+        "page_age": "5 weeks ago"
+       }
+      ]
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 4
+    },
+    {
+     "type": "content_block_start",
+     "index": 5,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock8",
+      "name": "submit_candidates",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 5,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"candidates\":[{\"name\":\"Tallyrock\",\"domain\":\"tallyrock.com\",\"oneLiner\":\"Hiring: Head of Controller\",\"sourceUrl\":\"https://jobs.ashbyhq.com/tallyrock/1000\",\"evidence\":\"Head of Controller at Tallyrock\"},{\"name\":\"Meterly\",\"domain\":\"meterly.com\",\"oneLiner\":\"Hiring: Founding Controller\",\"sourceUrl\":\"https://jobs.ashbyhq.com/meterly/1001\",\"evidence\":\"Founding Controller at Meterly\"},{\"name\":\"Brightledger\",\"domain\":\"brightledger.com\",\"oneLiner\":\"Hiring: Head of Controller\",\"sourceUrl\":\"https://jobs.ashbyhq.com/brightledger/1002\",\"evidence\":\"Head of Controller at Brightledger\"},{\"name\":\"Quantaloop\",\"domain\":\"quantaloop.com\",\"oneLiner\":\"Hiring: Founding Controller\",\"sourceUrl\":\"https://jobs.ashbyhq.com/quantaloop/1003\",\"evidence\":\"Founding Controller at Quantaloop\"},{\"name\":\"Northpeak\",\"domain\":\"northpeak.com\",\"oneLiner\":\"Hiring: Head of Controller\",\"sourceUrl\":\"https://jobs.ashbyhq.com/northpeak/1004\",\"evidence\":\"Head of Controller at Northpeak\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 5
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 3055,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 3055,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 396,
+      "server_tool_use": {
+       "web_search_requests": 1,
+       "web_fetch_requests": 0
+      }
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-haiku-5-5|submit_screen|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "submit_screen"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mocka"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock9",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 354,
+       "cache_read_input_tokens": 2757,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 354
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Checking each card against the criteria. Unknown is not false: most situational facts aren't on a card. One result per candidate. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mockb",
+      "name": "submit_screen",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"results\":[{\"i\":1,\"domain\":\"tallyrock.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"false\",\"why\":\"Card says Hiring: Head of Controller\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"}],\"antiIcp\":null,\"note\":\"Hiring: Head of Controller\"},{\"i\":2,\"domain\":\"meterly.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"}],\"antiIcp\":null,\"note\":\"Hiring: Founding Controller\"},{\"i\":3,\"domain\":\"brightledger.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"}],\"antiIcp\":null,\"note\":\"Hiring: Head of Controller\"},{\"i\":4,\"domain\":\"quantaloop.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Hiring: Founding Controller\"}],\"antiIcp\":null,\"note\":\"Hiring: Founding Controller\"},{\"i\":5,\"domain\":\"northpeak.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Hiring: Head of Controller\"}],\"antiIcp\":null,\"note\":\"Hiring: Head of Controller\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 354,
+      "cache_read_input_tokens": 2757,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 354
+      },
+      "output_tokens": 787,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}
