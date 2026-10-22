@@ -1,5 +1,5 @@
 import { daysBetween, monthKey, todayISO } from "@/lib/domain/ids";
-import type { Deal, ISODateTime, Stage, Workspace } from "@/lib/domain/types";
+import type { Brief, Deal, ISODateTime, Stage, Workspace } from "@/lib/domain/types";
 import { activeBet, betReadout, startedBets, type BetReadout, type StartedBet } from "@/lib/learning/bets";
 import { clip, companyName, daysSince, localDate } from "./util";
 
@@ -23,6 +23,18 @@ export function lastRefreshAt(ws: Workspace): ISODateTime | null {
     .map((b) => b.generatedAt)
     .sort();
   return runs.at(-1) ?? ws.foundation?.revisedAt ?? ws.foundation?.generatedAt ?? null;
+}
+
+/**
+ * The last rebuild of the bet, when it changed nothing ("No changes: … don't contradict the bet") and is still the newest
+ * revision: what it found, so the founder sees the answer instead of the offer quietly going away.
+ */
+export function settledRefresh(ws: Workspace): Brief | null {
+  const last = Object.values(ws.briefs)
+    .filter((b) => b.reviewKind === "refresh")
+    .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0];
+  if (!last?.review || last.generatedAt !== lastRefreshAt(ws)) return null;
+  return (last.proposals ?? []).some((p) => p.kind === "revise_foundation") ? null : last;
 }
 
 function debriefedSince(ws: Workspace, since: string | null) {

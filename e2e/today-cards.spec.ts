@@ -185,6 +185,18 @@ test("the monthly review says whose time each number is, in plain words", async 
   await expect(page.getByText(/log your quotes against how they landed/)).toHaveCount(0);
 });
 
+test("rebuilding the bet from the Playbook says what it found, even when nothing changes", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  await page.goto("/playbook");
+  const section = page.locator("#refresh");
+  const rebuild = section.getByRole("button", { name: "Rebuild the bet from my calls" });
+  await expect(rebuild).toBeVisible();
+  await rebuild.click();
+  // The offer it answered is gone, but the section stays with the answer instead of vanishing.
+  await expect(section.getByText(/^No changes: .+ contradict the bet\.$/)).toBeVisible({ timeout: 60_000 });
+  await expect(section.getByText(/^Checked /)).toBeVisible();
+});
+
 test("day one asks for the LinkedIn import once, in the card for it", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);
