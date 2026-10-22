@@ -336,20 +336,24 @@ export const CALIBRATION_SET: CalibrationEmail[] = [
   ),
 ];
 
-/** Acceptance and rejection rates, and whether they clear the gate. */
+/**
+ * Acceptance and rejection rates, and whether they clear the gate. No verdict (the critic call failed, ran
+ * out of nudges, was refused) counts as accepted, because that's what compose does with it: the draft ships
+ * unjudged (criticPassed(null)). A critic that fails on AI-SDR emails fails the gate instead of shrinking it.
+ */
 export function scoreCalibration(results: { id: string; label: CalibrationEmail["label"]; accepted: boolean | null }[]) {
-  const judged = results.filter((r) => r.accepted !== null);
-  const replied = judged.filter((r) => r.label === "replied");
-  const aiSdr = judged.filter((r) => r.label === "ai_sdr");
+  const asShipped = results.map((r) => ({ ...r, accepted: r.accepted ?? true }));
+  const replied = asShipped.filter((r) => r.label === "replied");
+  const aiSdr = asShipped.filter((r) => r.label === "ai_sdr");
   const acceptReplied = replied.length ? replied.filter((r) => r.accepted).length / replied.length : 0;
   const rejectAiSdr = aiSdr.length ? aiSdr.filter((r) => !r.accepted).length / aiSdr.length : 0;
   return {
     replied: replied.length,
     aiSdr: aiSdr.length,
-    unjudged: results.length - judged.length,
+    unjudged: results.filter((r) => r.accepted === null).length,
     acceptReplied,
     rejectAiSdr,
     passed: replied.length > 0 && aiSdr.length > 0 && acceptReplied >= CALIBRATION_GATE.acceptReplied && rejectAiSdr >= CALIBRATION_GATE.rejectAiSdr,
-    misses: judged.filter((r) => (r.label === "replied" ? !r.accepted : r.accepted)).map((r) => r.id),
+    misses: asShipped.filter((r) => (r.label === "replied" ? !r.accepted : r.accepted)).map((r) => r.id),
   };
 }

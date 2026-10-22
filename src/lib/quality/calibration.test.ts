@@ -38,6 +38,10 @@ describe("the calibration set", () => {
     expect(scoreCalibration(all(20, 4))).toMatchObject({ rejectAiSdr: 0.8, passed: false, misses: ["a01", "a02", "a03", "a04"] });
     // No verdict isn't a pass.
     expect(scoreCalibration(CALIBRATION_SET.map((e) => ({ id: e.id, label: e.label, accepted: null })))).toMatchObject({ unjudged: 40, passed: false });
+    // No verdict counts the way compose treats it, as accepted: a critic that fails on 19 of the 20 AI-SDR
+    // emails and rejects the one it judged lets those 19 ship, so it fails the gate.
+    const failsOnSdr = CALIBRATION_SET.map((e, i) => ({ id: e.id, label: e.label, accepted: e.label === "replied" ? true : i === 20 ? false : null }));
+    expect(scoreCalibration(failsOnSdr)).toMatchObject({ unjudged: 19, rejectAiSdr: 0.05, passed: false });
   });
 });
 
@@ -69,6 +73,16 @@ describe("runCriticEval", () => {
     const req = mock.sent.find((r) => r.tools?.some((t) => t.name === "submit_critique"))!;
     expect(req.model).toMatch(/haiku/);
     expect(JSON.stringify(req.messages)).toContain("You are a Controller at a 120-person company.");
+  });
+
+  it("counts a critic call that failed as no verdict, and still counts what it spent", async () => {
+    // The critic answers in prose instead of calling submit_critique, every time.
+    await mock.fault({ type: "no_submit", times: 10, when: { tool: "submit_critique" } });
+    const report = await runCriticEval({ set: CALIBRATION_SET.filter((e) => e.id === "a12") }).finally(() => fetch(`${process.env.ANTHROPIC_BASE_URL}/__mock/faults`, { method: "DELETE" }));
+    expect(report.unjudged).toBe(1);
+    // Shipped unjudged, as compose would: a miss, not a pass.
+    expect(report).toMatchObject({ rejectAiSdr: 0, misses: ["a12"] });
+    expect(report.cost.costUsd).toBeGreaterThan(0);
   });
 });
 

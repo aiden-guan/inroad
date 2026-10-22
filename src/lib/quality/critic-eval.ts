@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { runAgent, type RunOptions } from "@/lib/ai/engine";
+import { AgentError } from "@/lib/ai/errors";
 import { taskHeader } from "@/lib/ai/prompts/core";
 import { REPLY_READ_RULES } from "@/lib/ai/prompts/outreach";
 import type { Account, DraftCritic, DraftStep, ReplyIntent, Workspace } from "@/lib/domain/types";
@@ -26,10 +27,16 @@ export interface EvalCost {
 function agentWithCost(cost: EvalCost) {
   return {
     agent: async <T>(opts: Omit<RunOptions, "emit" | "signal">) => {
-      const res = await runAgent<T>({ ...opts, emit: () => {} });
       cost.calls++;
-      cost.costUsd += res.costUsd;
-      return res;
+      try {
+        const res = await runAgent<T>({ ...opts, emit: () => {} });
+        cost.costUsd += res.costUsd;
+        return res;
+      } catch (err) {
+        // A failed call still spent what its finished turns cost.
+        cost.costUsd += err instanceof AgentError ? (err.costUsd ?? 0) : 0;
+        throw err;
+      }
     },
   };
 }
