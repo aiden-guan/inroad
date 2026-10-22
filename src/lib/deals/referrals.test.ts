@@ -134,6 +134,13 @@ describe("the referral card on Today", () => {
     expect(card(ws)).toEqual([]);
   });
 
+  it("hands a company named without a person to the company's own cards once it's on file", () => {
+    const ws = afterTheCall(debrief({ referralPeople: [{ company: "Kestrel" }], referrals: ["Kestrel"] }));
+    expect(card(ws).map((m) => m.title)).toEqual(["Add Kestrel, Dana's referral"]);
+    ws.accounts[KESTREL] = makeAccount(KESTREL, { name: "Kestrel", source: "referral" });
+    expect(card(ws)).toEqual([]);
+  });
+
   it("lets a referral go quiet two weeks after the call", () => {
     expect(card(afterTheCall(), new Date(2026, 10, 3, 9, 30))).toEqual([]);
   });
