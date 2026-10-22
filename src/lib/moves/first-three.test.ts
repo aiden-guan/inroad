@@ -91,6 +91,8 @@ describe("the first three on day one", () => {
       title: "Keep watching Gamma",
       why: "The research found no dated reason I can cite yet · I'll bring it back when there's news",
     });
+    // No source chip on a card that says there's nothing to cite.
+    expect(ws.moves["mv_first_gamma.example"].source).toBeUndefined();
     expect(ws.moves["mv_first_alpha.example"].why).toBe("Hiring a founding finance engineer · 25d · draft on its way");
   });
 
