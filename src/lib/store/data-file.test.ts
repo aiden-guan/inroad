@@ -62,7 +62,7 @@ describe.runIf(posix)("owner-only data files", () => {
     fs.writeFileSync(outside, "x", { mode: 0o644 });
     fs.symlinkSync(outside, path.join(dir, "link.txt"));
 
-    expect(secureDataDir(dir).changed).toBe(4);
+    expect(secureDataDir(dir)).toEqual({ changed: 4, foreign: 0 });
     expect(modeOf(dir)).toBe(DIR_MODE);
     expect(modeOf(path.join(dir, "workspace.json"))).toBe(FILE_MODE);
     expect(modeOf(path.join(dir, "cache"))).toBe(DIR_MODE);
@@ -71,6 +71,26 @@ describe.runIf(posix)("owner-only data files", () => {
     // Nothing left to change the second time.
     expect(secureDataDir(dir).changed).toBe(0);
     expect(secureDataDir(path.join(DATA_DIR, "missing")).changed).toBe(0);
+  });
+
+  it("touches only its own files when the folder is shared: a script keeps its execute bit", () => {
+    const dir = fs.mkdtempSync(path.join(DATA_DIR, "shared-"));
+    fs.chmodSync(dir, 0o755);
+    fs.mkdirSync(path.join(dir, "tools", "bin"), { recursive: true, mode: 0o755 });
+    fs.writeFileSync(path.join(dir, "tools", "bin", "run.sh"), "#!/bin/sh\n", { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, "readme.txt"), "hi", { mode: 0o644 });
+    fs.writeFileSync(path.join(dir, "workspace.json"), "{}", { mode: 0o644 });
+    fs.writeFileSync(path.join(dir, "workspace.json.corrupt-123"), "{", { mode: 0o644 });
+    fs.mkdirSync(path.join(dir, "backups"), { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, "backups", "x.json.gz"), "", { mode: 0o644 });
+
+    expect(secureDataDir(dir)).toEqual({ changed: 4, foreign: 2 });
+    expect(modeOf(path.join(dir, "tools", "bin", "run.sh"))).toBe(0o755);
+    expect(modeOf(path.join(dir, "tools"))).toBe(0o755);
+    expect(modeOf(path.join(dir, "readme.txt"))).toBe(0o644);
+    expect(modeOf(dir)).toBe(0o755);
+    for (const own of ["workspace.json", "workspace.json.corrupt-123", path.join("backups", "x.json.gz")]) expect(modeOf(path.join(dir, own)), own).toBe(FILE_MODE);
+    expect(modeOf(path.join(dir, "backups"))).toBe(DIR_MODE);
   });
 
   it("tightens the data folder once per server, when the launcher reports the server is up", async () => {

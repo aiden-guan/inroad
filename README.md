@@ -197,7 +197,7 @@ $env:GTM_DATA_DIR = "$env:APPDATA\Inroad"; npm start                # Windows Po
 ```
 
 Settings → Data shows which folder is in use. The files are readable by your user only (0600, folder 0700), and
-older files are tightened when Inroad starts. That keeps other accounts from reading them on disk; while Inroad is
+Inroad's own older files are tightened when it starts (anything else in the folder is left alone). That keeps other accounts from reading them on disk; while Inroad is
 running, the app itself answers anyone on this computer (see "Only this computer" above). Your Anthropic key is in `settings.json`, connector keys and the named
 tunnel's token in `secrets.json`, agent keys (hashed) in `keys.json`: those three belong to this computer and are
 never in a backup or an export.
