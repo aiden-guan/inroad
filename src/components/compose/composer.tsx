@@ -980,7 +980,7 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
         {pkg.replyAction === "suppress" && person && forgetting && (
           <div className="mt-3 animate-[fade-in_150ms_var(--ease-out)]">
             {promised && <p className="mb-1.5 text-[12.5px] font-medium text-fg">Your footer told {firstName(person.name)} you&apos;d delete their details if they asked.</p>}
-            <ForgetPerson person={person} onCancel={promised ? undefined : () => setForgetting(false)} />
+            <ForgetPerson person={person} onCancel={promised ? undefined : () => setForgetting(false)} reveal={!promised} />
           </div>
         )}
         {pkg.replyAction === "suppress" && (
