@@ -64,11 +64,34 @@ describe("answering a yes", () => {
     ws.accounts[DOMAIN].dealId = "deal_open";
     applyAction(ws, approve);
     expect(Object.keys(ws.deals)).toEqual(["deal_open"]);
-    expect(ws.deals.deal_open.contacts).toEqual([{ personId: "per_dana", role: undefined }]);
+    expect(ws.deals.deal_open.contacts).toEqual([{ personId: "per_dana", role: undefined, viaReply: "out_reply" }]);
+    // Undo takes them back off.
+    applyAction(ws, { type: "outreach.unapproveStep", packageId: "out_reply", step: 1, activityId: "act_answer" });
+    expect(ws.deals.deal_open.contacts).toEqual([]);
 
     const info = yesFromDana("info_request");
     applyAction(info, approve);
     expect(info.deals).toEqual({});
+  });
+
+  it("keeps a customer a customer: their yes opens no deal, and Undo leaves them as they were", () => {
+    const ws = yesFromDana();
+    Object.assign(ws.accounts[DOMAIN], { status: "customer", customerAt: iso(9, 1), tags: ["design_partner"] });
+    applyAction(ws, approve);
+    expect(ws.deals).toEqual({});
+    expect(ws.accounts[DOMAIN].status).toBe("customer");
+    // Today still chases the call they said yes to.
+    expect(bookingLoops(ws, d(10, 15)).map((l) => l.personId)).toEqual(["per_dana"]);
+    applyAction(ws, { type: "outreach.unapproveStep", packageId: "out_reply", step: 1, activityId: "act_answer" });
+    expect(ws.accounts[DOMAIN].status).toBe("customer");
+
+    // One a yes already moved to the pipeline (before this was fixed) goes back to being a customer on Undo.
+    applyAction(ws, approve);
+    ws.deals.deal_out_reply = { id: "deal_out_reply", accountDomain: DOMAIN, name: "Northwind", stage: "talking", stageHistory: [{ stage: "talking", at: iso(10, 12, 11) }], source: "inbound", contacts: [], meetingIds: [], createdAt: iso(10, 12, 11), updatedAt: iso(10, 12, 11), lastActivityAt: iso(10, 12, 11) };
+    Object.assign(ws.accounts[DOMAIN], { status: "in_pipeline", dealId: "deal_out_reply" });
+    applyAction(ws, { type: "outreach.unapproveStep", packageId: "out_reply", step: 1, activityId: "act_answer" });
+    expect(ws.deals).toEqual({});
+    expect(ws.accounts[DOMAIN].status).toBe("customer");
   });
 });
 

@@ -200,15 +200,17 @@ const replyDealId = (packageId: ID) => `deal_${packageId}`;
 /**
  * A yes the founder answered is a conversation under way: without an open deal it becomes one at
  * Talking, its next step booking the call, so it sits in the pipeline (and Today's booking card
- * chases it) until a meeting is on the calendar or it's parked or closed. An open deal just gains the contact.
+ * chases it) until a meeting is on the calendar or it's parked or closed. An open deal just gains the
+ * contact (marked, so Undo can take them off again). A customer's yes (to a referral ask, a check-in)
+ * isn't a new sale: they stay a customer, with no deal, and the booking card still chases the call.
  */
 function openDealFromReply(ws: Workspace, pkg: Workspace["outreach"][string], at: string) {
   const acc = ws.accounts[pkg.accountDomain];
-  if (!acc) return;
+  if (!acc || acc.status === "customer") return;
   const person = pkg.personId ? ws.people[pkg.personId] : undefined;
   const current = acc.dealId ? ws.deals[acc.dealId] : undefined;
   if (current && OPEN_STAGES.includes(current.stage)) {
-    if (person && !current.contacts.some((c) => c.personId === person.id)) current.contacts.push({ personId: person.id, role: person.role });
+    if (person && !current.contacts.some((c) => c.personId === person.id)) current.contacts.push({ personId: person.id, role: person.role, viaReply: pkg.id });
     return;
   }
   const id = replyDealId(pkg.id);
@@ -731,7 +733,10 @@ export function applyAction(ws: Workspace, action: Action): void {
         }
         delete ws.intros[intro.id];
       }
-      // Undoing a "yes" reply takes back the deal it opened, if nothing has happened on it since.
+      // Undoing a "yes" reply takes back the contact it added to an open deal, and the deal it opened if nothing has happened on it since.
+      for (const deal of Object.values(ws.deals)) {
+        if (deal.contacts.some((c) => c.viaReply === pkg.id)) deal.contacts = deal.contacts.filter((c) => c.viaReply !== pkg.id);
+      }
       const opened = ws.deals[replyDealId(pkg.id)];
       if (opened && opened.stage === "talking" && opened.stageHistory.length <= 1 && !opened.meetingIds.length) {
         delete ws.deals[opened.id];
@@ -740,12 +745,13 @@ export function applyAction(ws: Workspace, action: Action): void {
           const prior = Object.values(ws.deals)
             .filter((d) => d.accountDomain === acc.domain)
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+          // A customer (by a won deal, or marked one) stays a customer.
           if (prior) {
             acc.dealId = prior.id;
-            acc.status = prior.stage === "won" ? "customer" : "in_pipeline";
+            acc.status = prior.stage === "won" || acc.customerAt ? "customer" : "in_pipeline";
           } else {
             delete acc.dealId;
-            acc.status = "tracked";
+            acc.status = acc.customerAt ? "customer" : "tracked";
           }
         }
       }

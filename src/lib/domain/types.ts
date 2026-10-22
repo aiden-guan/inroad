@@ -914,7 +914,8 @@ export interface Deal {
   /** Times the close date moved later (a deal slipping twice is worth a look). */
   closeDatePushes?: number;
   nextStep?: { what: string; date: ISODate; buyerAgreed: boolean };
-  contacts: { personId: ID; role?: PersonaRole }[];
+  /** `viaReply`: the answered "yes" (its reply package) that added them, so undoing that answer takes them off again. */
+  contacts: { personId: ID; role?: PersonaRole; viaReply?: ID }[];
   qualification?: Qualification;
   card?: QualificationCard;
   map?: MutualActionPlan;
