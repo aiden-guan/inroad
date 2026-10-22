@@ -20,13 +20,15 @@ export interface ForgottenPerson {
   company?: string;
   /** Runs whose title named them (read before the workspace was scrubbed). */
   runIds: ID[];
+  /** Someone else in the workspace has the same full name, so their name alone doesn't point at them. */
+  namesake?: boolean;
 }
 
 // The same instance the run registry writes through (singletonDB is keyed by file name).
 const stepsDB = () =>
   singletonDB<Record<string, RunStep[]>>("runs.json", () => new FileDB<Record<string, RunStep[]>>("runs.json", () => ({})));
 
-export async function forgetInFiles({ person, company, runIds }: ForgottenPerson): Promise<{ connections: number; threads: number }> {
+export async function forgetInFiles({ person, company, runIds, namesake }: ForgottenPerson): Promise<{ connections: number; threads: number }> {
   let connections = 0;
   if (readConnections().some((r) => connectionIsPerson(r, person, company))) {
     connections = await updateConnections((rows) => {
@@ -49,8 +51,8 @@ export async function forgetInFiles({ person, company, runIds }: ForgottenPerson
     }
   }
   const threads = await rewriteThreads(
-    (t) => threadMentions(t, person),
-    (t) => forgetInThread(t, person),
+    (t) => threadMentions(t, person, !namesake),
+    (t) => forgetInThread(t, person, !namesake),
   );
   const refs = hubRefsOf(readHub().refs, person);
   if (refs.length) await mutateHub((h) => refs.forEach((k) => delete h.refs[k]));

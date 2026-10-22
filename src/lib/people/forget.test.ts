@@ -16,7 +16,7 @@ import { DOMAIN, PERSON } from "@/lib/sample/ids";
 import { DATA_DIR } from "@/lib/store/settings";
 import { getThread, putTurn, withThread } from "@/lib/store/threads";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
-import { NOW, TODAY, at, makePackage, makePerson } from "@/test/factories";
+import { NOW, TODAY, at, makeAccount, makeActivity, makeDeal, makeMeeting, makePackage, makePerson, makeWorkspace } from "@/test/factories";
 import { connectionIsPerson, emailsOf, forgetInImports, forgetInThread, hubRefsOf, namesPerson, redactRunSteps, threadMentions, type ForgettableThread } from "./forget";
 
 /**
@@ -323,6 +323,52 @@ describe("POST /api/workspace/actions with person.forget", () => {
     expect(file).not.toContain("Okafor");
     expect(file).not.toContain(DANA);
     expect(Object.keys(readHub().refs)).toEqual([`hubspot:company:${DOMAIN.northwind}`]);
+  });
+});
+
+describe("two people with the same name", () => {
+  /** Sam Lee at a.com asked to be deleted; another Sam Lee is the CFO and champion at b.com. */
+  function twoSams(): Workspace {
+    const ws = makeWorkspace();
+    ws.accounts["a.com"] = makeAccount("a.com", { name: "Alpha", peopleIds: ["per_1"], dealId: "deal_a" });
+    ws.accounts["b.com"] = makeAccount("b.com", {
+      name: "Bravo",
+      peopleIds: ["per_2"],
+      dealId: "deal_b",
+      signals: [{ id: "sig_b", type: "persona_post", headline: "Sam Lee posted about month-end at Bravo", date: TODAY, url: "https://x.example/b", host: "x.example", strength: 2, usableInOutreach: true, implication: "" }],
+    });
+    ws.people.per_1 = makePerson("per_1", "a.com", { name: "Sam Lee", email: "sam@a.com", jurisdiction: "EU" });
+    ws.people.per_2 = makePerson("per_2", "b.com", { name: "Sam Lee", email: "sam.lee@b.com", title: "CFO", notes: "Sam Lee wants a usage report" });
+    ws.deals.deal_a = makeDeal("deal_a", "a.com", { contacts: [{ personId: "per_1" }], card: { champion: { name: "Sam Lee" }, economicBuyer: {} } as never });
+    ws.deals.deal_b = makeDeal("deal_b", "b.com", { contacts: [{ personId: "per_2", role: "champion" }], card: { champion: { name: "Sam Lee" }, economicBuyer: { name: "Sam Lee" } } as never });
+    ws.meetings.m_a = makeMeeting("m_a", "deal_a", { attendees: [{ name: "Sam Lee" }], notesRaw: "Sam Lee said the close takes a week" });
+    ws.meetings.m_b = makeMeeting("m_b", "deal_b", { attendees: [{ personId: "per_2", name: "Sam Lee" }], notesRaw: "Sam Lee owns the budget" });
+    ws.activities.push(makeActivity("act_b", { kind: "meeting_held", personId: "per_2", accountDomain: "b.com", summary: "Call with Sam Lee at Bravo" }));
+    return ws;
+  }
+
+  it("deletes only the one asked for, by id and address, and leaves the other's records alone", () => {
+    const ws = twoSams();
+    const other = structuredClone({ person: ws.people.per_2, deal: ws.deals.deal_b, meeting: ws.meetings.m_b, account: ws.accounts["b.com"], act: ws.activities.at(-1) });
+    applyAction(ws, { type: "person.forget", id: "per_1", at: at(0), suppressionId: "sup_sam" });
+
+    expect(ws.people.per_1).toBeUndefined();
+    expect({ person: ws.people.per_2, deal: ws.deals.deal_b, meeting: ws.meetings.m_b, account: ws.accounts["b.com"], act: ws.activities.find((a) => a.id === "act_b") }).toEqual(other);
+    // Their own company's records still lose their name.
+    expect(ws.deals.deal_a.card?.champion.name).toBeUndefined();
+    expect(ws.meetings.m_a.attendees).toEqual([]);
+    expect(ws.meetings.m_a.notesRaw).toBe("a deleted contact said the close takes a week");
+    expect(count(JSON.stringify(ws), "sam@a.com")).toBe(1);
+    expect(ws.suppression.map((x) => x.email)).toEqual(["sam@a.com"]);
+  });
+
+  it("leaves the other's Ask conversation alone", async () => {
+    await replaceWorkspace(twoSams());
+    await withThread("thr_b", () => ({ title: "Sam Lee at Bravo", context: { kind: "person" as const, id: "per_2" }, createdAt: at(0), updatedAt: at(0) }), (t) => putTurn(t, { id: "t1", role: "founder", text: "Is Sam Lee the buyer?", at: at(0) }));
+    const res = await POST(new Request("http://localhost/api/workspace/actions", { method: "POST", body: JSON.stringify({ actions: [{ type: "person.forget", id: "per_1", at: at(0), suppressionId: "sup_sam" }] }) }));
+    expect(res.status).toBe(200);
+    expect(getThread("thr_b")?.turns[0].text).toBe("Is Sam Lee the buyer?");
+    expect(readWorkspace().people.per_2.name).toBe("Sam Lee");
   });
 });
 

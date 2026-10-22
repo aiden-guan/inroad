@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { RunStep, Workspace } from "@/lib/domain/types";
-import { forgetPerson, personWasForgotten, runsAbout } from "@/lib/people/forget";
+import { forgetPerson, namesakesOf, personWasForgotten, runsAbout } from "@/lib/people/forget";
 import { forgetConnections, forgetInFiles, type ForgottenPerson } from "@/lib/people/forget-files";
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
@@ -135,7 +135,7 @@ function forgetRequested(ws: Workspace): ForgottenPerson[] {
   const out: ForgottenPerson[] = [];
   for (const person of Object.values(ws.people)) {
     if (!personWasForgotten(ws, person)) continue;
-    out.push({ person: structuredClone(person), company: ws.accounts[person.accountDomain]?.name, runIds: runsAbout(ws, person) });
+    out.push({ person: structuredClone(person), company: ws.accounts[person.accountDomain]?.name, runIds: runsAbout(ws, person), namesake: namesakesOf(ws, person).length > 0 });
     forgetPerson(ws, person.id, nowISO(), newId("sup"));
   }
   return out;

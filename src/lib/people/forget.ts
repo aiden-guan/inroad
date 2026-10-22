@@ -51,11 +51,29 @@ export function redactName(text: string, person: Person, opts: { firstName?: boo
   return out;
 }
 
+/** Other people here with the same full name: wherever only a name points at them, it could be one of these. */
+export function namesakesOf(ws: Pick<Workspace, "people">, person: Person): Person[] {
+  return Object.values(ws.people).filter((p) => p.id !== person.id && sameName(p.name, person.name));
+}
+
+/**
+ * Where a name alone may be taken to mean them. Anywhere, when no one else here has that name; with a
+ * namesake, only on their own company's records, and nowhere if the namesake works there too.
+ */
+function nameScope(ws: Pick<Workspace, "people">, person: Person): (domain: string | undefined) => boolean {
+  const namesakes = namesakesOf(ws, person);
+  if (!namesakes.length) return () => true;
+  const shared = namesakes.some((p) => p.accountDomain === person.accountDomain);
+  return (domain) => !shared && domain === person.accountDomain;
+}
+
 /** Runs about them: titles that name them, or their company's runs that use their first name ("Reading Dana's reply"). */
 export function runsAbout(ws: Workspace, person: Person): ID[] {
   const first = nameParts(person)[0] ?? "";
   const firstRe = first.length >= 2 ? wordsPattern([first], "iu") : null;
-  return ws.runs.filter((r) => namesPerson(r.title, person) || (r.ref?.kind === "account" && r.ref.id === person.accountDomain && !!firstRe?.test(r.title))).map((r) => r.id);
+  const scope = nameScope(ws, person);
+  const ours = (r: Workspace["runs"][number]) => r.ref?.kind === "account" && r.ref.id === person.accountDomain;
+  return ws.runs.filter((r) => (namesPerson(r.title, person) && scope(r.ref?.kind === "account" ? r.ref.id : undefined)) || (ours(r) && scope(person.accountDomain) && !!firstRe?.test(r.title))).map((r) => r.id);
 }
 
 /** A row of the founder's LinkedIn connections that is this person. */
@@ -167,14 +185,28 @@ export const connectionIdentity = (row: Connection): Identity => ({ email: row.e
 export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: ID): void {
   const person = ws.people[id];
   if (!person) return;
-  const named = (text: string | undefined) => namesPerson(text, person);
+  // Their id, addresses and profile point at them anywhere. Their name alone does only where no one else
+  // here has it (nameScope): deleting one "Sam Lee" never touches the other's records.
+  const scope = nameScope(ws, person);
+  const namesakeIds = new Set(namesakesOf(ws, person).map((p) => p.id));
+  const named = (text: string | undefined, domain: string | undefined) => scope(domain) && namesPerson(text, person);
+  const isThem = (name: string | undefined, domain: string | undefined) => scope(domain) && sameName(name, person.name);
+  const company = ws.accounts[person.accountDomain]?.name;
+  const atTheirCompany = (other: string | undefined) => !!company && !!other && normalizeCompany(other) === normalizeCompany(company);
+  /** A lead named on any company's call ("Dana Okafor at Northwind"): with a namesake, only with their company named too. */
+  const namedLead = (text: string | undefined) => namesPerson(text, person) && (scope(undefined) || (scope(person.accountDomain) && !!company && wordsPattern(company.trim().split(/\s+/), "iu").test(text!)));
   const li = linkedinKey(person.linkedinUrl);
   const emails = emailsOf(person);
+  const dealDomain = (dealId: ID | undefined) => (dealId ? ws.deals[dealId]?.accountDomain : undefined);
 
-  // 1. Evidence about them, or that names them or their address, and what was built on it.
+  // 1. Evidence about them, or that names them or their address, and what was built on it. Named only by
+  // name, it counts where the name does: evidence cited on their company, unless a namesake cites it.
+  const citedHere = new Set(evidenceCitedOn(ws, person.accountDomain));
+  const namesakeCites = new Set([...namesakeIds].flatMap((x) => ws.people[x]?.evidenceIds ?? []));
   const gone = new Set(person.evidenceIds);
   for (const ev of Object.values(ws.evidence)) {
-    if (named(ev.claim) || named(ev.quote) || mentionsEmail(ev.claim, emails) || mentionsEmail(ev.quote, emails) || (li && linkedinKey(ev.url) === li)) gone.add(ev.id);
+    const where = scope(undefined) || (citedHere.has(ev.id) && !namesakeCites.has(ev.id)) ? person.accountDomain : undefined;
+    if (named(ev.claim, where) || named(ev.quote, where) || mentionsEmail(ev.claim, emails) || mentionsEmail(ev.quote, emails) || (li && linkedinKey(ev.url) === li)) gone.add(ev.id);
   }
   for (const e of gone) delete ws.evidence[e];
   const keep = (ids: ID[]) => ids.filter((x) => !gone.has(x));
@@ -183,7 +215,7 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   const pkgs = new Set(Object.values(ws.outreach).filter((p) => p.personId === id).map((p) => p.id));
   for (const p of pkgs) delete ws.outreach[p];
   for (const p of Object.values(ws.outreach)) {
-    if (p.reply?.referral?.name && sameName(p.reply.referral.name, person.name)) delete p.reply.referral;
+    if (p.reply?.referral?.name && isThem(p.reply.referral.name, p.accountDomain)) delete p.reply.referral;
   }
   const intros = ws.intros ?? {};
   for (const intro of Object.values(intros)) {
@@ -213,45 +245,48 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   }
 
   // 4. Everywhere else they appear by id or by name.
-  const unname = (card: { champion: { name?: string }; economicBuyer: { name?: string } } | undefined) => {
-    if (card && sameName(card.champion.name, person.name)) delete card.champion.name;
-    if (card && sameName(card.economicBuyer.name, person.name)) delete card.economicBuyer.name;
+  const unname = (card: { champion: { name?: string }; economicBuyer: { name?: string } } | undefined, domain: string | undefined) => {
+    if (card && isThem(card.champion.name, domain)) delete card.champion.name;
+    if (card && isThem(card.economicBuyer.name, domain)) delete card.economicBuyer.name;
   };
-  const unown = (map: { milestones: { ownerName?: string }[] } | undefined) => {
-    for (const ms of map?.milestones ?? []) if (sameName(ms.ownerName, person.name)) delete ms.ownerName;
+  const unown = (map: { milestones: { ownerName?: string }[] } | undefined, domain: string | undefined) => {
+    for (const ms of map?.milestones ?? []) if (isThem(ms.ownerName, domain)) delete ms.ownerName;
   };
+  // An attendee is them by id, or by name when the row isn't someone else's.
+  const attendee = (x: { personId?: ID; name: string }, domain: string | undefined) => x.personId === id || (!(x.personId && namesakeIds.has(x.personId)) && isThem(x.name, domain));
   for (const deal of Object.values(ws.deals)) {
     deal.contacts = deal.contacts.filter((c) => c.personId !== id);
-    unname(deal.card);
-    unown(deal.map);
+    unname(deal.card, deal.accountDomain);
+    unown(deal.map, deal.accountDomain);
   }
   for (const m of Object.values(ws.meetings)) {
-    m.attendees = m.attendees.filter((x) => x.personId !== id && !sameName(x.name, person.name));
-    if (m.brief) m.brief.attendees = m.brief.attendees.filter((x) => x.personId !== id && !sameName(x.name, person.name));
+    const domain = dealDomain(m.dealId);
+    m.attendees = m.attendees.filter((x) => !attendee(x, domain));
+    if (m.brief) m.brief.attendees = m.brief.attendees.filter((x) => !attendee(x, domain));
     if (m.debrief) {
-      m.debrief.committeeUpdates = m.debrief.committeeUpdates.filter((x) => !sameName(x.name, person.name));
-      for (const q of m.debrief.quotes) if (sameName(q.speaker, person.name)) delete q.speaker;
+      m.debrief.committeeUpdates = m.debrief.committeeUpdates.filter((x) => !isThem(x.name, domain));
+      for (const q of m.debrief.quotes) if (isThem(q.speaker, domain)) delete q.speaker;
       // Named as a referral on someone else's call: no longer a lead.
-      m.debrief.referrals = m.debrief.referrals.filter((r) => !named(r) && !sameName(r, person.name));
-      if (m.debrief.referralPeople) m.debrief.referralPeople = m.debrief.referralPeople.filter((r) => !sameName(r.name, person.name));
-      unname(m.debrief.card);
-      unown(m.debrief.map);
+      m.debrief.referrals = m.debrief.referrals.filter((r) => !namedLead(r) && !isThem(r, domain));
+      if (m.debrief.referralPeople) m.debrief.referralPeople = m.debrief.referralPeople.filter((r) => !(sameName(r.name, person.name) && (scope(undefined) || (scope(person.accountDomain) && atTheirCompany(r.company)))));
+      unname(m.debrief.card, domain);
+      unown(m.debrief.map, domain);
     }
   }
   for (const ev of Object.values(ws.events)) {
     for (const g of Object.values(ev.guests)) {
       if (g.personId === id) delete ev.guests[g.id];
-      else if (sameName(g.warmPath, person.name)) delete g.warmPath;
+      else if (isThem(g.warmPath, undefined)) delete g.warmPath;
     }
   }
   for (const acc of Object.values(ws.accounts)) {
     acc.peopleIds = acc.peopleIds.filter((x) => x !== id);
-    acc.signals = acc.signals.filter((s) => !(s.evidenceId && gone.has(s.evidenceId)) && !named(s.headline));
+    acc.signals = acc.signals.filter((s) => !(s.evidenceId && gone.has(s.evidenceId)) && !named(s.headline, acc.domain));
     const d = acc.dossier;
     if (!d) continue;
     for (const c of d.committee) c.personIds = c.personIds.filter((x) => x !== id);
     if (d.recommendation.personId === id) delete d.recommendation.personId;
-    d.facts = d.facts.filter((f) => !named(f.text)).map((f) => ({ ...f, evidenceIds: keep(f.evidenceIds) }));
+    d.facts = d.facts.filter((f) => !named(f.text, acc.domain)).map((f) => ({ ...f, evidenceIds: keep(f.evidenceIds) }));
     for (const a of d.angles) a.evidenceIds = keep(a.evidenceIds);
     for (const h of d.painHypotheses) h.evidenceIds = keep(h.evidenceIds);
     if (d.snapshot.descriptionEvidenceIds) d.snapshot.descriptionEvidenceIds = keep(d.snapshot.descriptionEvidenceIds);
@@ -264,14 +299,14 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
     if (p.id === id) continue;
     p.evidenceIds = keep(p.evidenceIds);
     // An intro path through them.
-    if (p.contactPaths.some((c) => sameName(c.via, person.name))) p.contactPaths = p.contactPaths.filter((c) => !sameName(c.via, person.name));
+    if (p.contactPaths.some((c) => isThem(c.via, undefined))) p.contactPaths = p.contactPaths.filter((c) => !isThem(c.via, undefined));
   }
   for (const c of ws.claims) c.evidenceIds = keep(c.evidenceIds);
   const runs = new Set(runsAbout(ws, person));
   for (const r of ws.runs) if (runs.has(r.id)) r.title = redactName(r.title, person, { firstName: true });
   delete ws.people[id];
   // Whatever still spells out their full name (call notes, a recap, a note on someone else) loses it.
-  redactEverywhere(ws, person);
+  redactEverywhere(ws, person, scope);
 
   // 5. Only their email stays, so nothing writes to them again, and fingerprints, so nothing brings them back.
   const keys = forgetKeys({ linkedinUrl: person.linkedinUrl, name: person.name, domain: person.accountDomain });
@@ -290,10 +325,10 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   });
 }
 
-/** Takes their full name and email addresses out of one string, or null when there's nothing to look for. */
-function scrubber(person: Person): ((s: string) => string) | null {
+/** Takes their full name (unless `byName` is false) and email addresses out of one string, or null when there's nothing to look for. */
+function scrubber(person: Person, byName = true): ((s: string) => string) | null {
   const parts = nameParts(person);
-  const name = parts.length >= 2 ? wordsPattern(parts, "giu") : null;
+  const name = byName && parts.length >= 2 ? wordsPattern(parts, "giu") : null;
   const mail = emailsPattern(emailsOf(person), "gi");
   if (!name && !mail) return null;
   return (s) => {
@@ -308,8 +343,8 @@ function scrubber(person: Person): ((s: string) => string) | null {
  * Replaces their full name and email addresses in every string it reaches (in place). Ids and URLs
  * never contain a spaced name; an address is only ever their address.
  */
-function redactDeep(node: unknown, person: Person): void {
-  const clean = scrubber(person);
+function redactDeep(node: unknown, person: Person, byName = true): void {
+  const clean = scrubber(person, byName);
   if (!clean) return;
   const visit = (n: unknown): void => {
     if (Array.isArray(n)) {
@@ -328,9 +363,40 @@ function redactDeep(node: unknown, person: Person): void {
   visit(node);
 }
 
-/** Every string of the workspace except the suppression list, which keeps their address on purpose. */
-function redactEverywhere(ws: Workspace, person: Person): void {
-  for (const [key, value] of Object.entries(ws)) if (key !== "suppression" && key !== "forgotten") redactDeep(value, person);
+/**
+ * Every string of the workspace except the suppression list, which keeps their address on purpose. Their
+ * addresses come out everywhere; their name only where it means them (nameScope): with a namesake here,
+ * just the records of their own company that aren't the namesake's.
+ */
+function redactEverywhere(ws: Workspace, person: Person, scope: (domain: string | undefined) => boolean): void {
+  const skip = new Set(["suppression", "forgotten"]);
+  if (scope(undefined)) {
+    for (const [key, value] of Object.entries(ws)) if (!skip.has(key)) redactDeep(value, person);
+    return;
+  }
+  for (const [key, value] of Object.entries(ws)) if (!skip.has(key)) redactDeep(value, person, false);
+  if (!scope(person.accountDomain)) return;
+  const domain = person.accountDomain;
+  const others = new Set(namesakesOf(ws, person).map((p) => p.id));
+  const dealIds = new Set(Object.values(ws.deals).filter((d) => d.accountDomain === domain).map((d) => d.id));
+  redactDeep(ws.accounts[domain], person);
+  for (const d of Object.values(ws.deals)) if (dealIds.has(d.id)) redactDeep(d, person);
+  for (const m of Object.values(ws.meetings)) if (dealIds.has(m.dealId)) redactDeep(m, person);
+  for (const p of Object.values(ws.outreach)) if (p.accountDomain === domain && !(p.personId && others.has(p.personId))) redactDeep(p, person);
+  for (const a of ws.activities) if (a.accountDomain === domain && !(a.personId && others.has(a.personId))) redactDeep(a, person);
+  for (const m of Object.values(ws.moves)) if (m.ref?.kind === "account" && m.ref.id === domain) redactDeep(m, person);
+}
+
+/** Evidence the company's own records cite: its signals, its dossier and its people. */
+function evidenceCitedOn(ws: Workspace, domain: string): ID[] {
+  const acc = ws.accounts[domain];
+  if (!acc) return [];
+  const d = acc.dossier;
+  return [
+    ...acc.signals.flatMap((s) => (s.evidenceId ? [s.evidenceId] : [])),
+    ...(d ? [...d.facts.flatMap((f) => f.evidenceIds), ...d.angles.flatMap((a) => a.evidenceIds), ...d.painHypotheses.flatMap((h) => h.evidenceIds), ...(d.snapshot.descriptionEvidenceIds ?? [])] : []),
+    ...acc.peopleIds.flatMap((x) => ws.people[x]?.evidenceIds ?? []),
+  ];
 }
 
 /* ───────────── Ask conversations (threads.json) ───────────── */
@@ -347,16 +413,20 @@ export interface ForgettableThread {
 
 const isPersonRef = (ref: EntityRef | undefined, id: ID) => ref?.kind === "person" && ref.id === id;
 
-/** Does this text point at them: their id, full name, an address or their profile? */
-function pointsAt(text: string | undefined, person: Person): boolean {
+/** Does this text point at them: their id, full name (unless `byName` is false), an address or their profile? */
+function pointsAt(text: string | undefined, person: Person, byName = true): boolean {
   if (!text) return false;
   const li = linkedinKey(person.linkedinUrl);
-  return text.includes(person.id) || namesPerson(text, person) || mentionsEmail(text, emailsOf(person)) || (!!li && text.toLowerCase().includes(li));
+  return text.includes(person.id) || (byName && namesPerson(text, person)) || mentionsEmail(text, emailsOf(person)) || (!!li && text.toLowerCase().includes(li));
 }
 
-/** Does anything in this conversation (the founder's view or the model's history, thinking included) point at them? */
-export function threadMentions(thread: ForgettableThread, person: Person): boolean {
-  return isPersonRef(thread.context, person.id) || pointsAt(JSON.stringify(thread), person);
+/**
+ * Does anything in this conversation (the founder's view or the model's history, thinking included) point
+ * at them? `byName: false` when someone else here has the same name: then only their id, addresses and
+ * profile count.
+ */
+export function threadMentions(thread: ForgettableThread, person: Person, byName = true): boolean {
+  return isPersonRef(thread.context, person.id) || pointsAt(JSON.stringify(thread), person, byName);
 }
 
 /** What the model sees of a long pasted message (the same cut the Ask workflow makes). */
@@ -390,10 +460,10 @@ function transcript(turns: AskTurn[]): Anthropic.Beta.BetaMessageParam[] {
  * history is rebuilt from that redacted view. The history can't be edited in place: thinking blocks
  * are signed, and tool results and web pages may hold them too. Returns whether anything changed.
  */
-export function forgetInThread(thread: ForgettableThread, person: Person): "delete" | boolean {
+export function forgetInThread(thread: ForgettableThread, person: Person, byName = true): "delete" | boolean {
   if (isPersonRef(thread.context, person.id)) return "delete";
-  if (!threadMentions(thread, person)) return false;
-  const aboutThem = (x: unknown) => pointsAt(JSON.stringify(x), person);
+  if (!threadMentions(thread, person, byName)) return false;
+  const aboutThem = (x: unknown) => pointsAt(JSON.stringify(x), person, byName);
   for (const t of thread.turns) {
     if (t.records) t.records = t.records.filter((r) => !isPersonRef(r.ref, person.id));
     if (t.instant) t.instant.rows = t.instant.rows.filter((r) => !isPersonRef(r.ref, person.id));
@@ -401,8 +471,8 @@ export function forgetInThread(thread: ForgettableThread, person: Person): "dele
     if (t.proposals) t.proposals = t.proposals.filter((p) => !aboutThem(p));
     if (t.citations) t.citations = t.citations.filter((c) => !aboutThem(c));
   }
-  redactDeep(thread.turns, person);
-  const scrub = scrubber(person);
+  redactDeep(thread.turns, person, byName);
+  const scrub = scrubber(person, byName);
   if (scrub) {
     thread.title = scrub(thread.title);
     if (thread.contextLabel) thread.contextLabel = scrub(thread.contextLabel);
