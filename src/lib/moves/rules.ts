@@ -37,6 +37,7 @@ import {
   untrackedNetworkCompanies,
 } from "./util";
 import { CUSTOMER_REFERRAL, customerReferralMoves } from "./customer-referrals";
+import { accountFor, parseKnownUsers } from "@/lib/customers/known-users";
 
 /**
  * The moves engine. Deterministic rules over workspace state produce every card on Today:
@@ -100,6 +101,7 @@ const RULES = {
   network: { base: 57, label: "No LinkedIn import and no investors or advisors listed yet" },
   connectors: { base: 57, label: "No investors or advisors listed to ask for intros" },
   network_companies: { base: 58, label: "Likely-fit companies among your LinkedIn connections, not tracked yet" },
+  known_users: { base: 50, label: "Users you named at onboarding aren't customers here yet" },
   asset: { base: 30, label: "A draft offers an asset that doesn't exist yet" },
   post: { base: 32, label: "Optional post from last Friday's best insight" },
   room: { base: 38, label: "Tracked companies cluster on a theme or a city: worth a room" },
@@ -1373,6 +1375,23 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
     // Warm before cold: who already knows the founder, and who their investors and advisors can reach. Without
     // either, intros never start (the connector card needs a connector), so this ranks above cold touches; while
     // the first three are on the desk it sits second, as on arrival (SPEC §3.2 step 4).
+    // The users named while I read ("your last 3 users") are customers, not prospects: offered on the offer card,
+    // and here until they're added, since the referral asks and job-change flags wait on it.
+    const named = parseKnownUsers(ws.onboarding.answers?.last3)
+      .filter((u) => accountFor(ws, u)?.status !== "customer")
+      .map((u) => u.name);
+    if (named.length) {
+      out.push({
+        id: "mv_known_users",
+        kind: "setup",
+        rule: "known_users",
+        title: `Add ${named.length <= 2 ? named.join(" and ") : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`} as customers`,
+        why: "You named them while I read · then I'll ask them who else has this problem",
+        minutes: 1,
+        priority: RULES.known_users.base,
+      });
+    }
+
     const noConnectors = !ws.connectors.some((x) => x.relationship !== "connection");
     const warmRank = covered.size ? 48 : RULES.network.base;
     if (!ws.network && noConnectors) {

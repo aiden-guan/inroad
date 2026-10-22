@@ -3,6 +3,7 @@
 import { Check, Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { addKnown } from "@/components/companies/list/add-customers";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,8 @@ export function KnownUsers({ ws }: { ws: Workspace }) {
             <p className="flex gap-2 text-pretty text-[13px] leading-5 text-fg-2">
               <Star className="mt-0.5 size-3.5 shrink-0 text-fg-3" aria-hidden />
               <span>
-                You named {names(open.map((u) => u.name))}. They&apos;re customers, not prospects: I&apos;ll ask them who else has this problem, and flag anyone there who changes jobs.
+                You named {names(open.map((u) => u.name))}. They&apos;re customers, not prospects: add {open.length === 1 ? "them" : "them all"} and I&apos;ll ask them who else has
+                this problem, and flag anyone there who changes jobs.
               </span>
             </p>
             <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-5.5">
@@ -65,6 +67,46 @@ export function KnownUsers({ ws }: { ws: Workspace }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/** Today's card for the same users, while they aren't customers here yet (the offer card's button is easy to pass by). */
+export function KnownUsersBody({ ws, onComplete, onChanged }: { ws: Workspace; onComplete: () => void; onChanged: () => void }) {
+  const { refresh } = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const open = parseKnownUsers(ws.onboarding.answers?.last3).filter((u) => accountFor(ws, u)?.status !== "customer");
+  if (!open.length) return <p className="text-[13.5px] leading-[21px] text-fg-2">They&apos;re all customers here now.</p>;
+
+  async function add() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await addKnown(ws, open);
+      await refresh();
+      toast(`${r.line} I'll ask them who else has this problem.`);
+      onChanged();
+      onComplete();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="max-w-[62ch] text-pretty text-[13.5px] leading-[21px] text-fg-2">
+        You named {names(open.map((u) => u.name))} as your users while I read. As customers they get a referral ask (&ldquo;who else has this problem?&rdquo;), and
+        anyone there who changes jobs is flagged as someone who knows the product.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" loading={busy} onClick={() => void add()}>
+          Add {open.length === 1 ? "them" : `all ${open.length}`} as customers
+        </Button>
+        {error && <span className="text-[12.5px] text-danger">{error}</span>}
+      </div>
     </div>
   );
 }
