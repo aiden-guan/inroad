@@ -196,6 +196,7 @@ export function GoalLine({ className, onNavigate }: { className?: string; onNavi
       href="/playbook#plan"
       onClick={onNavigate}
       title="Your goal, from the plan"
+      aria-label={`Paid pilots: ${pilots[0]} of ${pilots[1]}. Customers: ${customers[0]} of ${customers[1]}.`}
       className={cn("mb-2 block border-t border-border px-2 pb-1 pt-2.5 text-[12px] leading-[18px] transition-colors hover:text-fg", className)}
     >
       <GoalRow label="Paid pilots" value={pilots} />

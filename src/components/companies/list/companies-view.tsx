@@ -63,8 +63,8 @@ export function CompaniesView() {
     [pathname],
   );
 
-  const openSheet = useCallback((domain: string, extra: Record<string, string | null> = {}) => setParams({ c: domain, intent: null, ...extra }, true), [setParams]);
-  const closeSheet = useCallback(() => setParams({ c: null, intent: null }), [setParams]);
+  const openSheet = useCallback((domain: string, extra: Record<string, string | null> = {}) => setParams({ c: domain, intent: null, ref: null, ...extra }, true), [setParams]);
+  const closeSheet = useCallback(() => setParams({ c: null, intent: null, ref: null }), [setParams]);
 
   /* ─────────── Discovery run ─────────── */
 
