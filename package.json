@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "mock": "node scripts/mock-anthropic.mjs",
     "mock:anthropic": "node scripts/mock-anthropic.mjs"
   },
   "dependencies": {

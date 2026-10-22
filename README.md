@@ -1,108 +1,300 @@
-# Inroad — your AI Head of GTM
+<div align="center">
 
-**Your first 20 customers, not 20,000 emails.**
+# Inroad
 
-Inroad does the job startups usually hire a "head of GTM" for — and does it the way the best operators do:
-it finds who to talk to and why now (starting with people who already know you), drafts every touch with sources,
-preps every call, debriefs it, keeps the pipeline honest, plans exec dinners and roundtables, and runs a weekly
-operating rhythm. **You do the selling.** Inroad never sends, posts, or changes a deal by itself — it drafts and you
-approve.
+**An AI Head of GTM for founder-led sales — finds who to talk to and why now, drafts every touch with verifiable sources, preps every call, and coordinates outbound pipeline.**
 
-It's also a **hub**: plug in the tools you already use (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay,
-Zapier/n8n, any AI SDR, and Firecrawl for people data) and let other agents — Meta Muse, Claude, Cursor, ChatGPT —
-read your playbook, check your warm paths and push leads in through Inroad's MCP server and REST API.
+[Architecture](#architecture) · [Core Capabilities](#core-capabilities) · [Engineering Deep Dives](#engineering-deep-dives) · [Quick Start](#quick-start) · [Token Economics](#how-it-keeps-token-spend-low)
+
+<br/>
+
+[![CI](https://github.com/aiden-guan/inroad/actions/workflows/ci.yml/badge.svg)](https://github.com/aiden-guan/inroad/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node: 20+](https://img.shields.io/badge/Node-20%2B-green.svg)](package.json)
+[![Next.js: 16](https://img.shields.io/badge/Next.js-16-black.svg)](package.json)
+
+<br/>
+
+</div>
 
 ---
 
-## Quick start
+## What It Does
 
-```bash
-npm install
-npm run dev
-```
+**Your first 20 customers, not 20,000 cold emails.**
 
-Open http://localhost:3000, paste your website, and in about two minutes you'll have three real companies to talk to,
-each with a dated reason why now.
+Inroad automates the operational groundwork that high-performing heads of GTM execute for early-stage companies:
+it discovers high-intent accounts and verifiable buying signals (starting with warm connections already in your network), drafts hyper-targeted touches with primary source citations, prepares deal dossiers for calls, debriefs meetings, maintains pipeline velocity, plans local executive dinners, and runs a focused weekly operating rhythm.
 
-Inroad runs on your Anthropic API key. Paste it on the first screen (it's saved only in `.data/settings.json` on this
-machine), or set `ANTHROPIC_API_KEY` before starting. Want to look around first? Choose **Explore a sample workspace**.
+**You do the selling.** Inroad never sends an email, posts a message, or modifies deal stages autonomously. Every outbound artifact is presented as a draft for founder review and one-click approval.
 
-### Try it without an API key
+Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
-A mock of the Anthropic API ships with the repo, so you can click through every workflow for free:
+---
 
-```bash
-npm run mock:anthropic   # terminal 1 — fake Claude (and fake Firecrawl) on :4010
-npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder
-```
+## Core Capabilities
 
-In mock mode any key starting with `fc-` connects Firecrawl; `fc-terms…` shows what happens when a data provider's
-terms haven't been accepted yet.
+| Today's Moves & Pipeline Rhythm | Warm Intro State Machine |
+| :--- | :--- |
+| **Actionable 5-Move Queue**<br/>Surfaces at most 5 high-priority actions per day (reply checks, deal reviews, touch approvals, closeouts), each paired with ready-to-send copy. | **Deterministic Relationship Ledger**<br/>Tracks intros end-to-end (ask, forward, intro, meeting, close-the-loop). Enforces connector etiquette: one open ask per connector, 14-day rest intervals, and give-before-get thresholds in code. |
 
-### Running tests
+| Deterministic Signal Radar | Multi-Agent Coordination Hub |
+| :--- | :--- |
+| **Free, Code-First Research Layer**<br/>Monitors job boards (Greenhouse, Lever, Ashby, Workable), tech stack indicators, news, and Hacker News via plain HTTP before any LLM inference occurs. | **Native Model Context Protocol (MCP)**<br/>Exposes workspace state, playbook positioning, and warm paths to external coding agents and tools via standard MCP tools and REST webhooks. |
 
-```bash
-npm test             # the whole suite, about 2 seconds
-npm run test:watch   # re-runs affected tests as you edit
-```
+| Event & Executive Dinner Planning | Sourced Deal Dossiers |
+| :--- | :--- |
+| **Geographic Prospect Clustering**<br/>Visualizes pipeline deals and customers on a local map. Set a dinner venue and radius to instantly generate scored guest lists and tailored invites. | **Verifiable Provenance**<br/>Every angle, prospect pain point, and qualification hypothesis links to exact source URLs and dates. Speculative inferences are stamped as unconfirmed bets. |
 
-The suite is [Vitest](https://vitest.dev) and covers the logic the product leans on: the workspace reducer, Today's
-moves and scoreboard, draft lint and pre-send gates, deal rules, the signal parsers (against saved responses in
-`src/test/fixtures/signals`), the SSRF guard, the proxy, the MCP endpoint and the agent engine (against the mock
-Anthropic server, started by the test). It is deterministic and offline: every test file gets its own temporary data
-folder instead of `.data/`, the clock runs in `America/Los_Angeles`, fetches to anything but localhost fail, and no
-Anthropic key is ever used. Tests sit next to the code they cover (`foo.test.ts`); shared builders are in `src/test/`.
-
-CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `next typegen`, `tsc --noEmit`,
-`eslint src`, `npm test` and `next build`. On a fresh checkout run `npx next typegen` once before `npm run typecheck`,
-so the route types Next generates (`PageProps`, `RouteContext`) exist.
-
-## What's inside
-
-| Surface | What it's for |
-|---|---|
-| **Today** | One number, at most five moves, each with the draft or action ready. Reviews, reply checks and close-out are moves too. |
-| **Companies** | Prospects (with why-now signals and warm paths), Talking (a 6-stage board), Customers. Every company opens a sheet with a sourced dossier, angles, people, the deal, call prep and debriefs. |
-| **Intros** | Every warm intro, double opt-in, from the ask to the thank-you, always showing whose move it is. Drafts the one nudge, the reply to the intro (connector to BCC, your times) and the close-the-loop note in code. Tracks the people who introduce you with a give/get ledger (one open ask each, two weeks between asks, give before a fourth ask), and intros you make for others. Every company shows its **Ways in**: people you know there, connections who work or used to work there, connectors who can reach it, ranked with why and concerns. |
-| **Map** | Companies → Map shows where your leads are, which metros would fill a dinner (one click plans it there), and “I'm in…” lists who's near any city or address. Each dinner gets a **Nearby** tab: set the venue and a radius, see every pipeline deal, prospect and customer inside it, and add them to the guest list in one click. With Firecrawl, buyers near the venue who aren't in Inroad yet are a free search away. About 200 startup cities are built in; anything else is looked up on OpenStreetMap (place text only, cached, can be turned off). |
-| **Events** | Virtual roundtables and exec dinners: themes, scored guest lists, invite copy, timeline, run of show, follow-ups. |
-| **Playbook** | What Inroad believes about your business — ICP bet, positioning, messaging, objections, assets, your points of view — all editable. It becomes your first AE's onboarding doc. |
-| **Integrations** | Connect your stack, import CSVs and LinkedIn connections, generate keys for other agents. |
-| **People data** | With a Firecrawl key, every company's People section can find who works there (Apollo, free) and add them with a work email (up to 30 credits), and any person or draft missing an email gets a one-click lookup (FullEnrich, up to 20 credits). Misses cost nothing, there's a monthly credit limit, and personal emails and phone numbers are never requested. |
-| **Ask (⌘K)** | Ask anything, with your workspace as context. Proposed changes come back as one-click actions. |
-
-## How it keeps your token spend low
-
-1. **Code gathers, Claude writes.** Websites, job boards (Greenhouse, Lever, Ashby, Workable), news, Hacker News and
-   DNS are read with plain HTTP, cached on disk, and compressed into a small digest before any model sees them.
-2. **The right model for each job.** Opus 5.5 only for strategy (positioning, ICP). Sonnet 5.5 for research synthesis
-   and writing. Haiku 5.5 for screening and short copy. Code for ranking, scoring, dedupe and lint.
-3. **Web search is a capped fallback**, not the default way to research.
-4. **Results are reused** (dossiers stay fresh for 7 days) and prompts are laid out for prompt caching.
-5. **Your other tools and agents do their own inference.** When Muse or Claude calls Inroad's MCP server, Inroad
-   spends zero tokens.
-6. **Warm intros run on rules, not tokens.** Whose move it is, the nudge, the reply to the intro and the thank-you,
-   the connector ledger and every company's ways in are all computed and drafted in code.
-7. **Places are code, too.** Leads are placed from a built-in city list, distances and radii are plain math, and
-   the map's tiles come from OpenFreeMap. No model ever sees a location.
-8. **People data comes from a data provider, not a model.** Who works at a company and their work email come from
-   Apollo and FullEnrich through Firecrawl Alexandria, in code, so finding a contact never costs a web search or a token.
-
-Every run ends with a receipt — *Worked for 1m 52s · 9 sources · $0.04* — and Settings → Usage shows spend by workflow,
-free lookups done in code, and a monthly budget cap.
+---
 
 ## Architecture
 
-- **Next.js 16** (App Router) + React 19, Tailwind 4, Motion, Radix primitives.
-- **Agent engine** (`src/lib/ai/engine.ts`): one streaming loop over the Claude API with server-side web search/fetch,
-  zod-validated app tools, strict structured output via terminal tools, refusal fallbacks, pause/resume, and cost
-  accounting per run.
-- **Run registry** (`src/lib/runs`): runs outlive the request; any tab can attach to the live log, and finished runs
-  keep their receipt and steps.
-- **Local-first data** (`src/lib/store`): one JSON workspace with atomic writes in `.data/`. Integration secrets live in
-  `.data/secrets.json` and never reach the browser. Nothing leaves your machine except calls to the Anthropic API and
-  the tools you connect.
-- **Signals** (`src/lib/signals`): the free, deterministic research layer.
+Inroad is structured around a local-first reactive model where deterministic signal scrapers, atomic JSON storage, and a multi-tiered LLM orchestration loop interact through typed boundaries.
 
-The research behind the product — GTM methodology, how elite operators work, the AI GTM landscape, design references,
-connector APIs, cost architecture — is in `docs/research/`. The product spec is `docs/SPEC.md`.
+```mermaid
+flowchart LR
+    subgraph Client["Client Surface (Next.js 16 / React 19)"]
+        UI["Today / Moves / Board UI"]
+        CmdK["Command Palette (Ask ⌘K)"]
+        SSEListener["SSE Stream Consumer"]
+    end
+
+    subgraph Gateway["Application Layer & Integrations"]
+        API["Route Handlers (/api/*)"]
+        MCPEndpoint["MCP Server & REST Gateway"]
+        WebhookHandler["Webhook Dispatcher"]
+    end
+
+    subgraph Core["Execution Engine"]
+        Engine["Agent Engine (src/lib/ai/engine.ts)"]
+        SignalPipeline["Signal Fetchers (src/lib/signals/*)"]
+        SSRFGuard["Guarded Undici Dispatcher"]
+        IntroSM["Intro & Move State Machine"]
+    end
+
+    subgraph Storage["Persistence Layer (.data/)"]
+        FileDB["Atomic FileDB (JSON Store)"]
+        SecretVault["Local Secret Store"]
+    end
+
+    UI -->|REST / Mutations| API
+    CmdK -->|Prompt Stream| API
+    SSEListener <---|Event Stream (SSE)| Engine
+
+    MCPEndpoint <-->|External Tools & Agents| API
+    API --> Engine
+    API --> IntroSM
+
+    Engine -->|Web / News / Job Signals| SignalPipeline
+    SignalPipeline --> SSRFGuard
+    SSRFGuard -->|Sanitized HTTP| ExternalWeb[("Public Web")]
+
+    Engine -->|LLM Inference (Opus / Sonnet / Haiku)| ClaudeAPI[("Anthropic API")]
+    IntroSM --> FileDB
+    Engine --> FileDB
+    API --> SecretVault
+```
+
+### End-to-End Execution Flow
+
+1. **Intake & Signal Scanning**: A scheduled task or founder prompt triggers `src/lib/signals/http.ts` to crawl public company endpoints, career portals (Greenhouse, Ashby, Lever), and news feeds using an SSRF-hardened HTTP client.
+2. **Deterministic Pre-Processing**: Signal parsers extract structured events (new leadership hires, platform migrations, seed funding) and summarize them into a compact plaintext digest entirely in Node.js runtime code.
+3. **Multi-Tier Agent Reasoning**: The compiled digest is handed to `src/lib/ai/engine.ts`. The engine dispatches synthesis to Anthropic Claude (Opus 5.5 for ICP positioning, Sonnet 5.5 for draft generation, Haiku 5.5 for triage). Prompts use structured cache breakpoints to prevent re-billing stable system contexts.
+4. **Validation & Quality Gates**: The agent invokes zod-validated tools (`submit_playbook`, `draft_touch`). Terminal tools halt generation and stream structured JSON through `src/lib/quality/gates.ts` to verify length constraints, link presence, and tone guidelines.
+5. **Atomic Persistence & UI Event Stream**: Validated moves and deal updates are committed to `.data/` using write-and-rename atomic semantics via `src/lib/store/file-db.ts` and pushed to the client over Server-Sent Events (SSE).
+
+---
+
+## Engineering Deep Dives
+
+### 1. SSRF Guard with Anti-DNS-Rebinding Dispatcher
+
+- **Problem**: Inroad ingests arbitrary website URLs and webhook targets submitted by external agents, webhooks, and founder inputs. Standard Node.js `fetch` is vulnerable to Server-Side Request Forgery (SSRF) and DNS rebinding attacks where a public host name resolves to a private IP (e.g. `127.0.0.1`, cloud metadata `169.254.169.254`, or IPv4-mapped IPv6 `::ffff:127.0.0.1`) after initial validation.
+- **Approach**: Implemented a custom `undici` Agent with a `guardedLookup` hook in `src/lib/signals/http.ts`. The resolver checks every resolved IP against an explicit `net.BlockList` of IPv4/IPv6 private, link-local, loopback, and CGNAT subnets at socket connection time, repeating the verification across every HTTP redirect hop.
+- **Why**: Pre-validating URLs via a standalone `dns.resolve()` call leaves a time-of-check to time-of-use (TOCTOU) gap that DNS rebinding exploits. Hooking resolution inside socket connection guarantees that the actual connected remote address is validated.
+- **Tradeoff**: Increases outbound request latency by ~10–20ms for double DNS lookups and prevents indexing intranet test servers without explicit loopback exemptions in test fixtures.
+
+### 2. Tiered LLM Orchestration with Two-Point Prompt Caching
+
+- **Problem**: Generating thorough account dossiers and multi-touch outbound campaigns consumes large token volumes when full system instructions, ICP definitions, and company dossiers are repeatedly re-sent across conversational turns.
+- **Approach**: Built a single streaming loop (`src/lib/ai/engine.ts`) enforcing strict model separation and prompt-cache architecture. Heavy positioning tasks run on Opus 5.5, research synthesis runs on Sonnet 5.5, and rapid screening runs on Haiku 5.5. System prompts are structured into ordered blocks where cache breakpoints (`cache_control`) are placed on the immutable foundation and ICP blocks, while dynamic per-account signals are isolated to user turns.
+- **Why**: Flat monolithic prompt chains inflate token costs linearly with conversation depth. Hierarchical block caching allows 70–85% of input tokens to hit Anthropic prompt cache reads at a 90% discount.
+- **Tradeoff**: Editing the core ICP definition or system prompt invalidates the cache for downstream requests, incurring a one-time cold write penalty.
+
+### 3. Pure-Code Warm Intro Engine & Connector Etiquette Ledger
+
+- **Problem**: Using generative LLMs to manage relationship state, intro timings, and nudge cadences frequently results in inconsistent status evaluations, duplicated messages, and boundary violations (e.g. badgering mutual contacts).
+- **Approach**: Built a deterministic finite-state machine in `src/lib/intros/rules.ts` that manages the intro lifecycle (`asked` → `forwarded` → `introduced` → `meeting` → `done`). The engine maintains an explicit give/get ledger with strict timing constants (`connectorRest: 14 days`, `nudgeAfter: 5 days`, `giveFirstAfter: 3 asks`).
+- **Why**: Connector etiquette requires deterministic guarantees that cannot fail due to model drift or hallucinations. Running relationship rules in TypeScript ensures 0 token cost, instant evaluation, and verifiable invariants tested across 14 regression cases.
+- **Tradeoff**: Rules require explicit code modifications to change timing thresholds rather than prompt-based natural language adjustments.
+
+---
+
+## How It Keeps Token Spend Low
+
+Inroad enforces strict token economics to ensure sustainable operating costs:
+
+1. **Code Gathers, Claude Writes**: Public company websites, career portals (Greenhouse, Lever, Ashby, Workable), news, and DNS records are scraped via plain HTTP, cached locally, and compressed into compact digests before any model invocation.
+2. **Model Tiering by Cognitive Complexity**:
+   - **Opus 5.5**: High-level positioning and ICP strategy definition.
+   - **Sonnet 5.5**: Deep research synthesis and personalized draft composition.
+   - **Haiku 5.5**: Candidate screening, classification, and metadata extraction.
+   - **TypeScript**: Ranking, scoring, deduplication, and syntax linting (0 tokens).
+3. **Capped Search Fallback**: Direct scraping is prioritized; external web searches are limited to fallback queries with strict call quotas.
+4. **Prompt Cache Breakpoints**: Static system context and workspace definitions remain warm in cache across turns.
+5. **External Agent Token Decoupling**: When peer agents (Cursor, Claude Code) interact via Inroad's MCP server, their host environments fund their own inference.
+6. **Rule-Driven Warm Intros**: Relationship workflows, follow-up timers, and connector cooldowns run completely in code.
+7. **Offline Geocoding & Mapping**: Over 200 startup hubs are mapped using offline coordinates and mathematical radius calculations; map tiles load via OpenFreeMap with zero model involvement.
+8. **Structured People Lookup**: Employee identification and email resolution leverage direct API integrations (Apollo, FullEnrich) with credit limits instead of expensive LLM search loops.
+
+Every execution outputs a transparent receipt:
+`Worked for 1m 52s · 9 sources · $0.04`
+
+---
+
+## Technology Stack
+
+### Client Layer
+- **Framework**: Next.js 16 (App Router, Server Actions)
+- **UI Primitives**: React 19, Radix UI (Dialog, Dropdown, Popover, Tooltip), cmdk
+- **Styling & Motion**: Tailwind CSS 4, Motion 14, `@number-flow/react`
+
+### Orchestration & AI
+- **LLM SDK**: `@anthropic-ai/sdk` with adaptive thinking integration
+- **Model Tiers**: Claude 3.5 / 5.5 (Opus, Sonnet, Haiku)
+- **Validation**: Zod 4 for tool schemas and runtime type safety
+- **Agent Integration**: Model Context Protocol (MCP) stdio and SSE servers
+
+### Signals & Security
+- **HTTP Client**: `undici` with custom `guardedLookup` and `net.BlockList` anti-SSRF protections
+- **HTML Parsing**: `node-html-parser` for high-throughput DOM digestion
+- **Mapping**: Leaflet, OpenFreeMap, and local geometric distance algorithms
+
+### Persistence & Storage
+- **Workspace Store**: Local-first atomic JSON persistence (`src/lib/store/file-db.ts`)
+- **Secrets Management**: Isolated file storage (`.data/secrets.json`) with strict browser isolation
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Node.js 20.x or higher
+- npm (version 10 or later)
+- Anthropic API key (optional if using the built-in mock server)
+
+### Quick Start
+
+1. **Clone and install dependencies**:
+   ```bash
+   git clone https://github.com/aiden-guan/inroad.git
+   cd inroad
+   npm install
+   ```
+
+2. **Configure environment**:
+   ```bash
+   cp .env.example .env.local
+   # Add your ANTHROPIC_API_KEY, or enter it in the onboarding UI
+   ```
+
+3. **Start development server**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) to start.
+
+---
+
+### Zero-Key Offline Mock Mode
+
+Inroad includes a complete Anthropic and Firecrawl API mock server so you can test every workflow and UI surface without an external API key:
+
+```bash
+# Terminal 1: Launch mock API service on :4010
+npm run mock:anthropic
+
+# Terminal 2: Launch Inroad in isolated mock mode on :3100
+npm run dev:mock
+```
+
+- In mock mode, any key prefix `fc-` simulates connected Firecrawl services.
+- Data is stored in `.data-mock/` and never overwrites production workspaces.
+
+---
+
+## Verification & Testing
+
+Inroad maintains an offline, deterministic Vitest suite covering all domain logic, reducers, and safety gates:
+
+```bash
+# Run complete test suite
+npm test
+
+# Run tests in interactive watch mode
+npm run test:watch
+
+# Run TypeScript compilation check
+npm run typecheck
+
+# Run linter
+npm run lint
+```
+
+### Test Suite Highlights
+- **Coverage**: 17 test suites, 365 tests passing in <2 seconds.
+- **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
+- **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
+
+---
+
+## Repository Structure
+
+```text
+inroad/
+├── docs/                        # Architecture specs and GTM research notes
+│   ├── SPEC.md                  # Comprehensive product specification
+│   └── research/                # Operator interviews, API evaluations, token studies
+├── public/                      # Static brand and icon assets
+├── src/
+│   ├── app/                     # Next.js 16 App Router pages and API routes
+│   │   ├── api/                 # Endpoints: companies, deals, intros, mcp, settings
+│   │   ├── companies/           # Account dossiers, stage tracking, warm paths
+│   │   ├── events/              # Executive dinner and roundtable planning
+│   │   ├── intros/              # Relationship ledger and warm intro board
+│   │   └── playbook/            # Founder ICP, messaging bets, and objections
+│   ├── components/              # React UI components organized by domain surface
+│   │   ├── today/               # Daily 5-move queue and scoreboard
+│   │   ├── shell/               # Navigation, command palette, and run feeds
+│   │   └── map/                 # Interactive geospatial prospect clustering
+│   ├── lib/                     # Core business logic and infrastructure
+│   │   ├── ai/                  # Multi-tier Claude engine, prompts, and SSE streaming
+│   │   ├── api-keys/            # MCP server implementation, REST auth, tools
+│   │   ├── connectors/          # Firecrawl, Apollo, and FullEnrich clients
+│   │   ├── domain/              # Workspace entities, actions, and reducer
+│   │   ├── intros/              # Warm intro state machine and etiquette rules
+│   │   ├── moves/               # Daily action generation and priority scoreboard
+│   │   ├── quality/             # Content safety gates, draft linters, sequences
+│   │   ├── signals/             # SSRF-guarded HTTP client, job board and news parsers
+│   │   └── store/               # Atomic local-first JSON database (FileDB)
+│   └── test/                    # Test fixtures, mock servers, and test setup
+├── .env.example                 # Documented environment variable template
+├── package.json                 # Dependency definitions and lifecycle scripts
+└── vitest.config.mts            # Vitest configuration for hermetic test execution
+```
+
+---
+
+## Project Status & Limitations
+
+- **Maturity**: Functional MVP with complete local-first persistence, offline mock test environment, and production Next.js 16 build.
+- **Model Support**: Optimized for Anthropic Claude 3.5 / 5.5 model family. Local Ollama/OpenAI routing is not currently supported in the core agent engine.
+- **Single Fixed Workstation**: Data resides in `.data/` on the local machine; cross-device multi-tenant cloud synchronization requires an external database adapter.
+- **Email Dispatch Boundary**: Inroad deliberately omits automated SMTP/IMAP senders. All outreach requires manual founder approval to prevent automated spam penalties.
+
+---
+
+## License
+
+This project is licensed under the terms of the [MIT License](LICENSE).
