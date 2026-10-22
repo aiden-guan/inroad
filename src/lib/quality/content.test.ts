@@ -21,7 +21,7 @@ describe("contentNotes", () => {
 
   it("flags a post that's too short, has too many hashtags, a long hook or template words", () => {
     const notes = contentNotes(ws, "post", "Here is a really long opening line that goes on far past twelve words for sure\n\nWe leverage AI. #a #b #c");
-    expect(notes.some((n) => /words\. Touches like this land best/.test(n))).toBe(true);
+    expect(notes.some((n) => /words\. Posts like this land best/.test(n))).toBe(true);
     expect(notes).toContain("3 hashtags. Two at most.");
     expect(notes.some((n) => /first line is 16 words/.test(n))).toBe(true);
     expect(notes.some((n) => /leverage/i.test(n))).toBe(true);

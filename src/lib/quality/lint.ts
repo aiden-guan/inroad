@@ -313,7 +313,7 @@ export function lintDraft(input: LintInput): LintResult {
   if (lim) {
     if (words > lim.hard) add("LEN_OVER", `${words} words. Cut to ${lim.max} or fewer.`);
     else if (words > lim.max) add("LEN_OVER", `${words} words. Aim for ${lim.max} or fewer.`, "warn");
-    else if (lim.min && words > 0 && words < lim.min) add("LEN_UNDER", `${words} words. Touches like this land best at ${lim.min}–${lim.max}.`);
+    else if (lim.min && words > 0 && words < lim.min) add("LEN_UNDER", `${words} words. ${input.kind === "post" ? "Posts" : "Touches"} like this land best at ${lim.min}–${lim.max}.`);
   }
   if (input.kind === "linkedin_note" && body.length > LIMITS.liNoteChars) add("LI_CHARS", `${body.length} characters. LinkedIn notes allow ${LIMITS.liNoteChars}.`);
   if (input.kind === "linkedin_dm" && body.length > LIMITS.liDmChars) add("LI_CHARS", `${body.length} characters. Keep the message under ${LIMITS.liDmChars}.`);

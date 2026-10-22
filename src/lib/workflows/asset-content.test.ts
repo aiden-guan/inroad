@@ -38,7 +38,7 @@ describe("asset workflow: founder content", () => {
     const saved = after.assets.find((a) => a.id === "ast_post")!;
     expect(saved).toMatchObject({ kind: "post", approved: false, origin: "agent" });
     // The mock's two-word body fails the post lint; the note is a gap for the founder, not a block.
-    expect(saved.gaps?.some((g) => /Touches like this land best at 120–250/.test(g))).toBe(true);
+    expect(saved.gaps?.some((g) => /Posts like this land best at 120–250/.test(g))).toBe(true);
   });
 
   it("refuses a second post in the same week before spending tokens, but rewrites the same one", async () => {
