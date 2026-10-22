@@ -23,5 +23,5 @@ export function freshRun(now: Date) {
   vi.setSystemTime(now);
   fs.rmSync(path.join(process.env.GTM_DATA_DIR!, "cache"), { recursive: true, force: true });
   const g = globalThis as Record<string, unknown>;
-  for (const k of ["__inroadYc", "__inroadYcPending", "__gdeltNextSlot"]) delete g[k];
+  for (const k of ["__inroadYc", "__inroadYcPending", "__gdeltNextSlot", "__inroadGates", "__inroadGithub"]) delete g[k];
 }

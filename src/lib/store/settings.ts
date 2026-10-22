@@ -21,6 +21,16 @@ export interface Settings {
    * Never a third-party favicon service, which would learn the whole target list.
    */
   companyIcons?: "letters" | "site";
+  /**
+   * Optional GitHub token (fine-grained, no scopes) for stargazer imports and org lookups: GitHub allows
+   * 60 requests an hour without one, 5,000 with. Kept here, never exported.
+   */
+  githubToken?: string;
+  /**
+   * An email for SEC EDGAR's User-Agent. The SEC asks automated tools to name a contact; without one,
+   * Form D lookups still run but may be refused. Sent only to sec.gov.
+   */
+  secContact?: string;
 }
 
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");
