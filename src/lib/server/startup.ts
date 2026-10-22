@@ -1,4 +1,5 @@
 import "server-only";
+import { pruneCache } from "@/lib/signals/cache";
 import { secureDataDir } from "@/lib/store/data-file";
 import { DATA_DIR } from "@/lib/store/settings";
 import { resumeNamedTunnel } from "./tunnel";
@@ -22,6 +23,12 @@ async function onServerStart() {
     if (changed) console.log(`[inroad] Made ${changed} data file${changed === 1 ? "" : "s"} in ${DATA_DIR} readable by you only.`);
   } catch (err) {
     console.warn("[inroad] Couldn't check the data folder's permissions:", err instanceof Error ? err.message : err);
+  }
+  try {
+    // Lookups no read would use again (past the longest TTL) go, so the cache doesn't keep what it found about people.
+    pruneCache();
+  } catch {
+    // best-effort
   }
   // A named tunnel that was on comes back by itself, so the hook and MCP URLs given to other tools keep working.
   // Not awaited: the server answers while cloudflared connects.

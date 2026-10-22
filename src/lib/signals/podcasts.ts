@@ -30,12 +30,18 @@ interface ItunesResp {
   }[];
 }
 
+/** The cache key of one search (its file name holds only a hash of it, see cache.ts). */
+export const podcastCacheKey = (term: string, limit: number) => `podcasts:v1:${term.trim().slice(0, 120).toLowerCase()}:${Math.max(1, Math.min(20, limit))}`;
+
+/** The searches episodesWith makes for a person, so "Delete their details" can drop what they found. */
+export const personPodcastKeys = (person: string, company?: string) => [podcastCacheKey(`${person.trim()}${company ? ` ${company}` : ""}`, 10), podcastCacheKey(person, 10)];
+
 export async function podcastSearch(term: string, limit = 8): Promise<PodcastEpisode[]> {
   const q = term.trim().slice(0, 120);
   if (q.length < 3) return [];
   const n = Math.max(1, Math.min(20, limit));
   try {
-    return await cached(`podcasts:v1:${q.toLowerCase()}:${n}`, TTL.week, async () => {
+    return await cached(podcastCacheKey(q, n), TTL.week, async () => {
       await politeGate("itunes");
       const data = await fetchJSON<ItunesResp>(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=podcast&entity=podcastEpisode&limit=${n}`, 10_000, {
         headers: { "User-Agent": API_UA },
