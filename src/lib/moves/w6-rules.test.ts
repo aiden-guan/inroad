@@ -136,7 +136,7 @@ describe("room suggestions", () => {
   it("suggests a roundtable when six tracked companies share a theme", () => {
     expect(ofRule(computeMoves(tracked(5, "first_hire"), NOW), "room")).toEqual([]);
     const [m] = ofRule(computeMoves(tracked(6, "first_hire"), NOW), "room");
-    expect(m).toMatchObject({ id: "mv_room_2026-10-19", title: "Host a roundtable: 6 of your tracked companies are making a first hire for the job you do", href: "/events?new=1" });
+    expect(m).toMatchObject({ id: "mv_room_2026-10-19", title: "Host a roundtable: 6 of your tracked companies are making a first hire for the job you do", href: "/events?new=1&kind=roundtable" });
   });
 
   it("suggests a dinner where eight are in one city, only with a co-host", () => {
@@ -147,7 +147,18 @@ describe("room suggestions", () => {
     expect(ofRule(computeMoves(ws, NOW), "room")).toEqual([]);
     ws.connectors = [{ id: "con_ivy", name: "Ivy Chen", relationship: "investor", introsMade: 0 }];
     const [m] = ofRule(computeMoves(ws, NOW), "room");
-    expect(m).toMatchObject({ title: "Plan a dinner in New York: 8 of your target companies are there", why: "Ivy could co-host · 8–10 seats, open deals first", href: "/events?new=1&city=New%20York" });
+    // The planner opens as that dinner, with the co-host filled in the way its own chips name an investor.
+    expect(m).toMatchObject({
+      title: "Plan a dinner in New York: 8 of your target companies are there",
+      why: "Ivy could co-host · 8–10 seats, open deals first",
+      href: "/events?new=1&kind=dinner&city=New%20York&cohost=Ivy%20Chen's%20platform%20team",
+    });
+    // A customer who could host goes in by name; a won deal with no named host leaves the field to the founder.
+    ws.connectors = [{ id: "con_dana", name: "Dana Kim", relationship: "customer", introsMade: 0 }];
+    expect(ofRule(computeMoves(ws, NOW), "room")[0].href).toBe("/events?new=1&kind=dinner&city=New%20York&cohost=Dana%20Kim");
+    ws.connectors = [];
+    ws.deals.won = makeDeal("won", "co0.example", { stage: "won" });
+    expect(ofRule(computeMoves(ws, NOW), "room")[0].href).toBe("/events?new=1&kind=dinner&city=New%20York");
   });
 
   it("stays quiet while a room is being planned", () => {

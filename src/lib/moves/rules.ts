@@ -1598,7 +1598,7 @@ function roomSuggestion({ ws, today, weekStart, out }: Ctx) {
       why: "6–8 peers on one live question · 60 minutes, virtual · no pitch",
       minutes: 5,
       priority: RULES.room.base,
-      href: "/events?new=1",
+      href: "/events?new=1&kind=roundtable",
     });
   } else if (city && host) {
     const place = city.place.split(",")[0];
@@ -1610,7 +1610,8 @@ function roomSuggestion({ ws, today, weekStart, out }: Ctx) {
       why: `${host.name === "a customer" ? "A customer could host" : `${first(host.name)} could co-host`} · 8–10 seats, open deals first`,
       minutes: 5,
       priority: RULES.room.base,
-      href: `/events?new=1&city=${encodeURIComponent(place)}`,
+      // The form opens as a dinner in that city, with the co-host filled in the way its own chips name one.
+      href: `/events?new=1&kind=dinner&city=${encodeURIComponent(place)}${"relationship" in host ? `&cohost=${encodeURIComponent(host.relationship === "investor" ? `${host.name}'s platform team` : host.name)}` : ""}`,
     });
   }
 }
