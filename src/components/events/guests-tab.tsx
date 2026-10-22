@@ -17,8 +17,7 @@ import { cn } from "@/lib/client/cn";
 import { newId, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type GtmEvent, type Guest, type Person, type Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
-import { isColdFirstTouch } from "@/lib/moves/scoreboard";
-import { localDate } from "@/lib/moves/util";
+import { coldFirstTouches } from "@/lib/quality/cap";
 import {
   GUEST_STATUSES,
   GUEST_STATUS_LABEL,
@@ -37,24 +36,6 @@ const SECTION_ORDER: Guest["status"][] = ["attended", "no_show", "confirmed", "a
 const ROLE_ORDER: Record<Guest["role"], number> = { anchor: 0, customer_host: 1, connector: 2, prospect: 3 };
 
 type CopyKind = "invite" | "host" | "reminder" | "dayof" | "decline";
-
-/**
- * Cold first touches this week, in the local week Today uses: sent or pushed step 1s of cold packages
- * (Today's definition) plus email invites to guests with no warm path, which count against the same cap.
- */
-function coldThisWeek(ws: Workspace): number {
-  const start = weekOf();
-  let n = 0;
-  for (const a of ws.activities) {
-    if (localDate(a.at) < start) continue;
-    if (isColdFirstTouch(ws, a) || (a.kind === "pushed" && a.draftRef?.step === 1 && ws.outreach[a.draftRef.packageId]?.mode === "cold")) n++;
-    else if (a.kind === "event_invited" && a.eventId && a.channel !== "linkedin") {
-      const g = Object.values(ws.events[a.eventId]?.guests ?? {}).find((x) => (a.personId ? x.personId === a.personId : x.accountDomain === a.accountDomain));
-      if (g && !g.warmPath) n++;
-    }
-  }
-  return n;
-}
 
 function GuestMark({ g }: { g: Guest }) {
   return g.accountDomain ? (
@@ -376,7 +357,8 @@ export function GuestsTab({ ev }: { ev: GtmEvent }) {
     .filter((s) => s.guests.length);
   const must = guests.filter((g) => g.mustAttend);
   const mustDeclined = must.filter((g) => g.status === "declined").length;
-  const cold = coldThisWeek(ws);
+  // The cap counter Today and the send gate use: cold email invites with no warm path count, like first touches.
+  const cold = coldFirstTouches(ws, { from: weekOf() });
   const cap = ws.caps.firstTouchesPerWeek;
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
