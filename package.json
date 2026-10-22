@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "tapes:record": "node scripts/live/record-tapes.mjs",
     "smoke:live": "node scripts/live/smoke.mjs",
+    "e2e": "playwright test",
     "mock:anthropic": "node scripts/mock-anthropic.mjs"
   },
   "dependencies": {
@@ -40,6 +41,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
