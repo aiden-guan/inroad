@@ -71,11 +71,13 @@ export async function setRelationshipTags(input: { connectionId?: string; person
     const name = conn ? fullName(conn) : person?.name;
     const url = conn?.url || person?.linkedinUrl;
     const company = conn?.company || (person ? ws.accounts[person.accountDomain]?.name : undefined);
-    const relationship: Connector["relationship"] | null = tags.includes("investor") ? "investor" : tags.includes("connector") ? "connection" : null;
+    // A connector is someone the founder says introduces people: an introducer like an advisor, never a plain
+    // LinkedIn "connection" (which the intro rules leave out of asks).
+    const relationship: Connector["relationship"] | null = tags.includes("investor") ? "investor" : tags.includes("connector") ? (tags.includes("ex_colleague") ? "ex_colleague" : "friend") : null;
     if (relationship && name) {
       const listed = ws.connectors.find((c) => (url && c.linkedinUrl && linkedinKey(c.linkedinUrl) === linkedinKey(url)) || c.name.toLowerCase() === name.toLowerCase());
       if (listed) {
-        if (relationship === "investor" && listed.relationship === "connection") listed.relationship = "investor";
+        if (listed.relationship === "connection") listed.relationship = relationship;
       } else {
         ws.connectors.push({ id: newId("con"), name, relationship, ...(url ? { linkedinUrl: url } : {}), ...(company ? { company } : {}), introsMade: 0 });
       }
