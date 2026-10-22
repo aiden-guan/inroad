@@ -100,6 +100,33 @@ describe("the review workflow, offline", () => {
     expect(mock.sent).toHaveLength(0);
   });
 
+  it("refresh: a model that gives nothing back fails the run and changes nothing, instead of saying the bet holds", async () => {
+    const w = ws();
+    const silent = (async () => ({ result: undefined, usage: {}, costUsd: 0 })) as never;
+    await expect(runOffline(review, { kind: "refresh" }, w, { agent: silent })).rejects.toThrow("I couldn't finish rebuilding the bet. Nothing in your playbook changed");
+    expect(Object.keys(w.briefs).some((k) => k.includes(":refresh:"))).toBe(false);
+  });
+
+  it("monthly: says the playbook part didn't finish when the model gives nothing back, and keeps the code-computed parts", async () => {
+    const w = ws();
+    const silent = (async () => ({ result: undefined, usage: {}, costUsd: 0 })) as never;
+    await runOffline(review, { kind: "monthly" }, w, { agent: silent });
+    const saved = w.briefs[`${monthKey()}:monthly`];
+    expect(saved.review).toMatch(/I couldn't finish reading \d+ calls?.*, so nothing in your playbook changed/);
+    expect(saved.review).toContain("## Pricing log");
+  });
+
+  it("monthly: names the replies it read when there were no calls", async () => {
+    const w = ws();
+    for (const m of Object.values(w.meetings)) delete m.debrief;
+    for (const d of Object.values(w.deals)) if (d.stage === "won" || d.pilot?.paid) d.stage = "talking";
+    const replies = w.activities.filter((a) => a.kind === "reply_received" && a.body && a.at > w.foundation!.generatedAt).length;
+    expect(replies).toBeGreaterThan(1);
+    await runOffline(review, { kind: "monthly" }, w);
+    // The mock's changes cite nothing real, so none survive.
+    expect(w.briefs[`${monthKey()}:monthly`].review).toContain(`No changes: ${Math.min(replies, 10)} replies don't contradict the bet.`);
+  });
+
   it("monthly: reads the ended bet as inconclusive and writes the pricing log", async () => {
     const w = ws();
     w.briefs["2026-08-10:friday"] = {
