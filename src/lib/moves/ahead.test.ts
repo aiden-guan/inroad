@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Evidence, MeetingBrief, RunSummary, Workspace } from "@/lib/domain/types";
 import { NOW, TODAY, at, day, makeAccount, makeActivity, makeDeal, makeDossier, makeMeeting, makePackage, makePerson, makeSignal, makeStep, makeWorkspace } from "@/test/factories";
-import { AHEAD_DRAFTS_PER_DAY, AHEAD_PREPS_PER_DAY, draftsToStart, meetingsToPrep, networkToScreen, planAhead } from "./ahead";
+import { AHEAD_DRAFTS_PER_DAY, AHEAD_PREPS_PER_DAY, draftsToStart, meetingsToPrep, networkToScreen, planAhead, prepareAfterRun } from "./ahead";
 import { computeMoves, mergeMoves } from "./rules";
 
 const acme = "acme.example";
@@ -134,5 +134,25 @@ describe("the network screen", () => {
     expect(plan.screen).toBe("import");
     ws.briefs[TODAY] = { date: TODAY, kind: "daily", greeting: "", matters: [], generatedAt: at(0, "08:00"), ahead: plan.keys };
     expect(planAhead(ws, NOW).screen).toBeUndefined();
+  });
+});
+
+describe("after the first three's research ends", () => {
+  const hired = (patch: Partial<Workspace> = {}) => makeWorkspace({ onboarding: { status: "hired", hiredAt: at(-1), firstThree: [acme, "beta.example"] }, ...patch });
+  const ended = (status: RunSummary["status"], id = acme) => run("dossier", { kind: "account", id }, at(0, "09:00"), status);
+
+  it("re-prepares Today when a first-three dossier lands or fails, so the draft starts with the page closed", () => {
+    expect(prepareAfterRun(hired(), ended("done"), NOW)).toBe(true);
+    expect(prepareAfterRun(hired(), ended("error"), NOW)).toBe(true);
+    expect(prepareAfterRun(hired(), ended("stopped", "beta.example"), NOW)).toBe(true);
+  });
+
+  it("leaves everything else to the page: other companies and workflows, runs still going, old hires, the demo", () => {
+    expect(prepareAfterRun(hired(), ended("done", "other.example"), NOW)).toBe(false);
+    expect(prepareAfterRun(hired(), ended("running"), NOW)).toBe(false);
+    expect(prepareAfterRun(hired(), run("compose", { kind: "account", id: acme }, at(0, "09:00")), NOW)).toBe(false);
+    expect(prepareAfterRun(hired({ onboarding: { status: "hired", hiredAt: at(-22), firstThree: [acme] } }), ended("done"), NOW)).toBe(false);
+    expect(prepareAfterRun(hired({ sample: true }), ended("done"), NOW)).toBe(false);
+    expect(prepareAfterRun(makeWorkspace({ onboarding: { status: "offer" } }), ended("done"), NOW)).toBe(false);
   });
 });

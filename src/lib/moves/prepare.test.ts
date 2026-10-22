@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { todayISO } from "@/lib/domain/ids";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
-import { makeAccount, makeDeal, makeMeeting, makeWorkspace } from "@/test/factories";
+import { at, makeAccount, makeDeal, makeDossier, makeMeeting, makePerson, makeSignal, makeWorkspace } from "@/test/factories";
 
 const startRun = vi.fn(async (def: { id: string }, args: unknown) => ({ id: `run_${def.id}_${JSON.stringify(args)}` }));
 const configured = { value: true };
@@ -9,7 +9,7 @@ vi.mock("@/lib/runs/registry", () => ({ startRun: (def: { id: string }, args: un
 vi.mock("@/lib/ai/client", () => ({ isConfigured: () => configured.value }));
 vi.mock("@/lib/hub", () => ({ briefData: () => ({}), emitHubEvent: async () => {} }));
 
-const { prepareToday } = await import("./prepare");
+const { prepareAfterRun, prepareToday } = await import("./prepare");
 
 /** A deal at Acme with a call in two hours and no brief. Real clock: prepareToday reads `new Date()`. */
 async function seed(patch: Parameters<typeof makeWorkspace>[0] = {}) {
@@ -51,5 +51,39 @@ describe("prepareToday prepares ahead", () => {
     await seed();
     await prepareToday();
     expect(startRun.mock.calls.filter(([def]) => def.id === "prep" || def.id === "compose")).toEqual([]);
+  });
+});
+
+describe("prepareAfterRun", () => {
+  beforeEach(() => {
+    startRun.mockClear();
+    configured.value = true;
+  });
+
+  it("starts a first-three company's draft as soon as its dossier lands, with no page open", async () => {
+    const hiredAt = new Date(Date.now() - 3_600_000).toISOString();
+    const evidence = { id: "ev_b", claim: "Hiring", quote: "Hiring", url: "https://jobs.example/1", host: "jobs.example", sourceType: "job_post" as const, retrievedAt: hiredAt, confidence: "high" as const };
+    await replaceWorkspace(
+      makeWorkspace({
+        onboarding: { status: "hired", hiredAt, firstThree: ["beta.example"] },
+        accounts: {
+          "beta.example": makeAccount("beta.example", {
+            peopleIds: ["per_bana"],
+            signals: [makeSignal("s_b", { date: todayISO(), evidenceId: "ev_b" })],
+            dossier: makeDossier({ generatedAt: new Date().toISOString(), recommendation: { move: "cold_email", personId: "per_bana", why: "A dated hire" } }),
+          }),
+        },
+        people: { per_bana: makePerson("per_bana", "beta.example", { name: "Bana Ito" }) },
+        evidence: { ev_b: evidence },
+      }),
+    );
+    const run = { id: "run_d", workflow: "dossier" as const, title: "", ref: { kind: "account" as const, id: "beta.example" }, startedAt: at(0), status: "done" as const };
+    const result = await prepareAfterRun(run);
+    expect(startRun.mock.calls.filter(([def]) => def.id === "compose").map(([, args]) => args)).toEqual([{ domain: "beta.example", personId: "per_bana", mode: "cold" }]);
+    expect(result?.aheadRunIds).toHaveLength(1);
+    // Any other run, or a company outside the first three, leaves Today alone.
+    startRun.mockClear();
+    expect(await prepareAfterRun({ ...run, ref: { kind: "account", id: "other.example" } })).toBeNull();
+    expect(startRun).not.toHaveBeenCalled();
   });
 });
