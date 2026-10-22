@@ -1,7 +1,7 @@
 /** Lint regression checks: good emails pass, each template tell fails with its code. */
 import { describe, expect, it } from "vitest";
 import type { LintCode } from "@/lib/domain/types";
-import { LIMITS, countWords, limitsFor, lintDraft, mergeLint, worstIssue, type LintInput } from "./lint";
+import { LIMITS, countWords, limitsFor, lintDraft, mergeLint, offeredResource, worstIssue, type LintInput } from "./lint";
 
 const base: Omit<LintInput, "body" | "subject"> = { frame: "4t", step: 1, kind: "email", sourcedText: "", thread: "new" };
 const codes = (input: Partial<LintInput> & { body: string }) => {
@@ -115,6 +115,9 @@ describe("lintDraft", () => {
   it("resource offers need an asset", () => {
     const offer = GOOD_4T.replace(/Is invoicing.*$/, "Want the one-pager on how two teams fixed it?");
     has(codes({ body: offer }).errors, "ASSET_MISSING");
+    expect(codes({ body: offer }).r.violations.find((v) => v.code === "ASSET_MISSING")?.detail).toBe("Offers a one-pager but no asset is attached. Pick one or drop the offer.");
+    expect(offeredResource(offer)).toBe("one-pager");
+    expect(offeredResource(GOOD_4T)).toBeNull();
     lacks(codes({ body: offer, assetId: "ast_1" }).errors, "ASSET_MISSING");
     has(codes({ body: GOOD_4T.replace("The fix", "I have a quick teardown. The fix") }).errors, "BANNED_PHRASE");
     lacks(codes({ body: GOOD_4T.replace("Is invoicing", "Does invoicing report to finance, or is invoicing") }).errors, "ASSET_MISSING");

@@ -358,6 +358,7 @@ function learningProposals(ws: Workspace, data: LearningData, out: LearningOut |
       title: `Post draft: ${noBang(post.hook)}`,
       detail: "From your own material only. Copy it, edit it, post it yourself.",
       text: `${noBang(post.hook)}\n\n${post.body.trim()}`,
+      post: true,
       status: "open",
     });
   }

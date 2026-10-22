@@ -844,6 +844,8 @@ export interface Deal {
   source: "warm_intro" | "signal_cold" | "investor_intro" | "community" | "content" | "dinner" | "event" | "inbound" | "network" | "referral";
   amountUsd?: number;
   closeDate?: ISODate;
+  /** Times the close date moved later (a deal slipping twice is worth a look). */
+  closeDatePushes?: number;
   nextStep?: { what: string; date: ISODate; buyerAgreed: boolean };
   contacts: { personId: ID; role?: PersonaRole }[];
   qualification?: Qualification;
@@ -991,6 +993,8 @@ export interface ReviewProposal {
   text?: string; // the POV / objection / phrase to add
   objectionCategory?: ObjectionCard["category"];
   bet?: { variable: string; control: string; variant: string; why: string };
+  /** A "note" that is the week's optional post draft (Today offers it the following week). */
+  post?: boolean;
   status: "open" | "applied" | "dismissed";
   decidedAt?: ISODateTime;
 }
@@ -1345,6 +1349,8 @@ export interface Workspace {
     availability?: string; // "Tue–Thu 10–4 PT"
     linkedinPremium?: boolean;
     gmailAuthUser?: string;
+    /** "HH:MM" local. After it, deals with no dated next step fold into one close-out card on Today. Default 16:30. */
+    closeOutTime?: string;
   };
   company: CompanySnapshot | null;
   foundation: Foundation | null;

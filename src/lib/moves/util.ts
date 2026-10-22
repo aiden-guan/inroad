@@ -64,6 +64,11 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** "a" or "an" by sound, for the words drafts offer: "an insight memo", "a one-pager", "a user guide". */
+export function aOrAn(word: string): string {
+  return /^[aeiou]/i.test(word) && !/^(one|once|uni|use|usu|eu)/i.test(word) ? "an" : "a";
+}
+
 export function clip(text: string, max: number): string {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;

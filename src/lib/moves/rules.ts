@@ -1,13 +1,15 @@
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
-import { STAGE_LABELS, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type Workspace } from "@/lib/domain/types";
+import { STAGE_LABELS, type Asset, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type SignalType, type Workspace } from "@/lib/domain/types";
 import { referralLeads } from "@/lib/deals/referrals";
-import { leadPoints, nearby } from "@/lib/geo/leads";
+import { leadPoints, metros, nearby } from "@/lib/geo/leads";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
+import { offeredResource } from "@/lib/quality/lint";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { awaitingOutcome, BOOKING_NUDGES, bookingLoops, searchDays } from "./replies";
 import { coldQuotaLeft, counters, introAsksTarget, type Counters } from "./scoreboard";
 import {
+  aOrAn,
   ago,
   ageShort,
   bestPerson,
@@ -64,6 +66,8 @@ const RULES = {
   review_friday: { base: 56, label: "Friday learning review" },
   single_threaded: { base: 55, label: "Qualified or later with one contact" },
   unpaid: { base: 55, label: "Unpaid pilot past 30 days" },
+  stalled: { base: 55, label: "Active deal quiet for over a week, next step still ahead" },
+  slipped: { base: 55, label: "Close date pushed twice or more" },
   switch_channel: { base: 54, label: "Three emails without a reply" },
   cold_draft: { base: 52, label: "First-touch draft ready" },
   signal: { base: 50, label: "Fresh signal at an A-tier account" },
@@ -75,6 +79,9 @@ const RULES = {
   event_nearby: { base: 47, label: "Warm or pipeline leads near an upcoming dinner aren't on its list" },
   question: { base: 35, label: "Open founder question" },
   import: { base: 30, label: "Connections import missing or older than 30 days" },
+  asset: { base: 30, label: "A draft offers an asset that doesn't exist yet" },
+  post: { base: 32, label: "Optional post from last Friday's best insight" },
+  room: { base: 38, label: "Tracked companies cluster on a theme or a city: worth a room" },
   discover: { base: 28, label: "Fewer than 10 untouched A/B prospects" },
 } as const;
 
@@ -95,6 +102,17 @@ export const DAILY_OPEN_MAX = 12;
 export const TOP_MOVES = 5;
 const MEETING_MINUTES = 45;
 const CLOSE_OUT_MINUTES = 16 * 60 + 30;
+
+/** The founder's close-out time (Settings → You, "HH:MM"), in minutes after midnight; 16:30 when unset or malformed. */
+export function closeOutMinutes(ws: Workspace): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(ws.founder.closeOutTime?.trim() ?? "");
+  if (!m) return CLOSE_OUT_MINUTES;
+  const [h, mm] = [Number(m[1]), Number(m[2])];
+  return h < 24 && mm < 60 ? h * 60 + mm : CLOSE_OUT_MINUTES;
+}
+
+/** Days without activity before an active deal with a future step gets a check-in card. */
+const STALL_DAYS = 7;
 
 type Cand = Omit<Move, "createdAt" | "status" | "rule" | "evidenceIds" | "dueOn"> & {
   rule: RuleKey;
@@ -128,10 +146,13 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   warmPaths(ctx);
   introFollowThrough(ctx);
   setup(ctx);
+  missingAssets(ctx);
   events(ctx);
   dinnerNeighbors(ctx);
+  roomSuggestion(ctx);
   questions(ctx);
   reviews(ctx);
+  weeklyPost(ctx);
 
   // Other surfaces (inbound webhooks, agent API) create their own reply and prep cards. When one already
   // covers the same reply or meeting, in any status, don't add a second card for it.
@@ -588,6 +609,26 @@ function sequences({ ws, now, today, out }: Ctx) {
   }
 }
 
+/** The newest sign of life on a deal: its own timestamp, any activity on it or its company, or a meeting already held. */
+function lastDealActivity(ws: Workspace, deal: Deal, now: Date): string {
+  let last = deal.lastActivityAt || deal.updatedAt;
+  const nowIso = now.toISOString();
+  for (const a of ws.activities) {
+    if (a.kind === "skip" || a.at > nowIso || a.at <= last) continue;
+    if (a.dealId === deal.id || (!!a.accountDomain && a.accountDomain === deal.accountDomain)) last = a.at;
+  }
+  for (const id of deal.meetingIds) {
+    const m = ws.meetings[id];
+    if (m && m.startsAt <= nowIso && m.startsAt > last) last = m.startsAt;
+  }
+  return last;
+}
+
+function upcomingMeeting(ws: Workspace, deal: Deal, now: Date): boolean {
+  const nowIso = now.toISOString();
+  return Object.values(ws.meetings).some((m) => m.dealId === deal.id && m.startsAt > nowIso);
+}
+
 function deals({ ws, now, today, out }: Ctx) {
   const missing: { deal: Deal; cand: Cand }[] = [];
   // A deal waiting on a time they haven't picked is the booking card's (see bookings).
@@ -670,11 +711,50 @@ function deals({ ws, now, today, out }: Ctx) {
         href: sheet(domain),
       });
     }
+
+    // A dated step ahead doesn't mean the deal is alive: quiet for over a week, with no call booked and the
+    // step more than two days out, it gets a one-line check-in that re-confirms the date.
+    if (dated && dated > addDays(today, 2) && !awaitingTime.has(deal.id) && !upcomingMeeting(ws, deal, now)) {
+      const last = lastDealActivity(ws, deal, now);
+      const quiet = daysSince(last, today);
+      if (quiet > STALL_DAYS) {
+        out.push({
+          id: `mv_stalled_${deal.id}_${localDate(last)}`,
+          kind: "next_step_missing",
+          rule: "stalled",
+          title: `Check in with ${company}: quiet for ${quiet} days`,
+          why: `${stage} · “${clip(deal.nextStep!.what, 40)}” on ${shortDay(dated)} · one line that re-confirms it`,
+          minutes: 2,
+          priority: RULES.stalled.base * mult + overdueBoost(Math.floor((quiet - STALL_DAYS) / 7)),
+          ref: { kind: "deal", id: deal.id },
+          subjectIds: [deal.id],
+          href: sheet(domain),
+        });
+      }
+    }
+
+    // A close date that keeps moving is a deal losing its reason to happen.
+    const pushes = deal.closeDatePushes ?? 0;
+    if (pushes >= 2) {
+      out.push({
+        id: `mv_slipped_${deal.id}_${pushes}`,
+        kind: "next_step_missing",
+        rule: "slipped",
+        title: `${company}'s close date has slipped ${pushes} times`,
+        why: `${stage}${deal.closeDate ? ` · now ${shortDay(deal.closeDate)}` : ""} · ask what changed and who else has to say yes`,
+        minutes: 5,
+        priority: RULES.slipped.base * mult,
+        ref: { kind: "deal", id: deal.id },
+        subjectIds: [deal.id],
+        href: sheet(domain),
+      });
+    }
   }
 
-  // After 16:30 the per-deal cards fold into one close-out card with a count. Nothing is blocked.
+  // After the close-out time (16:30 unless Settings says otherwise) the per-deal cards fold into one
+  // close-out card with a count. Nothing is blocked.
   const minutes = now.getHours() * 60 + now.getMinutes();
-  if (minutes >= CLOSE_OUT_MINUTES && missing.length >= 2) {
+  if (minutes >= closeOutMinutes(ws) && missing.length >= 2) {
     out.push({
       id: `mv_closeout_${today}`,
       kind: "close_out",
@@ -1036,6 +1116,49 @@ function setup({ ws, now, today, weekStart, out }: Ctx) {
   }
 }
 
+/** What an offered resource is, as an asset: the lint's word ("teardown") → the Playbook kind that covers it. */
+const ASSET_FOR: [RegExp, Asset["kind"], string][] = [
+  [/one-?pager|one pager|deck|slides|pdf/, "one_pager", "one-pager"],
+  [/demo|video|loom|recording/, "demo_script", "demo"],
+  [/case study/, "case_study", "case study"],
+  [/terms/, "design_partner_terms", "design-partner terms"],
+  [/./, "insight", "write-up"],
+];
+
+/**
+ * W6 "a CTA needs an asset that doesn't exist yet": open drafts that offer a one-pager, a demo or a
+ * write-up with no approved asset of that kind to point at. One card per kind; writing it once fixes every draft.
+ */
+function missingAssets({ ws, today, out }: Ctx) {
+  const byKind = new Map<Asset["kind"], { label: string; word: string; pkgs: OutreachPackage[] }>();
+  for (const pkg of Object.values(ws.outreach)) {
+    if (daysSince(pkg.createdAt, today) > 30) continue;
+    const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+    if (isSuppressed(ws, person, pkg.accountDomain)) continue;
+    const word = pkg.steps.filter((st) => st.status === "draft" && !st.assetId).map((st) => offeredResource(st.body)).find(Boolean);
+    if (!word) continue;
+    const [, kind, label] = ASSET_FOR.find(([re]) => re.test(word))!;
+    if (ws.assets.some((a) => a.kind === kind && a.approved)) continue;
+    const entry = byKind.get(kind) ?? { label: kind === "insight" ? word : label, word, pkgs: [] };
+    entry.pkgs.push(pkg);
+    byKind.set(kind, entry);
+  }
+  for (const [kind, { label, pkgs }] of byKind) {
+    const a = aOrAn(label);
+    out.push({
+      id: `mv_asset_${kind}`,
+      kind: "setup",
+      rule: "asset",
+      title: pkgs.length === 1 ? `Make the ${label} your ${companyName(ws, pkgs[0].accountDomain)} draft offers` : `${pkgs.length} drafts offer ${a} ${label} you don't have yet`,
+      why: "Write it once and approve it, and every draft can attach it · or drop the offer",
+      minutes: 15,
+      priority: RULES.asset.base,
+      subjectIds: pkgs.map((p) => p.id),
+      href: `/playbook?new=${kind}`,
+    });
+  }
+}
+
 function events({ ws, today, out }: Ctx) {
   for (const ev of Object.values(ws.events)) {
     if (ev.status === "done" || ev.status === "cancelled" || !ev.plan) continue;
@@ -1096,6 +1219,78 @@ function dinnerNeighbors({ ws, today, out }: Ctx) {
   }
 }
 
+/** What tracked companies have in common, as a live question for a room (W11 themes). */
+const ROOM_THEME: Partial<Record<SignalType, string>> = {
+  first_hire: "are making a first hire for the job you do",
+  hiring: "are hiring for the problem you solve",
+  jd_names_pain: "have job posts that name the pain",
+  funding: "raised in the last two months",
+  new_leader: "have a new leader in the seat",
+  launch: "just launched",
+  stack_change: "are changing their stack",
+  compliance_deadline: "face a compliance deadline",
+  persona_post: "wrote about the problem in public",
+  public_pain: "complained about the problem in public",
+  filing: "filed something new",
+};
+const ROOM_THEME_MIN = 6;
+const ROOM_CITY_MIN = 8;
+
+/**
+ * Monday's room suggestion (W11 triggers, §5.2): six or more tracked A/B companies sharing a theme make a
+ * virtual roundtable; eight or more in one city make a dinner, but only with a co-host or a customer to host.
+ * Shown through the week; never while a room is already being planned.
+ */
+function roomSuggestion({ ws, today, weekStart, out }: Ctx) {
+  const live = Object.values(ws.events).some((e) => e.status !== "done" && e.status !== "cancelled");
+  if (live || Object.values(ws.events).some((e) => daysSince(e.createdAt, today) <= 30)) return;
+  const tracked = Object.values(ws.accounts).filter(
+    (a) => (a.tier === "A" || a.tier === "B") && a.status !== "disqualified" && a.status !== "customer" && (a.watch || a.status === "tracked" || a.status === "in_pipeline"),
+  );
+
+  const byTheme = new Map<SignalType, number>();
+  for (const acc of tracked) {
+    const types = new Set(acc.signals.filter((sg) => sg.usableInOutreach && sg.date && daysSince(sg.date, today) <= 60 && ROOM_THEME[sg.type]).map((sg) => sg.type));
+    for (const t of types) byTheme.set(t, (byTheme.get(t) ?? 0) + 1);
+  }
+  const theme = [...byTheme.entries()].sort((a, b) => b[1] - a[1])[0];
+
+  const host =
+    ws.connectors.find((c) => c.relationship === "investor" || c.relationship === "customer") ??
+    (Object.values(ws.accounts).some((a) => a.status === "customer") || Object.values(ws.deals).some((d) => d.stage === "won") ? { name: "a customer" } : undefined);
+  const domains = new Set(tracked.map((a) => a.domain));
+  const { points } = leadPoints(ws, resolvePlace);
+  const city = host ? metros(points.filter((p) => domains.has(p.domain))).find((m) => m.companies >= ROOM_CITY_MIN) : undefined;
+  // Start virtual: a dinner first only for a founder who has already hosted a room, or when no theme holds six.
+  const hosted = Object.values(ws.events).some((e) => e.status === "done");
+  const roundtable = theme && theme[1] >= ROOM_THEME_MIN && (!city || !hosted);
+
+  if (roundtable) {
+    out.push({
+      id: `mv_room_${weekStart}`,
+      kind: "event_task",
+      rule: "room",
+      title: `Host a roundtable: ${theme[1]} of your tracked companies ${ROOM_THEME[theme[0]]}`,
+      why: "6–8 peers on one live question · 60 minutes, virtual · no pitch",
+      minutes: 5,
+      priority: RULES.room.base,
+      href: "/events?new=1",
+    });
+  } else if (city && host) {
+    const place = city.place.split(",")[0];
+    out.push({
+      id: `mv_room_${weekStart}`,
+      kind: "event_task",
+      rule: "room",
+      title: `Plan a dinner in ${place}: ${city.companies} of your target companies are there`,
+      why: `${host.name === "a customer" ? "A customer could host" : `${first(host.name)} could co-host`} · 8–10 seats, open deals first`,
+      minutes: 5,
+      priority: RULES.room.base,
+      href: `/events?new=1&city=${encodeURIComponent(place)}`,
+    });
+  }
+}
+
 function questions({ ws, out }: Ctx) {
   for (const q of ws.foundation?.founderQuestions ?? []) {
     if (q.answer) continue;
@@ -1143,6 +1338,26 @@ function reviews({ ws, now, today, weekStart, out }: Ctx) {
     why: replies ? `${plural(replies, "reply", "replies")} to read · ${plural(touches, "touch", "touches")} this week` : `${plural(touches, "touch", "touches")} this week · no replies yet`,
     minutes: 20,
     priority: RULES.review_friday.base,
+  });
+}
+
+/**
+ * The weekly optional post (§5.2): last Friday's review drafted one from the founder's own material. It's
+ * offered the week after, until it's copied or dismissed, and never more than one a week.
+ */
+function weeklyPost({ ws, weekStart, out }: Ctx) {
+  const review = ws.briefs[`${addDays(weekStart, -7)}:friday`];
+  const post = review?.proposals?.find((p) => p.status === "open" && p.kind === "note" && !!p.text && (p.post || p.title.startsWith("Post draft:")));
+  if (!post) return;
+  out.push({
+    id: `mv_post_${post.id}`,
+    kind: "post",
+    rule: "post",
+    title: "Post last week's best insight",
+    why: `“${clip(post.title.replace(/^Post draft:\s*/, ""), 60)}” · from your own material · optional`,
+    minutes: 5,
+    priority: RULES.post.base,
+    subjectIds: [post.id],
   });
 }
 

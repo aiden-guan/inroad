@@ -11,6 +11,7 @@ import { ReferralLeads } from "@/components/people/referral-leads";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
+import { CopyButton } from "@/components/ui/misc";
 import { SourceChip } from "@/components/ui/source";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
@@ -286,7 +287,9 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
     case "close_out":
       return <CloseOutBody {...props} />;
     case "single_threaded":
-    case "unpaid": {
+    case "unpaid":
+    case "stalled":
+    case "slipped": {
       const deal = move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
       if (!deal) break;
       return (
@@ -294,7 +297,11 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
           <Lead>
             {rule === "single_threaded"
               ? "Won deals involve more people than lost ones. Ask your contact who else feels this problem and who signs off, then add them to the deal."
-              : "An unpaid pilot past 30 days has turned into a free trial. Agree a fee, or a written conversion date and price tied to the success criteria."}
+              : rule === "unpaid"
+                ? "An unpaid pilot past 30 days has turned into a free trial. Agree a fee, or a written conversion date and price tied to the success criteria."
+                : rule === "stalled"
+                  ? "A date on the calendar isn't the same as a deal that's moving. Send one line that re-confirms the next step and asks if anything changed on their side. Never just checking in."
+                  : "A close date that keeps moving means the reason to buy now has gone soft. Ask what changed, who else has to say yes, and what would have to be true to sign by a date they'll agree to."}
           </Lead>
           <Row>
             <Link href={sheet(deal.accountDomain)} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
@@ -366,6 +373,45 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
         </div>
       );
     }
+    case "asset":
+      return (
+        <div className="space-y-3">
+          <Lead>
+            A draft offers something you don&apos;t have yet, and a cold note can only offer an approved asset. Write it once in the Playbook and approve it, and every draft can attach it. Or edit the offer out of the draft.
+          </Lead>
+          <Row>
+            {move.href && (
+              <Link href={move.href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+                Write it in the Playbook <ArrowUpRight className="size-3.5 opacity-70" />
+              </Link>
+            )}
+            <Button variant="ghost" onClick={onComplete}>
+              Done
+            </Button>
+          </Row>
+        </div>
+      );
+    case "room":
+      return (
+        <div className="space-y-3">
+          <Lead>
+            A room of peers gets busy buyers to show up when a cold note wouldn&apos;t. Pick one live question they argue about; no slides and no pitch. Start virtual, and host a dinner only with a co-host or a customer
+            who hosts.
+          </Lead>
+          <Row>
+            {move.href && (
+              <Link href={move.href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+                Plan it <ArrowUpRight className="size-3.5 opacity-70" />
+              </Link>
+            )}
+            <Button variant="ghost" onClick={onComplete}>
+              Not this week
+            </Button>
+          </Row>
+        </div>
+      );
+    case "post":
+      return <PostBody {...props} />;
     case "question":
       return <QuestionBody {...props} />;
     case "pov":
@@ -726,6 +772,35 @@ function QuestionBody({ move, ws, onComplete }: BodyProps) {
       ) : (
         <p className="text-[12px] text-fg-3">It updates the playbook: {q.affects.map((a) => a.replace(/_/g, " ")).join(", ")}.</p>
       )}
+    </div>
+  );
+}
+
+/** Last Friday's post draft, from the founder's own material: copy it (that applies the proposal) or let it go. */
+function PostBody({ move, ws, onComplete }: BodyProps) {
+  const { dispatch } = useWorkspace();
+  const id = move.subjectIds?.[0];
+  const found = Object.entries(ws.briefs)
+    .map(([date, b]) => ({ date, p: b.proposals?.find((x) => x.id === id) }))
+    .find((x) => x.p);
+  const p = found?.p;
+  if (!found || !p?.text) return <Lead>This post draft is no longer in your reviews.</Lead>;
+  const { date } = found;
+  const text = p.text;
+  const decide = async (status: "applied" | "dismissed") => {
+    if (await dispatch({ type: "brief.setProposal", date, proposalId: p.id, status, at: nowISO() })) onComplete();
+  };
+  return (
+    <div className="space-y-3">
+      <Lead>Built only from what you said and wrote this week. Optional: edit it in your words and post it yourself. Writing what you learn on calls makes the next cold note warmer.</Lead>
+      <pre className="whitespace-pre-wrap rounded-sm bg-sunken p-3 font-sans text-[14px] leading-[22px] text-fg">{text}</pre>
+      <Row>
+        {/* A beat for "Copied" to show before the card leaves. */}
+        <CopyButton text={text} label="Copy post" onCopied={() => setTimeout(() => void decide("applied"), 600)} />
+        <Button variant="ghost" onClick={() => void decide("dismissed")}>
+          Not this week
+        </Button>
+      </Row>
     </div>
   );
 }

@@ -48,6 +48,11 @@ export function newDeal(account: Account, id: string, at: string): Deal {
   };
 }
 
+/** A close date moved later: one push. Setting it the first time, or pulling it in, isn't. */
+export function closeDatePushed(prev: string | undefined, next: string | undefined): boolean {
+  return !!prev && !!next && next > prev;
+}
+
 /* ─────────────────────────────── Qualification ─────────────────────────────── */
 
 export const SCORED_FIELDS = ["pain", "spend", "criticalEvent", "champion", "economicBuyer", "fit"] as const;

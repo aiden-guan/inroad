@@ -27,7 +27,7 @@ import type {
 import { addBusinessDays, addDays, todayISO } from "./ids";
 import { OPEN_STAGES } from "./types";
 import { debriefReferrals } from "@/lib/deals/referrals";
-import { newDeal } from "@/lib/deals/rules";
+import { closeDatePushed, newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 
 /**
@@ -468,7 +468,10 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "deal.update": {
       const deal = need(ws.deals[action.id], "Deal");
+      // A close date moved later is a push; Today raises a deal that has slipped twice.
+      const pushed = closeDatePushed(deal.closeDate, action.patch.closeDate);
       Object.assign(deal, action.patch, { updatedAt: action.at });
+      if (pushed) deal.closeDatePushes = (deal.closeDatePushes ?? 0) + 1;
       return;
     }
     case "deal.setStage": {

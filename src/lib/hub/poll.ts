@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { connectorFor } from "@/lib/connectors";
 import { CONNECTORS, CRM_IDS, SEQUENCER_IDS, type CrmId, type SequencerId } from "@/lib/connectors/catalog";
 import type { ConnectorConfig, ConnectorError, CrmChanges, PollCursor } from "@/lib/connectors/types";
+import { closeDatePushed } from "@/lib/deals/rules";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Stage, type Workspace } from "@/lib/domain/types";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
@@ -223,6 +224,7 @@ function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string
       touched = true;
     }
     if (d.closeDate && d.closeDate !== deal.closeDate) {
+      if (closeDatePushed(deal.closeDate, d.closeDate)) deal.closeDatePushes = (deal.closeDatePushes ?? 0) + 1;
       deal.closeDate = d.closeDate;
       touched = true;
     }
