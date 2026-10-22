@@ -990,15 +990,17 @@ function firstTouches({ ws, today, c, out, firstThree: covered }: Ctx) {
     // first-three card's draft too).
     const origin = acc ? freshSignal(acc, today) : undefined;
     const fromFirstThree = firstThreeDomains(ws).includes(pkg.accountDomain) && !!ws.onboarding.hiredAt && pkg.createdAt >= ws.onboarding.hiredAt;
+    // A note to someone a call or a reply named: it takes over the referral card, at the referral card's rank.
+    const referred = person?.source === "referral" && !!person.notes?.startsWith("Referred by ") ? person.notes : undefined;
     quota--;
     out.push({
       id: fromFirstThree ? `mv_first_${pkg.accountDomain}` : origin && localDate(pkg.createdAt) >= origin.date ? `mv_signal_${acc!.domain}_${origin.id}` : `mv_draft_${pkg.id}_1`,
       kind: "first_touch",
       rule: "cold_draft",
       title: `Write to ${first(person?.name) || "the buyer"} at ${companyName(ws, pkg.accountDomain)}`,
-      why: sig ? `${clip(sig.headline, 70)} · ${ageShort(sig.date, today)}` : angle ? `Draft ready · angle: ${angle}` : "Draft ready",
+      why: referred ? `${clip(referred, 70)} · draft ready` : sig ? `${clip(sig.headline, 70)} · ${ageShort(sig.date, today)}` : angle ? `Draft ready · angle: ${angle}` : "Draft ready",
       minutes: 3,
-      priority: RULES.cold_draft.base + (acc?.tier === "A" ? 3 : 0),
+      priority: (referred ? Math.max(RULES.cold_draft.base, RULES.referrals.base) : RULES.cold_draft.base) + (acc?.tier === "A" ? 3 : 0),
       ref: pkg.personId ? { kind: "person", id: pkg.personId } : { kind: "account", id: pkg.accountDomain },
       draft: { packageId: pkg.id, step: 1 },
       source: sig ? { url: sig.url, date: sig.date } : undefined,
