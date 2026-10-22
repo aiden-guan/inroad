@@ -108,7 +108,7 @@ export function setSecrets(id: IntegrationId | "hub", values: Record<string, str
     else current[k] = v;
   }
   all[id] = current;
-  writeDataFile(SECRETS_FILE, all, 0o600);
+  writeDataFile(SECRETS_FILE, all);
 }
 
 /** Which secret keys are set, for showing "Connected" without exposing values. */

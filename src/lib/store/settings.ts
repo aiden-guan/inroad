@@ -30,6 +30,6 @@ export function writeSettings(patch: Partial<Settings>): Settings {
   for (const key of Object.keys(next) as (keyof Settings)[]) {
     if (next[key] === undefined || next[key] === "") delete next[key];
   }
-  writeDataFile(SETTINGS_FILE, next, 0o600);
+  writeDataFile(SETTINGS_FILE, next);
   return next;
 }

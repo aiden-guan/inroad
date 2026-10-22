@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { writeFileAtomic } from "@/lib/store/data-file";
 import { DATA_DIR } from "@/lib/store/settings";
 
 /**
@@ -34,8 +35,7 @@ export async function cached<T>(key: string, ttlMs: number, load: () => Promise<
   // null/undefined means the lookup failed (site unreachable, DNS error): retry next time.
   if (value == null) return value;
   try {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(value));
+    writeFileAtomic(file, JSON.stringify(value));
   } catch {
     // cache is best-effort
   }

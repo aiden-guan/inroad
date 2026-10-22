@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RunStep, Workspace } from "@/lib/domain/types";
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
+import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { DATA_DIR } from "@/lib/store/settings";
 import { emptyWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
@@ -29,10 +30,7 @@ function resetDataFile(name: string, contents: unknown | null) {
     fs.rmSync(file, { force: true });
     return;
   }
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(contents, null, 2));
-  fs.renameSync(tmp, file);
+  writeFileAtomic(file, JSON.stringify(contents, null, 2));
 }
 
 async function replaceRunSteps(steps: Record<string, RunStep[]>) {
