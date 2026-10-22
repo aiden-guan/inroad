@@ -14,7 +14,7 @@ import { cn } from "@/lib/client/cn";
 import type { Action } from "@/lib/domain/actions";
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Brief, Move, MoveKind, SkipReason, Workspace } from "@/lib/domain/types";
-import { codeGreeting } from "@/lib/moves/brief-data";
+import { codeGreeting, movesHeading } from "@/lib/moves/brief-data";
 import { KIND_ORDER, TOP_MOVES, visibleMoves } from "@/lib/moves/rules";
 import { computeScoreboard } from "@/lib/moves/scoreboard";
 import { daysSince, plural } from "@/lib/moves/util";
@@ -71,7 +71,10 @@ export function Today({ ws }: { ws: Workspace }) {
   const reveal = phase === "reveal";
   const { prepare, schedule, error } = usePrepare();
   const [refreshing, setRefreshing] = useState(false);
-  const briefWorking = useActiveRuns().some((r) => r.workflow === "brief");
+  const activeRuns = useActiveRuns();
+  const briefWorking = activeRuns.some((r) => r.workflow === "brief");
+  // Day one's "While that runs" is only true while discovery is actually looking.
+  const discovering = activeRuns.some((r) => r.workflow === "discovery");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // The open card stays put until the founder collapses or finishes it, even once its own work resolved it
@@ -295,12 +298,12 @@ export function Today({ ws }: { ws: Workspace }) {
         />
 
         <section className="mt-10" aria-label="Your moves">
-          {dayOne && <DayOne />}
+          {dayOne && <DayOne warm={!!ws.network} />}
           {visible.length === 0 ? (
             !dayOne && <CaughtUp worth={worth} />
           ) : (
             <div className={cn(dayOne && "mt-6")}>
-              <SectionLabel right={<span className="font-mono text-[11.5px] tnum text-fg-3">about {minutes} min</span>}>{dayOne ? "While that runs" : "Your moves"}</SectionLabel>
+              <SectionLabel right={<span className="font-mono text-[11.5px] tnum text-fg-3">about {minutes} min</span>}>{movesHeading({ dayOne, discovering })}</SectionLabel>
               {list(top)}
             </div>
           )}
@@ -384,18 +387,25 @@ function WeekCard({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "m
   );
 }
 
-function DayOne() {
+/** Day one, no companies yet. Warm-first only once there's a network to start from; until then, say how to get one. */
+function DayOne({ warm }: { warm: boolean }) {
   return (
     <EmptyState
       icon={<Compass className="size-6" />}
       title="Let's find your first three companies"
-      body="I'll look for companies with a dated reason to talk to you now, starting with people who already know you. Then I research each one before you write a word."
+      body={
+        warm
+          ? "I'll look for companies with a dated reason to talk to you now, starting where people you already know work. Then I research each one before you write a word."
+          : "I'll look for companies with a dated reason to talk to you now, then research each one before you write a word. Import your LinkedIn connections and I'll start with people who already know you."
+      }
       action={
         <div className="flex flex-col items-center gap-3">
           <RunInline workflow="discovery" args={{ count: 3, source: "manual" }} label="Find three companies" hint="Free sources first · a few minutes" />
-          <Link href="/integrations?import=linkedin" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
-            Or import your LinkedIn connections first
-          </Link>
+          {!warm && (
+            <Link href="/integrations?import=linkedin" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
+              Or import your LinkedIn connections first
+            </Link>
+          )}
         </div>
       }
     />
