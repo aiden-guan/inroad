@@ -3,6 +3,7 @@ import { ActionError } from "@/lib/domain/actions";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
 import { ensureAccount, ensurePerson, findPerson, isFreeMail, isSuppressed, normalizeDomain } from "@/lib/hub/records";
+import { wasForgotten } from "@/lib/people/forget";
 import { githubStargazers, hasGithubToken, type Stargazer } from "@/lib/signals/github";
 import { normalizeCompanyName, ycByName, ycDirectory, type YcCompany } from "@/lib/signals/yc";
 import { mutateWorkspace } from "@/lib/store/workspace";
@@ -62,7 +63,7 @@ export async function importStargazers(input: { repo: string }): Promise<ImportB
       for (const s of r.stargazers) {
         const place = placeOf(ws, s, dir);
         const domain = place ? normalizeDomain(place.domain) : null;
-        if (!domain || isFreeMail(domain) || (own && (domain === own || domain.endsWith(`.${own}`))) || /(^|\.)github\.(com|io)$/.test(domain) || isSuppressed(ws, s.email, domain)) {
+        if (!domain || isFreeMail(domain) || (own && (domain === own || domain.endsWith(`.${own}`))) || /(^|\.)github\.(com|io)$/.test(domain) || isSuppressed(ws, s.email, domain) || wasForgotten(ws, { email: s.email, name: s.name ?? s.login, domain })) {
           b.skipped++;
           continue;
         }

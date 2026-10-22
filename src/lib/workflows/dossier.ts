@@ -8,6 +8,7 @@ import { jurisdictionOf, rankPaths } from "@/lib/deals/rules";
 import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Angle, ContactPath, Dossier, Evidence, Person, PersonaRole, Signal, Workspace } from "@/lib/domain/types";
 import { accountData, emitHubEvent } from "@/lib/hub";
+import { connectionIdentity, wasForgotten } from "@/lib/people/forget";
 import { gatherSignals, toDomain } from "@/lib/signals";
 import { summarizeRoles } from "@/lib/signals/jobs";
 import { publicRecords } from "@/lib/signals/public-records";
@@ -468,7 +469,7 @@ export default defineWorkflow({
       .slice(0, 8);
     const acts = ws0.activities.filter((a) => a.accountDomain === domain);
     const deal = account.dealId ? ws0.deals[account.dealId] : undefined;
-    const connections = readConnections().filter((c) => c.matchedDomain === domain);
+    const connections = readConnections().filter((c) => c.matchedDomain === domain && !wasForgotten(ws0, connectionIdentity(c)));
 
     const message = [
       taskHeader(),
@@ -617,6 +618,9 @@ function persist(w: Workspace, { domain, out, ledger, at, today, runId, digest }
         if (unknowns.length < 6) unknowns.push(`Couldn't confirm ${p.name} is still the ${p.title}`);
         continue;
       }
+      // Asked to have their details deleted: the web still names them, but nothing here keeps them.
+      const li = p.links.find((l) => /linkedin\.com\/in\//i.test(l.url))?.url;
+      if (wasForgotten(w, { email: published.get(p.name.toLowerCase()), linkedinUrl: li, name: p.name, domain })) continue;
       const existing = acc.peopleIds.map((id) => w.people[id]).find((x) => x && x.name.toLowerCase() === p.name.toLowerCase());
       const location = p.location ?? undefined;
       const paths: ContactPath[] = [...(existing?.contactPaths ?? [])];
@@ -668,7 +672,7 @@ function persist(w: Workspace, { domain, out, ledger, at, today, runId, digest }
   }
 
   // Warm paths from the founder's own connections, joined in code. Names never went to Claude.
-  const connections = readConnections().filter((c) => c.matchedDomain === domain);
+  const connections = readConnections().filter((c) => c.matchedDomain === domain && !wasForgotten(w, connectionIdentity(c)));
   for (const c of connections.slice(0, 12)) {
     const full = `${c.firstName} ${c.lastName}`.trim();
     const existing = acc.peopleIds.map((id) => w.people[id]).find((x) => x && (x.linkedinUrl === c.url || x.name.toLowerCase() === full.toLowerCase()));

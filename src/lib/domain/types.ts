@@ -1535,6 +1535,12 @@ export interface Workspace {
   integrations: Partial<Record<IntegrationId, IntegrationState>>;
   webhooks: OutboundWebhook[];
   suppression: Suppression[];
+  /**
+   * What "Delete their details" keeps besides an address: one-way fingerprints of each deleted person's
+   * LinkedIn profile and of their name at their company (src/lib/people/forget.ts forgetKeys), so a
+   * restore or an import can recognise them without holding who they were.
+   */
+  forgotten?: string[];
   runs: RunSummary[]; // newest first, last 200
   usage: Record<string /* YYYY-MM */, UsageMonth>;
 }

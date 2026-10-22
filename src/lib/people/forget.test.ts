@@ -115,7 +115,7 @@ describe("person.forget", () => {
     expect(s.suppression.filter((x) => x.email?.toLowerCase() === DANA)).toEqual([{ id: "sup_old", email: "Dana@Northwind.example", reason: "requested_delete", at: at(-2) }]);
   });
 
-  it("suppresses every address on file, and keeps nothing when there is none", () => {
+  it("suppresses every address on file, and no address when there is none", () => {
     const s = structuredClone(sample);
     s.people.per_two = makePerson("per_two", DOMAIN.northwind, {
       name: "Rui Two",

@@ -11,7 +11,9 @@ import type { ImportBatch } from "@/lib/network/types";
  *  - evidence about them, or that names them, is deleted, and the facts and signals that quote it;
  *  - their history stays as counts (caps and the scoreboard still add up) with no name and no text;
  *  - one `requested_delete` suppression entry per address remains, holding only the email, so
- *    nothing ever writes to them again.
+ *    nothing ever writes to them again;
+ *  - one-way fingerprints of their LinkedIn profile and of their name at their company remain
+ *    (`ws.forgotten`), so a restore or an import recognises them even when they had no email.
  * Pure: the reducer runs it in the browser and on the server. Files outside the workspace
  * (connections.json, network.json, run logs, Ask conversations, CRM links) go through the same
  * matchers, on the server.
@@ -100,6 +102,66 @@ export function redactRunSteps(steps: Record<ID, RunStep[]>, runIds: ID[], perso
 }
 
 const FORGOTTEN = "Details deleted at their request";
+
+/** Two 53-bit string hashes (cyrb53): enough to recognise someone again, not to read back who it was. Sync, so the reducer can use it. */
+function fingerprint(text: string): string {
+  const hash = (seed: number) => {
+    let h1 = 0xdeadbeef ^ seed;
+    let h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36).padStart(11, "0");
+  };
+  return hash(0) + hash(1);
+}
+
+/** Who someone is, as an import, a sync or a backup describes them. */
+export interface Identity {
+  email?: string | null;
+  linkedinUrl?: string | null;
+  name?: string;
+  /** Their company's domain: a name only identifies someone together with it. */
+  domain?: string | null;
+}
+
+/** The fingerprints `ws.forgotten` holds for someone: their LinkedIn profile, and their full name at their company. */
+export function forgetKeys(who: Identity): string[] {
+  const keys: string[] = [];
+  const li = linkedinKey(who.linkedinUrl ?? undefined);
+  if (li) keys.push(`li:${fingerprint(li)}`);
+  const name = who.name?.trim().toLowerCase().replace(/\s+/g, " ");
+  const domain = who.domain?.trim().toLowerCase();
+  if (name && domain) keys.push(`nm:${fingerprint(`${name}@${domain}`)}`);
+  return keys;
+}
+
+/**
+ * Did they ask to have their details deleted? Their address on the suppression list as requested_delete,
+ * or their profile or name-at-company among the fingerprints a deletion keeps. Imports, syncs and a
+ * restore skip them, so nothing brings a deleted person back.
+ */
+export function wasForgotten(ws: Pick<Workspace, "suppression" | "forgotten">, who: Identity): boolean {
+  const email = who.email?.trim().toLowerCase();
+  if (email && ws.suppression.some((s) => s.reason === "requested_delete" && s.email?.trim().toLowerCase() === email)) return true;
+  if (!ws.forgotten?.length) return false;
+  const held = new Set(ws.forgotten);
+  return forgetKeys(who).some((k) => held.has(k));
+}
+
+/** Is this person (by any of their addresses, their profile or their name at their company) someone who asked to be deleted? */
+export function personWasForgotten(ws: Pick<Workspace, "suppression" | "forgotten">, person: Person): boolean {
+  const base = { linkedinUrl: person.linkedinUrl, name: person.name, domain: person.accountDomain };
+  if (wasForgotten(ws, base)) return true;
+  return emailsOf(person).some((email) => wasForgotten(ws, { email }));
+}
+
+/** The connection row as an identity (the company is only known once it's matched to a domain). */
+export const connectionIdentity = (row: Connection): Identity => ({ email: row.email, linkedinUrl: row.url, name: `${row.firstName} ${row.lastName}`.trim(), domain: row.matchedDomain });
 
 /** Deletes everything held about one person, keeping only their email(s) as `requested_delete`. No-op for unknown ids. */
 export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: ID): void {
@@ -211,7 +273,12 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   // Whatever still spells out their full name (call notes, a recap, a note on someone else) loses it.
   redactEverywhere(ws, person);
 
-  // 5. Only their email stays, so nothing writes to them again.
+  // 5. Only their email stays, so nothing writes to them again, and fingerprints, so nothing brings them back.
+  const keys = forgetKeys({ linkedinUrl: person.linkedinUrl, name: person.name, domain: person.accountDomain });
+  for (const c of person.contactPaths) if (c.kind === "linkedin") keys.push(...forgetKeys({ linkedinUrl: c.value }));
+  const held = new Set(ws.forgotten ?? []);
+  const fresh = [...new Set(keys)].filter((k) => !held.has(k));
+  if (fresh.length) ws.forgotten = [...(ws.forgotten ?? []), ...fresh];
   emailsOf(person).forEach((email, i) => {
     const existing = ws.suppression.find((s) => s.email?.toLowerCase() === email);
     if (existing) {
@@ -263,7 +330,7 @@ function redactDeep(node: unknown, person: Person): void {
 
 /** Every string of the workspace except the suppression list, which keeps their address on purpose. */
 function redactEverywhere(ws: Workspace, person: Person): void {
-  for (const [key, value] of Object.entries(ws)) if (key !== "suppression") redactDeep(value, person);
+  for (const [key, value] of Object.entries(ws)) if (key !== "suppression" && key !== "forgotten") redactDeep(value, person);
 }
 
 /* ───────────── Ask conversations (threads.json) ───────────── */

@@ -60,7 +60,7 @@ export function ForgetPerson({
     <div ref={ref} className={cn("scroll-mb-4 space-y-2.5", className)}>
       <p className="max-w-[62ch] text-[12.5px] leading-[19px] text-fg-2">
         Deletes {first}, their contact details, every draft to them, and the sources and Ask conversations that name them.{" "}
-        {kept.length ? `Only ${kept.length === 1 ? "their email stays" : "their emails stay"}, on your suppression list, so I never write to them again.` : "There's no email on file, so nothing is kept."}
+        {kept.length ? `Only ${kept.length === 1 ? "their email stays" : "their emails stay"}, on your suppression list, so I never write to them again.` : "There's no email on file. All that stays is a scrambled fingerprint of their name and profile, so a backup or an import can't bring them back."}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <HoldButton onConfirm={() => void forget()} disabled={busy}>

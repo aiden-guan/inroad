@@ -3,7 +3,8 @@ import { ActionError } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Connection, ContactPath, Person, RelationshipTag, Workspace } from "@/lib/domain/types";
 import { ensureAccount, ensurePerson, findPerson, isFreeMail, isSuppressed, normalizeDomain } from "@/lib/hub/records";
-import { mutateWorkspace } from "@/lib/store/workspace";
+import { wasForgotten } from "@/lib/people/forget";
+import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { CSV_LIMITS, headerKey, isLinkedInHeader, linkedinKey, normalizeCompany, parseCsv, parseLinkedInDate } from "./csv";
 import { planImport, readListRows } from "./plan";
 import { FIELDS, looksLikeConnections, presetById, type Mapping, type PresetId } from "./presets";
@@ -109,6 +110,11 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
         }
 
         if (!row.person) continue;
+        // Asked to have their details deleted: a list doesn't bring them back.
+        if (wasForgotten(ws, { email: row.email, linkedinUrl: row.linkedin, name: row.name, domain })) {
+          b.skipped++;
+          continue;
+        }
         const before = findPerson(ws, { email: row.email, linkedinUrl: row.linkedin, name: row.name, domain });
         const snapshot = before ? { email: before.email, title: before.title, linkedinUrl: before.linkedinUrl, location: before.location, paths: before.contactPaths.length } : null;
         const { person, created: madePerson } = ensurePerson(
@@ -307,6 +313,7 @@ export async function importConnections(input: { fileName: string; text: string 
   let skipped = 0;
   const stats = { total: 0, added: 0, changed: 0, removed: 0, withEmail: 0 };
 
+  const ws = readWorkspace();
   await updateConnections((rows) => {
     const byKey = new Map<string, Connection>();
     const keyOf = (first: string, last: string, url: string, company: string) => linkedinKey(url) || `name:${first} ${last}|${normalizeCompany(company)}`.toLowerCase();
@@ -326,6 +333,11 @@ export async function importConnections(input: { fileName: string; text: string 
         continue;
       }
       const key = keyOf(firstName, lastName, url, company);
+      // Asked to have their details deleted: LinkedIn's file still lists them, but nothing here keeps them.
+      if (wasForgotten(ws, { email, linkedinUrl: url })) {
+        skipped++;
+        continue;
+      }
       if (seen.has(key)) {
         skipped++;
         continue;

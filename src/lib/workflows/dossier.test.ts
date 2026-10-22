@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCompat } from "@/lib/ai/engine";
 import { fetchJSON, fetchText } from "@/lib/signals/http";
+import { updateConnections } from "@/lib/network/store";
+import { forgetKeys } from "@/lib/people/forget";
 import { writeSettings } from "@/lib/store/settings";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { useTape, type Tape } from "@/test/anthropic-tape";
@@ -78,6 +80,23 @@ describe("researching a company", () => {
     expect(acc.signals.length).toBeGreaterThan(0);
     for (const s of acc.signals) expect(s.date <= TODAY).toBe(true);
     expect(d.recommendation.move).toBeTruthy();
+  });
+
+  it("never makes a person again of a connection who asked to have their details deleted", async () => {
+    await updateConnections((rows) => {
+      rows.push({ id: "con_kim", firstName: "Kim", lastName: "Lu", url: "https://www.linkedin.com/in/kim-lu", company: "Acme", position: "CFO", companyNorm: "acme", matchedDomain: "acme.com" });
+      rows.push({ id: "con_ray", firstName: "Ray", lastName: "Ito", url: "https://www.linkedin.com/in/ray-ito", company: "Acme", position: "Controller", companyNorm: "acme", matchedDomain: "acme.com" });
+    });
+    try {
+      await replaceWorkspace({ ...readWorkspace(), forgotten: forgetKeys({ linkedinUrl: "https://linkedin.com/in/kim-lu/" }) });
+      tape = await useTape("dossier-acme");
+      await runWorkflow(dossier, { domain: "acme.com" });
+      const names = Object.values(readWorkspace().people).map((p) => p.name);
+      expect(names).toContain("Ray Ito");
+      expect(names).not.toContain("Kim Lu");
+    } finally {
+      await updateConnections((rows) => void rows.splice(0, rows.length));
+    }
   });
 
   it("searches the web (at most 3 times) when free sources are thin, and keeps only snippets it really saw", async () => {
