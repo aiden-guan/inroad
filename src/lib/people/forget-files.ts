@@ -7,12 +7,13 @@ import { githubOwnerKey } from "@/lib/signals/github";
 import { personPodcastKeys } from "@/lib/signals/podcasts";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { rewriteThreads } from "@/lib/store/threads";
-import { connectionIdentity, connectionIsPerson, forgetInImports, forgetInThread, hubRefsOf, redactRunSteps, threadMentions, wasForgotten } from "./forget";
+import { connectionIdentity, connectionIsPerson, forgetInImports, forgetInThread, hubRefsOf, namesPerson, redactRunSteps, threadMentions, wasForgotten } from "./forget";
 
 /**
  * The part of "Delete their details" that lives outside workspace.json: their row in the founder's
  * LinkedIn connections (a re-import brings it back from LinkedIn's file, but nothing here keeps it),
- * the import history in network.json, their name in the step logs of runs about them, the Ask
+ * the import history in network.json, their name in the step logs of runs about them (and their full
+ * name in any other run's log, such as an Ask question that named them), the Ask
  * conversations that mention them (threads.json), the links to their CRM records (hub.json), and the
  * public lookups cached about them (podcast searches by their name, their GitHub profile).
  * Each file is only rewritten when something in it matches.
@@ -46,13 +47,14 @@ export async function forgetInFiles({ person, company, runIds, namesake }: Forgo
   if (network.imports.some((b) => b.created.people.includes(person.id) || b.filled.some((f) => f.kind === "person" && f.id === person.id))) {
     await mutateNetwork((n) => void forgetInImports(n.imports, person.id));
   }
-  if (runIds.length) {
-    try {
-      const steps = stepsDB().read();
-      if (runIds.some((id) => steps[id]?.length)) await stepsDB().update((draft) => void redactRunSteps(draft, runIds, person));
-    } catch {
-      // The step log is a nicety (see the run registry); an unreadable one holds nothing to redact.
-    }
+  try {
+    // Runs about them, and (when the name is theirs alone) any other run whose log spells out their full name.
+    const steps = stepsDB().read();
+    const everywhere = !namesake;
+    const hit = runIds.some((id) => steps[id]?.length) || (everywhere && Object.values(steps).some((list) => list.some((s) => namesPerson(s.text, person))));
+    if (hit) await stepsDB().update((draft) => void redactRunSteps(draft, runIds, person, { everywhere }));
+  } catch {
+    // The step log is a nicety (see the run registry); an unreadable one holds nothing to redact.
   }
   const threads = await rewriteThreads(
     (t) => threadMentions(t, person, !namesake),

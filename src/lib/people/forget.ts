@@ -104,12 +104,17 @@ export function forgetInImports(imports: ImportBatch[], personId: ID): boolean {
   return changed;
 }
 
-/** Run logs (runs.json) of the runs about them: their name comes out of every step. Returns whether anything changed. */
-export function redactRunSteps(steps: Record<ID, RunStep[]>, runIds: ID[], person: Person): boolean {
+/**
+ * Run logs (runs.json): their name comes out of every step of the runs about them. With `everywhere` (no one else
+ * here has their name), their full name also comes out of every other run's steps, as it does in the workspace: an
+ * Ask run's log quotes the question that named them. Returns whether anything changed.
+ */
+export function redactRunSteps(steps: Record<ID, RunStep[]>, runIds: ID[], person: Person, opts: { everywhere?: boolean } = {}): boolean {
   let changed = false;
-  for (const id of runIds) {
+  const about = new Set(runIds);
+  for (const id of opts.everywhere ? Object.keys(steps) : runIds) {
     for (const s of steps[id] ?? []) {
-      const text = redactName(s.text, person, { firstName: true });
+      const text = redactName(s.text, person, { firstName: about.has(id) });
       if (text !== s.text) {
         s.text = text;
         changed = true;
