@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tapes:record": "node scripts/live/record-tapes.mjs",
+    "smoke:live": "node scripts/live/smoke.mjs",
     "mock:anthropic": "node scripts/mock-anthropic.mjs"
   },
   "dependencies": {
