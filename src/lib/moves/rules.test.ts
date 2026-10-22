@@ -219,6 +219,24 @@ describe("move rules", () => {
       expect(drafts(ws)).toEqual(["pkg_0", "pkg_1"]);
     });
 
+    it("counts first touches handed to a sequencer and cold dinner invites against the same cap", () => {
+      const ws = coldDesk({ firstTouchesPerWeek: 3 });
+      ws.accounts["s.example"] = makeAccount("s.example");
+      ws.outreach.pkg_pushed = makePackage("pkg_pushed", "s.example", { steps: [makeStep(1, { status: "approved", sentAt: at(-1) })] });
+      ws.activities.push(makeActivity("act_push", { kind: "pushed", channel: "integration", at: at(-1), draftRef: { packageId: "pkg_pushed", step: 1 } }));
+      expect(drafts(ws)).toEqual(["pkg_0", "pkg_1"]);
+      ws.events.ev = {
+        id: "ev",
+        kind: "dinner",
+        title: "Dinner",
+        status: "inviting",
+        createdAt: at(-5),
+        guests: { g: { id: "g", personId: "per_g", title: "CFO", accountDomain: "g.example", role: "prospect", score: 1, personalLine: "", status: "invited" } },
+      };
+      ws.activities.push(makeActivity("act_inv", { kind: "event_invited", channel: "email", eventId: "ev", personId: "per_g", at: at(0) }));
+      expect(drafts(ws)).toEqual(["pkg_0"]);
+    });
+
     it("skips suppressed companies and accounts already at the per-account weekly limit", () => {
       const ws = coldDesk({}, { suppression: [{ id: "sup", domain: "c0.example", reason: "competitor", at: at(-9) }] });
       ws.activities.push(

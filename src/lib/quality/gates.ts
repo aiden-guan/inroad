@@ -2,6 +2,7 @@ import { shortDate } from "@/lib/client/format";
 import { isDataProvider } from "@/lib/connectors/catalog";
 import { todayISO, weekOf } from "@/lib/domain/ids";
 import type { ContactPath, DraftStep, Jurisdiction, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import { capUsage } from "./cap";
 import { recentFirstTouch } from "./sequence";
 
 /**
@@ -105,29 +106,10 @@ export function senderComplete(ws: Workspace): boolean {
 }
 
 /**
- * Cold first-touch counts for the cap: this week (Mon–Sun) and today. LinkedIn, intros, replies to
- * prospects and follow-ups don't count.
+ * Cold first-touch counts for the cap: this week (Mon–Sun) and today. One counter for every surface
+ * (see ./cap): LinkedIn, intros, replies to prospects and follow-ups don't count; cold event invites do.
  */
-export function capUsage(ws: Workspace, today = todayISO()) {
-  const week = weekOf(today);
-  let thisWeek = 0;
-  let todayCount = 0;
-  for (const a of ws.activities) {
-    // Sent by hand or handed to a sequencer (or exported for one): either way it's a cold send.
-    const cold = ws.outreach[a.draftRef?.packageId ?? ""]?.mode === "cold";
-    const counts = (a.kind === "touch_sent" && a.channel === "email") || a.kind === "pushed";
-    if (!counts || !cold || a.draftRef?.step !== 1) continue;
-    const d = localDate(a.at);
-    if (d >= week) thisWeek++;
-    if (d === today) todayCount++;
-  }
-  return {
-    thisWeek,
-    today: todayCount,
-    remainingWeek: Math.max(0, ws.caps.firstTouchesPerWeek - thisWeek),
-    remainingToday: Math.max(0, Math.min(ws.caps.firstTouchesPerDayMax, ws.caps.firstTouchesPerWeek) - todayCount),
-  };
-}
+export { capUsage };
 
 /** Bounces above 2% of the last 50 sends block every guessed address. */
 function guessesBlockedByBounces(ws: Workspace): boolean {

@@ -1,5 +1,6 @@
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Activity, Scoreboard, Workspace } from "@/lib/domain/types";
+import { coldFirstTouches } from "@/lib/quality/cap";
 import { isOpen, localDate } from "./util";
 
 /**
@@ -9,7 +10,10 @@ import { isOpen, localDate } from "./util";
 
 export const INTRO_ASKS_PER_WEEK = 4;
 
-/** A cold-email first touch: step 1 of a cold package, actually sent (not reverted as "didn't send"). */
+/**
+ * A cold-email first touch the founder sent: step 1 of a cold package, actually sent (not reverted as
+ * "didn't send"). For reply and meeting rates; the cap counts more (see `coldFirstTouches`).
+ */
 export function isColdFirstTouch(ws: Workspace, a: Activity): boolean {
   if (a.kind !== "touch_sent" || a.outcome === "not_sent") return false;
   if (!a.draftRef || a.draftRef.step !== 1) return false;
@@ -29,17 +33,14 @@ export interface Counters {
 export function counters(ws: Workspace, now: Date): Counters {
   const today = todayISO(now);
   const weekStart = weekOf(today);
-  let coldThisWeek = 0;
-  let coldToday = 0;
+  // The same count the pre-send gate and the guest list use: pushed first touches and cold invites included.
+  const coldThisWeek = coldFirstTouches(ws, { from: weekStart });
+  const coldToday = coldFirstTouches(ws, { from: today, until: today });
   let introAsksThisWeek = 0;
   const peopleThisWeek = new Map<string, Set<string>>();
   for (const a of ws.activities) {
     const day = localDate(a.at);
     if (day < weekStart) continue;
-    if (isColdFirstTouch(ws, a)) {
-      coldThisWeek++;
-      if (day === today) coldToday++;
-    }
     if (a.kind === "intro_requested") introAsksThisWeek++;
     if (a.kind === "touch_sent" && a.accountDomain && a.personId && a.outcome !== "not_sent") {
       const set = peopleThisWeek.get(a.accountDomain) ?? new Set<string>();

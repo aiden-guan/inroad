@@ -94,10 +94,14 @@ describe("capUsage", () => {
     const ws = desk();
     ws.caps = { ...ws.caps, firstTouchesPerWeek: 5, firstTouchesPerDayMax: 3 };
     ws.outreach.follow = makePackage("follow", acme, { mode: "follow_up" });
-    const send = (id: string, n: number, kind: "touch_sent" | "pushed" = "touch_sent", pkg = "pkg", step = 1) =>
+    for (const id of ["a", "b", "c", "d"]) ws.outreach[`pkg_${id}`] = makePackage(`pkg_${id}`, acme);
+    const send = (id: string, n: number, kind: "touch_sent" | "pushed" = "touch_sent", pkg = `pkg_${id}`, step = 1) =>
       makeActivity(id, { kind, channel: kind === "touch_sent" ? "email" : "integration", at: at(n), draftRef: { packageId: pkg, step } });
-    ws.activities = [send("a", 0), send("b", 0, "pushed"), send("c", -1), send("d", -3), send("e", 0, "touch_sent", "pkg", 2), send("f", 0, "touch_sent", "follow")];
+    ws.activities = [send("a", 0), send("b", 0, "pushed"), send("c", -1), send("d", -3), send("e", 0, "touch_sent", "pkg_a", 2), send("f", 0, "touch_sent", "follow")];
     expect(capUsage(ws, TODAY)).toEqual({ thisWeek: 3, today: 2, remainingWeek: 2, remainingToday: 1 });
+    // One package's first touch is one send, even when it was pushed to a sequencer and then marked sent.
+    ws.activities.push(send("b2", 0, "touch_sent", "pkg_b"));
+    expect(capUsage(ws, TODAY).thisWeek).toBe(3);
   });
 });
 
