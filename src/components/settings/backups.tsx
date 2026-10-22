@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/misc";
-import { backupWhen, describeSummary, fileSize, REASON_LABEL, summarizeFile, uploadBody, type BackupEntry, type BackupsResponse, type BackupSummary } from "./backup-model";
+import { backupWhen, describeSummary, fileSize, REASON_LABEL, restoredMessage, summarizeFile, uploadBody, type BackupEntry, type BackupsResponse, type BackupSummary } from "./backup-model";
 import { Expand, Group, Row } from "./parts";
 
 const SHOWN = 5;
@@ -44,11 +44,11 @@ export function BackupsGroup({ refresh, version }: { refresh: () => Promise<void
     };
   }, [version]);
 
-  const restored = async (from: string) => {
+  const restored = async (from: string, keptSuppressions?: number) => {
     setOpen(null);
     await refresh();
     load();
-    toast(`Restored the backup from ${from}. What was here before is saved in Backups.`);
+    toast(restoredMessage(from, keptSuppressions));
   };
 
   const backups = list?.backups ?? [];
@@ -98,7 +98,9 @@ export function BackupsGroup({ refresh, version }: { refresh: () => Promise<void
   );
 }
 
-function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; open: boolean; onToggle: () => void; onRestored: (from: string) => Promise<void> }) {
+type OnRestored = (from: string, keptSuppressions?: number) => Promise<void>;
+
+function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; open: boolean; onToggle: () => void; onRestored: OnRestored }) {
   const [summary, setSummary] = useState<BackupSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const when = backupWhen(entry.at);
@@ -118,7 +120,7 @@ function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; 
       const res = await fetch(`/api/workspace/restore?backup=${encodeURIComponent(entry.name)}`, { method: "POST" });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error ?? "That didn't restore. Try again.");
-      await onRestored(when);
+      await onRestored(when, body?.restored?.keptSuppressions);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "That didn't restore. Try again.");
     } finally {
@@ -147,7 +149,7 @@ function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; 
           text={
             <>
               Replace what&apos;s here now with the backup from {when.replace(/^(Today|Yesterday)/, (d) => d.toLowerCase())}
-              {summary ? <> ({describeSummary(summary)})</> : null}? I&apos;ll back up the current workspace first.
+              {summary ? <> ({describeSummary(summary)})</> : null}? I&apos;ll back up the current workspace first, and everyone on your suppression list stays on it.
             </>
           }
           busy={busy}
@@ -175,7 +177,7 @@ function ConfirmRestore({ text, busy, onCancel, onConfirm }: { text: React.React
   );
 }
 
-function RestoreFromFile({ onRestored }: { onRestored: (from: string) => Promise<void> }) {
+function RestoreFromFile({ onRestored }: { onRestored: OnRestored }) {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<{ file: File; info: ReturnType<typeof summarizeFile> } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -195,7 +197,7 @@ function RestoreFromFile({ onRestored }: { onRestored: (from: string) => Promise
       if (!res.ok) throw new Error(body?.error ?? "That didn't restore. Try again.");
       setFile(null);
       if (input.current) input.current.value = "";
-      await onRestored(body?.restored?.createdAt ? backupWhen(body.restored.createdAt) : file.file.name);
+      await onRestored(body?.restored?.createdAt ? backupWhen(body.restored.createdAt) : file.file.name, body?.restored?.keptSuppressions);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "That didn't restore. Try again.");
     } finally {
@@ -228,7 +230,7 @@ function RestoreFromFile({ onRestored }: { onRestored: (from: string) => Promise
             text={
               <>
                 Replace what&apos;s here now with <span className="font-medium">{file.file.name}</span>
-                {info ? <> ({describeSummary(info.summary)})</> : null}? I&apos;ll back up the current workspace first.
+                {info ? <> ({describeSummary(info.summary)})</> : null}? I&apos;ll back up the current workspace first, and everyone on your suppression list stays on it.
                 {info?.workspaceOnly ? " This file is from an older version, so it holds the workspace only; Ask threads and LinkedIn connections stay as they are." : ""}
               </>
             }

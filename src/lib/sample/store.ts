@@ -5,9 +5,9 @@ import type { RunStep, Workspace } from "@/lib/domain/types";
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
-import { snapshotBefore, type BackupBundle, type BackupEntry } from "@/lib/store/backup";
+import { keepSuppressions, snapshotBefore, type BackupBundle, type BackupEntry } from "@/lib/store/backup";
 import { DATA_DIR } from "@/lib/store/settings";
-import { emptyWorkspace, holdsRealWork, migrateWorkspace, replaceWorkspace } from "@/lib/store/workspace";
+import { emptyWorkspace, holdsRealWork, migrateWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { sampleConnections, sampleRunSteps, sampleWorkspace } from "./index";
 
 export { holdsRealWork };
@@ -80,12 +80,16 @@ export async function resetToEmptyWorkspace(): Promise<Workspace> {
  * Replaces the workspace with a backup. The current one is backed up first (when it holds real work).
  * A full bundle replaces every workspace file, removing the ones it doesn't have (they didn't exist when
  * it was made); hub.json, the sync bookkeeping, is only replaced when the bundle has it. An older
- * workspace-only export replaces workspace.json alone and leaves the rest as it is.
+ * workspace-only export replaces workspace.json alone and leaves the rest as it is. Either way the
+ * suppression list keeps everyone on it now (keepSuppressions), unless what's here now is the sample.
  */
-export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Workspace; backup: BackupEntry | null; files: string[] }> {
+export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Workspace; backup: BackupEntry | null; files: string[]; keptSuppressions: number }> {
   await stopLiveRuns();
   const backup = snapshotBefore("before_restore");
-  const ws = await replaceWorkspace(migrateWorkspace(bundle.files["workspace.json"]));
+  const current = readWorkspace();
+  const restored = migrateWorkspace(bundle.files["workspace.json"]);
+  const { list, kept: keptSuppressions } = keepSuppressions(restored.suppression ?? [], current.sample ? [] : (current.suppression ?? []));
+  const ws = await replaceWorkspace({ ...restored, suppression: list });
   const files = ["workspace.json"];
   if (!bundle.legacy) {
     for (const name of WORKSPACE_FILES) {
@@ -100,5 +104,5 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
     await replaceRunSteps(steps && typeof steps === "object" && !Array.isArray(steps) ? (steps as Record<string, RunStep[]>) : {});
     if (steps !== undefined) files.push("runs.json");
   }
-  return { ws, backup, files };
+  return { ws, backup, files, keptSuppressions };
 }

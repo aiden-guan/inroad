@@ -184,7 +184,9 @@ never in a backup or an export.
 - **Download:** Settings → Data → **Download backup** gives one JSON file with everything: playbook, companies,
   people, deals, drafts, Ask threads, LinkedIn connections, imports and run history.
 - **Restore:** Settings → Data → Backups restores any automatic backup or a downloaded file, here or on another
-  computer, after backing up what's there. A workspace JSON exported by an older version restores too.
+  computer, after backing up what's there. A workspace JSON exported by an older version restores too. Your
+  suppression list survives a restore: anyone who unsubscribed, bounced or asked to be deleted after the backup was
+  made stays suppressed.
 
 The automatic backups live in the data folder, so they don't survive deleting it: keep a downloaded backup somewhere
 else now and then.

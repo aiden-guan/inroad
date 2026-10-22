@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { todayISO } from "@/lib/domain/ids";
-import type { Workspace } from "@/lib/domain/types";
+import type { Suppression, Workspace } from "@/lib/domain/types";
 import { ensureDataDir, writeFileAtomic } from "./data-file";
 import { DATA_DIR } from "./settings";
 import { holdsRealWork, readWorkspace } from "./workspace";
@@ -241,6 +241,43 @@ export function parseBackup(raw: Uint8Array | string): BackupBundle {
     summary: summarize(ws),
     files,
   };
+}
+
+/* ───────────── Restoring without forgetting who opted out ───────────── */
+
+// How strongly an entry says "don't contact": a request from the person themselves outranks the rest.
+const RANK: Partial<Record<Suppression["reason"], number>> = { requested_delete: 3, unsubscribe: 2, bounce: 1 };
+const addressOf = (s: Suppression) => `${s.email?.trim().toLowerCase() ?? ""}|${s.domain?.trim().toLowerCase() ?? ""}`;
+
+/**
+ * The suppression list after a restore: the backup's, plus every entry on the list now that the backup
+ * doesn't have. Someone who unsubscribed, bounced or asked to be deleted after the backup was made stays
+ * suppressed, so a restore never makes anyone contactable again. When both lists hold an address, the
+ * stronger reason wins (asked to be deleted, then unsubscribed, then bounced). `kept` counts the entries
+ * the backup lacked or held more weakly.
+ */
+export function keepSuppressions(restored: Suppression[], current: Suppression[]): { list: Suppression[]; kept: number } {
+  const list = restored.map((s) => ({ ...s }));
+  const byAddress = new Map(list.map((s) => [addressOf(s), s]));
+  const ids = new Set(list.map((s) => s.id));
+  let kept = 0;
+  for (const s of current) {
+    const key = addressOf(s);
+    if (key === "|") continue;
+    const there = byAddress.get(key);
+    if (!there) {
+      const entry = { ...s, id: ids.has(s.id) ? `${s.id}_kept` : s.id };
+      list.push(entry);
+      byAddress.set(key, entry);
+      ids.add(entry.id);
+      kept++;
+    } else if ((RANK[s.reason] ?? 0) > (RANK[there.reason] ?? 0)) {
+      there.reason = s.reason;
+      there.at = s.at;
+      kept++;
+    }
+  }
+  return { list, kept };
 }
 
 /** A snapshot from `<data>/backups/`, by the name listBackups gave. Never reads outside that folder. */
