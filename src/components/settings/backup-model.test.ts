@@ -1,7 +1,8 @@
+import { gunzipSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { sampleWorkspace } from "@/lib/sample";
 import { NOW } from "@/test/factories";
-import { backupWhen, describeSummary, fileSize, summarizeFile } from "./backup-model";
+import { backupWhen, describeSummary, fileSize, summarizeFile, uploadBody } from "./backup-model";
 
 describe("backup labels", () => {
   const now = new Date(2026, 9, 20, 15, 0);
@@ -37,6 +38,18 @@ describe("reading a chosen file in the browser", () => {
     const old = summarizeFile(JSON.stringify(ws));
     expect(old?.workspaceOnly).toBe(true);
     expect(old?.summary.deals).toBe(Object.keys(ws.deals).length);
+  });
+
+  it("gzips a chosen file for the upload, and sends one that's already gzipped as it is", async () => {
+    const text = JSON.stringify({ format: "inroad-backup", version: 1, files: { "workspace.json": ws } });
+    const up = await uploadBody(new Blob([text]));
+    const bytes = new Uint8Array(await up.arrayBuffer());
+    expect([bytes[0], bytes[1]]).toEqual([0x1f, 0x8b]);
+    expect(up.size).toBeLessThan(text.length / 3);
+    expect(gunzipSync(bytes).toString("utf8")).toBe(text);
+
+    const gz = new Blob([gzipSync(text)]);
+    expect(await uploadBody(gz)).toBe(gz);
   });
 
   it("leaves anything else to the server", () => {

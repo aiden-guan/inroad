@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getWorkspace } from "@/app/api/workspace/route";
 import { GET as exportRoute } from "@/app/api/workspace/export/route";
 import { POST as restoreRoute } from "@/app/api/workspace/restore/route";
+import { uploadBody } from "@/components/settings/backup-model";
+import { BODY_LIMIT_BYTES } from "@/lib/server/http";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
 import { runSteps } from "@/lib/runs/registry";
 import { loadSampleWorkspace, resetToEmptyWorkspace, restoreWorkspace } from "@/lib/sample/store";
@@ -263,6 +265,47 @@ describe("restore", () => {
     expect(() => parseBackup(JSON.stringify({ format: "inroad-backup", version: 2, files: {} }))).toThrow(/newer version of Inroad/);
     expect(() => parseBackup(JSON.stringify({ format: "inroad-backup", version: 1, files: {} }))).toThrow(/no workspace in it/);
     expect(() => parseBackup(new Uint8Array([0x1f, 0x8b, 1, 2, 3]))).toThrow(/couldn't be unzipped/);
+  });
+
+  it("restores a backup bigger than the 10 MB an upload can carry, gzipped in the browser first", async () => {
+    await realWork();
+    const bundle = JSON.parse(await (await exportRoute()).text()) as BackupBundle;
+    // Months of run history: 150 runs of 300 steps is what runs.json keeps at most.
+    const steps: Record<string, unknown[]> = {};
+    for (let r = 0; r < 150; r++) {
+      steps[`run_${r}`] = Array.from({ length: 300 }, (_, i) => ({
+        at: new Date(1_760_000_000_000 + r * 3_600_000 + i * 1000).toISOString(),
+        type: "read",
+        text: `Read the careers page: ${(r * 31 + i * 7) % 97} open roles, ${i % 5} in sales`,
+        url: `https://company-${r}-${i}.com/careers`,
+        host: `company-${r}-${i}.com`,
+      }));
+    }
+    bundle.files["runs.json"] = steps;
+    const file = new Blob([JSON.stringify(bundle, null, 2)]);
+    expect(file.size).toBeGreaterThan(BODY_LIMIT_BYTES);
+    await resetToEmptyWorkspace();
+
+    const body = await uploadBody(file);
+    expect(body.size).toBeLessThan(BODY_LIMIT_BYTES);
+    const res = await restoreRoute(new Request("http://localhost:3000/api/workspace/restore", { method: "POST", body }));
+    expect(res.status).toBe(200);
+    expect(readWorkspace().company?.name).toBe("Acme");
+    expect(runSteps("run_149")).toHaveLength(300);
+  });
+
+  it("says a file cut short at the upload limit is too big, not that it isn't a backup", async () => {
+    await realWork();
+    const file = await (await exportRoute()).text();
+    // What reaches the route when Next's proxy kept only the first part: fewer bytes than the length says.
+    const cut = new Request("http://localhost:3000/api/workspace/restore", { method: "POST", body: file.slice(0, 200), headers: { "content-length": String(file.length) } });
+    const res = await restoreRoute(cut);
+    expect(res.status).toBe(413);
+    expect(((await res.json()) as { error: string }).error).toMatch(/over 10 MB even compressed/);
+    expect(readWorkspace().company?.name).toBe("Acme");
+
+    const huge = new Request("http://localhost:3000/api/workspace/restore", { method: "POST", body: "{}", headers: { "content-length": String(BODY_LIMIT_BYTES + 1) } });
+    expect((await restoreRoute(huge)).status).toBe(413);
   });
 
   it("answers a bad upload with a sentence, not a stack", async () => {
