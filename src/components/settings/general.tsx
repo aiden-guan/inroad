@@ -206,7 +206,7 @@ function ApiKeyGroup({ settings }: { settings: Settings }) {
           </form>
           <FieldError>{error}</FieldError>
           <p id="key-help" className="mt-2 text-[12px] leading-[18px] text-fg-3">
-            I check it with Anthropic, then keep it only in <span className="font-mono">settings.json</span> on this machine, readable by you alone. It never goes into exports.
+            I check it with Anthropic, then keep it only on this computer, readable by you alone. It never goes into exports.
           </p>
         </div>
       )}
@@ -504,7 +504,7 @@ function GithubTokenRow({ settings }: { settings: Settings }) {
             <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-fg-2 hover:underline">
               github.com/settings/personal-access-tokens <ArrowUpRight className="size-3" aria-hidden />
             </a>
-            . It stays in <span className="font-mono">settings.json</span> here and goes only to GitHub.
+            . It stays on this computer and goes only to GitHub.
           </p>
         </form>
       )}
