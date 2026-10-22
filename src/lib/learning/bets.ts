@@ -10,6 +10,12 @@ import type { Activity, BetArm, BetDimension, DraftFrame, ID, ISODate, PersonaRo
 
 export const BET_MIN_PER_ARM = 100;
 
+/**
+ * Every way a first touch reaches someone: an email, a LinkedIn note or message, a draft handed to a sequencer or
+ * exported as CSV ("pushed", which carries the tags; the tool's own "sent" event comes later), or an intro ask.
+ */
+export const SEND_KINDS: ReadonlySet<Activity["kind"]> = new Set(["touch_sent", "pushed", "linkedin_dm", "linkedin_connect", "intro_requested"]);
+
 /** Variables the draft itself can carry (the composer writes to the arm). */
 export const WRITING_DIMENSIONS: BetDimension[] = ["angle", "frame", "subject_style", "cta", "pov"];
 /** Variables decided by who and why a note goes out; the arm is read off the send's tags. */
@@ -180,12 +186,12 @@ export function betSteer(bet: StartedBet, arm: BetArm["arm"], frames: DraftFrame
   return { frames: forced, block };
 }
 
-/** First sends in a bet, one per person (the earliest), with what came back. */
+/** First sends in a bet, one per person (the earliest), with what came back. Drafts handed to a sequencer count too. */
 export function betReadout(ws: Workspace, betId: ID): BetReadout {
   const firstByPerson = new Map<string, Activity>();
   for (const a of ws.activities) {
     if (a.tags?.bet?.id !== betId || a.outcome === "not_sent" || !a.personId) continue;
-    if (a.kind !== "touch_sent" && a.kind !== "linkedin_dm" && a.kind !== "linkedin_connect") continue;
+    if (!SEND_KINDS.has(a.kind)) continue;
     const prev = firstByPerson.get(a.personId);
     if (!prev || a.at < prev.at) firstByPerson.set(a.personId, a);
   }

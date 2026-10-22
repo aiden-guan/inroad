@@ -264,7 +264,7 @@ function learningPrompt(ws: Workspace, data: LearningData): string {
     `Write this week's Friday learning review for ${first(ws.founder.name) || "the founder"} (week of ${data.weekOf}).`,
     `\nINPUTS VS TARGETS (code):\n${data.inputs.map((i) => `- ${i.metric}: ${i.actual}${i.target !== null ? ` of ${i.target}` : ""}${i.note ? ` (${i.note})` : ""}`).join("\n")}`,
     `\nEVERY REPLY THIS WEEK:\n${data.replies.map((r) => `${r.alias} · ${r.who} at ${r.company} · ${r.sentiment}${r.angle ? ` · angle: ${r.angle}` : ""}${r.signal ? ` · signal: ${r.signal}` : ""} · persona: ${r.persona}\n   <reply>${r.body.replace(/[<>]/g, "")}</reply>`).join("\n") || "(no replies this week)"}`,
-    `\nCONVERSIONS, TRAILING 8 WEEKS (code; labels: anecdote <20, directional 20–99, reliable 100+):\nBy angle:\n${conv("angle")}\nBy signal:\n${conv("signal")}\nBy persona:\n${conv("persona")}\nBy frame:\n${conv("frame")}\nBy point of view:\n${conv("pov")}\nBy subject line:\n${conv("subject_style")}`,
+    `\nCONVERSIONS, TRAILING 8 WEEKS (code; labels: anecdote <20, directional 20–99, reliable 100+):\nBy angle:\n${conv("angle")}\nBy signal:\n${conv("signal")}\nBy persona:\n${conv("persona")}\nBy frame:\n${conv("frame")}\nBy point of view:\n${conv("pov")}\nBy subject line:\n${conv("subject_style")}\nBy channel:\n${conv("channel")}`,
     `\nOBJECTIONS THIS WEEK:\n${data.objections.map((o) => `${o.alias} · <reply>${o.text.replace(/[<>]/g, "")}</reply> (${o.source})`).join("\n") || "(none logged)"}`,
     `\nLOSSES THIS WEEK:\n${data.losses.map((l) => `${l.alias} · ${l.company}: ${l.reason}`).join("\n") || "(none)"}`,
     `\nSKIPPED MOVES BY REASON: ${data.skips.map((s) => `${s.reason} ${s.count}`).join(", ") || "(none)"}`,
@@ -293,15 +293,22 @@ function renderLearning(data: LearningData, out: LearningOut | undefined, ids: S
     );
   }
 
-  const DIM_LABEL = { angle: "Angle", signal: "Signal", persona: "Persona" } as const;
-  const rows = (["angle", "signal", "persona"] as const).flatMap((dim) => data.conversions.filter((r) => r.dimension === dim).slice(0, 4));
+  // Angle, signal, persona and subject line (research 01: the Friday read), plus channel once more than one was used.
+  const DIM_LABEL = { angle: "Angle", signal: "Signal", persona: "Persona", subject_style: "Subject", channel: "Channel" } as const;
+  const dims = (["angle", "signal", "persona", "subject_style", "channel"] as const).filter((dim) => dim !== "channel" || data.conversions.filter((r) => r.dimension === "channel").length > 1);
+  const rows = dims.flatMap((dim) => data.conversions.filter((r) => r.dimension === dim).slice(0, 4));
+  const CHANNELS: Record<string, string> = { email: "email", linkedin: "LinkedIn", intro: "warm intro" };
+  const rowLabel = (r: (typeof rows)[number]) =>
+    r.dimension === "subject_style"
+      ? r.key.replace(/^subject names /, "Subject names ").replace(/^no subject tagged$/, "Subject: not tagged")
+      : `${DIM_LABEL[r.dimension as keyof typeof DIM_LABEL]}: ${r.dimension === "channel" ? (CHANNELS[r.key] ?? r.key) : r.key.replace(/_/g, " ")}`;
   if (rows.length) {
-    md.push("## Replies by angle, signal and persona (last 8 weeks)");
+    md.push(`## Replies by angle, signal, persona${dims.includes("channel") ? ", subject line and channel" : " and subject line"} (last 8 weeks)`);
     md.push(
       [
         "| | Sent | Replies | Positive | Sample |",
         "|---|---|---|---|---|",
-        ...rows.map((r) => `| ${DIM_LABEL[r.dimension as keyof typeof DIM_LABEL]}: ${r.key.replace(/_/g, " ")} | ${r.sent} | ${r.replies}${r.sent >= 20 ? ` (${pct(r.replies / r.sent)})` : ""} | ${r.positive} | ${r.label} |`),
+        ...rows.map((r) => `| ${rowLabel(r)} | ${r.sent} | ${r.replies}${r.sent >= 20 ? ` (${pct(r.replies / r.sent)})` : ""} | ${r.positive} | ${r.label} |`),
       ].join("\n"),
     );
     md.push("Rates appear only from 20 sends. Below that, read each reply instead of the number.");

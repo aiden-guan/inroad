@@ -1,7 +1,8 @@
 import { pilotWatch } from "@/lib/deals/rules";
 import { addDays, daysBetween, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Activity, type Deal, type LossReason, type ReviewProposal, type Stage, type Workspace } from "@/lib/domain/types";
-import { activeBet, betReadout, type BetReadout } from "@/lib/learning/bets";
+import { SEND_KINDS, activeBet, betReadout, type BetReadout } from "@/lib/learning/bets";
+import { sendChannel } from "@/lib/learning/tags";
 import { coldFirstTouches } from "@/lib/quality/cap";
 import { conversationsBetween, conversationsTarget, counters, goalWins, introAsksTarget, isColdFirstTouch, isQualified, sampleLabel } from "./scoreboard";
 import { clip, companyName, daysSince, first, isOpen, localDate } from "./util";
@@ -235,9 +236,9 @@ export interface LearningData {
   segment: { name: string; touches: number; positiveReplies: number; meetings: number } | null;
 }
 
-/** The touch a reply answers: the latest touch to that person before the reply. */
+/** The touch a reply answers: the latest send to that person before the reply (email, LinkedIn, sequencer or intro). */
 function touchBefore(ws: Workspace, reply: Activity): Activity | undefined {
-  return ws.activities.filter((a) => a.kind === "touch_sent" && a.personId === reply.personId && a.at <= reply.at).sort((a, b) => b.at.localeCompare(a.at))[0];
+  return ws.activities.filter((a) => SEND_KINDS.has(a.kind) && a.personId === reply.personId && a.at <= reply.at).sort((a, b) => b.at.localeCompare(a.at))[0];
 }
 
 function angleName(ws: Workspace, domain: string | undefined, angleId: string | undefined): string | undefined {
@@ -272,7 +273,9 @@ function povLabel(ws: Workspace, povId: string | undefined, credentialId: string
   return "no POV tagged";
 }
 
-function personaOf(ws: Workspace, personId: string | undefined): string {
+/** The persona a send was written to (its tag, stamped at send time), else the person's role or title. */
+function personaOf(ws: Workspace, personId: string | undefined, touch?: Activity): string {
+  if (touch?.tags?.persona) return touch.tags.persona.replace(/_/g, " ");
   const p = personId ? ws.people[personId] : undefined;
   if (!p) return "unknown";
   if (p.role) return p.role.replace(/_/g, " ");
@@ -300,15 +303,16 @@ export function learningData(ws: Workspace, now: Date): LearningData {
       body: clip(a.body ?? a.summary ?? "", 500),
       angle: angleName(ws, domain, touch?.angleId),
       signal: touch?.signalType,
-      persona: personaOf(ws, a.personId),
+      persona: personaOf(ws, a.personId, touch),
     };
   });
 
-  // Conversions over the trailing 8 weeks, by person. Labels carry the sample size.
+  // Conversions over the trailing 8 weeks, by person: the first send on any channel, including drafts handed to a
+  // sequencer. Labels carry the sample size.
   const since = addDays(today, -56);
   const firstTouches = new Map<string, Activity>();
   for (const a of ws.activities) {
-    if (a.kind !== "touch_sent" || a.outcome === "not_sent" || !a.personId || localDate(a.at) < since) continue;
+    if (!SEND_KINDS.has(a.kind) || a.outcome === "not_sent" || !a.personId || localDate(a.at) < since) continue;
     const prev = firstTouches.get(a.personId);
     if (!prev || a.at < prev.at) firstTouches.set(a.personId, a);
   }
@@ -329,13 +333,17 @@ export function learningData(ws: Workspace, now: Date): LearningData {
     const meeting = !!deal?.meetingIds.some((id) => ws.meetings[id] && ws.meetings[id].startsAt > touch.at);
     const replied = later.length > 0;
     const positive = later.some((a) => a.sentiment === "positive");
+    const channel = sendChannel(ws, touch);
+    bump("persona", personaOf(ws, personId, touch), replied, positive, meeting);
+    bump("channel", channel, replied, positive, meeting);
+    // An intro ask went to the connector, not the buyer: it says nothing about how the note was written.
+    if (channel === "intro") continue;
     bump("angle", angleName(ws, domain, touch.angleId) ?? "no angle tagged", replied, positive, meeting);
     bump("signal", touch.signalType ?? "no signal tagged", replied, positive, meeting);
-    bump("persona", personaOf(ws, personId), replied, positive, meeting);
-    bump("channel", touch.channel ?? "email", replied, positive, meeting);
     bump("frame", FRAME_LABELS[touch.tags?.frame ?? ""] ?? touch.tags?.frame ?? "no frame tagged", replied, positive, meeting);
     bump("pov", povLabel(ws, touch.tags?.povId, touch.tags?.credentialClaimId), replied, positive, meeting);
-    bump("subject_style", SUBJECT_LABELS[touch.tags?.subjectStyle ?? ""] ?? "no subject tagged", replied, positive, meeting);
+    // LinkedIn notes have no subject line.
+    if (channel === "email") bump("subject_style", SUBJECT_LABELS[touch.tags?.subjectStyle ?? ""] ?? "no subject tagged", replied, positive, meeting);
   }
   const conversions = [...rows.values()].map((r) => ({ ...r, label: sampleLabel(r.sent) })).sort((a, b) => a.dimension.localeCompare(b.dimension) || b.sent - a.sent);
 
