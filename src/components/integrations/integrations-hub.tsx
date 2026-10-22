@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card, SectionLabel } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/misc";
-import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isCrm, isSequencer, type NativeConnectorId } from "@/lib/connectors/catalog";
+import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isBooking, isCrm, isSequencer, type NativeConnectorId } from "@/lib/connectors/catalog";
 import type { Workspace } from "@/lib/domain/types";
 import type { InboundLogEntry } from "@/lib/hub/types";
+import { BookingKey } from "./booking-key";
 import { CrmPanel } from "./crm-panel";
 import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
@@ -205,20 +206,43 @@ export function IntegrationsHub() {
       </Group>
 
       <Group id="meetings" question="Where do meetings get booked?">
-        {BOOKING_SOURCES.map((s) => (
-          <IntegrationRow
-            key={s.id}
-            id={s.id}
-            name={s.name}
-            blurb="New bookings become a meeting on the deal and a prep move on the day."
-            domain={s.domain}
-            status={hookStatus(events, [s.id])}
-            open={current === s.id}
-            onToggle={() => toggle(s.id)}
-          >
-            <HookPanel sources={[s]} status={status} onRefresh={refresh} showExample={false} />
-          </IntegrationRow>
-        ))}
+        {BOOKING_SOURCES.map((s) => {
+          const id = isBooking(s.id) ? s.id : null;
+          const keyed = id ? ws.integrations[id] : undefined;
+          return (
+            <IntegrationRow
+              key={s.id}
+              id={s.id}
+              name={s.name}
+              blurb="New bookings become a meeting on the deal and a prep move on the day."
+              domain={s.domain}
+              status={id && keyed?.enabled ? nativeStatus(id, ws) : hookStatus(events, [s.id])}
+              open={current === s.id}
+              onToggle={() => toggle(s.id)}
+            >
+              <HookPanel
+                sources={[s]}
+                status={status}
+                onRefresh={refresh}
+                showExample={false}
+                extra={
+                  id ? (
+                    <BookingKey
+                      id={id}
+                      state={keyed}
+                      replacing={replacing === id}
+                      onReplace={() => setReplacing(id)}
+                      onDone={() => {
+                        setReplacing(null);
+                        void refresh();
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
+            </IntegrationRow>
+          );
+        })}
       </Group>
 
       <Group id="alerts" question="Where should alerts go?">

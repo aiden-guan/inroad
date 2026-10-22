@@ -1151,7 +1151,9 @@ export type IntegrationId =
   | "webhook_in"
   | "csv"
   | "mcp"
-  | "gmail";
+  | "gmail"
+  | "calendly"
+  | "calcom";
 
 export interface IntegrationState {
   id: IntegrationId;

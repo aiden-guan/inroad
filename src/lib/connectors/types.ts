@@ -138,6 +138,15 @@ export interface SequencerAdapter {
   pollEvents?(cursor: PollCursor): Promise<Result<SequencerPoll>>;
 }
 
+/**
+ * A booking tool read by polling, for when its webhooks can't reach this app (no public URL, or a
+ * plan without webhooks). Items are shaped like the tool's own webhook payload (Calendly
+ * `{event, payload}`, Cal.com `{triggerEvent, payload}`), so they take the webhook's path and dedupe.
+ */
+export interface BookingAdapter {
+  pollEvents(cursor: PollCursor): Promise<Result<SequencerPoll>>;
+}
+
 export interface NotifyAdapter {
   post(message: { text: string; blocks?: unknown[] }): Promise<Result<void>>;
 }
@@ -200,6 +209,7 @@ export interface Connector {
   validate(): Promise<Result<{ accountLabel: string; config?: Record<string, string | number> }>>;
   crm?: CrmAdapter;
   sequencer?: SequencerAdapter;
+  booking?: BookingAdapter;
   notify?: NotifyAdapter;
   people?: PeopleAdapter;
 }
