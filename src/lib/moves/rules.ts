@@ -397,7 +397,8 @@ function meetings({ ws, now, today, out }: Ctx) {
 function callReferrals({ ws, today, out }: Ctx) {
   for (const m of Object.values(ws.meetings)) {
     if (!m.debrief || daysSince(m.debrief.generatedAt, today) > 14) continue;
-    const open = referralLeads(ws, m).filter((l) => !l.acted);
+    // A drafted note has its own card (a cold draft); this one asks for the rest.
+    const open = referralLeads(ws, m).filter((l) => !l.acted && !l.drafted);
     if (!open.length) continue;
     const domain = ws.deals[m.dealId]?.accountDomain;
     const who = (l: (typeof open)[number]) => (l.name ? `${first(l.name)}${l.company ? ` at ${l.company}` : ""}` : (l.company ?? "them"));

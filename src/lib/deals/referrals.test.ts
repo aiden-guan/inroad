@@ -60,6 +60,7 @@ describe("debrief referrals", () => {
           { name: " Priya Shah ", company: "Kestrel", quoteId: "q1" },
           { name: null, company: "Halcyon", quoteId: "q_missing" },
           { name: " ", company: null, quoteId: null },
+          { name: "priya shah", company: "kestrel", quoteId: null },
         ],
         quotes,
       ),
@@ -91,10 +92,12 @@ describe("debrief referrals", () => {
       fn(ws);
       return referralLeads(ws, ws.meetings.mtg_1)[0];
     };
-    expect(lead(() => {})).toMatchObject({ personId: "per_priya", acted: false });
-    expect(lead((ws) => (ws.outreach.out_1 = makePackage("out_1", KESTREL, { personId: "per_priya", createdAt: at(0) }))).acted).toBe(true);
+    expect(lead(() => {})).toMatchObject({ personId: "per_priya", acted: false, drafted: false });
+    // A draft is not a note sent: the row keeps it open, the cold-draft card carries it on Today.
+    expect(lead((ws) => (ws.outreach.out_1 = makePackage("out_1", KESTREL, { personId: "per_priya", createdAt: at(0) })))).toMatchObject({ acted: false, drafted: true });
     // A draft from before the call doesn't count.
-    expect(lead((ws) => (ws.outreach.out_1 = makePackage("out_1", KESTREL, { personId: "per_priya", createdAt: at(-5) }))).acted).toBe(false);
+    expect(lead((ws) => (ws.outreach.out_1 = makePackage("out_1", KESTREL, { personId: "per_priya", createdAt: at(-5) }))).drafted).toBe(false);
+    expect(lead((ws) => ws.activities.push(makeActivity("act_0", { at: at(0), kind: "touch_sent", personId: "per_priya" }))).acted).toBe(true);
     expect(lead((ws) => ws.activities.push(makeActivity("act_1", { at: at(0), kind: "linkedin_dm", personId: "per_priya" }))).acted).toBe(true);
     expect(lead((ws) => (ws.people.per_priya.doNotContact = true)).acted).toBe(true);
     expect(lead((ws) => ws.deals.deal_nw.contacts.push({ personId: "per_priya" })).acted).toBe(true);
