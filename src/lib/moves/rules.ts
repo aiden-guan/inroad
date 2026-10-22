@@ -993,7 +993,7 @@ function firstThree(ctx: Ctx) {
     } else if (rec?.move !== "watch" && rec?.move !== "disqualify" && !(rec?.move === "reply_in_thread" && sig) && !hasDraftableAngle(ws, acc)) {
       // A cold note or an invite needs something cited to stand on (the composer's own test). Without it, never a
       // draft button that can only fail: watch it, and let news bring it back.
-      out.push({ ...base, kind: "research", minutes: 1, title: `Keep watching ${acc.name}`, why: "The research found no dated reason I can cite yet · I'll bring it back when there's news" });
+      out.push({ ...base, kind: "research", minutes: 1, title: `Keep watching ${acc.name}`, why: "The research found no dated reason I can cite yet · I'll bring it back when there's news", source: undefined, evidenceIds: undefined });
     } else if (rec?.move === "linkedin_first") {
       out.push({ ...base, kind: "linkedin", title: `Connect with ${who} at ${acc.name} on LinkedIn`, why: `${clip(rec.why, 70)} · doesn't count toward your email cap` });
     } else if (rec?.move === "reply_in_thread" && sig) {
