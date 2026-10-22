@@ -15,10 +15,12 @@ import { normalizeDomain } from "@/lib/hub/records";
 import { cn } from "@/lib/client/cn";
 import { listItem } from "@/lib/motion";
 import { postJson } from "./api";
+import { KnownPeople } from "./known-people";
 
 /**
  * The network screen's result: the summary line (the agent speaking), the numbers, and the
- * approval point. The founder ticks which companies to track; nothing is added without that.
+ * approval point. The founder ticks which companies to track (nothing is added without that) and
+ * tags the people who already know them.
  */
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
@@ -213,6 +215,8 @@ export function NetworkResult({ network, onDone, onRescreen, rescreenBusy }: { n
               : "No company stood out yet. Unknown isn't unlikely: I'll look again when you re-import or your ICP changes."}
         </div>
       )}
+
+      <KnownPeople />
 
       {/* Sticks to the bottom of the dialog's scroll area so the one action stays in reach. */}
       <div className="sticky bottom-0 -mx-5 -mb-1 flex flex-wrap items-center gap-2 border-t border-border bg-surface-raised px-5 py-3">

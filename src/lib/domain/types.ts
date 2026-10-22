@@ -586,6 +586,8 @@ export interface Person {
   jurisdiction: Jurisdiction;
   doNotContact: boolean;
   champion?: "coach" | "untested" | "tested";
+  /** How they know the founder (design partner, past user, ex-colleague…), from a tag or a signup/user import. */
+  tags?: RelationshipTag[];
   notes?: string;
   source?: DiscoverySource;
   /** Apollo's id once the founder added this person from a people search, so the search can show who's on file. */
@@ -1271,6 +1273,9 @@ export interface Suppression {
 }
 
 /** A row from the founder's LinkedIn Connections.csv export. Stored in connections.json, never sent to Claude in bulk. */
+/** How someone knows the founder: tagged by the founder, or matched to a signup or user list (signup). */
+export type RelationshipTag = "design_partner" | "past_user" | "ex_colleague" | "customer" | "investor" | "connector" | "signup";
+
 export interface Connection {
   id: ID;
   firstName: string;
@@ -1291,8 +1296,8 @@ export interface Connection {
   fitReason?: string;
   /** Persona role the title matched in code, when it's a buyer title. */
   titleRole?: PersonaRole;
-  /** Founder tags. design_partner / past_user / customer / ex_colleague mean they know the product or the founder. */
-  tags?: ("design_partner" | "past_user" | "ex_colleague" | "customer" | "investor" | "connector")[];
+  /** Founder tags. design_partner / past_user / customer / ex_colleague / signup mean they know the product or the founder. */
+  tags?: RelationshipTag[];
   /** Company and title as seen on each import, oldest first (the job-change diff). */
   history?: { company: string; position: string; seenOn: ISODate }[];
   /** The Person record created for this connection, once its company is tracked. */

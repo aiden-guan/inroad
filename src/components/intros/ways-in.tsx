@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { ComposeButton } from "@/components/compose/composer";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Section, useToday } from "@/components/companies/sheet/shared";
+import { TagMenu } from "@/components/people/relationship-tags";
 import { Skeleton } from "@/components/ui/misc";
 import { newId } from "@/lib/domain/ids";
 import type { Account } from "@/lib/domain/types";
@@ -27,7 +28,8 @@ const KIND: Record<WayInKind, { label: string; icon: typeof User }> = {
 /**
  * "Who can get me in?" for one company: every path the founder has, ranked in code, each with why
  * it might work and what to watch for. One ask per company at a time, so an ask in flight replaces
- * the list with its status.
+ * the list with its status. People the founder knows can be tagged right here (design partner, past
+ * user, ex-colleague…), which moves them up and makes their next job change a champion signal.
  */
 export function WaysIn({ account }: { account: Account }) {
   const { ws, dispatch } = useWorkspace();
@@ -119,6 +121,16 @@ export function WaysIn({ account }: { account: Account }) {
                       <a href={w.via.linkedinUrl} target="_blank" rel="noreferrer" aria-label={`${w.via.name} on LinkedIn`} className="text-fg-3 hover:text-fg">
                         <ArrowUpRight className="size-3.5" />
                       </a>
+                    )}
+                    {(w.via.connectionId || (w.kind === "direct" && w.via.personId)) && (
+                      <TagMenu
+                        connectionId={w.via.connectionId}
+                        personId={w.kind === "direct" ? w.via.personId : undefined}
+                        tags={w.via.tags}
+                        name={w.via.name}
+                        onChange={(tags) => setWays((all) => all?.map((x) => (x.id === w.id ? { ...x, via: { ...x.via, tags } } : x)) ?? all)}
+                        className="-my-0.5"
+                      />
                     )}
                   </p>
                   <p className="mt-0.5 text-[12.5px] leading-[18px] text-fg-2">{w.why}</p>
