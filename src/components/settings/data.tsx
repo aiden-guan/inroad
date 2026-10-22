@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/field";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { CopyButton, Skeleton } from "@/components/ui/misc";
 import type { Workspace } from "@/lib/domain/types";
+import { useLeaveSample } from "@/components/shell/sample-banner";
 import { BackupsGroup } from "./backups";
 import { Expand, Group, Row, SettingsSection } from "./parts";
 
@@ -181,11 +182,18 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
   };
 
   const real = holdsRealWork(ws);
+  const { leave, busy: leaving } = useLeaveSample();
 
   return (
     <Group title="Start over">
       {ws.sample ? (
-        <Row label="You're exploring the sample workspace" hint="Ledgerline is made up. Reset below to start on your own company." />
+        <Row label="You're exploring the sample workspace" hint={`${ws.company?.name ?? "This company"} and everyone in it are made up. Nothing here is yours, so leaving takes one click.`}>
+          <div className="flex sm:justify-end">
+            <Button variant="primary" loading={leaving} onClick={() => void leave()}>
+              Start with my company
+            </Button>
+          </div>
+        </Row>
       ) : (
         <div>
           <Row label="Load the sample workspace" hint="See Inroad after a month of work: a playbook, deals in flight, drafts and receipts.">
@@ -217,61 +225,63 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
         </div>
       )}
 
-      <div>
-        <Row label="Reset workspace" hint="Clears your playbook, companies, deals, drafts and history on this machine, after saving a backup. Your API key and connected tools stay.">
-          <div className="flex sm:justify-end">
-            <Button
-              variant="danger"
-              className="ring-1 ring-inset ring-danger/30"
-              aria-expanded={confirm === "reset"}
-              onClick={() => {
-                setConfirm(confirm === "reset" ? null : "reset");
-                setTyped("");
+      {!ws.sample && (
+        <div>
+          <Row label="Reset workspace" hint="Clears your playbook, companies, deals, drafts and history on this machine, after saving a backup. Your API key and connected tools stay.">
+            <div className="flex sm:justify-end">
+              <Button
+                variant="danger"
+                className="ring-1 ring-inset ring-danger/30"
+                aria-expanded={confirm === "reset"}
+                onClick={() => {
+                  setConfirm(confirm === "reset" ? null : "reset");
+                  setTyped("");
+                }}
+              >
+                Reset…
+              </Button>
+            </div>
+          </Row>
+          <Expand open={confirm === "reset"}>
+            <form
+              className="flex flex-col gap-2 bg-danger-subtle/60 px-4 py-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (typed.trim().toLowerCase() === "reset") void call("reset");
               }}
             >
-              Reset…
-            </Button>
-          </div>
-        </Row>
-        <Expand open={confirm === "reset"}>
-          <form
-            className="flex flex-col gap-2 bg-danger-subtle/60 px-4 py-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (typed.trim().toLowerCase() === "reset") void call("reset");
-            }}
-          >
-            <label htmlFor="reset-confirm" className="text-[12.5px] leading-[18px] text-fg">
-              I&apos;ll save a backup first, so you can restore this from Backups above. Type <span className="font-mono font-medium">reset</span> to confirm.
-            </label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="reset-confirm"
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setConfirm(null);
-                  }
-                }}
-                className="font-mono sm:max-w-[200px]"
-              />
-              <div className="flex gap-1.5">
-                <Button type="button" variant="ghost" onClick={() => setConfirm(null)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="danger" className="bg-surface ring-1 ring-inset ring-danger/40" disabled={typed.trim().toLowerCase() !== "reset"} loading={busy === "reset"}>
-                  Reset workspace
-                </Button>
+              <label htmlFor="reset-confirm" className="text-[12.5px] leading-[18px] text-fg">
+                I&apos;ll save a backup first, so you can restore this from Backups above. Type <span className="font-mono font-medium">reset</span> to confirm.
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="reset-confirm"
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setConfirm(null);
+                    }
+                  }}
+                  className="font-mono sm:max-w-[200px]"
+                />
+                <div className="flex gap-1.5">
+                  <Button type="button" variant="ghost" onClick={() => setConfirm(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="danger" className="bg-surface ring-1 ring-inset ring-danger/40" disabled={typed.trim().toLowerCase() !== "reset"} loading={busy === "reset"}>
+                    Reset workspace
+                  </Button>
+                </div>
               </div>
-            </div>
-          </form>
-        </Expand>
-      </div>
+            </form>
+          </Expand>
+        </div>
+      )}
     </Group>
   );
 }

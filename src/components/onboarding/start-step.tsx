@@ -85,7 +85,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
       });
       if (res.status === 409) {
         // The founder already has work here; the sample would replace it, so ask first.
-        toast("The sample replaces what you've set up so far.", { action: { label: "Replace it", onClick: () => void explore(true) } });
+        toast("The sample replaces what you've set up so far. I'll save a backup of it first.", { action: { label: "Replace it", onClick: () => void explore(true) } });
         return;
       }
       if (!res.ok) {
@@ -94,6 +94,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
       }
       await refresh();
       router.replace("/today");
+      toast("Sample workspace loaded. Everything here is made up. Start with your company any time.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't open the sample workspace.");
     } finally {

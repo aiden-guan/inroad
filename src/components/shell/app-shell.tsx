@@ -11,6 +11,7 @@ import { Orb } from "@/components/ui/orb";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { CommandPalette } from "./command-palette";
+import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
 import { NAV, SECONDARY, Sidebar } from "./sidebar";
 
@@ -95,6 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <MobileNav onNavigate={() => setMobileNav(false)} />
           </Suspense>
         )}
+        <SampleBanner variant="bar" />
         <main className="min-w-0">{children}</main>
       </div>
       <CommandPalette />
