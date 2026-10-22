@@ -196,8 +196,9 @@ never in a backup or an export.
 
 ### Backups
 
-- **Automatic:** a copy of every workspace file each day you open Inroad (the last 14 kept) and before every reset,
-  sample or restore (the last 10), gzipped in `backups/` inside the data folder.
+- **Automatic:** a copy of every workspace file each day you open Inroad and before every reset, sample or restore,
+  gzipped in `backups/` inside the data folder. Each is kept for 14 days at most (and no more than the last 14 daily
+  and 10 others), so someone whose details you delete is gone from them within 14 days.
 - **Download:** Settings → Data → **Download backup** gives one JSON file with everything: playbook, companies,
   people, deals, drafts, Ask threads, LinkedIn connections, imports and run history.
 - **Restore:** Settings → Data → Backups restores any automatic backup or a downloaded file, here or on another

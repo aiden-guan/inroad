@@ -10,8 +10,9 @@ import { holdsRealWork, readWorkspace } from "./workspace";
 
 /**
  * Backups: one bundle with every file that makes up a workspace, so nothing is ever gone for good.
- *  - Snapshots in `<data>/backups/`: one a day, the first time Inroad opens that day (the last 14 are
- *    kept), and one before anything replaces the workspace: a reset, the sample, a restore (last 10).
+ *  - Snapshots in `<data>/backups/`: one a day, the first time Inroad opens that day, and one before
+ *    anything replaces the workspace: a reset, the sample, a restore. Each is kept 14 days at most (and
+ *    no more than the last 14 daily and 10 others), so someone deleted is gone from them within 14 days.
  *  - Export: the same bundle, downloaded from Settings → Data.
  *  - Restore: from a snapshot or a downloaded file (src/lib/sample/store.ts does the replacing).
  *
@@ -29,6 +30,8 @@ export type WorkspaceFile = (typeof WORKSPACE_FILES)[number];
 export type BackupReason = "daily" | "before_reset" | "before_sample" | "before_restore" | "export";
 
 const KEEP = { daily: 14, event: 10 } as const;
+/** No snapshot outlives this, whatever its kind: Settings promises "the last 14 days". */
+export const BACKUP_MAX_AGE_DAYS = 14;
 
 export interface BackupSummary {
   company: string | null;
@@ -137,15 +140,18 @@ export function snapshot(reason: Exclude<BackupReason, "export">, now = new Date
   ensureDataDir(BACKUP_DIR());
   const name = fileName(now, reason);
   writeFileAtomic(path.join(BACKUP_DIR(), name), zlib.gzipSync(JSON.stringify(bundle)));
-  prune();
+  prune(now);
   return { name, at: bundle.createdAt, reason, bytes: fs.statSync(path.join(BACKUP_DIR(), name)).size };
 }
 
-function prune() {
+/** Drops snapshots past the count limits, and every snapshot older than 14 days (the one just written never is). */
+function prune(now: Date) {
   const all = listBackups();
   const daily = all.filter((b) => b.reason === "daily").slice(KEEP.daily);
   const events = all.filter((b) => b.reason !== "daily").slice(KEEP.event);
-  for (const b of [...daily, ...events]) fs.rmSync(path.join(BACKUP_DIR(), b.name), { force: true });
+  const oldest = now.getTime() - BACKUP_MAX_AGE_DAYS * 86_400_000;
+  const old = all.filter((b) => new Date(b.at).getTime() < oldest);
+  for (const b of new Set([...daily, ...events, ...old])) fs.rmSync(path.join(BACKUP_DIR(), b.name), { force: true });
 }
 
 /** Before a reset, the sample or a restore: a snapshot when there's real work to lose, else nothing. */

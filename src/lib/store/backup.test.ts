@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getWorkspace } from "@/app/api/workspace/route";
 import { GET as exportRoute } from "@/app/api/workspace/export/route";
 import { POST as restoreRoute } from "@/app/api/workspace/restore/route";
@@ -63,11 +63,16 @@ async function realWork(name = "Acme") {
   });
 }
 
+// Snapshots older than 14 days are pruned against the clock: pin it near the dates these tests use.
+const FROZEN = new Date("2026-10-22T12:00:00.000Z");
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: FROZEN });
   fs.rmSync(BACKUP_DIR(), { recursive: true, force: true });
   fs.rmSync(path.join(DATA_DIR, OPT_OUTS_FILE), { force: true });
   resetDailyCheck();
 });
+afterEach(() => vi.useRealTimers());
 
 describe("what a backup holds", () => {
   it("has every workspace file and none of this machine's keys", async () => {
@@ -111,14 +116,14 @@ describe("automatic snapshots", () => {
     expect(listBackups().map((b) => b.reason)).toEqual(["daily", "daily"]);
 
     // The workspace route takes today's, once.
-    vi.useFakeTimers({ toFake: ["Date"], now: at("2026-10-23T18:00:00.000Z") });
+    vi.setSystemTime(at("2026-10-23T18:00:00.000Z"));
     try {
       resetDailyCheck();
       await getWorkspace();
       await getWorkspace();
       expect(listBackups().length).toBe(3);
     } finally {
-      vi.useRealTimers();
+      vi.setSystemTime(FROZEN);
     }
 
     await loadSampleWorkspace();
@@ -149,6 +154,17 @@ describe("automatic snapshots", () => {
     expect(all.filter((b) => b.reason === "before_reset")).toHaveLength(10);
     expect(all[0].at).toBe("2026-09-20T16:00:00.000Z");
     expect(all.filter((b) => b.reason === "daily").at(-1)?.at).toBe("2026-09-07T16:00:00.000Z");
+  });
+
+  it("keeps no snapshot longer than 14 days, before-a-change ones included", async () => {
+    await realWork();
+    snapshot("before_reset", at("2026-09-01T16:00:00.000Z"));
+    snapshot("daily", at("2026-09-02T16:00:00.000Z"));
+    snapshot("daily", at("2026-09-10T16:00:00.000Z"));
+    expect(listBackups()).toHaveLength(3);
+    // The founder comes back three weeks later: today's daily snapshot is made, everything past 14 days goes.
+    snapshot("daily", at("2026-09-21T16:00:00.000Z"));
+    expect(listBackups().map((b) => b.at)).toEqual(["2026-09-21T16:00:00.000Z", "2026-09-10T16:00:00.000Z"]);
   });
 
   it("backs up real work before a reset or the sample replaces it, and nothing when leaving the sample", async () => {

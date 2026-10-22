@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyAction } from "@/lib/domain/actions";
 import type { Workspace } from "@/lib/domain/types";
 import { applyListImport, importConnections } from "@/lib/network/import";
@@ -42,6 +42,8 @@ function withDana(): Workspace {
 const forget = (ws: Workspace) => applyAction(ws, { type: "person.forget", id: "per_dana", at: at(0), suppressionId: "sup_dana" });
 
 beforeEach(async () => {
+  // Snapshots older than 14 days are pruned against the clock: pin it near the backup this file restores.
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-22T12:00:00.000Z") });
   vi.clearAllMocks();
   resetGates();
   resetGithubBudget();
@@ -51,6 +53,7 @@ beforeEach(async () => {
   await updateConnections((rows) => void rows.splice(0, rows.length));
   await replaceWorkspace(withDana());
 });
+afterEach(() => vi.useRealTimers());
 
 describe("deleting someone with no email", () => {
   it("keeps fingerprints of their profile and name at their company, never the name itself", () => {
