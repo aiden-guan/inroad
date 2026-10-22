@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import { toAgentError } from "./api-errors";
+import { droppableFeatures, toAgentError } from "./api-errors";
 
 /**
  * Real SDK error objects, built the way the SDK builds them from an HTTP response, mapped to what the
@@ -44,5 +44,20 @@ describe("toAgentError", () => {
   it("names the model the failing step needed", () => {
     expect(toAgentError(apiError(404, "not_found_error", "model: x"), "strategist").message).toContain("Opus 5.5");
     expect(toAgentError(apiError(404, "not_found_error", "model: x"), "fast").message).toContain("Haiku 5.5");
+  });
+});
+
+describe("droppableFeatures", () => {
+  it("names the optional feature a rejection points at, and nothing for rejections compat mode can't fix", () => {
+    const of = (message: string, status = 400) => droppableFeatures(apiError(status, "invalid_request_error", message));
+    expect(of("Unexpected value(s) `server-side-fallback-2026-07-01` for the `anthropic-beta` header.")).toEqual(["betas"]);
+    expect(of("fallbacks: Extra inputs are not permitted")).toEqual(["betas"]);
+    expect(of("thinking.block_binding: Extra inputs are not permitted")).toEqual(["betas"]);
+    expect(of("tools.0.custom.strict: strict mode is not available for this tool schema")).toEqual(["strict"]);
+    expect(of("tools.2.custom.input_schema: additionalProperties must be false")).toEqual(["strict"]);
+    expect(of("Your credit balance is too low to access the Anthropic API.")).toEqual([]);
+    expect(of("prompt is too long: 1048576 tokens > 1000000 maximum")).toEqual([]);
+    expect(of("messages.1.content.0: unexpected tool_use_id")).toEqual([]);
+    expect(of("invalid x-api-key", 401)).toEqual([]);
   });
 });

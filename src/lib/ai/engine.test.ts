@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { startMock, type MockServer } from "@/test/mock-anthropic";
-import { AgentError, defineTool, runAgent, type RunOptions } from "./engine";
+import { AgentError, compatState, defineTool, resetCompat, runAgent, type RunOptions } from "./engine";
 import type { AgentEvent } from "./events";
 import { costOf } from "./models";
 
@@ -34,8 +34,9 @@ let sent: SentRequest[];
 
 beforeEach(async () => {
   sent = [];
-  // A clean mock per test: no queued faults, an empty prompt cache.
+  // A clean mock per test (no queued faults, an empty prompt cache), and no features remembered as rejected.
   await mock.reset();
+  resetCompat();
   const real = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -205,17 +206,45 @@ describe("runAgent with app tools", () => {
 });
 
 describe("runAgent failures", () => {
-  it("retries once without optional features when the API rejects the request, then reports it", async () => {
-    // The mock answers 400 to an empty conversation.
-    const err = await run({ system: "Rules", messages: [], tools: [submitPlan] }).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(AgentError);
-    expect(err).toMatchObject({ code: "bad_request", usage: { inputTokens: 0, outputTokens: 0 }, costUsd: 0 });
+  it("leaves out the betas the API rejects, says so, and starts later runs without them", async () => {
+    await fault({ type: "reject_betas" });
+    const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(r.result).toBeDefined();
     expect(sent).toHaveLength(2);
-    expect(sent[0].headers.get("anthropic-beta")).toBeTruthy();
-    // Compat mode: no betas, no thinking block binding, no strict tool schemas.
+    expect(sent[0].headers.get("anthropic-beta")).toContain("server-side-fallback-2026-07-01");
+    // Compat mode for the betas: no beta header, no fallbacks, no thinking block binding. Strict stays.
     expect(sent[1].headers.get("anthropic-beta")).toBeNull();
+    expect(sent[1].body).not.toHaveProperty("fallbacks");
     expect(sent[1].body.thinking).toEqual({ type: "adaptive", display: "summarized" });
+    expect(sent[1].body.tools?.[0]).toMatchObject({ strict: true });
+    expect(r.compat).toEqual({ features: ["betas"], reason: expect.stringContaining("anthropic-beta") });
+    // Remembered for the process: the next run doesn't send a request that's bound to fail.
+    const again = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan again" }], tools: [submitPlan] });
+    expect(sent).toHaveLength(3);
+    expect(sent[2].headers.get("anthropic-beta")).toBeNull();
+    expect(again.compat?.features).toEqual(["betas"]);
+    expect(compatState().map((c) => c.feature)).toEqual(["betas"]);
+  });
+
+  it("drops only strict schemas when strict is what the API rejects", async () => {
+    await fault({ type: "reject_strict" });
+    const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(sent).toHaveLength(2);
     expect(sent[1].body.tools?.[0]).not.toHaveProperty("strict");
+    expect(sent[1].headers.get("anthropic-beta")).toContain("server-side-fallback-2026-07-01");
+    // zod still checks the input.
+    expect(r.result?.score).toBeLessThanOrEqual(100);
+    expect(r.compat?.features).toEqual(["strict"]);
+  });
+
+  it("never retries a rejection that leaving features out can't fix", async () => {
+    await fault({ type: "credit" });
+    const err = await run({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AgentError);
+    expect(err).toMatchObject({ code: "no_credit", usage: { inputTokens: 0, outputTokens: 0 }, costUsd: 0, requestId: expect.stringMatching(/^req_mock/) });
+    expect((err as AgentError).message).toMatch(/^Your Anthropic account is out of credits/);
+    expect(sent).toHaveLength(1);
+    expect(compatState()).toEqual([]);
   });
 
   it("stops before calling the API once the run is cancelled", async () => {
