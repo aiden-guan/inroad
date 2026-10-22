@@ -24,6 +24,36 @@ test("Today and a dossier fit a phone", async ({ page }) => {
   await expectNoSideScroll(page);
 });
 
+test("the phone header shows the agent, and the menu closes on Esc or a tap outside", async ({ page }) => {
+  await page.goto("/today");
+  const menu = page.getByRole("button", { name: "Menu" });
+  // The agent's one line sits under the wordmark (the sidebar that carries it on desktop is hidden here).
+  await expect(page.getByRole("button", { name: /^Head of GTM: / })).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+
+  await menu.tap();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  const nav = page.getByRole("navigation", { name: "Pages" });
+  await expect(nav).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(nav).toHaveCount(0);
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeFocused();
+
+  // A tap below the menu closes it and lands on nothing underneath.
+  await menu.tap();
+  await expect(nav).toBeVisible();
+  await page.mouse.click(195, 760);
+  await expect(nav).toHaveCount(0);
+  await expect(page).toHaveURL(/\/today$/);
+
+  // Picking a page closes it too.
+  await menu.tap();
+  await nav.getByRole("link", { name: /Companies/ }).tap();
+  await expect(page).toHaveURL(/\/companies/);
+  await expect(nav).toHaveCount(0);
+});
+
 test("research the API turns down says why once, with the fix", async ({ page, request }) => {
   await request.post(`${mockUrl}/__mock/faults`, { data: { faults: [{ type: "credit" }] } });
   try {

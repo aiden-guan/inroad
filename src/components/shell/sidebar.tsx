@@ -4,21 +4,19 @@ import { AnimatePresence, motion } from "motion/react";
 import { Building2, CalendarHeart, Command, Handshake, Moon, NotebookPen, Plug, Settings, Sun, Sunrise } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useSyncExternalStore } from "react";
-import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
+import { useSyncExternalStore } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge, Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover } from "@/components/ui/menu";
 import { Orb } from "@/components/ui/orb";
-import { Receipt } from "@/components/ui/work-log";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { usd } from "@/lib/client/format";
-import { monthKey, todayISO } from "@/lib/domain/ids";
-import { yourMoves } from "@/lib/intros/rules";
+import { monthKey } from "@/lib/domain/ids";
 import { spring } from "@/lib/motion";
+import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
 import { SampleBanner } from "./sample-banner";
 
 const NAV = [
@@ -65,82 +63,45 @@ export function useTheme() {
   return { theme, toggle };
 }
 
-function AgentBlock() {
-  const { ws } = useWorkspace();
-  const { runs } = useRuns();
-  const active = useActiveRuns();
-  const openMoves = useMemo(
-    () => Object.values(ws?.moves ?? {}).filter((m) => m.status === "open" && m.dueOn <= todayISO()).length,
-    [ws],
+/** The agent's one live line: the run in progress (shimmering), or what's waiting. Crossfades when it changes. */
+export function AgentLine({ status, className }: { status: AgentStatus; className?: string }) {
+  const { line, active } = status;
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.span
+        key={line}
+        initial={{ opacity: 0, filter: "blur(2px)" }}
+        animate={{ opacity: 1, filter: "blur(0px)" }}
+        exit={{ opacity: 0, filter: "blur(2px)" }}
+        transition={{ duration: 0.15 }}
+        className={cn("block truncate", active.length ? "shimmer-text" : "text-fg-3", className)}
+      >
+        {line}
+        {active.length > 1 && ` +${active.length - 1}`}
+      </motion.span>
+    </AnimatePresence>
   );
-  const recent = useMemo(
-    () =>
-      Object.values(runs)
-        .filter((r) => r.status !== "running" && r.status !== "queued")
-        .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))
-        .slice(0, 5),
-    [runs],
-  );
-  const state = active.length ? "working" : openMoves ? "needs" : "idle";
-  const ticks = active.reduce((n, r) => n + r.steps.length, 0);
-  const line = active.length
-    ? active[0].title
-    : openMoves
-      ? `${openMoves} move${openMoves === 1 ? "" : "s"} ready for you`
-      : "All caught up";
+}
 
+function AgentBlock() {
+  const status = useAgentStatus();
   return (
     <Popover
       align="start"
       className="w-72 p-2"
       trigger={
         <button className="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-subtle">
-          <Orb state={state} size={22} tick={ticks} />
+          <Orb state={status.state} size={22} tick={status.ticks} />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-[12px] font-medium text-fg">
               Head of GTM <AiBadge />
             </span>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={line}
-                initial={{ opacity: 0, filter: "blur(2px)" }}
-                animate={{ opacity: 1, filter: "blur(0px)" }}
-                exit={{ opacity: 0, filter: "blur(2px)" }}
-                transition={{ duration: 0.15 }}
-                className={cn("block truncate text-[12px]", active.length ? "shimmer-text" : "text-fg-3")}
-              >
-                {line}
-                {active.length > 1 && ` +${active.length - 1}`}
-              </motion.span>
-            </AnimatePresence>
+            <AgentLine status={status} className="text-[12px]" />
           </span>
         </button>
       }
     >
-      <div className="space-y-2">
-        {active.length > 0 && (
-          <div>
-            <p className="px-1.5 pb-1 text-[11px] font-medium text-fg-3">In progress · {active.length}</p>
-            {active.map((r) => (
-              <div key={r.id} className="flex items-center gap-2 rounded-sm px-1.5 py-1.5 text-[13px]">
-                <Orb state="working" size={14} />
-                <span className="min-w-0 flex-1 truncate">{r.title}</span>
-                <span className="truncate font-mono text-[11px] text-fg-3">{r.steps.at(-1)?.text.slice(0, 18)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <div>
-          <p className="px-1.5 pb-1 text-[11px] font-medium text-fg-3">Recent</p>
-          {recent.length === 0 && <p className="px-1.5 py-1 text-[12px] text-fg-3">Nothing yet this session.</p>}
-          {recent.map((r) => (
-            <div key={r.id} className="rounded-sm px-1.5 py-1">
-              <p className="truncate text-[13px] text-fg">{r.title}</p>
-              <Receipt run={r} />
-            </div>
-          ))}
-        </div>
-      </div>
+      <AgentPanel status={status} />
     </Popover>
   );
 }
@@ -150,10 +111,7 @@ export function Sidebar() {
   const { ws } = useWorkspace();
   const { theme, toggle } = useTheme();
   const spend = ws?.usage[monthKey()]?.costUsd ?? 0;
-  const counts: Record<string, number | undefined> = {
-    "/today": Object.values(ws?.moves ?? {}).filter((m) => m.status === "open" && m.dueOn <= todayISO()).length || undefined,
-    "/intros": (ws ? yourMoves(ws, todayISO()).length : 0) || undefined,
-  };
+  const counts = useNavCounts();
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-bg-subtle md:flex">
