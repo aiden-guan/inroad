@@ -3,6 +3,7 @@
  * Pure functions only: stages, exit criteria, the qualification score, contact-path order.
  * Code decides these things; the model only suggests.
  */
+import { daysBetween } from "@/lib/domain/ids";
 import type {
   Account,
   ContactPath,
@@ -51,6 +52,24 @@ export function newDeal(account: Account, id: string, at: string): Deal {
 /** A close date moved later: one push. Setting it the first time, or pulling it in, isn't. */
 export function closeDatePushed(prev: string | undefined, next: string | undefined): boolean {
   return !!prev && !!next && next > prev;
+}
+
+/** Pilot to paid, read in code: how far the end date is, whether the ROI review is booked, and plan steps gone overdue. */
+export interface PilotWatch {
+  /** Days until `pilot.endsOn` (negative once it has passed); undefined without an end date. */
+  endsIn?: number;
+  roiBooked: boolean;
+  /** Mutual action plan steps not done whose due date has passed, oldest first. */
+  overdue: MutualActionPlan["milestones"];
+}
+
+export function pilotWatch(deal: Deal, today: string): PilotWatch {
+  const endsOn = deal.pilot?.endsOn;
+  return {
+    endsIn: endsOn ? daysBetween(today, endsOn) : undefined,
+    roiBooked: !!deal.checklist?.["pilot.roi"],
+    overdue: (deal.map?.milestones ?? []).filter((m) => m.status !== "done" && m.due < today).sort((a, b) => a.due.localeCompare(b.due)),
+  };
 }
 
 /* ─────────────────────────────── Qualification ─────────────────────────────── */

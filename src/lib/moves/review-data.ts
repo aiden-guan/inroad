@@ -1,3 +1,4 @@
+import { pilotWatch } from "@/lib/deals/rules";
 import { addDays, daysBetween, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Activity, type Deal, type LossReason, type ReviewProposal, type Stage, type Workspace } from "@/lib/domain/types";
 import { coldFirstTouches } from "@/lib/quality/cap";
@@ -121,6 +122,11 @@ export function pipelineData(ws: Workspace, now: Date): PipelineData {
     const lastActivity = daysSince(d.lastActivityAt || d.updatedAt, today);
     if (lastActivity > 7) flags.push(`no_activity_${lastActivity}d`);
     if (d.stage === "pilot" && d.pilot && !d.pilot.paid) flags.push("unpaid_pilot");
+    // Pilot to paid: the same reads as Today's pilot cards.
+    const pw = pilotWatch(d, today);
+    if (d.stage === "pilot" && pw.endsIn !== undefined && pw.endsIn < 0) flags.push(`pilot_ended_${-pw.endsIn}d_ago_no_decision`);
+    else if (d.stage === "pilot" && pw.endsIn !== undefined && pw.endsIn <= 5 && !pw.roiBooked) flags.push("pilot_ending_no_roi_review");
+    if (pw.overdue.length) flags.push(`map_steps_overdue_${pw.overdue.length}`);
     if (d.stage !== "talking" && !d.card?.economicBuyer?.value && !d.qualification?.economicBuyer) flags.push("economic_buyer_unknown");
     const champion = d.card?.champion?.name ? `${d.card.champion.name}${d.card.champion.status ? ` (${d.card.champion.status})` : ""}` : d.contacts.find((c) => c.role === "champion") ? first(ws.people[d.contacts.find((c) => c.role === "champion")!.personId]?.name) : "none";
     const company = companyName(ws, d.accountDomain);
@@ -134,7 +140,7 @@ export function pipelineData(ws: Workspace, now: Date): PipelineData {
       d.qualification ? `card ${d.qualification.total}/12` : "card not scored",
       d.card?.criticalEvent?.value ? `critical event: ${clip(d.card.criticalEvent.value, 60)}${d.card.criticalEvent.date ? ` (${d.card.criticalEvent.date})` : ""}` : "critical event: none captured",
       d.card?.decisionProcess?.value ? `decision process: ${clip(d.card.decisionProcess.value, 60)}` : "decision process: unknown",
-      d.pilot ? `pilot: ${d.pilot.paid ? "paid" : "unpaid"}${d.pilot.criteria ? `, criteria "${clip(d.pilot.criteria, 60)}"` : ", no written criteria"}` : "",
+      d.pilot ? `pilot: ${d.pilot.paid ? "paid" : "unpaid"}${d.pilot.criteria ? `, criteria "${clip(d.pilot.criteria, 60)}"` : ", no written criteria"}${d.pilot.endsOn ? `, ends ${d.pilot.endsOn}` : ""}` : "",
       d.priceQuotes?.length ? `quoted $${d.priceQuotes.at(-1)!.amountUsd}` : "",
     ].filter(Boolean);
     const alias = `d${i + 1}`;

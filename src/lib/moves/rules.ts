@@ -1,6 +1,7 @@
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Asset, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type SignalType, type Workspace } from "@/lib/domain/types";
 import { referralLeads } from "@/lib/deals/referrals";
+import { pilotWatch, type PilotWatch } from "@/lib/deals/rules";
 import { leadPoints, metros, nearby } from "@/lib/geo/leads";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
@@ -68,6 +69,10 @@ const RULES = {
   unpaid: { base: 55, label: "Unpaid pilot past 30 days" },
   stalled: { base: 55, label: "Active deal quiet for over a week, next step still ahead" },
   slipped: { base: 55, label: "Close date pushed twice or more" },
+  pilot_convert: { base: 62, label: "Pilot past its end date, still at Pilot" },
+  pilot_roi: { base: 58, label: "Pilot ends within 5 days and no ROI review is booked" },
+  map_overdue: { base: 55, label: "A mutual action plan step is overdue" },
+  pilot_checkin: { base: 45, label: "Pilot running, no check-in for 3 days" },
   switch_channel: { base: 54, label: "Three emails without a reply" },
   cold_draft: { base: 52, label: "First-touch draft ready" },
   signal: { base: 50, label: "Fresh signal at an A-tier account" },
@@ -624,6 +629,102 @@ function lastDealActivity(ws: Workspace, deal: Deal, now: Date): string {
   return last;
 }
 
+const PILOT_CHECKIN_DAYS = 3;
+const ROI_WINDOW_DAYS = 5;
+
+/** The champion's first name on a deal: the card's, then a contact with the role, then the first contact. */
+function championOf(ws: Workspace, deal: Deal): string {
+  const named = deal.card?.champion.name;
+  if (named) return first(named);
+  const c = deal.contacts.find((x) => x.role === "champion") ?? deal.contacts[0];
+  return c ? first(ws.people[c.personId]?.name) : "";
+}
+
+function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean, now: Date, today: string, out: Cand[]) {
+  const domain = deal.accountDomain;
+  const company = companyName(ws, domain);
+  const mult = stageMult(deal.stage);
+  const champion = championOf(ws, deal);
+  const endsOn = deal.pilot?.endsOn;
+
+  if (deal.stage === "pilot" && endsOn && pw.endsIn !== undefined && pw.endsIn < 0) {
+    const past = -pw.endsIn;
+    out.push({
+      id: `mv_pilot_convert_${deal.id}_${endsOn}`,
+      kind: "next_step_missing",
+      rule: "pilot_convert",
+      title: `Ask ${company} for the conversion decision`,
+      why: `Pilot ended ${shortDay(endsOn)} · results against the success criteria, then the order form`,
+      minutes: 5,
+      priority: RULES.pilot_convert.base * mult + overdueBoost(past),
+      overdueDays: past,
+      ref: { kind: "deal", id: deal.id },
+      subjectIds: [deal.id],
+      href: sheet(domain),
+    });
+  } else if (deal.stage === "pilot" && endsOn && pw.endsIn !== undefined && pw.endsIn <= ROI_WINDOW_DAYS && !pw.roiBooked) {
+    const nowIso = now.toISOString();
+    const booked = Object.values(ws.meetings).some((m) => m.dealId === deal.id && m.startsAt > nowIso && /\b(roi|review|readout|results)\b/i.test(m.title));
+    if (!booked) {
+      out.push({
+        id: `mv_pilot_roi_${deal.id}_${endsOn}`,
+        kind: "next_step_missing",
+        rule: "pilot_roi",
+        title: `Book the ROI review with ${champion || company}`,
+        why: `${company}'s pilot ends ${pw.endsIn === 0 ? "today" : shortDay(endsOn)} · results vs the baseline, with the economic buyer`,
+        minutes: 3,
+        priority: RULES.pilot_roi.base * mult,
+        ref: { kind: "deal", id: deal.id },
+        subjectIds: [deal.id],
+        href: sheet(domain),
+      });
+    }
+  }
+
+  if (running) {
+    const last = lastDealActivity(ws, deal, now);
+    const quiet = daysSince(last, today);
+    if (quiet >= PILOT_CHECKIN_DAYS) {
+      const day = daysSince(deal.pilot!.startedOn, today) + 1;
+      const length = endsOn ? daysBetween(deal.pilot!.startedOn!, endsOn) + 1 : undefined;
+      out.push({
+        id: `mv_pilot_checkin_${deal.id}_${localDate(last)}`,
+        kind: "next_step_missing",
+        rule: "pilot_checkin",
+        title: `Check in on the ${company} pilot`,
+        why: `Day ${day}${length ? ` of ${length}` : ""} · quiet for ${quiet} days · every 2–3 days keeps it on track`,
+        minutes: 2,
+        priority: RULES.pilot_checkin.base * mult,
+        ref: { kind: "deal", id: deal.id },
+        subjectIds: [deal.id],
+        href: sheet(domain),
+      });
+    }
+  }
+
+  const late = pw.overdue[0];
+  const yours = pw.overdue.find((m) => m.ownerSide !== "buyer");
+  // Only their steps late and the deal's next step already overdue or missing: the next-step card is the chase.
+  const chased = !deal.nextStep?.date || deal.nextStep.date < today;
+  if (late && isOpen(deal) && (yours || !chased)) {
+    const lead = yours ?? late;
+    const days = daysBetween(lead.due, today);
+    out.push({
+      id: `mv_map_${deal.id}_${lead.id}`,
+      kind: "next_step_missing",
+      rule: "map_overdue",
+      title: yours ? `Do your overdue plan step for ${company}: “${clip(lead.step, 40)}”` : `Check on ${company}'s plan: “${clip(lead.step, 40)}” was due ${shortDay(lead.due)}`,
+      why: `${pw.overdue.length > 1 ? `${plural(pw.overdue.length, "plan step")} overdue` : `Due ${shortDay(lead.due)}`} · keep the owners and dates current with them`,
+      minutes: 3,
+      priority: RULES.map_overdue.base * mult + overdueBoost(Math.floor(days / 3)),
+      overdueDays: days,
+      ref: { kind: "deal", id: deal.id },
+      subjectIds: pw.overdue.map((m) => m.id),
+      href: sheet(domain),
+    });
+  }
+}
+
 function upcomingMeeting(ws: Workspace, deal: Deal, now: Date): boolean {
   const nowIso = now.toISOString();
   return Object.values(ws.meetings).some((m) => m.dealId === deal.id && m.startsAt > nowIso);
@@ -712,9 +813,15 @@ function deals({ ws, now, today, out }: Ctx) {
       });
     }
 
+    // Pilot to paid, where first deals stall: a check-in every few days while it runs, the ROI review booked
+    // before the end date, the conversion asked for once it passes, and the plan's dates kept current.
+    const pw = pilotWatch(deal, today);
+    const running = deal.stage === "pilot" && !!deal.pilot?.startedOn && deal.pilot.startedOn <= today && (pw.endsIn === undefined || pw.endsIn >= 0);
+    pilotMoves(ws, deal, pw, running, now, today, out);
+
     // A dated step ahead doesn't mean the deal is alive: quiet for over a week, with no call booked and the
-    // step more than two days out, it gets a one-line check-in that re-confirms the date.
-    if (dated && dated > addDays(today, 2) && !awaitingTime.has(deal.id) && !upcomingMeeting(ws, deal, now)) {
+    // step more than two days out, it gets a one-line check-in that re-confirms the date. (A running pilot has its own cadence.)
+    if (!running && dated && dated > addDays(today, 2) && !awaitingTime.has(deal.id) && !upcomingMeeting(ws, deal, now)) {
       const last = lastDealActivity(ws, deal, now);
       const quiet = daysSince(last, today);
       if (quiet > STALL_DAYS) {
