@@ -496,22 +496,33 @@ function ReplyBody(props: BodyProps) {
     const email = person.email ?? person.contactPaths.find((c) => c.value.includes("@"))?.value;
     // EU, UK and unknown places got the footer that promises deletion on "stop": that comes first there.
     const promised = footerPromisesDeletion(jurisdictionFor(ws, person, person.accountDomain).value);
+    // A connected sequencer may have suppressed them already: say so instead of adding them twice.
+    const suppressed = person.doNotContact || (!!email && ws.suppression.some((x) => x.email?.toLowerCase() === email.toLowerCase()));
     const suppress = async () => {
       const ok = await dispatch([
-        { type: "suppression.add", entry: { id: newId("sup"), email: email?.toLowerCase(), reason: "unsubscribe", at: nowISO() } },
+        ...(email ? [{ type: "suppression.add" as const, entry: { id: newId("sup"), email: email.toLowerCase(), reason: "unsubscribe" as const, at: nowISO() } }] : []),
         { type: "person.upsert", person: { ...person, doNotContact: true } },
       ]);
       if (ok) onComplete();
     };
+    const onList = (
+      <span className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-2">
+        <Check className="size-3.5 text-success" aria-hidden /> On your suppression list. I won&apos;t draft to them again.
+      </span>
+    );
     if (promised) {
       return (
         <div className="space-y-3">
           <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
           <Lead>Your footer told {name} you&apos;d delete their details if they asked, so that&apos;s the answer to a stop. Don&apos;t reply.</Lead>
           <ForgetPerson person={person} reveal={false} />
-          <Button variant="secondary" size="sm" onClick={() => void suppress()}>
-            Only suppress {name}
-          </Button>
+          {suppressed ? (
+            onList
+          ) : (
+            <Button variant="secondary" size="sm" onClick={() => void suppress()}>
+              Only suppress {name}
+            </Button>
+          )}
         </div>
       );
     }
@@ -520,9 +531,13 @@ function ReplyBody(props: BodyProps) {
         <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
         <Lead>They asked not to be contacted. Suppressing them cancels every draft and keeps them out of future lists. Don&apos;t reply.</Lead>
         <Row>
-          <Button variant="primary" onClick={() => void suppress()}>
-            Suppress {name}
-          </Button>
+          {suppressed ? (
+            onList
+          ) : (
+            <Button variant="primary" onClick={() => void suppress()}>
+              Suppress {name}
+            </Button>
+          )}
           <DeleteDetails person={person} />
         </Row>
       </div>
