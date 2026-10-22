@@ -32,6 +32,14 @@ export interface MockRequest {
   status?: number;
   fault?: string | null;
   stop?: string;
+  /** The usage the mock reported (message_delta), including per-attempt iterations for a fallback. */
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens: number;
+    cache_creation_input_tokens: number;
+    iterations?: { type: string; model: string; input_tokens: number; output_tokens: number }[];
+  };
 }
 
 export interface MockServer {

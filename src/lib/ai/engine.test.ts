@@ -3,7 +3,7 @@ import { z } from "zod";
 import { startMock, type MockServer } from "@/test/mock-anthropic";
 import { AgentError, compatState, defineTool, resetCompat, runAgent, type RunOptions } from "./engine";
 import type { AgentEvent } from "./events";
-import { costOf } from "./models";
+import { costOf, requestCost } from "./models";
 
 /**
  * The agent loop against scripts/mock-anthropic.mjs, which speaks the real streaming wire format
@@ -147,6 +147,22 @@ describe("runAgent with a terminal tool", () => {
     expect(feedback.content).toMatch(/^Invalid input\. Fix these fields and call submit_plan again: headline: /);
     // The resubmission keeps to the cap.
     expect(r.result?.headline.length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("runAgent billing", () => {
+  it("prices a turn a fallback model served at that model's rates, attempt by attempt", async () => {
+    await fault({ type: "refusal_fallback" });
+    const r = await run<Plan>({ tier: "strategist", system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(r.result).toBeDefined();
+    const [served] = await mock.requests();
+    const iterations = served.usage?.iterations ?? [];
+    expect(iterations.map((i) => i.model)).toEqual(["claude-opus-5-5", "claude-opus-4-8"]);
+    const priced = (i: (typeof iterations)[number]) => requestCost("strategist", i.model, { ...r.usage, inputTokens: i.input_tokens, outputTokens: i.output_tokens, cacheReadTokens: 0, cacheWriteTokens: 0, cacheWrite1hTokens: 0, webSearches: 0, webFetches: 0 });
+    expect(r.costUsd).toBeCloseTo(priced(iterations[0]) + priced(iterations[1]), 12);
+    // At Opus 5.5's own rates the same tokens would cost less: the fallback is priced as what it is.
+    expect(r.costUsd).toBeGreaterThan(costOf("strategist", r.usage));
+    expect(r.usage.inputTokens).toBe(iterations[0].input_tokens + iterations[1].input_tokens);
   });
 });
 
