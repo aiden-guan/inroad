@@ -1,6 +1,11 @@
-import { cn } from "@/lib/client/cn";
+"use client";
 
+import { cn } from "@/lib/client/cn";
+import { useModKeys } from "@/lib/client/platform";
+
+/** A key, labeled for this computer: "⌘K" reads "Ctrl K" off a Mac. */
 export function Kbd({ children, className }: { children: React.ReactNode; className?: string }) {
+  const keys = useModKeys();
   return (
     <kbd
       className={cn(
@@ -8,7 +13,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
         className,
       )}
     >
-      {children}
+      {typeof children === "string" ? keys(children) : children}
     </kbd>
   );
 }
