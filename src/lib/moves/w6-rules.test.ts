@@ -181,3 +181,80 @@ describe("the weekly post", () => {
     expect(ofRule(computeMoves(makeWorkspace({ briefs: review("2026-10-12", post({ post: undefined, title: "Call Dana back" })) }), NOW), "post")).toEqual([]);
   });
 });
+
+describe("pilot to paid", () => {
+  /** A paid pilot at Acme with Ana as champion; `endsIn` days to its end date, a next step 6 days out. */
+  function pilot(endsIn: number, patch: Partial<Workspace["deals"][string]> = {}, quietFor = 1): Workspace {
+    const ws = deal(6, quietFor);
+    Object.assign(ws.deals.deal_acme, {
+      stage: "pilot",
+      contacts: [{ personId: "per_ana", role: "champion" }, { personId: "per_bo" }],
+      pilot: { criteria: "Close in 3 days", paid: true, feeUsd: 10000, startedOn: day(endsIn - 30), endsOn: day(endsIn) },
+      ...patch,
+    });
+    return ws;
+  }
+  const pilotRules = (ws: Workspace) => computeMoves(ws, NOW).filter((m) => /pilot_|map_overdue/.test(m.rule));
+
+  it("asks for the conversion once a pilot passes its end date, even with a future next step", () => {
+    const [m] = pilotRules(pilot(-3));
+    expect(m).toMatchObject({ id: `mv_pilot_convert_deal_acme_${day(-3)}`, title: "Ask Acme for the conversion decision", priority: 62 * 1.4 + 15, overdueDays: 3 });
+    expect(m.why).toBe("Pilot ended Oct 17 · results against the success criteria, then the order form");
+  });
+
+  it("asks to book the ROI review in the last five days, until it's ticked or a review is on the calendar", () => {
+    expect(pilotRules(pilot(6)).map((m) => m.rule)).toEqual([]);
+    const [m] = pilotRules(pilot(4));
+    expect(m).toMatchObject({ id: `mv_pilot_roi_deal_acme_${day(4)}`, title: "Book the ROI review with Ana", priority: 81.2 });
+    expect(m.why).toBe("Acme's pilot ends Oct 24 · results vs the baseline, with the economic buyer");
+    expect(pilotRules(pilot(4, { checklist: { "pilot.roi": true } }))).toEqual([]);
+    const booked = pilot(4);
+    booked.meetings.m = makeMeeting("m", "deal_acme", { title: "Pilot ROI review", startsAt: at(3) });
+    expect(pilotRules(booked)).toEqual([]);
+  });
+
+  it("checks in every three quiet days while the pilot runs, instead of the week-long stall card", () => {
+    expect(pilotRules(pilot(10, {}, 2))).toEqual([]);
+    const ws = pilot(10, {}, 3);
+    const [m] = pilotRules(ws);
+    expect(m).toMatchObject({ id: `mv_pilot_checkin_deal_acme_${day(-3)}`, title: "Check in on the Acme pilot", priority: 63 });
+    expect(m.why).toBe("Day 21 of 31 · quiet for 3 days · every 2–3 days keeps it on track");
+    expect(ofRule(computeMoves(pilot(10, {}, 9), NOW), "stalled")).toEqual([]);
+    // "I checked in" logs a note on the deal, which resets the clock.
+    applyAction(ws, { type: "activity.log", activity: makeActivity("chk", { kind: "note", dealId: "deal_acme", at: at(0, "09:00") }) });
+    expect(pilotRules(ws)).toEqual([]);
+  });
+
+  it("raises overdue plan steps, the founder's own first", () => {
+    const map = {
+      targetDate: day(20),
+      goal: "Live on the close",
+      milestones: [
+        { id: "ms_roi", step: "ROI review meeting", ownerSide: "buyer" as const, due: day(-2), status: "todo" as const },
+        { id: "ms_order", step: "Order form sent", ownerSide: "seller" as const, due: day(-1), status: "todo" as const },
+        { id: "ms_done", step: "Kickoff", ownerSide: "both" as const, due: day(-20), status: "done" as const },
+      ],
+    };
+    const [m] = pilotRules(pilot(10, { map })).filter((x) => x.rule === "today.map_overdue");
+    expect(m).toMatchObject({ id: "mv_map_deal_acme_ms_order", title: "Do your overdue plan step for Acme: “Order form sent”", subjectIds: ["ms_roi", "ms_order"], overdueDays: 1 });
+    expect(m.why).toBe("2 plan steps overdue · keep the owners and dates current with them");
+    map.milestones[1].status = "done" as never;
+    const [theirs] = pilotRules(pilot(10, { map })).filter((x) => x.rule === "today.map_overdue");
+    expect(theirs.title).toBe("Check on Acme's plan: “ROI review meeting” was due Oct 18");
+    // Their late step with the deal's own next step overdue: the next-step card already chases it.
+    const chased = pilot(10, { map, nextStep: { what: "Redlines back", date: day(-2), buyerAgreed: true } });
+    expect(computeMoves(chased, NOW).filter((x) => x.rule === "today.map_overdue")).toEqual([]);
+  });
+
+  it("covers the audit's case: a paid pilot ended three days ago with two overdue steps and a future next step", () => {
+    const map = {
+      targetDate: day(10),
+      goal: "Convert",
+      milestones: [
+        { id: "a", step: "ROI review meeting", ownerSide: "both" as const, due: day(-2), status: "todo" as const },
+        { id: "b", step: "Order form sent", ownerSide: "seller" as const, due: day(-1), status: "todo" as const },
+      ],
+    };
+    expect(pilotRules(pilot(-3, { map })).map((m) => m.rule)).toEqual(["today.pilot_convert", "today.map_overdue"]);
+  });
+});

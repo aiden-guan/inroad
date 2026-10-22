@@ -14,10 +14,11 @@ import { Input, Textarea } from "@/components/ui/field";
 import { CopyButton } from "@/components/ui/misc";
 import { SourceChip } from "@/components/ui/source";
 import { newId, nowISO } from "@/lib/domain/ids";
-import type { Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import type { Action } from "@/lib/domain/actions";
+import type { Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { nextStep } from "@/lib/intros/rules";
 import { RULE_PREFIX } from "@/lib/moves/rules";
-import { ago, clip, clockTime, companyName, first, knowsDirectly } from "@/lib/moves/util";
+import { ago, clip, clockTime, companyName, first, knowsDirectly, shortDay } from "@/lib/moves/util";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { DealResolver } from "./deal-resolver";
@@ -313,6 +314,14 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
           </Row>
         </div>
       );
+    }
+    case "pilot_roi":
+    case "pilot_convert":
+    case "pilot_checkin":
+    case "map_overdue": {
+      const deal = move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
+      if (!deal) break;
+      return <PilotBody {...props} deal={deal} rule={rule} />;
     }
     case "review_monday":
     case "review_friday":
@@ -772,6 +781,86 @@ function QuestionBody({ move, ws, onComplete }: BodyProps) {
       ) : (
         <p className="text-[12px] text-fg-3">It updates the playbook: {q.affects.map((a) => a.replace(/_/g, " ")).join(", ")}.</p>
       )}
+    </div>
+  );
+}
+
+const PILOT_LEADS: Record<string, string> = {
+  pilot_roi:
+    "Book the ROI review before the pilot ends, with the economic buyer in the room: results against the baseline and the success criteria, then the conversion decision. A review booked after the end date usually slips.",
+  pilot_convert:
+    "The pilot is over. Ask for the decision now: walk through the results against the criteria you agreed, then send the order form, or agree a dated conversion with a price. An open-ended pilot turns into a free trial.",
+  pilot_checkin:
+    "Pilots stall quietly. A short check-in every two or three days, on their first value and any blocker, keeps it on track for the ROI review. One line, about their results.",
+  map_overdue:
+    "A plan step has slipped. Do yours, or agree a new date with them; a plan nobody keeps current stops being mutual. Their steps get a friendly check, not a chase.",
+};
+
+/** Pilot to paid: the ROI review, the conversion ask, the check-in cadence and overdue plan steps, each resolved in one click. */
+function PilotBody({ move, ws, today, onComplete, deal, rule }: BodyProps & { deal: Deal; rule: string }) {
+  const { dispatch } = useWorkspace();
+  const company = companyName(ws, deal.accountDomain);
+  const at = nowISO();
+  const overdue = rule === "map_overdue" ? (deal.map?.milestones ?? []).filter((m) => (move.subjectIds ?? []).includes(m.id) && m.status !== "done") : [];
+  const act = async (actions: Action | Action[]) => {
+    if (await dispatch(actions)) onComplete();
+  };
+  return (
+    <div className="space-y-3">
+      <Lead>{PILOT_LEADS[rule]}</Lead>
+      {overdue.length > 0 && deal.map && (
+        <ul className="divide-y divide-border rounded-md ring-1 ring-border">
+          {overdue.map((m) => (
+            <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-[13px]">
+              <span className="min-w-0 flex-1 text-fg">{m.step}</span>
+              <span className="font-mono text-[12px] text-danger">{shortDay(m.due)}</span>
+              <span className="text-[12px] text-fg-3">{m.ownerSide === "buyer" ? company : m.ownerSide === "seller" ? "You" : "Both"}</span>
+              <Button
+                size="xs"
+                variant="ghost"
+                icon={<Check className="size-3" />}
+                onClick={() => {
+                  const map = deal.map!;
+                  const milestones = map.milestones.map((x) => (x.id === m.id ? { ...x, status: "done" as const } : x));
+                  const update: Action = { type: "deal.update", id: deal.id, patch: { map: { ...map, milestones } }, at };
+                  // The card finishes once nothing overdue is left on the plan.
+                  void (milestones.some((x) => x.status !== "done" && x.due < today) ? dispatch(update) : act(update));
+                }}
+              >
+                Done
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Row>
+        {rule === "pilot_roi" ? (
+          <Button variant="primary" icon={<Check className="size-3.5" />} onClick={() => void act({ type: "deal.update", id: deal.id, patch: { checklist: { ...deal.checklist, "pilot.roi": true } }, at })}>
+            The review is booked
+          </Button>
+        ) : rule === "pilot_checkin" ? (
+          <Button
+            variant="primary"
+            icon={<Check className="size-3.5" />}
+            onClick={() =>
+              void act({
+                type: "activity.log",
+                activity: { id: newId("act"), at, kind: "note", dealId: deal.id, accountDomain: deal.accountDomain, summary: `Checked in on the ${company} pilot`, source: "founder" },
+              })
+            }
+          >
+            I checked in
+          </Button>
+        ) : (
+          <Link href={sheet(deal.accountDomain)} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+            Open {company}
+          </Link>
+        )}
+        {rule !== "pilot_convert" && rule !== "map_overdue" && <Quiet href={sheet(deal.accountDomain)}>Open {company}</Quiet>}
+        <Button variant="ghost" onClick={onComplete}>
+          {rule === "map_overdue" ? "Dates updated" : "Handled"}
+        </Button>
+      </Row>
     </div>
   );
 }
