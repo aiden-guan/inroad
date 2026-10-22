@@ -204,7 +204,8 @@ never in a backup or an export.
   computer, after backing up what's there. A workspace JSON exported by an older version restores too. Your
   suppression list survives a restore: anyone who unsubscribed, bounced or asked to be deleted after the backup was
   made stays suppressed, and anyone who asked to have their details deleted is deleted again from what the backup
-  brings back.
+  brings back. That holds across a reset or the sample too: before either replaces your workspace, its opt-outs are
+  added to `opt-outs.json` in the data folder, which nothing replaces and every restore reads.
 
 The automatic backups live in the data folder, so they don't survive deleting it: keep a downloaded backup somewhere
 else now and then.

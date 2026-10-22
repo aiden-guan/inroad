@@ -27,6 +27,7 @@ import {
   snapshot,
   type BackupBundle,
 } from "./backup";
+import { OPT_OUTS_FILE } from "./opt-outs";
 import { DATA_DIR, writeSettings } from "./settings";
 import { getThread, withThread } from "./threads";
 import { emptyWorkspace, mutateWorkspace, readWorkspace, replaceWorkspace, setSecrets } from "./workspace";
@@ -64,6 +65,7 @@ async function realWork(name = "Acme") {
 
 beforeEach(() => {
   fs.rmSync(BACKUP_DIR(), { recursive: true, force: true });
+  fs.rmSync(path.join(DATA_DIR, OPT_OUTS_FILE), { force: true });
   resetDailyCheck();
 });
 
@@ -402,9 +404,41 @@ describe("a restore keeps the suppression list", () => {
     expect(readWorkspace().suppression.map((s) => s.email)).toEqual(["x@northwind.com"]);
 
     await loadSampleWorkspace();
-    expect(readWorkspace().suppression.length).toBeGreaterThan(0);
+    const madeUp = readWorkspace().suppression.map((s) => s.email ?? s.domain);
+    expect(madeUp.length).toBeGreaterThan(0);
     const fromSample = await restoreWorkspace(parseBackup(old));
-    expect(fromSample.keptSuppressions).toBe(0);
-    expect(readWorkspace().suppression).toEqual([]);
+    // The real bounce from before the sample stays; none of the sample's made-up entries come over.
+    expect(fromSample.keptSuppressions).toBe(1);
+    expect(readWorkspace().suppression.map((s) => s.email)).toEqual(["x@northwind.com"]);
   });
+
+  for (const replaced of ["a reset", "the sample"] as const) {
+    it(`keeps opt-outs and deletions made since the backup when ${replaced} came in between`, async () => {
+      await realWork();
+      await mutateNetwork((n) => void (n.imports = []));
+      await mutateWorkspace((ws) => void (ws.people.per_dana.email = "dana@northwind.com"));
+      const daily = snapshot("daily", at("2026-10-20T16:00:00.000Z"));
+      await mutateWorkspace((ws) => {
+        forgetPerson(ws, "per_dana", "2026-10-21T09:00:00.000Z", "sup_dana");
+        ws.suppression.push(sup("sup_unsub", { email: "unsub@northwind.com", reason: "unsubscribe" }), sup("sup_bounce", { email: "gone@northwind.com", reason: "bounce" }));
+      });
+      if (replaced === "a reset") await resetToEmptyWorkspace();
+      else await loadSampleWorkspace();
+
+      const { keptSuppressions, forgotten } = await restoreWorkspace(readSnapshot(daily.name));
+      expect(keptSuppressions).toBe(3);
+      expect(forgotten).toBe(1);
+      const ws = readWorkspace();
+      expect(ws.people.per_dana).toBeUndefined();
+      expect(ws.suppression.map((s) => [s.email, s.reason])).toEqual([
+        ["dana@northwind.com", "requested_delete"],
+        ["unsub@northwind.com", "unsubscribe"],
+        ["gone@northwind.com", "bounce"],
+      ]);
+      // Two resets later it still holds.
+      await resetToEmptyWorkspace();
+      await resetToEmptyWorkspace();
+      expect((await restoreWorkspace(readSnapshot(daily.name))).forgotten).toBe(1);
+    });
+  }
 });
