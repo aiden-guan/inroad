@@ -137,4 +137,17 @@ describe("the referral card on Today", () => {
   it("lets a referral go quiet two weeks after the call", () => {
     expect(card(afterTheCall(), new Date(2026, 10, 3, 9, 30))).toEqual([]);
   });
+
+  it("hands over to the draft at the same rank, so a busy day doesn't push the note to tomorrow", () => {
+    const ws = afterTheCall(debrief({ referralPeople: [{ name: "Sam Ortiz" }], referrals: ["Sam Ortiz"] }));
+    ws.accounts[NW].tier = "B";
+    ws.people.per_sam = makePerson("per_sam", NW, { name: "Sam Ortiz", source: "referral", notes: "Referred by Marcus Lindqvist on the Oct 19 call" });
+    ws.outreach.out_sam = makePackage("out_sam", NW, { personId: "per_sam", createdAt: at(0) });
+    const moves = computeMoves(ws, NOW);
+    expect(card(ws)).toEqual([]);
+    expect(moves.find((m) => m.draft?.packageId === "out_sam")).toMatchObject({ title: "Write to Sam at Northwind", why: "Referred by Marcus Lindqvist on the Oct 19 call · draft ready", priority: 62 });
+    // Any other cold draft keeps the cold-draft rank.
+    ws.people.per_sam.source = "manual";
+    expect(computeMoves(ws, NOW).find((m) => m.draft?.packageId === "out_sam")).toMatchObject({ why: "Draft ready", priority: 52 });
+  });
 });
