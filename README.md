@@ -80,7 +80,9 @@ moves and scoreboard, draft lint and pre-send gates, deal rules, the signal pars
 (against the mock Anthropic server, started by the test), and the main workflows end to end: the first run with the
 discovery it starts, Find companies, research, drafts and replies, and an Ask thread. Those replay recorded Anthropic
 exchanges ("tapes", `src/test/fixtures/anthropic`), and each also checks that no run fell back to compatibility mode,
-nothing was cut off at `max_tokens`, every submit tool was called and every receipt costs what the usage says. It is
+nothing was cut off at `max_tokens`, every submit tool was called and every receipt costs what the usage says. Replay
+checks the requests the code sends now, not the recorded ones: a request whose cache TTL, `max_tokens`, effort or tool
+set differs from the tape's fails the test, and assertions about caching read what was sent. It is
 deterministic and offline: every test file gets its own temporary data folder instead of `.data/`, the clock runs in
 `America/Los_Angeles`, fetches to anything but localhost fail, and no Anthropic key is ever used. Tests sit next to the
 code they cover (`foo.test.ts`); shared builders are in `src/test/`.

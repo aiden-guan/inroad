@@ -37,6 +37,7 @@ describe("an Ask thread", () => {
     tape = await useTape("ask-thread");
     const context = { kind: "account" as const, id: DOMAIN.northwind };
     const first = await runWorkflow(ask, { threadId: "thr_test", message: "What should I say to Northwind's CFO about pricing?", context });
+    const firstTurn = tape.exchanges();
     const second = await runWorkflow(ask, { threadId: "thr_test", message: "And what if she pushes back on the price?", context });
     await expectHealthyRun([first.summary, second.summary], tape);
 
@@ -47,9 +48,14 @@ describe("an Ask thread", () => {
       expect(a.text.length).toBeGreaterThan(0);
       expect(a.error).toBeUndefined();
     }
-    // Append-only: the second request starts with every message of the first.
-    const [, ...rest] = tape.messages();
-    const followUp = rest.at(-1)!;
-    expect(followUp.usage.cache_read_input_tokens).toBeGreaterThan(0);
+    // What makes the follow-up a cache read, checked on what was sent: the same tools and system, and a
+    // history that starts with every message of the first turn's last request (append-only).
+    const before = firstTurn.at(-1)!.request;
+    const followUp = tape.exchanges()[firstTurn.length].request;
+    expect(followUp.prefix).toBe(before.prefix);
+    expect(followUp.turns!.slice(0, before.turns!.length)).toEqual(before.turns);
+    expect(followUp.turns!.length).toBeGreaterThan(before.turns!.length);
+    // On the real API (the live smoke), the response says so too.
+    if (tape.mode === "live") expect(tape.messages()[firstTurn.length].usage.cache_read_input_tokens).toBeGreaterThan(0);
   });
 });

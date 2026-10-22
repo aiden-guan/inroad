@@ -10,6 +10,7 @@
  * Tapes are grouped by name: POST /__tape/start {"name"} begins one, POST /__tape/stop ends it and returns
  * its exchanges (tests in another process use these; tests in this process call start()/stop()).
  */
+import { createHash } from "node:crypto";
 import http from "node:http";
 import https from "node:https";
 
@@ -58,6 +59,14 @@ export function exchangeKey(body) {
   return `${body.model}|${tools}|${body.messages?.length ?? 0}`;
 }
 
+// cache_control marks where a cache entry ends and moves to the newest turn each request; it isn't content.
+const hash = (value) => createHash("sha256").update(JSON.stringify(value ?? null, (k, v) => (k === "cache_control" ? undefined : v))).digest("hex").slice(0, 16);
+
+/**
+ * What a request asked for. `prefix` hashes the tools and system (the part a cache read reuses: a timestamp
+ * in the system prompt changes it every request), `turns` each message in order (append-only history keeps
+ * the earlier ones).
+ */
 export function requestSummary(body) {
   return {
     model: body.model,
@@ -67,7 +76,23 @@ export function requestSummary(body) {
     effort: body.output_config?.effort ?? null,
     cacheTtl: body.cache_control?.ttl ?? (body.cache_control ? "5m" : null),
     stream: body.stream === true,
+    prefix: hash([body.tools ?? [], body.system ?? null]),
+    turns: (body.messages ?? []).map((m) => hash(m)),
   };
+}
+
+/**
+ * How a request differs from the one a tape recorded for it, in what the replay key leaves out: tool set
+ * order aside, max_tokens, effort, cache TTL, streaming, and the cached prefix when the tape has its hash.
+ * Empty when it's the same request.
+ */
+export function requestDrift(recorded, sent) {
+  const out = [];
+  const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  for (const k of ["model", "maxTokens", "effort", "cacheTtl", "stream"]) if (!same(recorded[k], sent[k])) out.push(`${k} ${JSON.stringify(recorded[k] ?? null)} → ${JSON.stringify(sent[k] ?? null)}`);
+  if (!same([...(recorded.tools ?? [])].sort(), [...(sent.tools ?? [])].sort())) out.push(`tools ${recorded.tools} → ${sent.tools}`);
+  if (recorded.prefix && recorded.prefix !== sent.prefix) out.push("tools or system changed");
+  return out;
 }
 
 /**
