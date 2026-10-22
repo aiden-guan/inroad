@@ -128,7 +128,8 @@ npm run smoke:live -- --mock                                              # the 
 On top of each test's own assertions it fails if compatibility mode ever triggers, a run that needs a submit tool
 ends without one, a response is cut off, the second Ask turn doesn't read the prompt cache, or a receipt disagrees
 with the usage the API reported. `--record` writes the real responses to `src/test/fixtures/anthropic/live/`; the
-offline suite prefers those over the mock's tapes, so it then replays real wire shapes.
+offline suite replays whichever tape of a workflow was recorded last, the real one or the mock's, so it replays real
+wire shapes until `npm run tapes:record` records that workflow again.
 
 CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `next typegen`, `tsc --noEmit`,
 `eslint src`, `npm test` and `next build`, and the browser tests above as a separate `e2e` job that uploads the

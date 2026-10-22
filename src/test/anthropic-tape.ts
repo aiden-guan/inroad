@@ -13,8 +13,8 @@ import { startMock, type MockServer } from "./mock-anthropic";
 /**
  * Recorded Anthropic exchanges ("tapes") for workflow tests. A test names its tape; the mode comes from
  * INROAD_TAPES:
- *   replay (default)  serve src/test/fixtures/anthropic/live/<name>.json if the live smoke recorded one,
- *                     else src/test/fixtures/anthropic/<name>.json (recorded from the mock). Offline, free.
+ *   replay (default)  serve src/test/fixtures/anthropic/live/<name>.json (the live smoke's recording) or
+ *                     src/test/fixtures/anthropic/<name>.json (the mock's), whichever was recorded last. Offline, free.
  *   record            run against scripts/mock-anthropic.mjs and rewrite the mock tape (npm run tapes:record)
  *   live              go through the live smoke's spend-capped proxy to the real API (npm run smoke:live);
  *                     with INROAD_RECORD=1 the exchanges are saved as the live tape
@@ -95,7 +95,16 @@ function sse(events: Record<string, unknown>[]): string {
   return events.map((e) => `event: ${String(e.type)}\ndata: ${JSON.stringify(e)}\n\n`).join("");
 }
 
-async function replayServer(file: TapeFile) {
+/**
+ * The tape replay serves for a name: the live smoke's recording or the mock's, whichever was recorded
+ * last, so re-recording either one (npm run tapes:record, or the smoke with --record) is what replays next.
+ */
+export function pickTape(paths: string[]): { path: string; tape: TapeFile } | null {
+  const found = paths.filter((p) => fs.existsSync(p)).map((p) => ({ path: p, tape: JSON.parse(fs.readFileSync(p, "utf8")) as TapeFile }));
+  return found.sort((a, b) => String(b.tape.recordedAt ?? "").localeCompare(String(a.tape.recordedAt ?? "")))[0] ?? null;
+}
+
+async function replayServer(file: TapeFile, where = "") {
   const used = new Set<number>();
   const misses: string[] = [];
   // What this run sent, each with the recorded answer it got: tests assert on the request side.
@@ -109,7 +118,9 @@ async function replayServer(file: TapeFile) {
     if (i < 0) {
       misses.push(key);
       res.writeHead(418, { "content-type": "application/json", "x-should-retry": "false" });
-      return void res.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: `No recorded response on tape "${file.name}" for ${key}. Re-record it: npm run tapes:record` } }));
+      // Tapes are named after their workflow's test file ("compose-cold" is recorded by compose.test.ts).
+      const again = `npm run tapes:record -- ${file.name.split("-")[0]}${file.source === "live" ? " (or the live smoke with --record)" : ""}`;
+      return void res.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: `No recorded response on tape "${file.name}" (${where || file.source}) for ${key}. Re-record it: ${again}` } }));
     }
     used.add(i);
     const e = file.exchanges[i];
@@ -135,10 +146,10 @@ export async function useTape(name: string): Promise<Tape> {
   const mode = tapeMode();
 
   if (mode === "replay") {
-    const file = [livePath(name), mockPath(name)].find((p) => fs.existsSync(p));
-    if (!file) throw new Error(`No tape "${name}" in src/test/fixtures/anthropic. Record it from the mock: npm run tapes:record`);
-    const tape = JSON.parse(fs.readFileSync(file, "utf8")) as TapeFile;
-    const server = await replayServer(tape);
+    const picked = pickTape([livePath(name), mockPath(name)]);
+    if (!picked) throw new Error(`No tape "${name}" in src/test/fixtures/anthropic. Record it from the mock: npm run tapes:record`);
+    const tape = picked.tape;
+    const server = await replayServer(tape, path.relative(process.cwd(), picked.path));
     point(server.url);
     return {
       name,

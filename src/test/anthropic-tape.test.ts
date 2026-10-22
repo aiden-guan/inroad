@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { useTape, type Tape } from "./anthropic-tape";
+import { pickTape, useTape, type Tape } from "./anthropic-tape";
 
 /**
  * Replay answers from the recorded file, but what a test asserts about requests (the cache TTL, the
@@ -59,5 +62,31 @@ describe("replaying a tape", () => {
     const [a, b] = tape.exchanges().map((e) => e.request);
     expect(a.turns).toEqual(b.turns);
     expect(a.prefix).not.toBe(b.prefix);
+  });
+});
+
+describe("which tape replays", () => {
+  it("is whichever was recorded last, so re-recording from the mock after a live smoke takes effect", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tapes-"));
+    const write = (file: string, source: "mock" | "live", recordedAt: string) => {
+      fs.writeFileSync(path.join(dir, file), JSON.stringify({ version: 1, name: "compose-cold", source, recordedAt, exchanges: [] }));
+      return path.join(dir, file);
+    };
+    const live = write("live.json", "live", "2026-10-20T10:00:00.000Z");
+    const mock = write("mock.json", "mock", "2026-10-01T10:00:00.000Z");
+    expect(pickTape([live, mock])?.tape.source).toBe("live");
+    // npm run tapes:record after changing the prompt.
+    write("mock.json", "mock", "2026-10-21T10:00:00.000Z");
+    expect(pickTape([live, mock])).toMatchObject({ path: mock, tape: { source: "mock" } });
+    expect(pickTape([path.join(dir, "missing.json")])).toBeNull();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("names the file and the command when it has no answer", async () => {
+    tape = await useTape("compose-cold");
+    const res = await fetch(`${process.env.ANTHROPIC_BASE_URL}/v1/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draftRequest({ tools: [] })) });
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toMatch(/\(src\/test\/fixtures\/anthropic\/compose-cold\.json\).*npm run tapes:record -- compose$/);
+    expect(tape.misses).toHaveLength(1);
   });
 });
