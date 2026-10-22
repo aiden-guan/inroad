@@ -4,12 +4,12 @@
  * and a schema-driven fallback writes otherwise. Usage is computed from what the turn contains, and a
  * turn that outgrows max_tokens is cut off the way the real API cuts it.
  */
+import { call, mockId, submitted, text } from "./blocks.mjs";
 import { breakCaps, fake } from "./fake.mjs";
 import { PLAYBOOKS } from "./playbooks.mjs";
 import { hiddenThinkingTokens, messageBlocks, promptUsage, tokensOf } from "./usage.mjs";
 
-let counter = 0;
-export const mockId = (p) => `${p}_mock${(++counter).toString(36)}`;
+export { mockId };
 
 /* ───────────── Reading the conversation ───────────── */
 
@@ -91,17 +91,7 @@ export function context(body) {
   };
 }
 
-/** The latest result for each tool name. */
-export function lastCall(ctx, name) {
-  return [...ctx.calls].reverse().find((c) => c.name === name);
-}
-
-export const submitted = (ctx, name) => ctx.calls.some((c) => c.name === name && c.result !== null && !c.isError);
-
 /* ───────────── Building blocks ───────────── */
-
-export const text = (t) => ({ type: "text", text: t });
-export const call = (name, input) => ({ type: "tool_use", id: mockId("toolu"), name, input });
 
 function thinking(ctx, lines) {
   const subject = (ctx.firstText.split("\n").find((l) => l.trim() && !/^Today is /.test(l)) ?? "the request").replace(/<[^>]+>/g, "").trim().slice(0, 70);
