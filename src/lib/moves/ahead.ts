@@ -1,7 +1,7 @@
 import { todayISO } from "@/lib/domain/ids";
-import type { ID, Move, OutreachPackage, Workspace } from "@/lib/domain/types";
-import { RULE_PREFIX, visibleMoves } from "./rules";
-import { hasDraftableAngle, isSuppressed, knowsDirectly } from "./util";
+import type { ID, Move, OutreachPackage, RunSummary, Workspace } from "@/lib/domain/types";
+import { FIRST_THREE_DAYS, firstThreeDomains, RULE_PREFIX, visibleMoves } from "./rules";
+import { daysSince, hasDraftableAngle, isSuppressed, knowsDirectly } from "./util";
 
 /**
  * What Today prepares before the founder asks (SPEC §5.1, W7): the brief for every meeting in the next
@@ -151,4 +151,15 @@ export function planAhead(ws: Workspace, now: Date): AheadPlan {
     ...(screen ? { screen: screen.reason } : {}),
     keys: [...preps.map((id) => prepKey(ws, id)), ...drafts.map(draftKey), ...(screen ? [screen.key] : [])],
   };
+}
+
+/**
+ * A first-three company's research just ended, landed or failed. Today re-prepares then, on the server and wherever
+ * the founder is: the draft the dossier unlocks starts ahead, and the card stops saying "researching".
+ */
+export function prepareAfterRun(ws: Workspace, run: Pick<RunSummary, "workflow" | "ref" | "status">, now: Date): boolean {
+  if (run.workflow !== "dossier" || run.ref?.kind !== "account" || run.status === "running" || run.status === "queued") return false;
+  const o = ws.onboarding;
+  if (ws.sample || o.status !== "hired" || !o.hiredAt || daysSince(o.hiredAt, todayISO(now)) > FIRST_THREE_DAYS) return false;
+  return firstThreeDomains(ws).includes(run.ref.id);
 }

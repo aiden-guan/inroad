@@ -1,12 +1,12 @@
 import "server-only";
 import { isConfigured } from "@/lib/ai/client";
 import { addDays, todayISO } from "@/lib/domain/ids";
-import type { Brief, Workspace } from "@/lib/domain/types";
+import type { Brief, RunSummary, Workspace } from "@/lib/domain/types";
 import { briefData, emitHubEvent } from "@/lib/hub";
 import { startRun } from "@/lib/runs/registry";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { getWorkflow } from "@/lib/workflows";
-import { planAhead, type AheadPlan } from "./ahead";
+import { planAhead, prepareAfterRun as shouldPrepareAfter, type AheadPlan } from "./ahead";
 import { briefInputs, codeGreeting } from "./brief-data";
 import { computeMoves, mergeMoves, TOP_MOVES, visibleMoves } from "./rules";
 import { computeScoreboard } from "./scoreboard";
@@ -176,4 +176,13 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   const after = readWorkspace();
   if (firstOfDay && !briefRunId && after.briefs[today]) void emitHubEvent("brief.ready", { brief: briefData(after, today) });
   return { changed, briefRunId, sweepRunId, aheadRunIds, moves: visibleMoves(after.moves, today).length };
+}
+
+/**
+ * Called by the run registry when a run ends, before anyone hears it ended: a first-three dossier re-prepares
+ * Today, so its draft is already under way (and the card's copy current) when the page refreshes.
+ */
+export async function prepareAfterRun(run: RunSummary): Promise<PrepareResult | null> {
+  if (!shouldPrepareAfter(readWorkspace(), run, new Date())) return null;
+  return prepareToday();
 }
