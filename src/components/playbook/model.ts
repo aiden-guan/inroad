@@ -22,7 +22,7 @@ import type {
   ValueTheme,
   Workspace,
 } from "@/lib/domain/types";
-import { isColdFirstTouch } from "@/lib/moves/scoreboard";
+import { introAsksTarget, isColdFirstTouch } from "@/lib/moves/scoreboard";
 
 /* ───────────────────────────── Navigation ───────────────────────────── */
 
@@ -385,7 +385,8 @@ export function planMath(ws: Workspace, today: string): PlanMath {
   const q2p = rate(ws.goal.winRate, paidDeals.filter((d) => reached(d, ["qualified", "pilot", "proposal", "won"])).length, qualifiedDeals.length);
 
   const coldPerWeek = ws.caps.firstTouchesPerWeek;
-  const introPerWeek = ws.goal.introAsksPerWeek ?? PLAN_DEFAULTS.introAsksPerWeek;
+  // The same number Today chases: the founder's setting, else the bet's channel plan, else the default.
+  const introPerWeek = introAsksTarget(ws);
   const communityPerWeek = ws.goal.communityPerWeek ?? PLAN_DEFAULTS.communityPerWeek;
   const cold = { perWeek: coldPerWeek, rate: coldRate, meetings: coldPerWeek * coldRate.value };
   const intro = { perWeek: introPerWeek, rate: introRate, meetings: introPerWeek * introRate.value };

@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { Workspace } from "@/lib/domain/types";
 import { sampleWorkspace } from "@/lib/sample";
-import { NOW, at, day, makeAccount, makeActivity, makeDeal, makeMeeting, makePackage, makeStep, makeWorkspace } from "@/test/factories";
+import { planMath } from "@/components/playbook/model";
+import { applyAction } from "@/lib/domain/actions";
+import type { ChannelPlan, Foundation } from "@/lib/domain/types";
+import { NOW, TODAY, at, day, makeAccount, makeActivity, makeDeal, makeMeeting, makePackage, makePerson, makeStep, makeWorkspace } from "@/test/factories";
+import { computeMoves } from "./rules";
 import {
   coldQuotaLeft,
   computeScoreboard,
   conversationsBetween,
+  conversationsTarget,
   counters,
   dealsMissingNextStep,
   goalWins,
   isColdFirstTouch,
+  introAsksTarget,
   isQualified,
   sampleLabel,
 } from "./scoreboard";
@@ -146,6 +152,53 @@ describe("pipeline counts", () => {
       },
     });
     expect(dealsMissingNextStep(ws, day(0))).toEqual(["none", "past"]);
+  });
+});
+
+describe("plan levers drive Today", () => {
+  const funnel = (perWeek: Partial<ChannelPlan["funnel"]["perWeek"]>): Foundation =>
+    ({ channelPlan: { funnel: { qualifiedNeeded: 0, discoveryCallsNeeded: 0, coldContactsNeeded: 0, perWeek: { conversations: 3, firstTouches: 25, introAsks: 6, meetings: 2.4, ...perWeek } }, motions: [] } }) as unknown as Foundation;
+
+  it("chases the founder's intro asks, else the bet's channel plan, else 4", () => {
+    const ws = makeWorkspace();
+    expect(introAsksTarget(ws)).toBe(4);
+    ws.foundation = funnel({ introAsks: 6 });
+    expect(introAsksTarget(ws)).toBe(6);
+    applyAction(ws, { type: "goal.update", patch: { introAsksPerWeek: 10 } });
+    expect(introAsksTarget(ws)).toBe(10);
+    // The Playbook's plan shows the number Today chases.
+    expect(planMath(ws, TODAY).intro.perWeek).toBe(10);
+    expect(computeScoreboard(ws, NOW).introAsks).toEqual([0, 10]);
+  });
+
+  it("keeps warm-path and connector cards up until the plan's number of asks, not 4", () => {
+    const acme = "acme.example";
+    const ws = makeWorkspace({
+      accounts: {
+        [acme]: makeAccount(acme, { warmPathCount: 2, peopleIds: ["per_ana"] }),
+        "beta.example": makeAccount("beta.example", { fitScore: 70 }),
+      },
+      people: { per_ana: makePerson("per_ana", acme, { name: "Ana Lima" }) },
+      connectors: [{ id: "con_ivy", name: "Ivy Chen", relationship: "investor", introsMade: 0 }],
+      activities: [0, 1, 2, 3].map((i) => makeActivity(`ask_${i}`, { kind: "intro_requested", at: at(-1) })),
+    });
+    const warm = () => computeMoves(ws, NOW).find((m) => m.id === `mv_warm_${acme}`)!;
+    const connector = () => computeMoves(ws, NOW).filter((m) => m.rule === "today.connector");
+    expect(warm().priority).toBe(40);
+    expect(connector()).toEqual([]);
+    applyAction(ws, { type: "goal.update", patch: { introAsksPerWeek: 10 } });
+    expect(warm()).toMatchObject({ priority: 60 });
+    expect(warm().why).toContain("4 of 10 intro asks this week");
+    expect(connector().map((m) => m.why)).toEqual(["Investor · 4 of 10 intro asks this week"]);
+  });
+
+  it("aims Today at the conversations the founder picked in the Plan, over the bet's channel plan", () => {
+    const ws = makeWorkspace({ foundation: funnel({ conversations: 3 }) });
+    expect(conversationsTarget(ws)).toBe(3);
+    // The default goal (10) isn't a choice; "Use 5" in the Plan is.
+    applyAction(ws, { type: "goal.update", patch: { conversationsPerWeek: 5, conversationsChosenAt: at(0) } });
+    expect(conversationsTarget(ws)).toBe(5);
+    expect(computeScoreboard(ws, NOW).conversations).toEqual([0, 5]);
   });
 });
 
