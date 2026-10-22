@@ -17,10 +17,31 @@ export function errorResponse(err: unknown, fallbackStatus = 500): Response {
   return Response.json({ error: err instanceof Error ? err.message : "Something went wrong." }, { status: fallbackStatus });
 }
 
+/**
+ * What Next.js passes on of a request body when there's a proxy (src/proxy.ts): it buffers the body so
+ * both can read it, keeps the first 10 MB (experimental.proxyClientMaxBodySize) and silently drops the
+ * rest, so a bigger upload reaches the route cut short and fails to parse as if it were the wrong file.
+ */
+export const BODY_LIMIT_BYTES = 10 * 1024 * 1024;
+export const TOO_BIG = "That's more than Inroad can take in one go (10 MB).";
+
+/** True when fewer bytes arrived than the client said it sent: the body was cut at BODY_LIMIT_BYTES. */
+export function bodyCutShort(request: Request, received: number): boolean {
+  const declared = Number(request.headers.get("content-length") ?? "");
+  return Number.isFinite(declared) && declared > received;
+}
+
 export async function readJSON<T = unknown>(request: Request): Promise<T> {
+  let text: string;
   try {
-    return (await request.json()) as T;
+    text = await request.text();
   } catch {
+    throw new ActionError("Request body must be JSON.");
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    if (bodyCutShort(request, new TextEncoder().encode(text).byteLength)) throw new ActionError(TOO_BIG);
     throw new ActionError("Request body must be JSON.");
   }
 }

@@ -2,15 +2,21 @@
   "name": "inroad",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/serve.mjs dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/serve.mjs start",
     "lint": "eslint",
-    "dev:mock": "ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=mock FIRECRAWL_API_URL=http://localhost:4010 GTM_DATA_DIR=.data-mock next dev -p 3100",
+    "dev:mock": "node scripts/serve.mjs dev --mock",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "tapes:record": "node scripts/live/record-tapes.mjs",
+    "smoke:live": "node scripts/live/smoke.mjs",
+    "e2e": "playwright test",
     "mock:anthropic": "node scripts/mock-anthropic.mjs",
     "eval:critic": "vitest run --config vitest.eval.config.mts scripts/eval-critic.ts",
     "eval:classify": "vitest run --config vitest.eval.config.mts scripts/eval-classify.ts"
@@ -40,6 +46,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

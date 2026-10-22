@@ -309,6 +309,8 @@ async function generate<T>(
     effort,
     maxTokens: 8000,
     requireTerminal: true,
+    // Drafts come in bursts (a revision, the critic's rewrite, the next account) on the same prefix.
+    cacheTtl: "1h",
   });
   if (res.result === undefined) throw new AgentError("I couldn't finish that draft. Try again in a moment.", "unknown");
   return { data: res.result, messages: res.messages };
@@ -406,6 +408,7 @@ export async function critique(ctx: Pick<WorkflowContext<unknown>, "agent">, ws:
       effort: "low",
       maxTokens: 3000,
       requireTerminal: true,
+      cacheTtl: "1h",
     });
     const r = res.result;
     if (!r) return null;
@@ -1048,6 +1051,26 @@ const REPLY_ACTION: Record<ReplyIntent, NonNullable<OutreachPackage["replyAction
   ooo: "nurture",
 };
 
+/**
+ * Haiku reads the reply. If that call fails (overloaded, cut off, no submit), Sonnet gets one try before
+ * the run stops with a plain message; nothing is logged or drafted until a read succeeds.
+ */
+async function readReply(ctx: WorkflowContext<ComposeArgs>, content: string) {
+  const opts = { system: REPLY_READ_RULES, messages: [{ role: "user" as const, content }], tools: [submitRead], effort: "low" as const, maxTokens: 2000, requireTerminal: true, cacheTtl: "1h" as const };
+  try {
+    return await ctx.agent<z.infer<typeof ReplyRead>>({ ...opts, tier: "fast" });
+  } catch (err) {
+    if (err instanceof AgentError && ["stopped", "no_key", "auth", "no_credit", "rate_limit"].includes(err.code)) throw err;
+    console.warn("[compose] reply read failed on the fast tier, trying once more:", err instanceof Error ? err.message : err);
+    try {
+      return await ctx.agent<z.infer<typeof ReplyRead>>({ ...opts, tier: "operator", maxTokens: 4000 });
+    } catch (again) {
+      if (again instanceof AgentError && ["stopped", "no_key", "auth", "no_credit", "rate_limit"].includes(again.code)) throw again;
+      throw new AgentError("I couldn't read their reply just now. Nothing was saved; try again in a minute.", again instanceof AgentError ? again.code : "unknown");
+    }
+  }
+}
+
 async function runReply(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account: Account): Promise<ComposeResult> {
   const a = ctx.args;
   const person = a.personId ? ws.people[a.personId] : undefined;
@@ -1069,15 +1092,7 @@ async function runReply(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, accoun
   let referral: { name?: string; email?: string } | undefined;
   let checkBackOn: string | null = null;
   if (!intent) {
-    const read = await ctx.agent<z.infer<typeof ReplyRead>>({
-      tier: "fast",
-      system: REPLY_READ_RULES,
-      messages: [{ role: "user", content: lines(taskHeader(), `<reply from="${person?.name ?? "the prospect"}">\n${text.slice(0, 4000)}\n</reply>`) }],
-      tools: [submitRead],
-      effort: "low",
-      maxTokens: 2000,
-      requireTerminal: true,
-    });
+    const read = await readReply(ctx, lines(taskHeader(), `<reply from="${person?.name ?? "the prospect"}">\n${text.slice(0, 4000)}\n</reply>`));
     const r = read.result;
     intent = r?.intent ?? "positive";
     summary = r?.summary ?? "";

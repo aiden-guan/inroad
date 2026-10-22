@@ -1,0 +1,411 @@
+{
+ "version": 1,
+ "name": "dossier-thin",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-sonnet-5-5|record_evidence,submit_dossier,web_search|1",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "record_evidence",
+     "submit_dossier",
+     "web_search"
+    ],
+    "messages": 1,
+    "maxTokens": 16000,
+    "effort": "medium",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 4310,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 4310,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading Northwind's site, open roles and news. Recording each fact with its exact quote before I use it. Then the dossier, citing only what I recorded. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "server_tool_use",
+      "id": "srvtoolu_mock3",
+      "name": "web_search",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"query\":\"\\\"Northwind\\\" (raises OR funding) 2026\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "content_block_start",
+     "index": 2,
+     "content_block": {
+      "type": "server_tool_use",
+      "id": "srvtoolu_mock4",
+      "name": "bash_code_execution",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 2,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"command\":\"python3 -c \\\"filter_results(min_relevance=0.6)\\\"\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 2
+    },
+    {
+     "type": "content_block_start",
+     "index": 3,
+     "content_block": {
+      "type": "bash_code_execution_tool_result",
+      "tool_use_id": "srvtoolu_mock4",
+      "content": {
+       "type": "bash_code_execution_result",
+       "stdout": "3 results kept",
+       "stderr": "",
+       "return_code": 0,
+       "content": []
+      }
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 3
+    },
+    {
+     "type": "content_block_start",
+     "index": 4,
+     "content_block": {
+      "type": "web_search_tool_result",
+      "tool_use_id": "srvtoolu_mock3",
+      "content": [
+       {
+        "type": "web_search_result",
+        "title": "Northwind raises $18M Series A to expand its team",
+        "url": "https://techcrunch.com/2026/09/30/northwind-raises-series-a",
+        "encrypted_content": "x",
+        "page_age": "3 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Northwind is hiring a Head of Finance",
+        "url": "https://jobs.ashbyhq.com/northwind/head-of-finance",
+        "encrypted_content": "x",
+        "page_age": "2 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Northwind on Hacker News: how we run the business on two people",
+        "url": "https://news.ycombinator.com/item?id=42147559",
+        "encrypted_content": "x",
+        "page_age": "1 month ago"
+       }
+      ]
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 4
+    },
+    {
+     "type": "content_block_start",
+     "index": 5,
+     "content_block": {
+      "type": "text",
+      "text": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 5,
+     "delta": {
+      "type": "text_delta",
+      "text": "Recording what I'll cite. "
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 5
+    },
+    {
+     "type": "content_block_start",
+     "index": 6,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock5",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 6,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Northwind raises $18M Series A to expand its team\",\"quote\":\"Northwind raises $18M Series A to expand its team\",\"url\":\"https://techcrunch.com/2026/09/30/northwind-raises-series-a\",\"sourceType\":\"search_snippet\",\"publishedAt\":\"2026-09-29\",\"confidence\":\"medium\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 6
+    },
+    {
+     "type": "content_block_start",
+     "index": 7,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock6",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 7,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Northwind is hiring a Head of Finance\",\"quote\":\"Northwind is hiring a Head of Finance\",\"url\":\"https://jobs.ashbyhq.com/northwind/head-of-finance\",\"sourceType\":\"search_snippet\",\"publishedAt\":\"2026-10-06\",\"confidence\":\"medium\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 7
+    },
+    {
+     "type": "content_block_start",
+     "index": 8,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock7",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 8,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Northwind on Hacker News: how we run the business on two people\",\"quote\":\"Northwind on Hacker News: how we run the business on two people\",\"url\":\"https://news.ycombinator.com/item?id=42147559\",\"sourceType\":\"search_snippet\",\"publishedAt\":\"2026-09-20\",\"confidence\":\"medium\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 8
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 4310,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 4310,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 513,
+      "server_tool_use": {
+       "web_search_requests": 1,
+       "web_fetch_requests": 0
+      }
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-sonnet-5-5|record_evidence,submit_dossier,web_search|3",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "record_evidence",
+     "submit_dossier",
+     "web_search"
+    ],
+    "messages": 3,
+    "maxTokens": 16000,
+    "effort": "medium",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock9"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock8",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 602,
+       "cache_read_input_tokens": 4310,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 602,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading Northwind's site, open roles and news. Recording each fact with its exact quote before I use it. Then the dossier, citing only what I recorded. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mocka",
+      "name": "submit_dossier",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"snapshot\":{\"plainDescription\":\"Northwind; their site wasn't readable.\",\"descriptionEvidenceIds\":[],\"stage\":\"Series A\",\"funding\":{\"round\":\"Series A\",\"amountUsd\":18000000,\"date\":\"2026-09-29\",\"useOfFunds\":null,\"evidenceId\":\"e1\"},\"headcount\":null,\"hq\":null},\"facts\":[{\"text\":\"Northwind is hiring a Head of Finance\",\"evidenceIds\":[\"e2\"]}],\"signals\":[{\"type\":\"first_hire\",\"headline\":\"Northwind is hiring a Head of Finance\",\"date\":\"2026-10-06\",\"evidenceId\":\"e2\",\"strength\":3,\"implication\":\"Likely means manual reporting is about to change hands, and the new owner will want it fixed early.\"},{\"type\":\"funding\",\"headline\":\"Northwind raises $18M Series A to expand its team\",\"date\":\"2026-09-29\",\"evidenceId\":\"e1\",\"strength\":2,\"implication\":\"Likely means manual reporting is about to change hands, and the new owner will want it fixed early.\"},{\"type\":\"launch\",\"headline\":\"Northwind on Hacker News: how we run the business on two people\",\"date\":\"2026-09-20\",\"evidenceId\":\"e3\",\"strength\":2,\"implication\":\"Likely means manual reporting is about to change hands, and the new owner will want it fixed early.\"}],\"committee\":[{\"role\":\"champion\",\"likelyTitles\":[\"Head of Operations\",\"Operations Manager\"],\"people\":[]},{\"role\":\"economic_buyer\",\"likelyTitles\":[\"COO\",\"VP Operations\"],\"people\":[]}],\"painHypotheses\":[{\"pain\":\"Manual reporting is still done by hand while the team grows\",\"valueThemeId\":null,\"evidenceIds\":[\"e2\"],\"confidence\":\"medium\"}],\"angles\":[{\"title\":\"A new hire inherits the problem\",\"signal\":\"Northwind is hiring a Head of Finance (2026-10-06)\",\"interpretation\":\"The head of operations will own manual reporting from day one.\",\"pressure\":\"Manual reporting breaks first when a second person touches it.\",\"pov\":\"Most teams answer with another hire, who then spends a quarter rebuilding the same spreadsheet.\",\"povId\":null,\"proofClaimId\":null,\"credential\":null,\"ask\":\"Is manual reporting part of what that hire will own?\",\"evidenceIds\":[\"e2\"],\"bestFor\":\"champion\",\"strength\":4}],\"discoveryOpeners\":[{\"q\":\"You're hiring for Northwind is hiring a Head of. Is that to take manual reporting off someone's plate?\",\"evidenceId\":\"e2\"}],\"risks\":[\"They may already run this on an in-house script\"],\"unknowns\":[\"No named champion found\",\"Current tooling for this work\"],\"recommendation\":{\"move\":\"cold_email\",\"personName\":null,\"why\":\"A dated reason to talk: Northwind is hiring a Head of Finance.\"}}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 602,
+      "cache_read_input_tokens": 4310,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 602,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 881,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}

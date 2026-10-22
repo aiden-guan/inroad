@@ -63,3 +63,38 @@ jobs:
         env:
           # The build must never read or write a real workspace.
           GTM_DATA_DIR: ${{ runner.temp }}/inroad-data
+
+  # A founder's first session in Chromium, against the mock Anthropic API with outbound DNS off: no key, no spend.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: End to end
+        run: npm run e2e
+        env:
+          E2E_DATA_DIR: ${{ runner.temp }}/inroad-e2e-data
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

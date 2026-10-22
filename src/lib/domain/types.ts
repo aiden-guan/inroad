@@ -491,6 +491,8 @@ export type DiscoverySource =
   | "competitor_customers"
   | "community"
   | "founder_network"
+  /** GitHub stargazers of the founder's repo (W2). */
+  | "stargazers"
   | "referral"
   | "web_search"
   | "manual"
@@ -589,6 +591,8 @@ export interface Account {
   suggestedTitle?: string;
   /** Where discovery found it (YC profile, a competitor's customer page, a search result). */
   sourceUrl?: string;
+  /** When it became a customer without a won deal (the founder named it, or a customers list). A won deal's date wins. */
+  customerAt?: ISODateTime;
 }
 
 export interface ContactPath {
@@ -618,6 +622,8 @@ export interface Person {
   jurisdiction: Jurisdiction;
   doNotContact: boolean;
   champion?: "coach" | "untested" | "tested";
+  /** How they know the founder (design partner, past user, ex-colleague…), from a tag or a signup/user import. */
+  tags?: RelationshipTag[];
   notes?: string;
   source?: DiscoverySource;
   /** Apollo's id once the founder added this person from a people search, so the search can show who's on file. */
@@ -1276,7 +1282,9 @@ export type IntegrationId =
   | "webhook_in"
   | "csv"
   | "mcp"
-  | "gmail";
+  | "gmail"
+  | "calendly"
+  | "calcom";
 
 export interface IntegrationState {
   id: IntegrationId;
@@ -1351,6 +1359,11 @@ export interface RunReceipt {
   cacheReadTokens: number;
   costUsd: number;
   model: ModelTierName;
+  /**
+   * Compatibility mode: the API rejected an optional feature (the refusal-fallback and thinking betas, or
+   * strict tool schemas) and the run went without it. `reason` is what the API said.
+   */
+  compat?: { features: ("betas" | "strict")[]; reason: string };
 }
 
 export interface RunSummary {
@@ -1362,7 +1375,8 @@ export interface RunSummary {
   endedAt?: ISODateTime;
   status: "queued" | "running" | "done" | "error" | "stopped";
   receipt?: RunReceipt;
-  error?: { code: string; message: string };
+  /** requestId and detail (what the API said) are for "Copy details"; message is the plain sentence. */
+  error?: { code: string; message: string; requestId?: string; detail?: string };
   seen?: boolean; // founder has looked at the result
 }
 
@@ -1386,6 +1400,9 @@ export interface Suppression {
 }
 
 /** A row from the founder's LinkedIn Connections.csv export. Stored in connections.json, never sent to Claude in bulk. */
+/** How someone knows the founder: tagged by the founder, or matched to a signup or user list (signup). */
+export type RelationshipTag = "design_partner" | "past_user" | "ex_colleague" | "customer" | "investor" | "connector" | "signup";
+
 export interface Connection {
   id: ID;
   firstName: string;
@@ -1406,8 +1423,8 @@ export interface Connection {
   fitReason?: string;
   /** Persona role the title matched in code, when it's a buyer title. */
   titleRole?: PersonaRole;
-  /** Founder tags. design_partner / past_user / customer / ex_colleague mean they know the product or the founder. */
-  tags?: ("design_partner" | "past_user" | "ex_colleague" | "customer" | "investor" | "connector")[];
+  /** Founder tags. design_partner / past_user / customer / ex_colleague / signup mean they know the product or the founder. */
+  tags?: RelationshipTag[];
   /** Company and title as seen on each import, oldest first (the job-change diff). */
   history?: { company: string; position: string; seenOn: ISODate }[];
   /** The Person record created for this connection, once its company is tracked. */

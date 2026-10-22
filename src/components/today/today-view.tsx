@@ -118,6 +118,30 @@ export function Today({ ws }: { ws: Workspace }) {
   const repliesHandle = useRef<CheckRepliesHandle>(null);
   const lastG = useRef(0);
 
+  // ⌘K "Check replies" lands here: ?open=<move kind> on arrival, or an event when Today is already open.
+  // The move opens as soon as it exists (the day's first prepare makes it), folded under Later or not.
+  const [wanted, setWanted] = useState<MoveKind | null>(null);
+  useEffect(() => {
+    const onOpen = (e: Event) => setWanted((e as CustomEvent<MoveKind>).detail);
+    window.addEventListener("inroad:today-open", onOpen);
+    const asked = new URLSearchParams(window.location.search).get("open");
+    if (asked) {
+      window.history.replaceState(null, "", window.location.pathname);
+      window.dispatchEvent(new CustomEvent("inroad:today-open", { detail: asked }));
+    }
+    return () => window.removeEventListener("inroad:today-open", onOpen);
+  }, []);
+  const wantedMove = wanted ? visible.find((m) => m.kind === wanted) : undefined;
+  if (wantedMove) {
+    setWanted(null);
+    setExpandedId(wantedMove.id);
+    setFocusId(wantedMove.id);
+    if (!top.some((m) => m.id === wantedMove.id)) setLaterOpen(true);
+  }
+  useEffect(() => {
+    if (expandedId) headers.current.get(expandedId)?.scrollIntoView({ block: "nearest" });
+  }, [expandedId]);
+
   const scoreboard = useMemo(() => computeScoreboard(ws, new Date(now)), [ws, now]);
   const brief = ws.briefs[today];
   const greeting = brief?.greeting || codeGreeting(ws, visible, new Date(now));

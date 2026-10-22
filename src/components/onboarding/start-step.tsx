@@ -10,6 +10,7 @@ import { FieldError, Label, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
 import type { Workspace } from "@/lib/domain/types";
 import { listItem } from "@/lib/motion";
+import { shouldMoveFocus, startFocus, wantId } from "./focus";
 import { KeyBlock, useKeyForm, type KeyStatus } from "./key-block";
 import { domainOf } from "./shared";
 
@@ -48,6 +49,15 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
 
   const needsKey = keyStatus !== null && !keyStatus.hasKey;
 
+  // The cursor goes to the first thing to fill in. The key check answers after the first paint, so when
+  // it says there's no key, move there from the (still empty) website field the page autofocused.
+  const want = startFocus({ needsKey, keySaved: !!keyForm.saved?.hasKey, mode, unreachable: !!unreachable });
+  useEffect(() => {
+    const el = document.activeElement as HTMLInputElement | null;
+    const active = !el || el === document.body ? null : { id: el.id, value: el.value ?? "" };
+    if (shouldMoveFocus(active, want)) document.getElementById(wantId(want))?.focus();
+  }, [want]);
+
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
     if (starting || keyForm.saving) return;
@@ -62,7 +72,10 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
     }
     setError(null);
     if (needsKey && !keyForm.saved) {
-      if (!(await keyForm.submit())) return;
+      if (!(await keyForm.submit())) {
+        document.getElementById(wantId("key"))?.focus();
+        return;
+      }
       setKeyStatus({ hasKey: true, keyHint: null });
     }
     await onStart(mode === "site" ? { url: domain!, note: note.trim() || undefined } : { note: note.trim() });
@@ -85,7 +98,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
       });
       if (res.status === 409) {
         // The founder already has work here; the sample would replace it, so ask first.
-        toast("The sample replaces what you've set up so far.", { action: { label: "Replace it", onClick: () => void explore(true) } });
+        toast("The sample replaces what you've set up so far. I'll save a backup of it first.", { action: { label: "Replace it", onClick: () => void explore(true) } });
         return;
       }
       if (!res.ok) {
@@ -94,6 +107,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
       }
       await refresh();
       router.replace("/today");
+      toast("Sample workspace loaded. Everything here is made up. Start with your company any time.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't open the sample workspace.");
     } finally {

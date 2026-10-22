@@ -1,0 +1,58 @@
+{
+  "id": 45512001,
+  "created_at": "2026-10-01T15:01:00.000Z",
+  "author": "whoishiring",
+  "title": "Ask HN: Who is hiring? (October 2026)",
+  "text": "Please state the location and include REMOTE for remote work, REMOTE (US) or similar if the country is restricted, and ONSITE when remote work is <i>not</i> an option.",
+  "type": "story",
+  "children": [
+    {
+      "id": 45512101,
+      "created_at": "2026-10-01T15:04:12.000Z",
+      "author": "meterly_jo",
+      "type": "comment",
+      "parent_id": 45512001,
+      "text": "Meterly | Founding Finance Lead, Senior Backend Engineer | San Francisco, CA (ONSITE) | <a href=\"https:&#x2F;&#x2F;meterly.com&#x2F;careers\" rel=\"nofollow\">https:&#x2F;&#x2F;meterly.com&#x2F;careers</a><p>Meterly turns usage events into invoices for B2B software companies that price on usage. Our finance team is one person and we&#x27;re hiring our first finance lead to own revenue recognition and billing operations.<p>Apply: <a href=\"https:&#x2F;&#x2F;jobs.ashbyhq.com&#x2F;meterly\" rel=\"nofollow\">https:&#x2F;&#x2F;jobs.ashbyhq.com&#x2F;meterly</a>",
+      "children": []
+    },
+    {
+      "id": 45512102,
+      "created_at": "2026-10-01T15:09:40.000Z",
+      "author": "glasswing",
+      "type": "comment",
+      "parent_id": 45512001,
+      "text": "Glasswing Health | Senior Platform Engineer | REMOTE (US) | <a href=\"https:&#x2F;&#x2F;jobs.lever.co&#x2F;glasswing\" rel=\"nofollow\">https:&#x2F;&#x2F;jobs.lever.co&#x2F;glasswing</a><p>We build scheduling software for outpatient clinics. Small team, profitable.",
+      "children": [
+        { "id": 45512301, "created_at": "2026-10-02T09:00:00.000Z", "author": "someone", "type": "comment", "parent_id": 45512102, "text": "Is this role open to Canada? | asking for a friend", "children": [] }
+      ]
+    },
+    {
+      "id": 45512103,
+      "created_at": "2026-10-02T11:30:00.000Z",
+      "author": "np_hiring",
+      "type": "comment",
+      "parent_id": 45512001,
+      "text": "Northpeak (YC W24) | Head of Revenue Operations | NYC | northpeak.io<p>Northpeak is usage-based billing for API companies. We&#x27;re 30 people and just closed our Series A; you&#x27;d be our first RevOps hire, reporting to the CFO.",
+      "children": []
+    },
+    {
+      "id": 45512104,
+      "created_at": "2026-10-01T16:00:00.000Z",
+      "author": "mod",
+      "type": "comment",
+      "parent_id": 45512001,
+      "text": "Please don&#x27;t post recruiting agencies here.",
+      "children": []
+    },
+    { "id": 45512105, "created_at": "2026-10-01T16:30:00.000Z", "author": null, "type": "comment", "parent_id": 45512001, "text": null, "children": [] },
+    {
+      "id": 45512106,
+      "created_at": "2026-10-03T08:15:00.000Z",
+      "author": "tollgate",
+      "type": "comment",
+      "parent_id": 45512001,
+      "text": "Tollgate | Staff Engineer; Product Designer | Remote (EU) | <a href=\"https:&#x2F;&#x2F;careers.tollgate.dev&#x2F;\" rel=\"nofollow\">https:&#x2F;&#x2F;careers.tollgate.dev&#x2F;</a><p>Tollgate is an API gateway for fintechs.",
+      "children": []
+    }
+  ]
+}

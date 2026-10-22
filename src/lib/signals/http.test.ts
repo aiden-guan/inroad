@@ -185,6 +185,22 @@ describe("fetchText responses", () => {
     expect(res?.body).toBe("a".repeat(20));
   });
 
+  it("sends an API's own headers over the defaults, and hands back an error status and named headers only when asked", async () => {
+    const limited = () => new Response('{"message":"API rate limit exceeded"}', { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1793000000", "set-cookie": "a=b" } });
+    undiciFetch.mockResolvedValueOnce(limited()).mockResolvedValueOnce(limited());
+    expect(await fetchText("https://api.github.com/users/x", { headers: { "User-Agent": "Inroad/0.1", Authorization: "Bearer t" } })).toBeNull();
+    expect(undiciFetch.mock.calls[0][1].headers).toMatchObject({ "User-Agent": "Inroad/0.1", Authorization: "Bearer t", Accept: "text/html,application/xhtml+xml" });
+    expect(await fetchText("https://api.github.com/users/x", { allowErrors: true, responseHeaders: ["x-ratelimit-remaining", "x-ratelimit-reset", "x-missing"] })).toEqual({
+      url: "https://api.github.com/users/x",
+      status: 403,
+      body: '{"message":"API rate limit exceeded"}',
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1793000000" },
+    });
+    undiciFetch.mockResolvedValueOnce(ok("{}"));
+    await fetchJSON("https://api.github.com/a", 5000, { headers: { "User-Agent": "Inroad/0.1" } });
+    expect(undiciFetch.mock.calls[2][1].headers).toMatchObject({ "User-Agent": "Inroad/0.1", Accept: "application/json" });
+  });
+
   it("parses JSON, and returns null for anything that isn't", async () => {
     undiciFetch.mockResolvedValueOnce(ok('{"jobs":[1]}')).mockResolvedValueOnce(ok("<html>"));
     expect(await fetchJSON("https://acme.com/a.json")).toEqual({ jobs: [1] });

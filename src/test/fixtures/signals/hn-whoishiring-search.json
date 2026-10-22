@@ -1,0 +1,11 @@
+{
+  "hits": [
+    { "objectID": "45512003", "title": "Ask HN: Freelancer? Seeking freelancer? (October 2026)", "author": "whoishiring", "created_at": "2026-10-01T15:01:00Z", "num_comments": 140 },
+    { "objectID": "45512002", "title": "Ask HN: Who wants to be hired? (October 2026)", "author": "whoishiring", "created_at": "2026-10-01T15:01:00Z", "num_comments": 410 },
+    { "objectID": "45512001", "title": "Ask HN: Who is hiring? (October 2026)", "author": "whoishiring", "created_at": "2026-10-01T15:01:00Z", "num_comments": 620 },
+    { "objectID": "45100001", "title": "Ask HN: Who is hiring? (September 2026)", "author": "whoishiring", "created_at": "2026-09-01T15:00:00Z", "num_comments": 590 }
+  ],
+  "nbHits": 4,
+  "page": 0,
+  "hitsPerPage": 6
+}

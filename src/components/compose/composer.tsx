@@ -1095,6 +1095,7 @@ export function ComposeButton({
   connectorId,
   ensureConnector,
   variant,
+  autoOpen,
 }: {
   domain: string;
   personId?: string;
@@ -1106,6 +1107,8 @@ export function ComposeButton({
   /** Warm intros through someone not yet listed as a connector: files them, then returns their id. */
   ensureConnector?: () => Promise<string | undefined>;
   variant?: "agent" | "secondary";
+  /** Opens itself once the workspace is here, as if clicked (a ⌘K command that landed on this sheet). */
+  autoOpen?: boolean;
 }) {
   const { ws } = useWorkspace();
   const { runs, start } = useRuns();
@@ -1166,6 +1169,13 @@ export function ComposeButton({
     const state = await start("dossier", { domain }, { notify: false, onResult: () => void run() });
     if (state) setResearchId(state.id);
   };
+
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || autoOpened.current || !ws) return;
+    autoOpened.current = true;
+    open();
+  });
 
   const needsPremise = compose.run?.status === "error" && /research it first/i.test(compose.run.error?.message ?? "");
   // EU/UK guessed address, Canada (CASL), or guesses paused by bounces: retrying email fails the same way.

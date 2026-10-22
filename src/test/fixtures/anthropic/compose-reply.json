@@ -1,0 +1,242 @@
+{
+ "version": 1,
+ "name": "compose-reply",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-haiku-5-5|submit_reply_read|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "submit_reply_read"
+    ],
+    "messages": 1,
+    "maxTokens": 2000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 493,
+       "cache_creation_input_tokens": 0,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading what was asked: . Checking the material I was given before writing. Making sure every claim has a source. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock3",
+      "name": "submit_reply_read",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"intent\":\"info_request\",\"summary\":\"Thanks for writing. What would a pilot cost us, and how long until we'd see numbers?\",\"referralName\":null,\"referralEmail\":null,\"checkBackOn\":null}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 493,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 137,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-sonnet-5-5|submit_reply|1",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "submit_reply"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock5"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock4",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 4626,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 4626
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading what was asked: Draft the founder's reply. They read it as: info_request (Thanks for w. Checking the material I was given before writing. Making sure every claim has a source. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock6",
+      "name": "submit_reply",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"body\":\"Thanks, Lena. Short version: it takes the manual part off your team's plate in the first week. Would a 20-minute walkthrough on your own numbers help?\",\"assetId\":null,\"claimIds\":[],\"checkBackOn\":null}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 4626,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 4626
+      },
+      "output_tokens": 182,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}

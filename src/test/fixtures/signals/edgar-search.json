@@ -1,0 +1,84 @@
+{
+  "took": 41,
+  "timed_out": false,
+  "_shards": { "total": 50, "successful": 50, "skipped": 0, "failed": 0 },
+  "hits": {
+    "total": { "value": 4, "relation": "eq" },
+    "max_score": 4.1,
+    "hits": [
+      {
+        "_index": "edgar_file",
+        "_id": "0001987654-26-000002:primary_doc.xml",
+        "_score": 4.1,
+        "_source": {
+          "ciks": ["0001987654"],
+          "period_ending": null,
+          "file_num": ["021-498765"],
+          "display_names": ["Pavewise Inc.  (CIK 0001987654)"],
+          "xsl": "xslFormDX01",
+          "sequence": 1,
+          "root_forms": ["D"],
+          "file_date": "2026-10-02",
+          "biz_states": ["NY"],
+          "sics": [],
+          "form": "D",
+          "adsh": "0001987654-26-000002",
+          "film_num": ["261400021"],
+          "biz_locations": ["New York, NY"],
+          "file_type": "D",
+          "file_description": null,
+          "inc_states": ["DE"],
+          "items": []
+        }
+      },
+      {
+        "_index": "edgar_file",
+        "_id": "0001987654-26-000003:primary_doc.xml",
+        "_score": 3.9,
+        "_source": {
+          "ciks": ["0001987654"],
+          "display_names": ["Pavewise Inc.  (CIK 0001987654)"],
+          "root_forms": ["D"],
+          "file_date": "2026-10-09",
+          "biz_states": ["NY"],
+          "form": "D/A",
+          "adsh": "0001987654-26-000003",
+          "biz_locations": ["New York, NY"],
+          "inc_states": ["DE"]
+        }
+      },
+      {
+        "_index": "edgar_file",
+        "_id": "0001876543-26-000001:primary_doc.xml",
+        "_score": 3.2,
+        "_source": {
+          "ciks": ["0001876543"],
+          "display_names": ["Ledgerly Technologies, Inc.  (CIK 0001876543)"],
+          "root_forms": ["D"],
+          "file_date": "2026-09-24",
+          "biz_states": ["CA"],
+          "form": "D",
+          "adsh": "0001876543-26-000001",
+          "biz_locations": ["San Francisco, CA"],
+          "inc_states": ["DE"]
+        }
+      },
+      {
+        "_index": "edgar_file",
+        "_id": "0001765432-26-000004:primary_doc.xml",
+        "_score": 2.7,
+        "_source": {
+          "ciks": ["0001765432"],
+          "display_names": ["Northgate Opportunity Fund II, L.P.  (CIK 0001765432)"],
+          "root_forms": ["D"],
+          "file_date": "2026-10-12",
+          "biz_states": ["CA"],
+          "form": "D",
+          "adsh": "0001765432-26-000004",
+          "biz_locations": ["Menlo Park, CA"],
+          "inc_states": ["DE"]
+        }
+      }
+    ]
+  }
+}

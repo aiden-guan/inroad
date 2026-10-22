@@ -136,6 +136,7 @@ export const SOURCE_LABEL: Record<DiscoverySource, string> = {
   competitor_customers: "Competitor's customers",
   community: "Community",
   founder_network: "Your network",
+  stargazers: "GitHub stargazers",
   referral: "Referral",
   web_search: "Web search",
   manual: "Added by you",
@@ -231,7 +232,7 @@ export function customerRows(ws: Workspace): CustomerRow[] {
     ...won.map((d) => ({ key: d.id, domain: d.accountDomain, since: stageEnteredAt(d), deal: d })),
     ...Object.values(ws.accounts)
       .filter((a) => a.status === "customer" && !wonDomains.has(a.domain))
-      .map((a) => ({ key: a.domain, domain: a.domain, since: a.addedAt })),
+      .map((a) => ({ key: a.domain, domain: a.domain, since: a.customerAt ?? a.addedAt })),
   ].sort((a, b) => b.since.localeCompare(a.since));
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSpreadsheet, Users, Webhook } from "lucide-react";
+import { FileSpreadsheet, Star, Users, Webhook } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { AgentsCard } from "@/components/agents/agents-card";
@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card, SectionLabel } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/misc";
-import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isCrm, isSequencer, type NativeConnectorId } from "@/lib/connectors/catalog";
+import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isBooking, isCrm, isSequencer, type NativeConnectorId } from "@/lib/connectors/catalog";
 import type { Workspace } from "@/lib/domain/types";
 import type { InboundLogEntry } from "@/lib/hub/types";
+import { BookingKey } from "./booking-key";
 import { CrmPanel } from "./crm-panel";
 import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
@@ -68,7 +69,7 @@ export function IntegrationsHub() {
   };
 
   const importParam = params.get("import");
-  const importKind = importParam === "csv" || importParam === "linkedin" ? importParam : null;
+  const importKind = importParam === "csv" || importParam === "linkedin" || importParam === "github" ? importParam : null;
   const closeImport = () => router.replace("/integrations", { scroll: false });
 
   const events = useMemo(() => status?.inbound.events ?? [], [status]);
@@ -86,6 +87,7 @@ export function IntegrationsHub() {
   const startHere: string | null = !ws.network ? "linkedin" : !anyNative ? "slack" : null;
   const startBadge = (id: string) => (startHere === id ? <Badge tone="outline">Start here</Badge> : undefined);
   const csvCount = Object.values(ws.accounts).filter((a) => a.source === "csv_import").length;
+  const starCount = Object.values(ws.people).filter((p) => p.source === "stargazers").length;
 
   const native = (id: NativeConnectorId) => {
     const meta = CONNECTORS[id];
@@ -176,6 +178,14 @@ export function IntegrationsHub() {
           icon={<FileSpreadsheet className="size-4" />}
           status={csvCount ? { tone: "on", label: `${csvCount.toLocaleString("en-US")} compan${csvCount === 1 ? "y" : "ies"} imported` } : { tone: "off", label: "Drop in a file" }}
         />
+        <LinkRow
+          id="github"
+          href="/integrations?import=github"
+          name="GitHub stargazers"
+          blurb="For developer tools: people who starred your repo, placed at the companies their profiles name."
+          icon={<Star className="size-4" />}
+          status={starCount ? { tone: "on", label: `${starCount.toLocaleString("en-US")} stargazer${starCount === 1 ? "" : "s"} placed` } : { tone: "off", label: "Not imported" }}
+        />
         <IntegrationRow
           id="inbound"
           name="Clay, Zapier, n8n, Make or an AI SDR"
@@ -205,20 +215,43 @@ export function IntegrationsHub() {
       </Group>
 
       <Group id="meetings" question="Where do meetings get booked?">
-        {BOOKING_SOURCES.map((s) => (
-          <IntegrationRow
-            key={s.id}
-            id={s.id}
-            name={s.name}
-            blurb="New bookings become a meeting on the deal and a prep move on the day."
-            domain={s.domain}
-            status={hookStatus(events, [s.id])}
-            open={current === s.id}
-            onToggle={() => toggle(s.id)}
-          >
-            <HookPanel sources={[s]} status={status} onRefresh={refresh} showExample={false} />
-          </IntegrationRow>
-        ))}
+        {BOOKING_SOURCES.map((s) => {
+          const id = isBooking(s.id) ? s.id : null;
+          const keyed = id ? ws.integrations[id] : undefined;
+          return (
+            <IntegrationRow
+              key={s.id}
+              id={s.id}
+              name={s.name}
+              blurb="New bookings become a meeting on the deal and a prep move on the day."
+              domain={s.domain}
+              status={id && keyed?.enabled ? nativeStatus(id, ws) : hookStatus(events, [s.id])}
+              open={current === s.id}
+              onToggle={() => toggle(s.id)}
+            >
+              <HookPanel
+                sources={[s]}
+                status={status}
+                onRefresh={refresh}
+                showExample={false}
+                extra={
+                  id ? (
+                    <BookingKey
+                      id={id}
+                      state={keyed}
+                      replacing={replacing === id}
+                      onReplace={() => setReplacing(id)}
+                      onDone={() => {
+                        setReplacing(null);
+                        void refresh();
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
+            </IntegrationRow>
+          );
+        })}
       </Group>
 
       <Group id="alerts" question="Where should alerts go?">
@@ -252,7 +285,7 @@ export function IntegrationsHub() {
       <Dialog
         open={importKind !== null}
         onOpenChange={(o) => !o && closeImport()}
-        title={importKind === "linkedin" ? "Import your LinkedIn connections" : "Import a list"}
+        title={importKind === "linkedin" ? "Import your LinkedIn connections" : importKind === "github" ? "Import your GitHub stargazers" : "Import a list"}
         className="max-w-[640px]"
       >
         <div className="px-5 pb-5 pt-3">{importKind && <ImportFlow kind={importKind} onDone={closeImport} />}</div>

@@ -19,6 +19,7 @@ import { ease, spring } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
 import { PendingRow } from "./reading-ledger";
 import { rankAccounts, runSummary } from "./shared";
+import { KnownUsers } from "./known-users";
 
 const AGREEMENT = [
   "I draft. You decide, and you send.",
@@ -227,6 +228,8 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
           </div>
         )}
 
+        <KnownUsers ws={ws} />
+
         <ol className="mt-6 divide-y divide-border border-y border-border" aria-label="Companies to talk to first" aria-live="polite">
           <AnimatePresence initial={false}>
             {found.map((a, i) => (
@@ -260,11 +263,12 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               ) : (
                 <>
                   <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
-                    I didn&rsquo;t find any. That usually means the bet is too narrow, or your buyers don&rsquo;t hire in public.
+                    {(dLive?.result as { note?: string } | undefined)?.note ??
+                      "I didn’t find any in the free sources I checked. They lean toward venture-backed startups that hire in public, so they can miss buyers who don’t."}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="secondary" size="sm" onClick={() => void findCompanies(true)}>
-                      Widen the bet
+                      Look in more places
                     </Button>
                     {/* A list dropped while reading is already in: start from it on Today rather than ask for it again. */}
                     <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire(net ? "/today" : "/integrations?import=linkedin", [])}>

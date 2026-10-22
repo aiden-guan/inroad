@@ -1,0 +1,352 @@
+{
+ "version": 1,
+ "name": "dossier-records",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-sonnet-5-5|record_evidence,submit_dossier|1",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "record_evidence",
+     "submit_dossier"
+    ],
+    "messages": 1,
+    "maxTokens": 16000,
+    "effort": "medium",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 4698,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 4698,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading Pavewise's site, open roles and news. Recording each fact with its exact quote before I use it. Then the dossier, citing only what I recorded. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "text",
+      "text": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "text_delta",
+      "text": "Recording what I'll cite. "
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "content_block_start",
+     "index": 2,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock3",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 2,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Form D filed by Pavewise Inc.\",\"quote\":\"Form D filed by Pavewise Inc.\",\"url\":\"https://www.sec.gov/Archives/edgar/data/1987654/000198765426000002/0001987654-26-000002-index.htm\",\"sourceType\":\"press\",\"publishedAt\":\"2026-10-02\",\"confidence\":\"medium\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 2
+    },
+    {
+     "type": "content_block_start",
+     "index": 3,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock4",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 3,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"The Finance Stack: Dana Okafor (Pavewise) on rebuilding finance ops after a Series A — Dana Okafor, CEO of Pavewise, on why the first finance hire inherits a spreadsheet, and\",\"quote\":\"The Finance Stack: Dana Okafor (Pavewise) on rebuilding finance ops after a Series A — Dana Okafor, CEO of Pavewise, on why the first finance hire inherits a spreadsheet, and what they changed after raising.\",\"url\":\"https://podcasts.apple.com/us/podcast/dana-okafor-pavewise/id1500000001?i=1000671234567\",\"sourceType\":\"press\",\"publishedAt\":\"2026-10-08\",\"confidence\":\"medium\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 3
+    },
+    {
+     "type": "content_block_start",
+     "index": 4,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock5",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 4,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Pricing Talks: Usage pricing with Dana Okafor — Dana Okafor of Pavewise explains how they price usage.\",\"quote\":\"Pricing Talks: Usage pricing with Dana Okafor — Dana Okafor of Pavewise explains how they price usage.\",\"url\":\"https://podcasts.apple.com/us/podcast/usage-pricing/id1500000003?i=1000650000001\",\"sourceType\":\"press\",\"publishedAt\":\"2026-08-12\",\"confidence\":\"medium\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 4
+    },
+    {
+     "type": "content_block_start",
+     "index": 5,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock6",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 5,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Pavewise meters API usage and bills it for infrastructure companies.\",\"quote\":\"Pavewise meters API usage and bills it for infrastructure companies.\",\"url\":\"https://pavewise.com\",\"sourceType\":\"first_party\",\"publishedAt\":null,\"confidence\":\"high\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 5
+    },
+    {
+     "type": "content_block_start",
+     "index": 6,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock7",
+      "name": "record_evidence",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 6,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"claim\":\"Bill every API call Pavewise turns metered API usage into invoices your finance team trusts\",\"quote\":\"Bill every API call Pavewise turns metered API usage into invoices your finance team trusts\",\"url\":\"https://pavewise.com\",\"sourceType\":\"first_party\",\"publishedAt\":null,\"confidence\":\"high\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 6
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 4698,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 4698,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 732,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-sonnet-5-5|record_evidence,submit_dossier|3",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "record_evidence",
+     "submit_dossier"
+    ],
+    "messages": 3,
+    "maxTokens": 16000,
+    "effort": "medium",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock9"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock8",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 614,
+       "cache_read_input_tokens": 4698,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 614,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading Pavewise's site, open roles and news. Recording each fact with its exact quote before I use it. Then the dossier, citing only what I recorded. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mocka",
+      "name": "submit_dossier",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"snapshot\":{\"plainDescription\":\"Pavewise meters API usage and bills it for infrastructure companies.\",\"descriptionEvidenceIds\":[\"e4\"],\"stage\":\"Series A\",\"funding\":{\"round\":\"Series A\",\"amountUsd\":null,\"date\":\"2026-10-08\",\"useOfFunds\":null,\"evidenceId\":\"e2\"},\"headcount\":null,\"hq\":null},\"facts\":[{\"text\":\"Pavewise meters API usage and bills it for infrastructure companies.\",\"evidenceIds\":[\"e4\"]},{\"text\":\"Bill every API call Pavewise turns metered API usage into invoices your finance team trusts\",\"evidenceIds\":[\"e5\"]}],\"signals\":[{\"type\":\"funding\",\"headline\":\"The Finance Stack: Dana Okafor (Pavewise) on rebuilding finance ops after a Series A\",\"date\":\"2026-10-08\",\"evidenceId\":\"e2\",\"strength\":3,\"implication\":\"Likely means month-end close is about to change hands, and the new owner will want it fixed early.\"},{\"type\":\"launch\",\"headline\":\"Form D filed by Pavewise Inc.\",\"date\":\"2026-10-02\",\"evidenceId\":\"e1\",\"strength\":2,\"implication\":\"Likely means month-end close is about to change hands, and the new owner will want it fixed early.\"},{\"type\":\"launch\",\"headline\":\"Pricing Talks: Usage pricing with Dana Okafor — Dana Okafor of Pavewise explains how\",\"date\":\"2026-08-12\",\"evidenceId\":\"e3\",\"strength\":1,\"implication\":\"Likely means month-end close is about to change hands, and the new owner will want it fixed early.\"}],\"committee\":[{\"role\":\"champion\",\"likelyTitles\":[\"Head of Finance\",\"Controller\"],\"people\":[]},{\"role\":\"economic_buyer\",\"likelyTitles\":[\"CFO\",\"VP Finance\"],\"people\":[]}],\"painHypotheses\":[{\"pain\":\"Month-end close is still done by hand while the team grows\",\"valueThemeId\":null,\"evidenceIds\":[\"e2\"],\"confidence\":\"low\"}],\"angles\":[{\"title\":\"Growth outpaces the process\",\"signal\":\"The Finance Stack: Dana Okafor (Pavewise) on rebuilding finance ops after a Series A — Dana Okafor, CEO of Pavewise, on why the first finance hire inherits a\",\"interpretation\":\"The head of finance will own month-end close from day one.\",\"pressure\":\"Month-end close breaks first when a second person touches it.\",\"pov\":\"Most teams answer with another hire, who then spends a quarter rebuilding the same spreadsheet.\",\"povId\":null,\"proofClaimId\":null,\"credential\":null,\"ask\":\"Is month-end close part of what that hire will own?\",\"evidenceIds\":[\"e2\"],\"bestFor\":\"champion\",\"strength\":3}],\"discoveryOpeners\":[{\"q\":\"You're hiring for The Finance Stack: Dana Okafor (Pavewise). Is that to take month-end close off someone's plate?\",\"evidenceId\":\"e2\"}],\"risks\":[\"They may already run this on an in-house script\"],\"unknowns\":[\"No named champion found\",\"Current tooling for this work\"],\"recommendation\":{\"move\":\"cold_email\",\"personName\":null,\"why\":\"A dated reason to talk: The Finance Stack: Dana Okafor (Pavewise) on rebuilding finance ops after a Series A.\"}}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 614,
+      "cache_read_input_tokens": 4698,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 614,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 973,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}
