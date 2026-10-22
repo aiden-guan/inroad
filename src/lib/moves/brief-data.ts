@@ -108,3 +108,12 @@ export function codeGreeting(ws: Workspace, visible: Move[], now: Date): string 
   ).length;
   return worth ? `${hello} Nothing urgent; ${plural(worth, "company", "companies")} worth a note.` : `${hello} Nothing urgent today.`;
 }
+
+/**
+ * The label over Today's moves. On day one (no companies yet) it says "While that runs" only while
+ * discovery is actually looking; nothing started means the moves are the other way in, not filler.
+ */
+export function movesHeading(opts: { dayOne: boolean; discovering: boolean }): string {
+  if (!opts.dayOne) return "Your moves";
+  return opts.discovering ? "While that runs" : "Or start here";
+}
