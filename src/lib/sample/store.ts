@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { RunStep, Workspace } from "@/lib/domain/types";
-import { emailsOf, forgetPerson, runsAbout } from "@/lib/people/forget";
-import { forgetInFiles, type ForgottenPerson } from "@/lib/people/forget-files";
+import { forgetPerson, personWasForgotten, runsAbout } from "@/lib/people/forget";
+import { forgetConnections, forgetInFiles, type ForgottenPerson } from "@/lib/people/forget-files";
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
@@ -97,9 +97,11 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
   const current = readWorkspace();
   rememberOptOuts(current);
   const restored = migrateWorkspace(bundle.files["workspace.json"]);
-  const since = [...readOptOuts().suppression, ...(current.sample ? [] : (current.suppression ?? []))];
+  const optOuts = readOptOuts();
+  const since = [...optOuts.suppression, ...(current.sample ? [] : (current.suppression ?? []))];
   const { list, kept: keptSuppressions } = keepSuppressions(restored.suppression ?? [], since);
-  const next: Workspace = { ...restored, suppression: list };
+  const prints = [...new Set([...(restored.forgotten ?? []), ...optOuts.forgotten, ...(current.sample ? [] : (current.forgotten ?? []))])];
+  const next: Workspace = { ...restored, suppression: list, ...(prints.length ? { forgotten: prints } : {}) };
   const forgotten = forgetRequested(next);
   const ws = await replaceWorkspace(next);
   const files = ["workspace.json"];
@@ -116,22 +118,23 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
     await replaceRunSteps(steps && typeof steps === "object" && !Array.isArray(steps) ? (steps as Record<string, RunStep[]>) : {});
     if (steps !== undefined) files.push("runs.json");
   }
-  // The files just restored (connections, Ask threads, run logs, CRM links) may still hold them too.
+  // The files just restored (connections, Ask threads, run logs, CRM links) may still hold them too,
+  // and a LinkedIn connection row may be from before they became a person here.
   for (const f of forgotten) await forgetInFiles(f);
+  await forgetConnections(ws);
   return { ws, backup, files, keptSuppressions, forgotten: forgotten.length };
 }
 
 /**
  * A backup made before someone asked to be deleted still holds their record. Their address is on the
- * suppression list as requested_delete (keepSuppressions carries it over), so "Delete their details"
- * runs on them again: a restore never brings back someone the founder promised to forget. In place.
+ * suppression list as requested_delete (keepSuppressions carries it over), or their profile or name at
+ * their company is among the deletion fingerprints, so "Delete their details" runs on them again: a
+ * restore never brings back someone the founder promised to forget. In place.
  */
 function forgetRequested(ws: Workspace): ForgottenPerson[] {
-  const deleted = new Set(ws.suppression.filter((s) => s.reason === "requested_delete" && s.email).map((s) => s.email!.trim().toLowerCase()));
-  if (!deleted.size) return [];
   const out: ForgottenPerson[] = [];
   for (const person of Object.values(ws.people)) {
-    if (!emailsOf(person).some((e) => deleted.has(e))) continue;
+    if (!personWasForgotten(ws, person)) continue;
     out.push({ person: structuredClone(person), company: ws.accounts[person.accountDomain]?.name, runIds: runsAbout(ws, person) });
     forgetPerson(ws, person.id, nowISO(), newId("sup"));
   }

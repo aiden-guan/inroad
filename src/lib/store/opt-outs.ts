@@ -10,13 +10,16 @@ import { DATA_DIR } from "./settings";
  * workspace.json, but never this file. Before each of those, the founder's real workspace adds its
  * opt-outs here (unsubscribed, bounced, asked to be deleted), and a restore adds them all back to what
  * the backup holds. So restoring a backup made before someone opted out keeps them suppressed even when
- * a reset or the sample came in between. Holds addresses only; never in a backup or an export.
+ * a reset or the sample came in between. Holds addresses and deletion fingerprints only (forgetKeys);
+ * never in a backup or an export.
  */
 
 export const OPT_OUTS_FILE = "opt-outs.json";
 
 export interface OptOuts {
   suppression: Suppression[];
+  /** `ws.forgotten` of every real workspace that was replaced. */
+  forgotten: string[];
 }
 
 /** The reasons that come from the person, not the founder: these always outlive a replaced workspace. */
@@ -24,8 +27,14 @@ const THEIRS: Suppression["reason"][] = ["requested_delete", "unsubscribe", "bou
 
 const file = () => path.join(DATA_DIR, OPT_OUTS_FILE);
 
+const listOf = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
 export function readOptOuts(): OptOuts {
-  return readDataFile<OptOuts>(file(), () => ({ suppression: [] }), (raw) => ({ suppression: Array.isArray((raw as OptOuts)?.suppression) ? (raw as OptOuts).suppression : [] }));
+  return readDataFile<OptOuts>(
+    file(),
+    () => ({ suppression: [], forgotten: [] }),
+    (raw) => ({ suppression: listOf<Suppression>((raw as OptOuts)?.suppression), forgotten: listOf<string>((raw as OptOuts)?.forgotten).filter((k) => typeof k === "string") }),
+  );
 }
 
 /**
@@ -35,11 +44,12 @@ export function readOptOuts(): OptOuts {
 export function rememberOptOuts(ws: Workspace): void {
   if (ws.sample) return;
   const theirs = (ws.suppression ?? []).filter((s) => THEIRS.includes(s.reason));
-  if (!theirs.length) return;
+  if (!theirs.length && !ws.forgotten?.length) return;
   try {
     const now = readOptOuts();
     const { list, kept } = keepSuppressions(now.suppression, theirs);
-    if (kept) writeDataFile(file(), { ...now, suppression: list });
+    const forgotten = [...new Set([...now.forgotten, ...(ws.forgotten ?? [])])];
+    if (kept || forgotten.length > now.forgotten.length) writeDataFile(file(), { suppression: list, forgotten });
   } catch (err) {
     const why = err instanceof Error ? err.message : "the disk refused the write";
     throw new Error(`I couldn't save your suppression list first, so nothing was changed. ${why}`);

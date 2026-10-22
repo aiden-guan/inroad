@@ -1,10 +1,10 @@
 import "server-only";
-import type { ID, Person, RunStep } from "@/lib/domain/types";
+import type { ID, Person, RunStep, Workspace } from "@/lib/domain/types";
 import { mutateHub, readHub } from "@/lib/hub/store";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { rewriteThreads } from "@/lib/store/threads";
-import { connectionIsPerson, forgetInImports, forgetInThread, hubRefsOf, redactRunSteps, threadMentions } from "./forget";
+import { connectionIdentity, connectionIsPerson, forgetInImports, forgetInThread, hubRefsOf, redactRunSteps, threadMentions, wasForgotten } from "./forget";
 
 /**
  * The part of "Delete their details" that lives outside workspace.json: their row in the founder's
@@ -55,4 +55,15 @@ export async function forgetInFiles({ person, company, runIds }: ForgottenPerson
   const refs = hubRefsOf(readHub().refs, person);
   if (refs.length) await mutateHub((h) => refs.forEach((k) => delete h.refs[k]));
   return { connections, threads };
+}
+
+/** Drops LinkedIn connection rows of anyone who asked to be deleted (by address or fingerprint). Returns how many went. */
+export async function forgetConnections(ws: Pick<Workspace, "suppression" | "forgotten">): Promise<number> {
+  if (!readConnections().some((r) => wasForgotten(ws, connectionIdentity(r)))) return 0;
+  return updateConnections((rows) => {
+    const before = rows.length;
+    const kept = rows.filter((r) => !wasForgotten(ws, connectionIdentity(r)));
+    rows.splice(0, rows.length, ...kept);
+    return before - kept.length;
+  });
 }
