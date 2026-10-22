@@ -245,11 +245,12 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               ) : (
                 <>
                   <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
-                    I didn&rsquo;t find any. That usually means the bet is too narrow, or your buyers don&rsquo;t hire in public.
+                    {(dLive?.result as { note?: string } | undefined)?.note ??
+                      "I didn’t find any in the free sources I checked. They lean toward venture-backed startups that hire in public, so they can miss buyers who don’t."}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="secondary" size="sm" onClick={() => void findCompanies(true)}>
-                      Widen the bet
+                      Look in more places
                     </Button>
                     <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire("/integrations?import=linkedin", [])}>
                       Start from your network: drop your LinkedIn export
