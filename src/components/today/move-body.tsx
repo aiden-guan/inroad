@@ -62,6 +62,8 @@ export interface BodyProps {
   focused: boolean;
   /** The card's work is finished: collapse it with the done animation and mark it done. */
   onComplete: () => void;
+  /** The card is put off until a date and comes back then: collapse it without marking it done (no toast). */
+  onSnooze?: (until: string) => void;
   /** Re-rank after something changed underneath (a draft landed, a run finished). */
   onChanged: () => void;
 }
@@ -107,6 +109,15 @@ function findDraft(ws: Workspace, q: { domain?: string; personId?: string; modes
         p.steps.some((s) => s.status === "draft"),
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+}
+
+/**
+ * Cards that only end through their own buttons. A booking card ends when the nudge is logged, the call
+ * added, the loop parked or let go: a bare Done would drop an interested prospect without any of that,
+ * so its footer has no Done and A marks the nudge as sent.
+ */
+export function endsInBody(move: Move): boolean {
+  return ruleOf(move) === "reply_book";
 }
 
 /**
@@ -200,11 +211,6 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
         <div className="space-y-3">
           <Lead>They named people worth meeting. A note that says who sent you is the warmest first touch there is, and it doesn&apos;t need a dated signal.</Lead>
           <ReferralLeads meeting={meeting} />
-          <Row>
-            <Button variant="ghost" onClick={onComplete}>
-              Done for now
-            </Button>
-          </Row>
         </div>
       );
     }

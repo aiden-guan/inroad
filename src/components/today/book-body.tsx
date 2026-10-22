@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUpRight, Check } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { copyText, gmailFromUrl } from "@/components/compose/handoff";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -30,7 +30,7 @@ function tomorrowAtTen(today: string): string {
  * availability), the meeting once they pick one, or a clean close-out. Nothing here drops the lead
  * silently; each path ends in a booked call, a dated check-back, or a decision.
  */
-export function BookBody({ move, ws, now, today, onComplete }: BodyProps) {
+export function BookBody({ move, ws, now, today, focused, onComplete, onSnooze }: BodyProps) {
   const loop = bookingLoops(ws, new Date(now)).find((l) => l.reply.id === move.activityId);
   if (!loop) {
     return (
@@ -42,10 +42,12 @@ export function BookBody({ move, ws, now, today, onComplete }: BodyProps) {
       </div>
     );
   }
-  return <Booking key={`${loop.reply.id}:${loop.nudges}`} loop={loop} move={move} ws={ws} now={now} today={today} onComplete={onComplete} />;
+  return <Booking key={`${loop.reply.id}:${loop.nudges}`} loop={loop} move={move} ws={ws} now={now} today={today} focused={focused} onComplete={onComplete} onSnooze={onSnooze} />;
 }
 
-function Booking({ loop, move, ws, now, today, onComplete }: Pick<BodyProps, "move" | "ws" | "now" | "today" | "onComplete"> & { loop: BookingLoop }) {
+const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
+function Booking({ loop, move, ws, now, today, focused, onComplete, onSnooze }: Pick<BodyProps, "move" | "ws" | "now" | "today" | "focused" | "onComplete" | "onSnooze"> & { loop: BookingLoop }) {
   const { dispatch } = useWorkspace();
   const id = useId();
   const name = first(loop.person.name) || "them";
@@ -114,12 +116,17 @@ function Booking({ loop, move, ws, now, today, onComplete }: Pick<BodyProps, "mo
   };
 
   const park = async () => {
-    const ok = deal
-      ? await dispatch({ type: "deal.setStage", id: deal.id, stage: "nurture", nurtureUntil: until, at: nowISO() })
-      : await dispatch({ type: "move.snooze", id: move.id, until });
-    if (!ok) return;
-    if (deal) onComplete();
-    toast(`Parked until ${new Date(`${until}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. I'll bring ${name} back then.`);
+    const parked = `Parked until ${new Date(`${until}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. I'll bring ${name} back then.`;
+    if (deal) {
+      if (!(await dispatch({ type: "deal.setStage", id: deal.id, stage: "nurture", nurtureUntil: until, at: nowISO() }))) return;
+      onComplete();
+      toast(parked);
+      return;
+    }
+    // No deal to park: the card itself sleeps until then (and leaves the desk now), never marked done.
+    if (onSnooze) onSnooze(until);
+    else if (!(await dispatch({ type: "move.snooze", id: move.id, until }))) return;
+    toast(parked, { duration: 10_000, action: { label: "Undo", onClick: () => void dispatch({ type: "move.reopen", id: move.id }) } });
   };
 
   const letGo = async () => {
@@ -140,6 +147,24 @@ function Booking({ loop, move, ws, now, today, onComplete }: Pick<BodyProps, "mo
     });
   };
 
+  // A marks the nudge as sent, like approving a draft: the card's own way to finish (Today stands down for it).
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    keyRef.current = (e) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || typing(e.target) || e.key.toLowerCase() !== "a") return;
+      if (document.querySelector('[role="dialog"]')) return;
+      if (mode !== "nudge" || !text.trim()) return;
+      e.preventDefault();
+      void nudged();
+    };
+  });
+  useEffect(() => {
+    if (!focused) return;
+    const listener = (e: KeyboardEvent) => keyRef.current(e);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, [focused]);
+
   const said = loop.intent === "positive" ? `said yes ${ago(loop.reply.at, new Date(now))}` : `asked for more ${ago(loop.reply.at, new Date(now))}`;
   return (
     <div className="space-y-4">
@@ -152,7 +177,7 @@ function Booking({ loop, move, ws, now, today, onComplete }: Pick<BodyProps, "mo
       <p className="max-w-[62ch] text-[13.5px] leading-[21px] text-fg-2">
         {decide
           ? `Two nudges and still no time. Close the loop: add the call if ${name} booked somewhere else, park it with a date, or let it go.`
-          : `You answered ${ago(loop.answeredAt, new Date(now))} and nothing is on the calendar yet. Interested people go quiet all the time; one short line with times usually gets the call booked.`}
+          : "Nothing is on the calendar yet. Interested people go quiet all the time; one short line with times usually gets the call booked. Send it, then mark it as sent here so I know when to check again."}
       </p>
 
       {mode === "nudge" && (
@@ -173,14 +198,14 @@ function Booking({ loop, move, ws, now, today, onComplete }: Pick<BodyProps, "mo
                 onClick={async () => {
                   await copyText(outgoing);
                   window.open(gmailFromUrl(ws, email), "_blank", "noopener,noreferrer");
-                  toast("Copied. Paste it as a reply in your thread with them.");
+                  toast("Copied. Paste it as a reply in your thread with them, then press Mark as sent.");
                 }}
               >
                 Open thread in Gmail
               </Button>
             )}
             <CopyButton text={outgoing} className="h-7" />
-            <Button size="sm" variant="primary" icon={<Check className="size-3.5" />} onClick={() => void nudged()} disabled={!text.trim()}>
+            <Button size="sm" variant="primary" icon={<Check className="size-3.5" />} kbd={focused ? "A" : undefined} onClick={() => void nudged()} disabled={!text.trim()}>
               Mark as sent
             </Button>
           </div>

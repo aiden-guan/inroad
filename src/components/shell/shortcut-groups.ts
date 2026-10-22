@@ -35,7 +35,7 @@ export function shortcutGroups(mac: boolean): ShortcutGroup[] {
         [["J"], "Next move"],
         [["K"], "Previous move"],
         [["Enter"], "Open it"],
-        [["A"], "Done"],
+        [["A"], "Done (on a booking card: the nudge is sent)"],
         [["X"], "Skip, then pick a reason"],
         [["S"], "Tomorrow"],
         [["Esc"], "Close"],
