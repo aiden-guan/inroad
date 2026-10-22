@@ -43,3 +43,7 @@ next-env.d.ts
 # local data (workspace, secrets, cache)
 .data/
 .data-mock/
+
+# end-to-end tests
+/test-results/
+/playwright-report/

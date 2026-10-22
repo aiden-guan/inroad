@@ -57,7 +57,7 @@ terms haven't been accepted yet.
 ### Running tests
 
 ```bash
-npm test             # the whole suite, about 2 seconds
+npm test             # the whole suite, about 6 seconds
 npm run test:watch   # re-runs affected tests as you edit
 ```
 
@@ -79,6 +79,22 @@ npm run tapes:record            # all of them
 npm run tapes:record -- dossier # one file
 ```
 
+### End to end in a browser
+
+```bash
+npx playwright install chromium   # once
+npm run e2e
+```
+
+[Playwright](https://playwright.dev) walks a founder's first session in Chromium: paste a site and a sentence on the
+welcome screen, watch the bet get written, land on Today, then add a company and read its researched dossier. Then, at
+390px on that workspace, Today and the dossier must fit without sideways scroll, and research the API turns down (an
+out-of-credits fault queued on the mock) must say why once, in plain words, with the Add credits link. It starts the
+mock and `next dev` on ports 4301 and 3301 (`E2E_MOCK_PORT`, `E2E_APP_PORT`) with a fresh data folder (a new temp
+folder, or `E2E_DATA_DIR`, emptied first) and with outbound DNS off (`e2e/offline.cjs`), so it reads nothing from the
+web, spends nothing and runs the same on every machine. A preinstalled Chromium is used when
+`PLAYWRIGHT_BROWSERS_PATH` points at one. Traces and screenshots of a failure land in `test-results/`.
+
 ### Live smoke (real API, not in CI)
 
 Before a release, run the same workflow tests once against the real Anthropic API. It costs about $1–1.50 and can't
@@ -98,7 +114,8 @@ with the usage the API reported. `--record` writes the real responses to `src/te
 offline suite prefers those over the mock's tapes, so it then replays real wire shapes.
 
 CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `next typegen`, `tsc --noEmit`,
-`eslint src`, `npm test` and `next build`. On a fresh checkout run `npx next typegen` once before `npm run typecheck`,
+`eslint src`, `npm test` and `next build`, and the browser tests above as a separate `e2e` job that uploads the
+Playwright report when it fails. On a fresh checkout run `npx next typegen` once before `npm run typecheck`,
 so the route types Next generates (`PageProps`, `RouteContext`) exist.
 
 ## What's inside
