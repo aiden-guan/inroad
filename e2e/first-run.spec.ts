@@ -9,7 +9,8 @@ import { expect, test } from "@playwright/test";
 
 test("from the welcome screen to a rendered dossier", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveURL(/\/welcome$/);
+  // The first page a cold dev server compiles: it can reload itself a few times before redirecting.
+  await expect(page).toHaveURL(/\/welcome$/, { timeout: 90_000 });
   await expect(page.getByRole("heading", { name: "Let’s find your first customers." })).toBeVisible();
 
   await page.locator("#site").fill("acme.com");
