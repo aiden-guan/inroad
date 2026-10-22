@@ -52,8 +52,8 @@ export function emptyWorkspace(): Workspace {
   };
 }
 
-/** Fills in fields added after a workspace was created, so older files keep loading. */
-function migrate(raw: unknown): Workspace {
+/** Fills in fields added after a workspace was created, so older files (and restored backups) keep loading. */
+export function migrateWorkspace(raw: unknown): Workspace {
   const base = emptyWorkspace();
   const ws = { ...base, ...(raw as Partial<Workspace>) } as Workspace;
   ws.goal = { ...base.goal, ...ws.goal };
@@ -61,7 +61,7 @@ function migrate(raw: unknown): Workspace {
   return ws;
 }
 
-const db = () => singletonDB<Workspace>("workspace.json", () => new FileDB("workspace.json", emptyWorkspace, migrate));
+const db = () => singletonDB<Workspace>("workspace.json", () => new FileDB("workspace.json", emptyWorkspace, migrateWorkspace));
 
 export function readWorkspace(): Workspace {
   return db().read();
@@ -75,6 +75,12 @@ export async function mutateWorkspace<R = void>(fn: (ws: Workspace) => R): Promi
     return value;
   });
   return { ws: state, value };
+}
+
+/** True when the workspace holds the founder's own work (not the sample, past the empty first run). */
+export function holdsRealWork(ws: Workspace = readWorkspace()): boolean {
+  if (ws.sample) return false;
+  return ws.onboarding.status !== "new" || ws.company !== null || Object.keys(ws.accounts).length > 0;
 }
 
 export async function replaceWorkspace(ws: Workspace): Promise<Workspace> {

@@ -5,13 +5,17 @@ import type { RunStep, Workspace } from "@/lib/domain/types";
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
+import { snapshotBefore, type BackupBundle, type BackupEntry } from "@/lib/store/backup";
 import { DATA_DIR } from "@/lib/store/settings";
-import { emptyWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
+import { emptyWorkspace, holdsRealWork, migrateWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { sampleConnections, sampleRunSteps, sampleWorkspace } from "./index";
 
+export { holdsRealWork };
+
 /**
- * Files that belong to one workspace. settings.json and secrets.json belong to the machine and are never
- * touched; the signal cache holds public web data and is kept.
+ * Files that belong to one workspace (besides workspace.json and runs.json). settings.json, secrets.json
+ * and keys.json belong to the machine and are never touched; the signal cache holds public web data and
+ * is kept. Each replacement saves a backup first when there's real work to lose (src/lib/store/backup.ts).
  */
 const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json"] as const;
 
@@ -53,14 +57,9 @@ async function stopLiveRuns(timeoutMs = 15_000) {
   }
 }
 
-/** True when the current workspace holds the founder's own work (not the sample, past the empty first run). */
-export function holdsRealWork(ws: Workspace = readWorkspace()): boolean {
-  if (ws.sample) return false;
-  return ws.onboarding.status !== "new" || ws.company !== null || Object.keys(ws.accounts).length > 0;
-}
-
 export async function loadSampleWorkspace(): Promise<Workspace> {
   await stopLiveRuns();
+  snapshotBefore("before_sample");
   const now = new Date();
   const ws = await replaceWorkspace(sampleWorkspace(now));
   for (const name of WORKSPACE_FILES) resetDataFile(name, name === "connections.json" ? sampleConnections(now) : null);
@@ -70,8 +69,36 @@ export async function loadSampleWorkspace(): Promise<Workspace> {
 
 export async function resetToEmptyWorkspace(): Promise<Workspace> {
   await stopLiveRuns();
+  snapshotBefore("before_reset");
   const ws = await replaceWorkspace(emptyWorkspace());
   for (const name of WORKSPACE_FILES) resetDataFile(name, null);
   await replaceRunSteps({});
   return ws;
+}
+
+/**
+ * Replaces the workspace with a backup. The current one is backed up first (when it holds real work).
+ * A full bundle replaces every workspace file, removing the ones it doesn't have (they didn't exist when
+ * it was made); hub.json, the sync bookkeeping, is only replaced when the bundle has it. An older
+ * workspace-only export replaces workspace.json alone and leaves the rest as it is.
+ */
+export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Workspace; backup: BackupEntry | null; files: string[] }> {
+  await stopLiveRuns();
+  const backup = snapshotBefore("before_restore");
+  const ws = await replaceWorkspace(migrateWorkspace(bundle.files["workspace.json"]));
+  const files = ["workspace.json"];
+  if (!bundle.legacy) {
+    for (const name of WORKSPACE_FILES) {
+      resetDataFile(name, bundle.files[name] ?? null);
+      if (bundle.files[name] !== undefined) files.push(name);
+    }
+    if (bundle.files["hub.json"] !== undefined) {
+      resetDataFile("hub.json", bundle.files["hub.json"]);
+      files.push("hub.json");
+    }
+    const steps = bundle.files["runs.json"];
+    await replaceRunSteps(steps && typeof steps === "object" && !Array.isArray(steps) ? (steps as Record<string, RunStep[]>) : {});
+    if (steps !== undefined) files.push("runs.json");
+  }
+  return { ws, backup, files };
 }
