@@ -40,6 +40,16 @@ test("a page picked with the mouse takes what you type next", async ({ page }) =
   await page.keyboard.press("Escape");
 });
 
+test("a page picked with the mouse has its first item ready for Enter", async ({ page }) => {
+  await page.goto("/today");
+  await openPalette(page);
+  await page.getByRole("option", { name: /^Draft an asset/ }).click();
+  const first = page.getByRole("option").first();
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/playbook\?new=/);
+});
+
 test("paste a reply from someone new at a company you researched, and land on the draft", async ({ page }) => {
   await page.goto("/today");
   await openPalette(page);
