@@ -116,7 +116,7 @@ export function refreshInputs(ws: Workspace, now: Date, opts: { questionId?: str
       ws.accounts[d.accountDomain]?.oneLiner ? `what they do: ${clip(ws.accounts[d.accountDomain].oneLiner!, 100)}` : "",
     ].filter(Boolean);
     out.push(line.join(" · "));
-    quotes.set(alias, line.join(" · "));
+    quotes.set(alias, line.join(" · ").slice(alias.length + 3));
   });
   out.push("</best_fit_customers>");
 

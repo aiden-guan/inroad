@@ -283,7 +283,7 @@ function Versions() {
                   </ul>
                 )}
               </div>
-              <Button size="xs" variant="secondary" onClick={() => restore(v.version)}>
+              <Button size="xs" variant="secondary" className="self-start" onClick={() => restore(v.version)}>
                 Restore v{v.version}
               </Button>
             </li>

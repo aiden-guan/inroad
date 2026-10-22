@@ -115,7 +115,7 @@ export function ProposalRow({ ws, date, p }: { ws: Workspace; date: string; p: R
 
   return (
     <li className={cn("rounded-md bg-surface p-3 ring-1 ring-border", decided && "bg-bg-subtle/60")}>
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-x-3">
         <div className="min-w-0 flex-1">
           <p className={cn("text-[13.5px] font-semibold leading-5", decided ? "text-fg-2" : "text-fg")}>{p.title}</p>
           <p className="mt-0.5 text-[13px] leading-5 text-fg-2">{p.detail}</p>
