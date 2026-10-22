@@ -1,6 +1,6 @@
 import { applyAction, type Action } from "@/lib/domain/actions";
 import { afterActions } from "@/lib/hub/after-actions";
-import { runsAbout } from "@/lib/people/forget";
+import { namesakesOf, runsAbout } from "@/lib/people/forget";
 import { forgetInFiles, type ForgottenPerson } from "@/lib/people/forget-files";
 import { errorResponse, readJSON } from "@/lib/server/http";
 import { mutateWorkspace, publicWorkspace } from "@/lib/store/workspace";
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const { ws } = await mutateWorkspace((draft) => {
       for (const action of actions) {
         const person = action.type === "person.forget" ? draft.people[action.id] : undefined;
-        if (person) forgotten.push({ person: structuredClone(person), company: draft.accounts[person.accountDomain]?.name, runIds: runsAbout(draft, person) });
+        if (person) forgotten.push({ person: structuredClone(person), company: draft.accounts[person.accountDomain]?.name, runIds: runsAbout(draft, person), namesake: namesakesOf(draft, person).length > 0 });
         applyAction(draft, action);
       }
     });
