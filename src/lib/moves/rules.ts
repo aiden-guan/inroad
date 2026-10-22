@@ -754,8 +754,13 @@ function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean,
     }
   }
 
-  const late = pw.overdue[0];
-  const yours = pw.overdue.find((m) => m.ownerSide !== "buyer");
+  // A call on the deal still to log updates the plan too: the debrief card comes first.
+  if (callToLog(ws, deal, now)) return;
+  // The plan step the deal's overdue next step already is (same due date) has its card in that one.
+  const nextLate = deal.nextStep?.date && deal.nextStep.date < today ? deal.nextStep.date : undefined;
+  const overdue = pw.overdue.filter((m) => m.due !== nextLate);
+  const late = overdue[0];
+  const yours = overdue.find((m) => m.ownerSide !== "buyer");
   // Only their steps late and the deal's next step already overdue or missing: the next-step card is the chase.
   const chased = !deal.nextStep?.date || deal.nextStep.date < today;
   if (late && isOpen(deal) && (yours || !chased)) {
@@ -766,12 +771,12 @@ function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean,
       kind: "next_step_missing",
       rule: "map_overdue",
       title: yours ? `Do your overdue plan step for ${company}: “${clip(lead.step, 40)}”` : `Check on ${company}'s plan: “${clip(lead.step, 40)}” was due ${shortDay(lead.due)}`,
-      why: `${pw.overdue.length > 1 ? `${plural(pw.overdue.length, "plan step")} overdue` : `Due ${shortDay(lead.due)}`} · keep the owners and dates current with them`,
+      why: `${overdue.length > 1 ? `${plural(overdue.length, "plan step")} overdue` : `Due ${shortDay(lead.due)}`} · keep the owners and dates current with them`,
       minutes: 3,
       priority: RULES.map_overdue.base * mult + overdueBoost(Math.floor(days / 3)),
       overdueDays: days,
       ref: { kind: "deal", id: deal.id },
-      subjectIds: pw.overdue.map((m) => m.id),
+      subjectIds: overdue.map((m) => m.id),
       href: sheet(domain),
     });
   }
@@ -781,6 +786,16 @@ function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean,
 function reviewOnCalendar(ws: Workspace, deal: Deal, now: Date): boolean {
   const nowIso = now.toISOString();
   return Object.values(ws.meetings).some((m) => m.dealId === deal.id && m.startsAt > nowIso && /\b(roi|review|readout|results)\b/i.test(m.title));
+}
+
+/** A call on this deal that ended with nothing logged (the debrief card's condition): logging it updates the next step and the plan. */
+function callToLog(ws: Workspace, deal: Deal, now: Date): boolean {
+  const today = todayISO(now);
+  return Object.values(ws.meetings).some((m) => {
+    if (m.dealId !== deal.id || m.debrief || m.notesRaw) return false;
+    const end = new Date(m.startsAt).getTime() + MEETING_MINUTES * 60_000;
+    return (now.getTime() - end) / 60_000 >= 15 && daysSince(m.startsAt, today) <= 7;
+  });
 }
 
 function upcomingMeeting(ws: Workspace, deal: Deal, now: Date): boolean {
@@ -818,7 +833,8 @@ function deals({ ws, now, today, out }: Ctx) {
     const stage = STAGE_LABELS[deal.stage];
 
     const dated = deal.nextStep?.date;
-    if ((!dated || dated < today) && !awaitingTime.has(deal.id)) {
+    // A call to log comes first: its debrief sets the next step.
+    if ((!dated || dated < today) && !awaitingTime.has(deal.id) && !callToLog(ws, deal, now)) {
       const overdue = dated ? daysBetween(dated, today) : 0;
       const without = dated ? overdue : daysSince(deal.lastActivityAt || deal.updatedAt, today);
       const decide = without >= 14;
