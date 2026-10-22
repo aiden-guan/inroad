@@ -153,6 +153,21 @@ test("a dossier with nothing citable says watch, as Today does, and offers no dr
   await expect(page.getByRole("button", { name: "Write the first email" })).toHaveCount(0);
 });
 
+test("on a phone, a referral's quote gets the card's width, with its action below", async ({ page, request }) => {
+  await seed(request);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/today");
+  const referrals = await card(page, /Write to the 2 people/);
+  await open(referrals);
+  const quote = page.getByText("“Hana's team closes the month by hand too, ask her.”");
+  await expect(quote).toBeVisible();
+  const row = page.locator("li", { has: quote }).last();
+  const [q, r] = [(await quote.boundingBox())!, (await row.boundingBox())!];
+  expect(q.width).toBeGreaterThan(r.width * 0.8);
+  const add = row.getByRole("button", { name: "Add Kestrel Compute" });
+  expect((await add.boundingBox())!.y).toBeGreaterThan(q.y + q.height - 1);
+});
+
 test("with reduced motion, holding to close as lost says to keep holding", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);

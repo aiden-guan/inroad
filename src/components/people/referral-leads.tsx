@@ -97,7 +97,8 @@ function LeadRow({ ws, lead, meeting }: { ws: Workspace; lead: ReferralLead; mee
   return (
     <li className="rounded-md bg-surface px-3 py-2.5 ring-1 ring-border">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        <div className="min-w-0 flex-1">
+        {/* A basis, so a narrow card wraps the action under the quote instead of squeezing the quote beside it. */}
+        <div className="min-w-0 flex-1 basis-[16rem]">
           <p className="text-[13.5px]">
             <span className="font-medium text-fg">{label}</span>
             {lead.name && lead.company && <span className="text-fg-2"> at {lead.company}</span>}
