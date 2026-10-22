@@ -17,6 +17,8 @@ export interface ComposeArgs {
   alternate?: boolean;
   /** Cold mode: the person whose referral reply is the premise. */
   referredBy?: string;
+  /** Cold mode, with referredBy: their words when the referral came on a call (from the debrief). */
+  referralQuote?: string;
 }
 
 /** Starts the compose workflow and tracks this one run (its live log, then its result). */

@@ -4,6 +4,7 @@ import { defineTool } from "@/lib/ai/engine";
 import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
 import { dealContext } from "@/lib/deals/context";
 import { cleanDate, corpus, firstAttemptOnly, quoteIn } from "@/lib/deals/ledger";
+import { structuredReferrals } from "@/lib/deals/referrals";
 import {
   RECAP_CLOSE,
   SCORED_FIELDS,
@@ -572,6 +573,8 @@ function persist(
     newObjections: out.newObjections.map((o) => o.text.trim()).filter(Boolean),
     customerWords,
     referrals: out.referrals.map((r) => [r.name, r.company].filter(Boolean).join(" at ")).filter(Boolean),
+    // Kept structured so each one becomes a lead: add the company, write to them, say who sent you.
+    referralPeople: structuredReferrals(out.referrals, quoteText),
     toConfirm: out.toConfirm.filter(Boolean),
     coaching: out.coaching.filter(Boolean).slice(0, 3),
     generatedAt: nowISO(),

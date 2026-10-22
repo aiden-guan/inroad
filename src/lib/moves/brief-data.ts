@@ -1,7 +1,8 @@
 import { addDays, todayISO } from "@/lib/domain/ids";
-import { STAGE_LABELS, type EntityRef, type Move, type Workspace } from "@/lib/domain/types";
+import { STAGE_LABELS, type Account, type EntityRef, type Move, type Workspace } from "@/lib/domain/types";
+import { firstThreeDomains } from "./rules";
 import { dealsMissingNextStep } from "./scoreboard";
-import { clip, clockTime, companyName, daysSince, first, isOpen, localDate, plural } from "./util";
+import { clip, clockTime, companyName, daysSince, first, isOpen, localDate, plural, researchState } from "./util";
 
 /**
  * Inputs for the daily brief. Code writes the greeting and decides whether anything is new enough to be
@@ -86,6 +87,20 @@ export function codeGreeting(ws: Workspace, visible: Move[], now: Date): string 
   const name = first(ws.founder.name);
   const hello = name ? `${salutation(now)}, ${name}.` : `${salutation(now)}.`;
 
+  // Arrival (SPEC §3.2 step 4): the day the founder hired Ember, say what's being worked on while the first three are
+  // researched, and only what is: research that stopped short says so and where to try again.
+  const o = ws.onboarding;
+  if (o.status === "hired" && o.hiredAt && localDate(o.hiredAt) === today) {
+    const waiting = firstThreeDomains(ws).map((d) => ws.accounts[d]).filter((a): a is Account => !!a && !a.dossier && a.status !== "disqualified");
+    const running = waiting.filter((a) => researchState(ws, a.domain, now) === "running").map((a) => a.name);
+    const failed = waiting.filter((a) => researchState(ws, a.domain, now) === "failed").map((a) => a.name);
+    const list = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]);
+    const thanks = name ? `Thanks, ${name}.` : "Thanks.";
+    const stopped = failed.length ? ` I couldn't finish researching ${list(failed)}; try again from ${failed.length === 1 ? "its card" : "their cards"}.` : "";
+    if (running.length) return `${thanks} I'm researching ${list(running)} now. First draft in about 3 minutes.${stopped}`;
+    if (failed.length) return `${thanks}${stopped}`;
+  }
+
   const missing = dealsMissingNextStep(ws, today).length;
   const yesterday = addDays(today, -1);
   const yesterdayCloseOut = ws.moves[`mv_closeout_${yesterday}`];
@@ -107,4 +122,13 @@ export function codeGreeting(ws: Workspace, visible: Move[], now: Date): string 
     (a) => a.status !== "disqualified" && a.signals.some((s) => s.strength >= 2 && s.date && daysSince(s.date, today) <= 14),
   ).length;
   return worth ? `${hello} Nothing urgent; ${plural(worth, "company", "companies")} worth a note.` : `${hello} Nothing urgent today.`;
+}
+
+/**
+ * The label over Today's moves. On day one (no companies yet) it says "While that runs" only while
+ * discovery is actually looking; nothing started means the moves are the other way in, not filler.
+ */
+export function movesHeading(opts: { dayOne: boolean; discovering: boolean }): string {
+  if (!opts.dayOne) return "Your moves";
+  return opts.discovering ? "While that runs" : "Or start here";
 }

@@ -34,7 +34,8 @@ function Stat({ value, label }: { value: number; label: string }) {
   );
 }
 
-function CompanyRow({
+/** One company from the screen, with its tick and, when the screen had no website for it, an "Add website" field. */
+export function CompanyRow({
   c,
   i,
   checked,

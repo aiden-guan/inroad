@@ -11,6 +11,7 @@ import { duration, plural, relativeTime } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
 import type { ModelTierName, RunStep, RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
+import { productHealth } from "@/lib/quality/telemetry";
 import { Callout, Group, Row, SettingsSection, TextSetting } from "./parts";
 import { cost, ROUTING, SEARCH_PRICE, TIER_LABEL, tokens, usageReport, workflowLabel, type UsageReport } from "./usage-model";
 
@@ -33,6 +34,7 @@ export function UsageSection({ ws, dispatch, now }: { ws: Workspace; dispatch: D
       <BudgetGroup ws={ws} dispatch={dispatch} report={report} />
       <Stats report={report} />
       <ByWorkflow report={report} />
+      <ProductHealth ws={ws} now={now} />
       <RecentRuns report={report} now={now} />
       <HowCostStaysLow report={report} />
     </SettingsSection>
@@ -227,6 +229,33 @@ function ByWorkflow({ report }: { report: UsageReport }) {
           ))}
         </ul>
       )}
+    </Group>
+  );
+}
+
+/* ───────────── Product health ───────────── */
+
+/** How well the drafting and the first weeks are going (SPEC §5.4), computed on this machine only. */
+function ProductHealth({ ws, now }: { ws: Workspace; now: number }) {
+  const rows = useMemo(() => productHealth(ws, new Date(now)), [ws, now]);
+  return (
+    <Group title="Draft quality and your first weeks" hint="Measured on this machine from your own work; nothing leaves it. A rate shows from 5 samples, and drafts never show their score.">
+      <ul>
+        {rows.map((r) => (
+          <li key={r.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 px-4 py-2.5">
+            <span className="min-w-0 text-[13px] text-fg">
+              {r.label}
+              {r.note && <span className="block text-[12px] text-fg-3">{r.note}</span>}
+            </span>
+            <span className="text-right font-mono text-[12px] tnum">
+              <span className={cn(r.value === null ? "text-fg-4" : r.ok === false ? "text-warning" : "text-fg")}>{r.value ?? "—"}</span>
+              {r.n !== undefined && r.value !== null && <span className="text-fg-4"> n={r.n}</span>}
+              {r.value === null && !!r.n && r.min !== undefined && <span className="text-fg-4"> {r.n} of {r.min}</span>}
+              <span className="block text-[11px] text-fg-3">target {r.target}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </Group>
   );
 }

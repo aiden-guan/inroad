@@ -240,6 +240,13 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     ws.usage[key].byWorkflow[def.id] = (ws.usage[key].byWorkflow[def.id] ?? 0) + costUsd;
   });
   await saveSummary(live.summary);
+  // One of the first three finished its research: Today re-prepares before anyone hears it ended, so the draft it
+  // unlocks is already running when the page refreshes, wherever the founder is (moves/prepare).
+  if (def.id === "dossier") {
+    await import("@/lib/moves/prepare")
+      .then((m) => m.prepareAfterRun(live.summary))
+      .catch((err) => console.warn("[today] not prepared after research:", err instanceof Error ? err.message : err));
+  }
   await stepsDB()
     .update((all) => {
       all[live.summary.id] = steps.slice(-300);

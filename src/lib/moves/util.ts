@@ -1,5 +1,5 @@
 import { daysBetween, todayISO } from "@/lib/domain/ids";
-import { OPEN_STAGES, type Account, type Deal, type Person, type Stage, type Workspace } from "@/lib/domain/types";
+import { OPEN_STAGES, type Account, type Deal, type NetworkCompany, type Person, type RunSummary, type Stage, type Workspace } from "@/lib/domain/types";
 
 /** Pure helpers shared by the move rules, the scoreboard and the review data. Server and browser. */
 
@@ -64,6 +64,11 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** "a" or "an" by sound, for the words drafts offer: "an insight memo", "a one-pager", "a user guide". */
+export function aOrAn(word: string): string {
+  return /^[aeiou]/i.test(word) && !/^(one|once|uni|use|usu|eu)/i.test(word) ? "an" : "a";
+}
+
 export function clip(text: string, max: number): string {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
@@ -126,6 +131,43 @@ export function bestPerson(ws: Workspace, acc: Account): Person | undefined {
   if (pick && ws.people[pick]) return ws.people[pick];
   const people = acc.peopleIds.map((id) => ws.people[id]).filter((p): p is Person => !!p && !p.doNotContact && !p.mayHaveLeft);
   return people.find((p) => p.role === "champion") ?? people.find((p) => p.role === "economic_buyer") ?? people[0];
+}
+
+/**
+ * Whether a cold or LinkedIn draft has something cited to stand on: a dossier angle or an outreach-usable signal
+ * backed by evidence that isn't flagged wrong and isn't low confidence (the composer's own test).
+ */
+export function hasDraftableAngle(ws: Workspace, acc: Account): boolean {
+  const usable = (id: string | undefined) => {
+    const ev = id ? ws.evidence[id] : undefined;
+    return !!ev && !ev.flaggedWrong && (ev.confidence === "high" || ev.confidence === "medium");
+  };
+  return (acc.dossier?.angles ?? []).some((a) => a.evidenceIds.some(usable)) || acc.signals.some((s) => s.usableInOutreach && usable(s.evidenceId));
+}
+
+/** The newest stored run of a workflow about one company (its dossier, a draft), if any. */
+export function latestRun(ws: Workspace, workflow: RunSummary["workflow"], domain: string): RunSummary | undefined {
+  return ws.runs.filter((r) => r.workflow === workflow && r.ref?.kind === "account" && r.ref.id === domain).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+}
+
+/** A dossier takes minutes; one still "running" after this long was cut off by a restart nobody has looked at yet. */
+const RESEARCH_STALE_MS = 30 * 60_000;
+
+/**
+ * Where a company's research stands, so a card never says "researching" when nothing is: running (or queued)
+ * now, stopped short (it failed, was stopped, or went quiet), or not started.
+ */
+export function researchState(ws: Workspace, domain: string, now: Date): "running" | "failed" | "none" {
+  const run = latestRun(ws, "dossier", domain);
+  if (!run) return "none";
+  if (run.status === "running" || run.status === "queued") return now.getTime() - Date.parse(run.startedAt) > RESEARCH_STALE_MS ? "failed" : "running";
+  return run.status === "error" || run.status === "stopped" ? "failed" : "none";
+}
+
+/** Likely-fit companies the network screen found where the founder knows someone, and that aren't on file yet. */
+export function untrackedNetworkCompanies(ws: Workspace): NetworkCompany[] {
+  const names = new Set(Object.values(ws.accounts).map((a) => a.name.trim().toLowerCase()));
+  return (ws.network?.topCompanies ?? []).filter((c) => c.fit === "likely" && !c.tracked && !(c.domain && ws.accounts[c.domain]) && !names.has(c.name.trim().toLowerCase()));
 }
 
 /** Someone the founder knows first-hand (a LinkedIn connection): write to them directly, no intro and no cold template. */

@@ -2,6 +2,7 @@ import { shortDate } from "@/lib/client/format";
 import { isDataProvider } from "@/lib/connectors/catalog";
 import { todayISO, weekOf } from "@/lib/domain/ids";
 import type { ContactPath, DraftStep, Jurisdiction, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import { capUsage } from "./cap";
 import { recentFirstTouch } from "./sequence";
 
 /**
@@ -105,29 +106,10 @@ export function senderComplete(ws: Workspace): boolean {
 }
 
 /**
- * Cold first-touch counts for the cap: this week (Mon–Sun) and today. LinkedIn, intros, replies to
- * prospects and follow-ups don't count.
+ * Cold first-touch counts for the cap: this week (Mon–Sun) and today. One counter for every surface
+ * (see ./cap): LinkedIn, intros, replies to prospects and follow-ups don't count; cold event invites do.
  */
-export function capUsage(ws: Workspace, today = todayISO()) {
-  const week = weekOf(today);
-  let thisWeek = 0;
-  let todayCount = 0;
-  for (const a of ws.activities) {
-    // Sent by hand or handed to a sequencer (or exported for one): either way it's a cold send.
-    const cold = ws.outreach[a.draftRef?.packageId ?? ""]?.mode === "cold";
-    const counts = (a.kind === "touch_sent" && a.channel === "email") || a.kind === "pushed";
-    if (!counts || !cold || a.draftRef?.step !== 1) continue;
-    const d = localDate(a.at);
-    if (d >= week) thisWeek++;
-    if (d === today) todayCount++;
-  }
-  return {
-    thisWeek,
-    today: todayCount,
-    remainingWeek: Math.max(0, ws.caps.firstTouchesPerWeek - thisWeek),
-    remainingToday: Math.max(0, Math.min(ws.caps.firstTouchesPerDayMax, ws.caps.firstTouchesPerWeek) - todayCount),
-  };
-}
+export { capUsage };
 
 /** Bounces above 2% of the last 50 sends block every guessed address. */
 function guessesBlockedByBounces(ws: Workspace): boolean {
@@ -138,6 +120,11 @@ function guessesBlockedByBounces(ws: Workspace): boolean {
   return bounces / sends.length > 0.02;
 }
 
+/** Where the footer's strict wording goes, and with it the promise: Reply "stop" and I'll delete your details. */
+export function footerPromisesDeletion(jurisdiction: Jurisdiction): boolean {
+  return jurisdiction === "EU" || jurisdiction === "UK" || jurisdiction === "unknown";
+}
+
 export function buildFooter(
   ws: Workspace,
   opts: { jurisdiction: Jurisdiction; sourceHost: string | null; guessed: boolean; companyName: string },
@@ -145,8 +132,7 @@ export function buildFooter(
   const s = ws.sender;
   if (!s || !senderComplete(ws)) return null;
   const lines = [`${s.name} · ${s.title}, ${s.company} · ${s.postalAddress.replace(/\s*\n\s*/g, ", ")}`, `If this isn't relevant, reply "no" and I won't follow up.`];
-  const strict = opts.jurisdiction === "EU" || opts.jurisdiction === "UK" || opts.jurisdiction === "unknown";
-  if (!strict) return lines.join("\n");
+  if (!footerPromisesDeletion(opts.jurisdiction)) return lines.join("\n");
   const del = `Reply "stop" and I'll delete your details.`;
   if (opts.guessed) lines.push(`I guessed your work email from ${opts.companyName}'s address format. ${del}`);
   else if (opts.sourceHost) lines.push(`I found your work email on ${opts.sourceHost}. ${del}`);

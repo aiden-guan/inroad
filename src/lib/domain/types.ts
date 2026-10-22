@@ -263,6 +263,8 @@ export interface Foundation {
   founderQuestions: FounderQuestion[];
   confidence: Confidence;
   provenance?: Partial<Record<FoundationSection, Provenance>>;
+  /** When an accepted refresh change or a restore last changed the bet. */
+  revisedAt?: ISODateTime;
 }
 
 /** An approved "about us" fact. Outbound copy may only use approved claims. */
@@ -294,6 +296,32 @@ export interface VoiceCard {
   summary: string; // "Short sentences, contractions, signs off '— P', never uses 'leverage'"
   signOff: string;
   updatedAt: ISODateTime;
+  /** Traits the founder accepted (or edited). Drafts follow these; suggestions don't count until accepted. */
+  traits?: VoiceTraits;
+  /** What the last re-read found, waiting for the founder (SPEC §6: after every 3rd sample and every 20 edits). */
+  suggested?: VoiceTraits & { at: ISODateTime; basis: string };
+  /** The last 20 drafts the founder edited before sending: as drafted, as sent, and how far apart (0–1). */
+  edits?: { at: ISODateTime; before: string; after: string; subjectBefore: string | null; subjectAfter: string | null; distance: number }[];
+  editsSinceExtract?: number;
+  samplesSinceExtract?: number;
+  /** Drafts skipped as "tone off" (the last 10): examples of what not to write. */
+  toneOff?: { at: ISODateTime; text: string; moveId?: ID }[];
+  /** AI-written sales emails the founder received and pasted ("Show me what bad looks like"): drafts stay away from them. */
+  badExamples?: { at: ISODateTime; text: string }[];
+}
+
+/** How the founder writes, read from their samples and edits in code (SPEC §6 VoiceCard). Unknown traits are left out. */
+export interface VoiceTraits {
+  avgSentenceWords?: number;
+  contractions?: boolean;
+  greeting?: "none" | "first_name" | "hi_first_name" | "hey_first_name";
+  subjectStyle?: "lowercase" | "sentence" | "title";
+  usesWords?: string[];
+  avoidsWords?: string[];
+  formality?: 1 | 2 | 3 | 4 | 5;
+  punctuationHabits?: string[];
+  /** A suggestion only: the sign-off on 2+ of their messages. Accepting it sets VoiceCard.signOff. */
+  signOff?: string;
 }
 
 export interface SenderIdentity {
@@ -322,6 +350,8 @@ export interface Goal {
   /** Plan inputs (Playbook → Plan). Intro asks and community conversations don't count against the cold cap. */
   introAsksPerWeek?: number; // 4
   communityPerWeek?: number; // 0
+  /** Set when the founder picked `conversationsPerWeek` in Playbook → Plan; Today's target then uses it over the bet's channel plan. */
+  conversationsChosenAt?: ISODateTime;
 }
 
 export interface Caps {
@@ -344,7 +374,7 @@ export interface PovItem {
 /** Things a CTA can offer. A draft that offers a resource must point at one of these. */
 export interface Asset {
   id: ID;
-  kind: "one_pager" | "demo_script" | "security" | "design_partner_terms" | "pilot_proposal" | "insight" | "case_study" | "other";
+  kind: "one_pager" | "demo_script" | "security" | "design_partner_terms" | "pilot_proposal" | "insight" | "case_study" | "other" | "post" | "community_answer" | "launch";
   title: string;
   body: string; // markdown
   createdAt: ISODateTime;
@@ -363,6 +393,8 @@ export interface Asset {
   kit?: "design_partner";
   origin?: "agent" | "template" | "founder";
   runId?: ID;
+  /** Founder content: the question it answers or the founder's note, kept so a fresh version has the same brief. */
+  brief?: string;
 }
 
 /** People who can make introductions (investors, advisors, customers…). */
@@ -383,6 +415,8 @@ export interface Connector {
   introsMade: number;
   /** What the founder did for them: intros, favors. The ledger weighs asks against these. */
   gives?: { at: ISODate; what: string }[];
+  /** The last target list sent for them to mark (one ask), and the rows they marked. Forwardables follow for those only. */
+  list?: { sentOn: ISODate; domains: string[]; marked?: string[]; markedOn?: ISODate };
 }
 
 /* ─────────────────────────────── Intros ─────────────────────────────── */
@@ -664,6 +698,35 @@ export interface DraftStep {
   credentialClaimId?: ID;
   /** Hidden critic verdict. Telemetry only; never shown to the founder. */
   critic?: DraftCritic;
+  /** The text as drafted, kept on the first edit so the send can be compared to it (voice learning, edit distance). */
+  original?: { subject: string | null; body: string };
+  /** The why-now signal type this step rests on (from its angle's evidence), stamped at draft time for the reviews. */
+  signalType?: SignalType;
+  /** The message-bet arm this draft was written for (cold first touches while a bet runs). */
+  bet?: BetArm;
+}
+
+/** One arm of a running message bet: the proposal id that started it, and which side this draft or send is on. */
+export interface BetArm {
+  id: ID;
+  arm: "control" | "variant";
+}
+
+/**
+ * What one message bet varies (SPEC §6 MessageBet.variable). Writing variables steer the draft; targeting
+ * variables (persona, signal, channel) are matched from the send's tags, since they're about who and why, not words.
+ */
+export type BetDimension = "angle" | "frame" | "subject_style" | "cta" | "pov" | "persona" | "signal" | "channel";
+
+/** How a sent touch was written, so the learning reviews compare real sends (SPEC §6 Activity.tags). */
+export interface TouchTags {
+  frame?: DraftFrame;
+  povId?: ID;
+  credentialClaimId?: ID;
+  persona?: PersonaRole;
+  /** Does the subject name the trigger (their news), the problem, or neither. */
+  subjectStyle?: "trigger" | "problem" | "other";
+  bet?: BetArm;
 }
 
 /** Blind pairwise critic (Haiku): would a busy buyer reply, versus a reference email that got replies? */
@@ -799,7 +862,10 @@ export interface Debrief {
   tasks: { what: string; due?: ISODate; owner: "founder" | "buyer" }[];
   newObjections: string[];
   customerWords: string[];
+  /** "Name at Company", for display. Debriefs since referrals became leads also carry `referralPeople`. */
   referrals: string[];
+  /** Who they suggested talking to ("who else should I talk to?"), structured, with their words when quoted. */
+  referralPeople?: { name?: string; company?: string; quote?: string; domain?: string }[];
   toConfirm: string[];
   coaching: string[];
   generatedAt: ISODateTime;
@@ -839,6 +905,8 @@ export interface Deal {
   source: "warm_intro" | "signal_cold" | "investor_intro" | "community" | "content" | "dinner" | "event" | "inbound" | "network" | "referral";
   amountUsd?: number;
   closeDate?: ISODate;
+  /** Times the close date moved later (a deal slipping twice is worth a look). */
+  closeDatePushes?: number;
   nextStep?: { what: string; date: ISODate; buyerAgreed: boolean };
   contacts: { personId: ID; role?: PersonaRole }[];
   qualification?: Qualification;
@@ -901,6 +969,12 @@ export interface Activity {
   /** Touches only: what the founder marked in "Check replies" (R/N/B/U). Unset = not checked yet. */
   outcome?: "replied" | "no_reply" | "bounced" | "not_sent";
   outcomeAt?: ISODateTime;
+  /** Touches: frame, POV, persona, subject style and message-bet arm, stamped when it was sent. */
+  tags?: TouchTags;
+  /** Touches from a draft: how much the founder changed it before sending, 0 (as drafted) to 1 (rewritten). */
+  editDistance?: number;
+  /** Replies only: a yes the founder answered and then let go (no call, and no deal to close as lost). */
+  loopClosedAt?: ISODateTime;
 }
 
 export type SkipReason = "not_relevant_now" | "wrong_person" | "weak_angle" | "already_handled" | "tone_off" | "other";
@@ -975,7 +1049,7 @@ export interface Scoreboard {
 /** A one-click change proposed by a weekly review. The founder applies or dismisses it; nothing applies itself. */
 export interface ReviewProposal {
   id: ID;
-  kind: "close_lost" | "nurture" | "add_pov" | "add_objection" | "add_customer_words" | "add_anti_icp" | "add_banned_word" | "message_bet" | "note";
+  kind: "close_lost" | "nurture" | "add_pov" | "add_objection" | "add_customer_words" | "add_anti_icp" | "add_banned_word" | "message_bet" | "note" | "revise_foundation";
   title: string; // ≤12 words, "Nurture Northwind until Jan 12"
   detail: string; // the reason, ≤40 words
   /** Verbatim quotes or facts behind it. */
@@ -985,14 +1059,63 @@ export interface ReviewProposal {
   nurtureUntil?: ISODate;
   text?: string; // the POV / objection / phrase to add
   objectionCategory?: ObjectionCard["category"];
-  bet?: { variable: string; control: string; variant: string; why: string };
+  bet?: { variable: string; control: string; variant: string; why: string; dimension?: BetDimension; controlKey?: string; variantKey?: string };
+  /** A started message bet's verdict from a monthly review. Code keeps it "inconclusive" below 100 sends per arm. */
+  betReadout?: { verdict: "keep" | "drop" | "inconclusive"; notes: string; at: ISODateTime };
+  /** A "note" that is the week's optional post draft (Today offers it the following week). */
+  post?: boolean;
+  /** revise_foundation: the one playbook change it makes, accepted or rejected by the founder. */
+  revision?: FoundationRevision;
   status: "open" | "applied" | "dismissed";
   decidedAt?: ISODateTime;
 }
 
+/** What a bet refresh may change. Code applies each one; the model never writes a path. */
+export type RevisionTarget =
+  | "positioning.category"
+  | "positioning.bestFit"
+  | "icp.sentence"
+  | "icp.segment"
+  | "icp.criterion"
+  | "icp.antiIcp"
+  | "persona.line"
+  | "persona.pain"
+  | "messaging.oneLiner"
+  | "messaging.customerWords";
+
+/** One tracked suggestion to the playbook (SPEC W1c refresh): before and after, applied only when accepted. */
+export interface FoundationRevision {
+  target: RevisionTarget;
+  op: "set" | "add" | "remove" | "validate";
+  /** Personas and criteria: which one, by id (indexes move when the founder edits). */
+  refId?: ID;
+  text?: string;
+  /** icp.antiIcp add: why it disqualifies. */
+  reason?: string;
+  /** icp.criterion add: the criterion's shape. */
+  criterion?: Pick<ICPCriterion, "kind" | "mustHave" | "detection" | "howToTest">;
+  section: "positioning" | "icp" | "personas" | "messaging";
+  /** What the playbook says now; applying is refused if it changed since. */
+  before: string;
+  after: string;
+}
+
+/** A playbook version a refresh replaced, kept so it can be restored (SPEC §6: the last 10). */
+export interface FoundationVersion {
+  version: number;
+  /** When it was replaced. */
+  at: ISODateTime;
+  /** What the next version changed, in words. */
+  changes: string[];
+  /** rebuild: the bet was written again from the site (a fresh first read). */
+  source: "refresh" | "monthly" | "restore" | "rebuild";
+  runId?: ID;
+  snapshot: Foundation;
+}
+
 export interface Brief {
   date: ISODate;
-  kind: "daily" | "monday" | "friday";
+  kind: "daily" | "monday" | "friday" | "monthly" | "refresh";
   greeting: string;
   matters: { text: string; url?: string; ref?: EntityRef; date?: ISODate; quote?: string }[]; // ≤3
   generatedAt: ISODateTime;
@@ -1003,7 +1126,9 @@ export interface Brief {
   /** Signal and reply keys a brief already covered, so the model only runs when something is new. */
   seen?: string[];
   llmRuns?: number;
-  reviewKind?: "monday" | "friday";
+  /** What Today started on its own today ("mtg:<id>:<brief at>", "acc:<domain>:<move id>"): capped per day, never twice (moves/ahead). */
+  ahead?: string[];
+  reviewKind?: "monday" | "friday" | "monthly" | "refresh";
   proposals?: ReviewProposal[];
   reviewRunId?: ID;
   /** Deals still listed on an open close-out at the day's last prepare (the next morning's greeting says so first). */
@@ -1329,6 +1454,8 @@ export interface Workspace {
     sections?: Partial<Record<"snapshot" | FoundationSection, ISODateTime>>;
     discoveryRunId?: ID;
     dossierRunIds?: ID[];
+    /** The "first three" the founder hired Ember to research (domains, best first). Today keeps a card for each. */
+    firstThree?: string[];
     error?: { code: string; message: string };
   };
   founder: {
@@ -1340,9 +1467,13 @@ export interface Workspace {
     availability?: string; // "Tue–Thu 10–4 PT"
     linkedinPremium?: boolean;
     gmailAuthUser?: string;
+    /** "HH:MM" local. After it, deals with no dated next step fold into one close-out card on Today. Default 16:30. */
+    closeOutTime?: string;
   };
   company: CompanySnapshot | null;
   foundation: Foundation | null;
+  /** Versions a refresh or restore replaced, oldest first, at most 10. */
+  foundationHistory?: FoundationVersion[];
   claims: Claim[];
   objections: ObjectionCard[];
   povs: PovItem[];

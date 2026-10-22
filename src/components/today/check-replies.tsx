@@ -12,9 +12,9 @@ import { CopyButton } from "@/components/ui/misc";
 import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
 import type { Action } from "@/lib/domain/actions";
-import { newId, nowISO } from "@/lib/domain/ids";
+import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
-import { awaitingOutcome, gmailSearchLinks, type AwaitingPerson } from "@/lib/moves/replies";
+import { awaitingOutcome, gmailSearchLinks, searchDays, type AwaitingPerson } from "@/lib/moves/replies";
 import { ago } from "@/lib/moves/util";
 
 export interface CheckRepliesHandle {
@@ -69,7 +69,9 @@ export function CheckReplies({
   const rowRefs = useRef(new Map<string, HTMLLIElement>());
 
   const emails = rows.filter((r) => r.email).map((r) => r.email!);
-  const links = gmailSearchLinks(emails, ws.founder.gmailAuthUser);
+  // Threads still waiting on a time reach back past 14 days.
+  const days = searchDays(rows, todayISO(new Date(now)));
+  const links = gmailSearchLinks(emails, ws.founder.gmailAuthUser, days);
   const missingEmail = rows.length - emails.length;
   const allMarked = rows.length > 0 && rows.every((r) => marks[r.personId]);
 
@@ -172,7 +174,7 @@ export function CheckReplies({
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-[13px] leading-5 text-fg-2">
-          Open one search that shows replies from everyone you wrote to in the last 14 days, then mark each person here. Approving a draft counted it as sent; this is where that gets corrected.
+          Open one search that shows replies from everyone you wrote to in the last {days} days, then mark each person here. Approving a draft counted it as sent; this is where that gets corrected.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {links.map((l, i) => (
@@ -219,6 +221,7 @@ export function CheckReplies({
                   </p>
                   <p className="truncate font-mono text-[11.5px] text-fg-3">
                     {row.lastLabel} {ago(row.lastAt, new Date(now))}
+                    {row.awaitingTime && <span className="font-sans text-fg-2"> · said yes, no time yet</span>}
                     {row.email ? ` · ${row.email}` : " · no email"}
                   </p>
                 </div>

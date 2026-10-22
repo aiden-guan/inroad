@@ -5,7 +5,7 @@ import { ChevronRight, Compass } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useActiveRuns } from "@/components/providers/runs-provider";
+import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/client/cn";
 import type { Action } from "@/lib/domain/actions";
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Brief, Move, MoveKind, SkipReason, Workspace } from "@/lib/domain/types";
-import { codeGreeting } from "@/lib/moves/brief-data";
+import { codeGreeting, movesHeading } from "@/lib/moves/brief-data";
 import { KIND_ORDER, TOP_MOVES, visibleMoves } from "@/lib/moves/rules";
 import { computeScoreboard } from "@/lib/moves/scoreboard";
 import { daysSince, plural } from "@/lib/moves/util";
@@ -71,7 +71,25 @@ export function Today({ ws }: { ws: Workspace }) {
   const reveal = phase === "reveal";
   const { prepare, schedule, error } = usePrepare();
   const [refreshing, setRefreshing] = useState(false);
-  const briefWorking = useActiveRuns().some((r) => r.workflow === "brief");
+  const activeRuns = useActiveRuns();
+  const { runs } = useRuns();
+  // A dossier or discovery run landing changes the desk (the first three's drafts start once their research is in, and
+  // research that failed must stop reading as "researching"): re-prepare now instead of on the five-minute timer.
+  // Runs already finished when Today opened don't count.
+  const landed = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const done = Object.values(runs).filter((r) => (r.workflow === "dossier" && r.status !== "running" && r.status !== "queued") || (r.workflow === "discovery" && r.status === "done"));
+    if (!landed.current) {
+      landed.current = new Set(done.map((r) => r.id));
+      return;
+    }
+    const fresh = done.filter((r) => !landed.current!.has(r.id));
+    for (const r of fresh) landed.current.add(r.id);
+    if (fresh.length) schedule(300);
+  }, [runs, schedule]);
+  const briefWorking = activeRuns.some((r) => r.workflow === "brief");
+  // Day one's "While that runs" is only true while discovery is actually looking.
+  const discovering = activeRuns.some((r) => r.workflow === "discovery");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // The open card stays put until the founder collapses or finishes it, even once its own work resolved it
@@ -130,7 +148,10 @@ export function Today({ ws }: { ws: Workspace }) {
         : how === "skip"
           ? { type: "move.skip", id: move.id, reason: opts.reason ?? "other" }
           : { type: "move.snooze", id: move.id, until: addDays(today, 1) };
-    const ok = await dispatch(action);
+    // A draft skipped as "tone off" teaches the voice card what not to write.
+    const draft = how === "skip" && opts.reason === "tone_off" ? cardDraft(ws, move) : undefined;
+    const offText = draft?.steps.find((st) => st.status === "draft")?.body;
+    const ok = await dispatch(offText ? [action, { type: "voice.noteToneOff", text: offText, at: new Date().toISOString(), moveId: move.id }] : action);
     schedule();
     if (!ok || opts.quiet) return;
     const undo = {
@@ -272,7 +293,7 @@ export function Today({ ws }: { ws: Workspace }) {
   const dayOne = Object.keys(ws.accounts).length === 0;
   const worth = Object.values(ws.accounts).filter((a) => a.status !== "disqualified" && a.signals.some((s) => s.strength >= 2 && daysSince(s.date, today) <= 14)).length;
   const weekReviews = Object.values(ws.briefs)
-    .filter((b) => b.review && b.reviewKind && b.date >= weekStart && !visible.some((m) => m.id === `mv_review_${b.reviewKind}_${weekStart}`))
+    .filter((b) => b.review && (b.reviewKind === "monday" || b.reviewKind === "friday") && b.date >= weekStart && !visible.some((m) => m.id === `mv_review_${b.reviewKind}_${weekStart}`))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
@@ -295,12 +316,12 @@ export function Today({ ws }: { ws: Workspace }) {
         />
 
         <section className="mt-10" aria-label="Your moves">
-          {dayOne && <DayOne />}
+          {dayOne && <DayOne warm={!!ws.network} />}
           {visible.length === 0 ? (
             !dayOne && <CaughtUp worth={worth} />
           ) : (
             <div className={cn(dayOne && "mt-6")}>
-              <SectionLabel right={<span className="font-mono text-[11.5px] tnum text-fg-3">about {minutes} min</span>}>{dayOne ? "While that runs" : "Your moves"}</SectionLabel>
+              <SectionLabel right={<span className="font-mono text-[11.5px] tnum text-fg-3">about {minutes} min</span>}>{movesHeading({ dayOne, discovering })}</SectionLabel>
               {list(top)}
             </div>
           )}
@@ -330,7 +351,7 @@ export function Today({ ws }: { ws: Workspace }) {
           </section>
         )}
 
-        {weekReviews[0]?.reviewKind && <WeekCard ws={ws} review={weekReviews[0]} kind={weekReviews[0].reviewKind} />}
+        {weekReviews[0] && <WeekCard ws={ws} review={weekReviews[0]} kind={weekReviews[0].reviewKind === "monday" ? "monday" : "friday"} />}
 
         {visible.length > 0 && (
           <Keys
@@ -384,18 +405,25 @@ function WeekCard({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "m
   );
 }
 
-function DayOne() {
+/** Day one, no companies yet. Warm-first only once there's a network to start from; until then, say how to get one. */
+function DayOne({ warm }: { warm: boolean }) {
   return (
     <EmptyState
       icon={<Compass className="size-6" />}
       title="Let's find your first three companies"
-      body="I'll look for companies with a dated reason to talk to you now, starting with people who already know you. Then I research each one before you write a word."
+      body={
+        warm
+          ? "I'll look for companies with a dated reason to talk to you now, and rank first the ones where people you know work. Then I research each one before you write a word."
+          : "I'll look for companies with a dated reason to talk to you now, then research each one before you write a word. Import your LinkedIn connections and I'll start with people who already know you."
+      }
       action={
         <div className="flex flex-col items-center gap-3">
           <RunInline workflow="discovery" args={{ count: 3, source: "manual" }} label="Find three companies" hint="Free sources first · a few minutes" />
-          <Link href="/integrations?import=linkedin" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
-            Or import your LinkedIn connections first
-          </Link>
+          {!warm && (
+            <Link href="/integrations?import=linkedin" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
+              Or import your LinkedIn connections first
+            </Link>
+          )}
         </div>
       }
     />
