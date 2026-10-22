@@ -128,7 +128,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
     const def = getWorkflow("brief");
     try {
       // When this is the day's first brief, the run announces it once the lines are written.
-      if (def) briefRunId = (await startRun(def, { keys: newKeys, force: !!opts.force, announce: firstOfDay })).id;
+      if (def) briefRunId = (await startRun(def, { keys: newKeys, force: !!opts.force, announce: firstOfDay }, { automatic: true })).id;
     } catch (err) {
       // Budget used up or no key: the code greeting stands. Never block Today on the model.
       console.warn("[today] brief run not started:", err instanceof Error ? err.message : err);
@@ -140,7 +140,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
     const domains = sweepDomains(readWorkspace());
     const def = getWorkflow("enrich");
     try {
-      if (def && domains.length) sweepRunId = (await startRun(def, { domains })).id;
+      if (def && domains.length) sweepRunId = (await startRun(def, { domains }, { automatic: true })).id;
     } catch (err) {
       console.warn("[today] signal check not started:", err instanceof Error ? err.message : err);
     }
@@ -151,7 +151,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   const compose = getWorkflow("compose");
   for (const meetingId of ahead.preps) {
     try {
-      if (prep) aheadRunIds.push((await startRun(prep, { meetingId })).id);
+      if (prep) aheadRunIds.push((await startRun(prep, { meetingId }, { automatic: true })).id);
     } catch (err) {
       // Budget used up: the card keeps its "Prepare the brief" button.
       console.warn("[today] brief not prepared ahead:", err instanceof Error ? err.message : err);
@@ -159,7 +159,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   }
   for (const { args } of ahead.drafts) {
     try {
-      if (compose) aheadRunIds.push((await startRun(compose, args)).id);
+      if (compose) aheadRunIds.push((await startRun(compose, args, { automatic: true })).id);
     } catch (err) {
       console.warn("[today] draft not started ahead:", err instanceof Error ? err.message : err);
     }
@@ -167,7 +167,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   const network = getWorkflow("network");
   if (ahead.screen && network) {
     try {
-      aheadRunIds.push((await startRun(network, { reason: ahead.screen })).id);
+      aheadRunIds.push((await startRun(network, { reason: ahead.screen }, { automatic: true })).id);
     } catch (err) {
       console.warn("[today] network screen not started:", err instanceof Error ? err.message : err);
     }

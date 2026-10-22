@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineTool, resetCompat } from "@/lib/ai/engine";
+import { monthKey } from "@/lib/domain/ids";
 import type { AgentEvent } from "@/lib/ai/events";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { makeWorkspace } from "@/test/factories";
@@ -92,5 +93,32 @@ describe("a run's receipt and error", () => {
     const { id } = await finished();
     const receipt = readWorkspace().runs.find((r) => r.id === id)!.receipt!;
     expect(receipt.compat).toEqual({ features: ["fallback"], reason: expect.stringContaining("anthropic-beta") });
+  });
+});
+
+describe("the monthly budget", () => {
+  /** A run that waits until released, so it's still in flight while others start. */
+  const held = () => {
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const def = defineWorkflow({ id: "prep", args: z.object({}), title: () => "Brief ahead", run: async () => void (await gate) });
+    return { def, release };
+  };
+  const over = (spent: number, budget: number) =>
+    replaceWorkspace({ ...makeWorkspace(), caps: { ...makeWorkspace().caps, monthlyBudgetUsd: budget }, usage: { [monthKey()]: { costUsd: spent, runs: 1, byWorkflow: {}, freeSignals: 0 } } });
+
+  it("holds what runs in flight may cost, so a burst of automatic runs stops before it can pass the budget", async () => {
+    await over(1.5, 2);
+    const { def, release } = held();
+    // A brief prepared ahead may cost up to $0.40: the first fits ($1.90), the second wouldn't ($2.30).
+    const first = await startRun(def, {}, { automatic: true });
+    await expect(startRun(def, {}, { automatic: true })).rejects.toThrow(/budget \(\$2\) is used up/);
+    // The founder's own run still starts while there's budget left, even if its worst case is over.
+    const mine = await startRun(def, {});
+    release();
+    for (const id of [first.id, mine.id]) await new Promise<void>((resolve) => subscribe(id, (e) => e.type === "done" && resolve()));
+    // Ended (and cheap): the hold is gone, so the next automatic run fits again.
+    const again = await startRun(def, {}, { automatic: true });
+    await new Promise<void>((resolve) => subscribe(again.id, (e) => e.type === "done" && resolve()));
   });
 });
