@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MODEL_IDS, WEB_SEARCH_PRICE, costOf, emptyUsage, priceFor, requestCost, type Usage } from "./models";
+import { FALLBACK_PRICING, MODEL_IDS, PRICING, WEB_SEARCH_PRICE, costOf, emptyUsage, priceFor, requestCost, type Usage } from "./models";
 
 /**
  * The price table receipts and the monthly budget are computed from. Pinned per tier from Anthropic's
@@ -10,9 +10,9 @@ const million = (patch: Partial<Usage>): Usage => ({ ...emptyUsage(), ...patch }
 
 describe("price table", () => {
   it.each([
-    // tier, input, output, cache read (0.05x on Opus and Sonnet 5.5, 0.1x on Haiku 5.5)
+    // tier, input, output, cache read (0.05x on Opus 5.5, 0.1x on Sonnet 5.5 and Haiku 5.5)
     ["strategist", 4, 20, 0.2],
-    ["operator", 2, 10, 0.1],
+    ["operator", 2, 10, 0.2],
     ["fast", 0.1, 0.5, 0.01],
   ] as const)("prices %s at $%s in, $%s out, $%s cache reads", (tier, input, output, cacheRead) => {
     expect(costOf(tier, million({ inputTokens: 1e6 }))).toBeCloseTo(input, 10);
@@ -22,6 +22,10 @@ describe("price table", () => {
     expect(costOf(tier, million({ cacheWriteTokens: 1e6 }))).toBeCloseTo(input * 1.25, 10);
     expect(costOf(tier, million({ cacheWriteTokens: 1e6, cacheWrite1hTokens: 1e6 }))).toBeCloseTo(input * 2, 10);
     expect(costOf(tier, million({ cacheWriteTokens: 2e6, cacheWrite1hTokens: 1e6 }))).toBeCloseTo(input * 3.25, 10);
+  });
+
+  it("prices Sonnet 5.5 like the Sonnet 5 a refused turn falls back to: the two Sonnet rows can't drift apart", () => {
+    expect(PRICING.operator).toEqual(FALLBACK_PRICING["claude-sonnet-5"]);
   });
 
   it("adds $10 per thousand web searches", () => {
