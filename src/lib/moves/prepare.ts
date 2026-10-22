@@ -6,6 +6,7 @@ import { briefData, emitHubEvent } from "@/lib/hub";
 import { startRun } from "@/lib/runs/registry";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { getWorkflow } from "@/lib/workflows";
+import { planAhead, type AheadPlan } from "./ahead";
 import { briefInputs, codeGreeting } from "./brief-data";
 import { computeMoves, mergeMoves, TOP_MOVES, visibleMoves } from "./rules";
 import { computeScoreboard } from "./scoreboard";
@@ -14,7 +15,9 @@ import { computeScoreboard } from "./scoreboard";
  * Prepares Today. Runs on open, after the founder acts, and on a slow client timer; it is all
  * code (zero tokens) except one optional Haiku call when something new deserves a sentence.
  * The first open of the day also starts the free signal check (job boards, news, HN; no model)
- * on the watch list, so new why-now triggers keep turning into moves.
+ * on the watch list, so new why-now triggers keep turning into moves. With a key (never on the demo),
+ * any prepare also briefs the next 24 hours' meetings and drafts the desk's follow-ups and first
+ * touches ahead, within daily caps (./ahead).
  */
 
 const MAX_MODEL_BRIEFS_PER_DAY = 3;
@@ -26,6 +29,8 @@ export interface PrepareResult {
   briefRunId: string | null;
   /** The day's free signal check, started on the first open of the day. */
   sweepRunId: string | null;
+  /** Meeting briefs and drafts started ahead of the founder (see ./ahead). */
+  aheadRunIds: string[];
   moves: number;
 }
 
@@ -83,16 +88,24 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   // The sample workspace is a demo: never spend the founder's tokens on it unless a caller forces it.
   const wantModel = (opts.force || (newKeys.length > 0 && !snapshot.sample)) && runsToday < MAX_MODEL_BRIEFS_PER_DAY && isConfigured();
 
-  const changed = wantModel || JSON.stringify(dryMoves) !== JSON.stringify(snapshot.moves) || JSON.stringify(dryBrief) !== JSON.stringify(snapshot.briefs[today]);
+  // Briefs for the next 24 hours and drafts for the desk, prepared ahead. Never on the demo or without a key.
+  const canPrepareAhead = !snapshot.sample && isConfigured();
+  const wantAhead = canPrepareAhead && planAhead({ ...snapshot, moves: dryMoves }, now).keys.length > 0;
+
+  const changed = wantModel || wantAhead || JSON.stringify(dryMoves) !== JSON.stringify(snapshot.moves) || JSON.stringify(dryBrief) !== JSON.stringify(snapshot.briefs[today]);
 
   // The first prepare of the day announces the brief (Slack, webhooks) once.
   const firstOfDay = !snapshot.briefs[today];
   let claimed = false;
   let sweep = false;
+  let ahead: AheadPlan = { preps: [], drafts: [], keys: [] };
   if (changed) {
     const { value } = await mutateWorkspace((ws) => {
       ws.moves = mergeMoves(ws.moves, computeMoves(ws, now), today);
+      // Planned against the merged desk and claimed in the same write, so two tabs never start the same run.
+      const plan: AheadPlan = canPrepareAhead ? planAhead(ws, now) : { preps: [], drafts: [], keys: [] };
       const brief = nextBrief(ws, now);
+      if (plan.keys.length) brief.ahead = [...(brief.ahead ?? []), ...plan.keys];
       // Claim the model run inside the write so two tabs opening at once don't both start one.
       const claim = wantModel && (ws.briefs[today]?.llmRuns ?? 0) === runsToday;
       if (claim) {
@@ -103,10 +116,11 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
       const startSweep = !ws.sample && !ws.briefs[today];
       ws.briefs[today] = brief;
       pruneBriefs(ws, today);
-      return { claim, sweep: startSweep };
+      return { claim, sweep: startSweep, plan };
     });
     claimed = value.claim;
     sweep = value.sweep;
+    ahead = value.plan;
   }
 
   let briefRunId: string | null = null;
@@ -132,7 +146,26 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
     }
   }
 
+  const aheadRunIds: string[] = [];
+  const prep = getWorkflow("prep");
+  const compose = getWorkflow("compose");
+  for (const meetingId of ahead.preps) {
+    try {
+      if (prep) aheadRunIds.push((await startRun(prep, { meetingId })).id);
+    } catch (err) {
+      // Budget used up: the card keeps its "Prepare the brief" button.
+      console.warn("[today] brief not prepared ahead:", err instanceof Error ? err.message : err);
+    }
+  }
+  for (const { args } of ahead.drafts) {
+    try {
+      if (compose) aheadRunIds.push((await startRun(compose, args)).id);
+    } catch (err) {
+      console.warn("[today] draft not started ahead:", err instanceof Error ? err.message : err);
+    }
+  }
+
   const after = readWorkspace();
   if (firstOfDay && !briefRunId && after.briefs[today]) void emitHubEvent("brief.ready", { brief: briefData(after, today) });
-  return { changed, briefRunId, sweepRunId, moves: visibleMoves(after.moves, today).length };
+  return { changed, briefRunId, sweepRunId, aheadRunIds, moves: visibleMoves(after.moves, today).length };
 }
