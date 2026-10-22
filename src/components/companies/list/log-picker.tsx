@@ -72,7 +72,7 @@ export function LogPicker({ ws, onPick, onClose }: { ws: Workspace; onPick: (dom
           aria-label="Find the company you spoke with"
           className="h-11 min-w-0 flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-3"
         />
-        <Kbd className="hidden sm:inline-flex">esc</Kbd>
+        <Kbd className="hidden sm:pointer-fine:inline-flex">esc</Kbd>
         <IconButton label="Close" onClick={onClose}>
           <X className="size-4" />
         </IconButton>
