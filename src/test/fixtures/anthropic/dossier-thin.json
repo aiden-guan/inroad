@@ -37,10 +37,10 @@
       "stop_sequence": null,
       "usage": {
        "input_tokens": 0,
-       "cache_creation_input_tokens": 4310,
+       "cache_creation_input_tokens": 4357,
        "cache_read_input_tokens": 0,
        "cache_creation": {
-        "ephemeral_5m_input_tokens": 4310,
+        "ephemeral_5m_input_tokens": 4357,
         "ephemeral_1h_input_tokens": 0
        },
        "output_tokens": 1
@@ -269,10 +269,10 @@
      },
      "usage": {
       "input_tokens": 0,
-      "cache_creation_input_tokens": 4310,
+      "cache_creation_input_tokens": 4357,
       "cache_read_input_tokens": 0,
       "cache_creation": {
-       "ephemeral_5m_input_tokens": 4310,
+       "ephemeral_5m_input_tokens": 4357,
        "ephemeral_1h_input_tokens": 0
       },
       "output_tokens": 513,
@@ -322,7 +322,7 @@
       "usage": {
        "input_tokens": 0,
        "cache_creation_input_tokens": 602,
-       "cache_read_input_tokens": 4310,
+       "cache_read_input_tokens": 4357,
        "cache_creation": {
         "ephemeral_5m_input_tokens": 602,
         "ephemeral_1h_input_tokens": 0
@@ -392,7 +392,7 @@
      "usage": {
       "input_tokens": 0,
       "cache_creation_input_tokens": 602,
-      "cache_read_input_tokens": 4310,
+      "cache_read_input_tokens": 4357,
       "cache_creation": {
        "ephemeral_5m_input_tokens": 602,
        "ephemeral_1h_input_tokens": 0

@@ -147,6 +147,7 @@ export async function useTape(name: string): Promise<Tape> {
     proxy.start(name);
     point(proxy.url);
     let exchanges: TapeExchange[] = [];
+    let closed = false;
     return {
       name,
       mode,
@@ -157,6 +158,9 @@ export async function useTape(name: string): Promise<Tape> {
       messages: () => finalMessages(exchanges),
       costUsd: () => tapeCost(exchanges),
       close: async () => {
+        // A test file's afterEach may close its last tape again after later tests that use none; writing then would empty it.
+        if (closed) return;
+        closed = true;
         exchanges = proxy.stop();
         const file: TapeFile = { version: 1, name, source: "mock", recordedAt: new Date().toISOString(), exchanges };
         fs.mkdirSync(DIR, { recursive: true });
