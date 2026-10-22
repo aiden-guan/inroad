@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Foundation, Move, Workspace } from "@/lib/domain/types";
-import { at, makeAccount, makeDeal, makeMeeting, makeWorkspace } from "@/test/factories";
+import { at, makeAccount, makeActivity, makeDeal, makeMeeting, makeWorkspace } from "@/test/factories";
 import { computeMoves } from "./rules";
 
-/** The monthly loop on Today: the monthly review on the first open of the month, and the refresh offer between. */
+/** The review loop on Today: the monthly review on the first open of the month, the refresh offer between, and what wakes the weekly reviews. */
 
 const ofRule = (moves: Move[], rule: string) => moves.filter((m) => m.rule === `today.${rule}`);
 
@@ -66,5 +66,19 @@ describe("refresh offer", () => {
     expect(ofRule(computeMoves(ws, tuesday), "refresh_bet")).toEqual([]);
     ws.moves["mv_review_monthly_2026-10"] = { ...ofRule(computeMoves(ws, tuesday), "review_monthly")[0], status: "skipped", skipReason: "not_relevant_now" };
     expect(ofRule(computeMoves(ws, tuesday), "refresh_bet")).toHaveLength(1);
+  });
+});
+
+describe("weekly reviews", () => {
+  it("wake for sends on any channel, not only emails logged as sent", () => {
+    const ws = makeWorkspace();
+    const saturday = new Date(2026, 9, 24, 10);
+    expect(ofRule(computeMoves(ws, saturday), "review_friday")).toEqual([]);
+    // Drafts handed to a sequencer, and a LinkedIn note: the week had sends to learn from.
+    ws.activities.push(makeActivity("act_push", { kind: "pushed", personId: "per_a", at: new Date(2026, 9, 21, 9).toISOString() }));
+    ws.activities.push(makeActivity("act_li", { kind: "linkedin_dm", personId: "per_b", at: new Date(2026, 9, 22, 9).toISOString() }));
+    const [friday] = ofRule(computeMoves(ws, saturday), "review_friday");
+    expect(friday).toMatchObject({ id: "mv_review_friday_2026-10-19", why: "2 touches this week · no replies yet" });
+    expect(ofRule(computeMoves(ws, saturday), "review_monday")).toHaveLength(1);
   });
 });

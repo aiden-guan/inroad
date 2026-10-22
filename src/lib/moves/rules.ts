@@ -8,7 +8,7 @@ import { LIST_MAX, LIST_MIN, LIST_WAIT_DAYS, reachFor } from "@/lib/intros/list"
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { offeredResource } from "@/lib/quality/lint";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
-import { activeBet, startedBets } from "@/lib/learning/bets";
+import { SEND_KINDS, activeBet, startedBets } from "@/lib/learning/bets";
 import { REFRESH_AFTER_CALLS, refreshOffer } from "./monthly-data";
 import { awaitingOutcome, BOOKING_NUDGES, bookingLoops, searchDays } from "./replies";
 import { coldQuotaLeft, counters, introAsksTarget, type Counters } from "./scoreboard";
@@ -1666,7 +1666,8 @@ function questions({ ws, today, out }: Ctx) {
 function reviews({ ws, now, today, weekStart, out }: Ctx) {
   const dow = (now.getDay() + 6) % 7; // 0 = Monday
   const open = Object.values(ws.deals).filter(isOpen);
-  const recentTouches = ws.activities.filter((a) => a.kind === "touch_sent" && daysSince(a.at, today) <= 14).length;
+  // Any send counts: a LinkedIn note, a draft handed to a sequencer or an intro ask starts a pipeline too.
+  const recentTouches = ws.activities.filter((a) => SEND_KINDS.has(a.kind) && daysSince(a.at, today) <= 14).length;
   if (open.length || recentTouches) {
     const noStep = open.filter((d) => !d.nextStep?.date || d.nextStep.date < today).length;
     out.push({
@@ -1683,7 +1684,7 @@ function reviews({ ws, now, today, weekStart, out }: Ctx) {
   if (!fridayOpen) return;
   const thisWeek = ws.activities.filter((a) => localDate(a.at) >= weekStart);
   const replies = thisWeek.filter((a) => a.kind === "reply_received").length;
-  const touches = thisWeek.filter((a) => a.kind === "touch_sent").length;
+  const touches = thisWeek.filter((a) => SEND_KINDS.has(a.kind)).length;
   if (!replies && !touches && !Object.values(ws.meetings).some((m) => localDate(m.startsAt) >= weekStart && localDate(m.startsAt) <= today)) return;
   out.push({
     id: `mv_review_friday_${weekStart}`,
