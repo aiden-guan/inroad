@@ -8,7 +8,7 @@ import { forgetConnections, forgetInFiles, type ForgottenPerson } from "@/lib/pe
 import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
-import { keepSuppressions, snapshotBefore, type BackupBundle, type BackupEntry } from "@/lib/store/backup";
+import { keepSuppressions, listBackups, readSnapshot, snapshotBefore, type BackupBundle, type BackupEntry } from "@/lib/store/backup";
 import { readOptOuts, rememberOptOuts } from "@/lib/store/opt-outs";
 import { DATA_DIR } from "@/lib/store/settings";
 import { emptyWorkspace, holdsRealWork, migrateWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
@@ -80,6 +80,20 @@ export async function resetToEmptyWorkspace(): Promise<Workspace> {
   for (const name of WORKSPACE_FILES) resetDataFile(name, null);
   await replaceRunSteps({});
   return ws;
+}
+
+/**
+ * Leaving the sample ("Start with my company"): when loading it replaced the founder's own workspace, that comes
+ * back, from the backup taken then. Nothing backs up the sample, so that backup is still the newest one. Otherwise
+ * (a first run that started with the sample) an empty workspace. Not in the sample: nothing changes.
+ */
+export async function leaveSampleWorkspace(): Promise<{ ws: Workspace; restored: boolean }> {
+  const current = readWorkspace();
+  if (!current.sample) return { ws: current, restored: false };
+  const all = listBackups();
+  const replaced = all.find((b) => b.reason === "before_sample" && b.at === all[0].at);
+  if (replaced) return { ws: (await restoreWorkspace(readSnapshot(replaced.name))).ws, restored: true };
+  return { ws: await resetToEmptyWorkspace(), restored: false };
 }
 
 /**

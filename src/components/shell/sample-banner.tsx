@@ -12,7 +12,9 @@ import { ease } from "@/lib/motion";
 
 /**
  * Leaving the sample: one click, no typed confirmation, since nothing real is lost (the sample is made
- * up and never backed up). Clears it and goes to the first screen to set up the founder's own company.
+ * up and never backed up). If loading it replaced the founder's own workspace, that comes back (from the
+ * backup taken then; Backups is out of reach from the first screen); otherwise the first screen, to set
+ * up their company.
  */
 export function useLeaveSample() {
   const { refresh } = useWorkspace();
@@ -21,10 +23,15 @@ export function useLeaveSample() {
   const leave = async () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/workspace/reset", { method: "POST" });
-      const body = await res.json().catch(() => null);
+      const res = await fetch("/api/workspace/sample", { method: "DELETE" });
+      const body = (await res.json().catch(() => null)) as { error?: string; restored?: boolean; workspace?: { onboarding?: { status?: string } } } | null;
       if (!res.ok) throw new Error(body?.error ?? "That didn't work. Try again.");
       await refresh();
+      if (body?.restored) {
+        router.push(body.workspace?.onboarding?.status === "hired" ? "/today" : "/welcome");
+        toast("Sample cleared. Your own workspace is back, as it was before the sample.");
+        return;
+      }
       router.push("/welcome");
       toast("Sample cleared. Let's start with your website.");
     } catch (e) {
