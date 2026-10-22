@@ -29,7 +29,7 @@ import {
   Sunrise,
   UserPlus,
 } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useAsk } from "@/components/providers/ask-provider";
@@ -46,7 +46,7 @@ import { readRecent } from "@/lib/client/recent";
 import { newDeal } from "@/lib/deals/rules";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS } from "@/lib/domain/types";
-import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, upcomingMeetings, writeTargets } from "./palette-data";
+import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, reviewThisWeek, upcomingMeetings, writeTargets } from "./palette-data";
 import { PasteReply } from "./paste-reply";
 
 /** A ⌘K command that needs a choice first opens a page of the palette; Esc or ⌫ on an empty query goes back. */
@@ -91,7 +91,6 @@ export function CommandPalette() {
     setRecent(readRecent());
   }, []);
   const router = useRouter();
-  const pathname = usePathname();
   const { ws, dispatch } = useWorkspace();
   const { start } = useRuns();
   const { openAsk } = useAsk();
@@ -170,13 +169,15 @@ export function CommandPalette() {
         toast("Nothing to check. Every email from the last 14 days has an outcome.");
         return;
       }
-      if (pathname === "/today") window.dispatchEvent(new CustomEvent("inroad:today-open", { detail: "check_replies" }));
+      if (window.location.pathname === "/today") window.dispatchEvent(new CustomEvent("inroad:today-open", { detail: "check_replies" }));
       else router.push("/today?open=check_replies");
     });
+  // Reviews land on Today, under the moves. One written this week opens; it isn't paid for twice.
   const review = (kind: "monday" | "friday") =>
     run(() => {
-      void start("review", { kind });
-      if (pathname !== "/today") router.push("/today");
+      if (ws && reviewThisWeek(ws, kind, new Date())) toast(`This week's ${kind === "monday" ? "pipeline" : "learning"} review is on Today.`);
+      else void start("review", { kind });
+      if (window.location.pathname !== "/today") router.push("/today");
     });
   const startDeal = (domain: string) =>
     run(async () => {

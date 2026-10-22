@@ -1,4 +1,4 @@
-import { addDays, todayISO } from "@/lib/domain/ids";
+import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import { OPEN_STAGES, type Account, type Connector, type Deal, type Meeting, type Person, type Workspace } from "@/lib/domain/types";
 import { ledger, reachMatch, type Ledger } from "@/lib/intros/rules";
 import { awaitingOutcome } from "@/lib/moves/replies";
@@ -87,4 +87,10 @@ export function dealCandidates(ws: Workspace, limit = 200): Account[] {
 /** "Check replies": how many people are waiting to be marked (R/N/B/U), the same list the Today move opens. */
 export function repliesToCheck(ws: Workspace, now: Date): number {
   return awaitingOutcome(ws, now).length;
+}
+
+/** "Run the weekly review": this week's review of that kind, when it's already written (open it, don't pay twice). */
+export function reviewThisWeek(ws: Workspace, kind: "monday" | "friday", now: Date): boolean {
+  const weekStart = weekOf(todayISO(now));
+  return Object.values(ws.briefs).some((b) => b.reviewKind === kind && !!b.review && b.date >= weekStart);
 }

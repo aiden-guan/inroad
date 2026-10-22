@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Connector, Workspace } from "@/lib/domain/types";
 import { NOW, TODAY, at, makeAccount, makeActivity, makeDeal, makeMeeting, makePerson, makeWorkspace } from "@/test/factories";
-import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, upcomingMeetings, writeTargets } from "./palette-data";
+import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, reviewThisWeek, upcomingMeetings, writeTargets } from "./palette-data";
 
 function workspace(): Workspace {
   const ws = makeWorkspace();
@@ -83,5 +83,19 @@ describe("repliesToCheck", () => {
     expect(repliesToCheck(ws, NOW)).toBe(0);
     ws.activities.push(makeActivity("t1", { kind: "touch_sent", personId: "per_pat", accountDomain: "pave.io", channel: "email", at: at(-2) }));
     expect(repliesToCheck(ws, NOW)).toBe(1);
+  });
+});
+
+describe("reviewThisWeek", () => {
+  it("knows a review of that kind was written this week, so the palette opens it instead of paying again", () => {
+    const ws = workspace();
+    expect(reviewThisWeek(ws, "monday", NOW)).toBe(false);
+    ws.briefs["2026-10-19"] = { date: "2026-10-19", reviewKind: "monday", review: "Pipeline is thin." } as Workspace["briefs"][string];
+    expect(reviewThisWeek(ws, "monday", NOW)).toBe(true);
+    expect(reviewThisWeek(ws, "friday", NOW)).toBe(false);
+    // Last week's doesn't count.
+    const old = makeWorkspace();
+    old.briefs["2026-10-12"] = { date: "2026-10-12", reviewKind: "monday", review: "Old." } as Workspace["briefs"][string];
+    expect(reviewThisWeek(old, "monday", NOW)).toBe(false);
   });
 });
