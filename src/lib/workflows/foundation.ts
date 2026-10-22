@@ -365,7 +365,7 @@ function channelPlan(ws: Workspace, stage: CompanySnapshot["stage"]): ChannelPla
     },
     founder_content: {
       why: "Writing what you learn in calls makes later outreach warmer.",
-      weeklyTarget: "2 short posts on what you see in calls",
+      weeklyTarget: "1 optional post a week, from what you see in calls",
       firstActions: ["Post one pattern from your last 5 conversations"],
     },
     exec_dinners: {

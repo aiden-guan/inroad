@@ -2,7 +2,7 @@ import "server-only";
 import { BRAND } from "@/lib/brand";
 import { todayISO } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
-import { themeNeedsProof } from "@/components/playbook/model";
+import { offerable, themeNeedsProof } from "@/components/playbook/model";
 
 /**
  * Prompt layout (most stable first, so the prompt cache keeps hitting):
@@ -89,7 +89,7 @@ export function companyContext(ws: Workspace): string {
   if (objections.length) lines.push(`Approved objection responses:${list(objections.map((o) => `"${o.objection}" → ${o.response}`))}`);
   if (ws.povs.length) lines.push(`Founder's first-hand points of view (use one per cold draft, by id):${list(ws.povs.map((p) => `[${p.id}] ${p.text} (${p.evidence})`))}`);
   // Only founder-approved assets are offerable; drafts in the Playbook stay out of outreach.
-  const assets = ws.assets.filter((a) => a.approved === true);
+  const assets = ws.assets.filter(offerable);
   if (assets.length) lines.push(`Assets the founder can offer (a CTA offering a resource must name one by id):${list(assets.map((a) => `[${a.id}] ${a.kind}: ${a.title}`))}`);
   if (ws.voice?.summary) lines.push(`Founder's writing voice: ${ws.voice.summary}`);
   lines.push("</company_context>");
