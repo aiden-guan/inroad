@@ -136,6 +136,7 @@ export const SOURCE_LABEL: Record<DiscoverySource, string> = {
   competitor_customers: "Competitor's customers",
   community: "Community",
   founder_network: "Your network",
+  stargazers: "GitHub stargazers",
   referral: "Referral",
   web_search: "Web search",
   manual: "Added by you",

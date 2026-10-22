@@ -178,7 +178,7 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
   const batch = readNetwork().imports.find((b) => b.id === batchId);
   if (!batch) throw new ActionError("That import isn't in your history anymore.");
   if (batch.undoneAt) throw new ActionError("That import was already undone.");
-  if (batch.kind !== "csv") throw new ActionError("LinkedIn imports can't be undone. Re-import a newer Connections.csv instead.");
+  if (batch.kind === "linkedin") throw new ActionError("LinkedIn imports can't be undone. Re-import a newer Connections.csv instead.");
 
   const result = (
     await mutateWorkspace((ws) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSpreadsheet, Users, Webhook } from "lucide-react";
+import { FileSpreadsheet, Star, Users, Webhook } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { AgentsCard } from "@/components/agents/agents-card";
@@ -69,7 +69,7 @@ export function IntegrationsHub() {
   };
 
   const importParam = params.get("import");
-  const importKind = importParam === "csv" || importParam === "linkedin" ? importParam : null;
+  const importKind = importParam === "csv" || importParam === "linkedin" || importParam === "github" ? importParam : null;
   const closeImport = () => router.replace("/integrations", { scroll: false });
 
   const events = useMemo(() => status?.inbound.events ?? [], [status]);
@@ -87,6 +87,7 @@ export function IntegrationsHub() {
   const startHere: string | null = !ws.network ? "linkedin" : !anyNative ? "slack" : null;
   const startBadge = (id: string) => (startHere === id ? <Badge tone="outline">Start here</Badge> : undefined);
   const csvCount = Object.values(ws.accounts).filter((a) => a.source === "csv_import").length;
+  const starCount = Object.values(ws.people).filter((p) => p.source === "stargazers").length;
 
   const native = (id: NativeConnectorId) => {
     const meta = CONNECTORS[id];
@@ -176,6 +177,14 @@ export function IntegrationsHub() {
           blurb="From Apollo, Clay, Sales Navigator, your CRM or a spreadsheet. Columns map themselves."
           icon={<FileSpreadsheet className="size-4" />}
           status={csvCount ? { tone: "on", label: `${csvCount.toLocaleString("en-US")} compan${csvCount === 1 ? "y" : "ies"} imported` } : { tone: "off", label: "Drop in a file" }}
+        />
+        <LinkRow
+          id="github"
+          href="/integrations?import=github"
+          name="GitHub stargazers"
+          blurb="For developer tools: people who starred your repo, placed at the companies their profiles name."
+          icon={<Star className="size-4" />}
+          status={starCount ? { tone: "on", label: `${starCount.toLocaleString("en-US")} stargazer${starCount === 1 ? "" : "s"} placed` } : { tone: "off", label: "Not imported" }}
         />
         <IntegrationRow
           id="inbound"
@@ -276,7 +285,7 @@ export function IntegrationsHub() {
       <Dialog
         open={importKind !== null}
         onOpenChange={(o) => !o && closeImport()}
-        title={importKind === "linkedin" ? "Import your LinkedIn connections" : "Import a list"}
+        title={importKind === "linkedin" ? "Import your LinkedIn connections" : importKind === "github" ? "Import your GitHub stargazers" : "Import a list"}
         className="max-w-[640px]"
       >
         <div className="px-5 pb-5 pt-3">{importKind && <ImportFlow kind={importKind} onDone={closeImport} />}</div>

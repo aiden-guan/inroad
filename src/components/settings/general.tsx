@@ -16,7 +16,7 @@ type Settings = ReturnType<typeof useSettingsStatus>;
 
 export function GeneralSection({ settings }: { settings: Settings }) {
   return (
-    <SettingsSection id="general" title="General" description="The key I run on, how the app looks, and what may leave this computer for news, places and icons.">
+    <SettingsSection id="general" title="General" description="The key I run on, how the app looks, and what may leave this computer for news, places, icons and public records.">
       <ApiKeyGroup settings={settings} />
       <Group title="Appearance">
         <ThemeRow />
@@ -24,6 +24,7 @@ export function GeneralSection({ settings }: { settings: Settings }) {
       <NewsGroup settings={settings} />
       <PlacesGroup settings={settings} />
       <IconsGroup settings={settings} />
+      <PublicDataGroup settings={settings} />
     </SettingsSection>
   );
 }
@@ -371,5 +372,199 @@ function NewsGroup({ settings }: { settings: Settings }) {
         </div>
       )}
     </Group>
+  );
+}
+
+/* ───────────── Public data: GitHub token, SEC contact ───────────── */
+
+function PublicDataGroup({ settings }: { settings: Settings }) {
+  const { status } = settings;
+  return (
+    <Group
+      id="public-data"
+      title="Public records"
+      hint="SEC Form D filings, Hacker News hiring threads, GitHub and podcasts are read in code, for free. Both of these are optional."
+    >
+      {status ? (
+        <>
+          <GithubTokenRow settings={settings} />
+          <SecContactRow settings={settings} />
+        </>
+      ) : (
+        <div className="space-y-3 px-4 py-3.5">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+      )}
+    </Group>
+  );
+}
+
+function GithubTokenRow({ settings }: { settings: Settings }) {
+  const { status, save } = settings;
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const hint = status?.githubTokenHint ?? null;
+
+  const submit = async (value: string | null) => {
+    setBusy(true);
+    setError(null);
+    const problem = await save({ githubToken: value });
+    setBusy(false);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setToken("");
+    setOpen(false);
+    toast(value ? "GitHub token saved. GitHub accepted it." : "GitHub token removed from this machine.");
+  };
+
+  return (
+    <div>
+      <Row
+        label="GitHub token"
+        hint={
+          hint ? (
+            <>
+              Saved on this machine <span className="font-mono text-[12px] text-fg-2">{hint}</span>. 5,000 lookups an hour, so up to 300 stargazers at once.
+            </>
+          ) : (
+            "Without one GitHub allows 60 lookups an hour, about 50 stargazer profiles. A fine-grained token with no permissions is enough."
+          )
+        }
+      >
+        {!open && (
+          <div className="flex justify-start gap-1.5 sm:justify-end">
+            <Button size="sm" onClick={() => setOpen(true)}>
+              {hint ? "Replace" : "Add a token"}
+            </Button>
+            {hint && (
+              <Button size="sm" variant="ghost" loading={busy} onClick={() => void submit(null)}>
+                Remove
+              </Button>
+            )}
+          </div>
+        )}
+      </Row>
+      {open && (
+        <form
+          className="px-4 pb-3.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (token.trim()) void submit(token.trim());
+          }}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              autoFocus
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="github_pat_…"
+              aria-label="GitHub token"
+              aria-invalid={!!error}
+              value={token}
+              onChange={(e) => {
+                setToken(e.target.value);
+                if (error) setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setOpen(false);
+                  setToken("");
+                  setError(null);
+                }
+              }}
+              className="h-8 font-mono text-[12.5px] sm:flex-1"
+            />
+            <div className="flex gap-1.5">
+              <Button type="submit" variant="primary" loading={busy} disabled={!token.trim()}>
+                {busy ? "Checking with GitHub" : "Save token"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setOpen(false);
+                  setToken("");
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+          <FieldError>{error}</FieldError>
+          <p className="mt-2 text-[12px] leading-[18px] text-fg-3">
+            Make one at{" "}
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-fg-2 hover:underline">
+              github.com/settings/personal-access-tokens <ArrowUpRight className="size-3" aria-hidden />
+            </a>
+            . It stays in <span className="font-mono">settings.json</span> here and goes only to GitHub.
+          </p>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function SecContactRow({ settings }: { settings: Settings }) {
+  const { status, save } = settings;
+  const saved = status?.secContact ?? "";
+  const [value, setValue] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const current = value ?? saved;
+  const dirty = current.trim() !== saved;
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    const problem = await save({ secContact: current.trim() || null });
+    setBusy(false);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setValue(null);
+    toast(current.trim() ? "Saved. Form D lookups name you as the contact." : "Contact removed.");
+  };
+
+  return (
+    <Row label="Contact for SEC lookups" htmlFor="sec-contact" hint="The SEC asks tools that read EDGAR to name a contact. Sent only to sec.gov, with Form D lookups." align="start">
+      <form
+        className="flex gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (dirty) void submit();
+        }}
+      >
+        <div className="min-w-0 flex-1">
+          <Input
+            id="sec-contact"
+            type="email"
+            autoComplete="email"
+            placeholder="you@yourcompany.com"
+            aria-invalid={!!error}
+            value={current}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (error) setError(null);
+            }}
+            className="h-8 text-[16px] sm:text-[13px]"
+          />
+          <FieldError>{error}</FieldError>
+        </div>
+        {dirty && (
+          <Button type="submit" size="sm" variant="primary" loading={busy}>
+            Save
+          </Button>
+        )}
+      </form>
+    </Row>
   );
 }

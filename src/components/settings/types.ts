@@ -14,6 +14,10 @@ export interface SettingsStatus {
   geocoder: Geocoder;
   /** Company marks: first letters only (nothing sent), or each company's icon from its own site. */
   companyIcons: CompanyIcons;
+  /** A GitHub token is saved (its last 4 only); it lifts GitHub's limit from 60 to 5,000 lookups an hour. */
+  githubTokenHint: string | null;
+  /** The contact named to SEC EDGAR with Form D lookups, or null. */
+  secContact: string | null;
   /** Absolute path of the folder that holds workspace.json, settings.json and the caches. */
   dataDir: string;
 }
