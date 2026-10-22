@@ -54,6 +54,39 @@ test("the phone header shows the agent, and the menu closes on Esc or a tap outs
   await expect(nav).toHaveCount(0);
 });
 
+test("an intro card names who you're meeting in full, and nothing shows key hints", async ({ page, request }) => {
+  const now = new Date().toISOString();
+  const intro = {
+    id: "int_e2e_phone",
+    kind: "ask",
+    stage: "asked",
+    connectorName: "Ines Duarte",
+    targetName: "Samantha Whitlock-Abernathy, VP Finance",
+    askedOn: now.slice(0, 10),
+    history: [{ at: now, stage: "asked" }],
+    createdAt: now,
+    updatedAt: now,
+  };
+  expect((await request.post("/api/workspace/actions", { data: { actions: [{ type: "intro.create", intro }] } })).ok()).toBe(true);
+  try {
+    await page.goto("/intros");
+    const target = page.getByText("Samantha Whitlock-Abernathy", { exact: true });
+    await expect(target).toBeVisible();
+    // Wrapped, never cut off with an ellipsis.
+    expect(await target.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await expectNoSideScroll(page);
+  } finally {
+    await request.post("/api/workspace/actions", { data: { actions: [{ type: "intro.remove", id: intro.id }] } });
+  }
+
+  // Key hints (a button's ↵, Today's and Companies' key legends) mean nothing on a touch screen.
+  for (const path of ["/today", "/companies", "/intros"]) {
+    await page.goto(path);
+    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.locator("main kbd:visible")).toHaveCount(0);
+  }
+});
+
 test("research the API turns down says why once, with the fix", async ({ page, request }) => {
   await request.post(`${mockUrl}/__mock/faults`, { data: { faults: [{ type: "credit" }] } });
   try {

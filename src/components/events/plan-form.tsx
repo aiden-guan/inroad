@@ -256,7 +256,7 @@ export function PlanForm({ ws, onClose, initialCity }: { ws: Workspace; onClose:
         </Button>
         <Button variant="agent" loading={busy} onClick={() => void submit()}>
           {kind === "dinner" ? "Plan the dinner" : "Plan the roundtable"}
-          <Kbd className="ml-1 hidden bg-transparent text-accent-fg/80 ring-accent-fg/30 sm:inline-flex">⌘↵</Kbd>
+          <Kbd className="ml-1 hidden bg-transparent text-accent-fg/80 ring-accent-fg/30 sm:pointer-fine:inline-flex">⌘↵</Kbd>
         </Button>
       </div>
     </motion.section>

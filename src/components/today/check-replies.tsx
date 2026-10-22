@@ -317,7 +317,7 @@ function RowButton({ k, label, onClick }: { k: string; label: string; onClick: (
       }}
       className="inline-flex h-7 items-center gap-1.5 rounded-sm px-1.5 text-[12px] text-fg-2 transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.97]"
     >
-      <Kbd className="hidden h-4 min-w-4 text-[10px] md:inline-flex">{k}</Kbd>
+      <Kbd className="hidden h-4 min-w-4 text-[10px] md:pointer-fine:inline-flex">{k}</Kbd>
       <span>{label}</span>
     </button>
   );

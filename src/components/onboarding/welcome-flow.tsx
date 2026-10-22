@@ -183,7 +183,7 @@ function WorkingColumn({
             >
               <Square className="size-2.5 fill-current" aria-hidden />
               Stop
-              <Kbd className="hidden sm:inline-flex">Esc</Kbd>
+              <Kbd className="hidden sm:pointer-fine:inline-flex">Esc</Kbd>
             </button>
           )}
         </div>
