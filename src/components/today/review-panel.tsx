@@ -15,13 +15,14 @@ import type { Brief, EntityRef, ReviewProposal, Workspace } from "@/lib/domain/t
 import { applyLabel, proposalActions } from "./proposals";
 import { RunInline } from "./parts";
 
+// The card's minutes are the founder's; these are the run's, so each says whose time it is.
 const ABOUT = {
   monday:
-    "I'll score every open deal for risk, pick the ones that need you this week, propose what to kill or nurture after 14 days without a dated next step, and find the earliest broken stage in your funnel. About a minute.",
+    "I'll score every open deal for risk, pick the ones that need you this week, propose what to kill or nurture after 14 days without a dated next step, and find the earliest broken stage in your funnel. About a minute for me, then a few for you to decide.",
   friday:
-    "I'll read every reply from this week, tally inputs against targets with sample sizes, quote the objections, and propose up to 3 playbook edits and one message bet for next month. About a minute.",
+    "I'll read every reply from this week, tally inputs against targets with sample sizes, quote the objections, and propose up to 3 playbook edits and one message bet for next month. About a minute for me, then a few for you to decide.",
   monthly:
-    "I'll read the message bet, rebuild the bet from the calls since it was last revised (each change a suggestion you accept or reject), log your quotes against how they landed, and check hiring readiness once you're near it. About two minutes.",
+    "I'll see how this month's message bet did, suggest updates to your bet from the calls since you last changed it (each one yours to accept or reject), check which prices you quoted were accepted, and, once you're close, whether it's time to hire. About two minutes for me, then about half an hour for you to decide.",
 } as const;
 
 export type ReviewKind = keyof typeof ABOUT;
