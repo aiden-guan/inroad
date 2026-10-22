@@ -5,9 +5,9 @@ import { writeSettings } from "@/lib/store/settings";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { useTape, type Tape } from "@/test/anthropic-tape";
 import { freshRun } from "@/test/deterministic";
-import { NOW, TODAY, makeAccount, makeWorkspace } from "@/test/factories";
+import { NOW, TODAY, makeAccount, makePerson, makeWorkspace } from "@/test/factories";
 import { fixture, routeFetches } from "@/test/http-fixtures";
-import { runWorkflow } from "@/test/run-workflow";
+import { logLines, runWorkflow } from "@/test/run-workflow";
 import { expectHealthyRun } from "@/test/tape-checks";
 import dossier from "./dossier";
 
@@ -97,5 +97,39 @@ describe("researching a company", () => {
       expect(seen.has(ev.url)).toBe(true);
       expect(ev.confidence).toBe("low");
     }
+  });
+
+  it("adds the company's Form D and its champion's podcast episodes to what it may cite, checked like any page", async () => {
+    // A company with a homepage and no board or news: the public record is what has dates.
+    const FILING = "https://www.sec.gov/Archives/edgar/data/1987654/000198765426000002/0001987654-26-000002-index.htm";
+    const efts = `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent('"Pavewise"')}&forms=D&dateRange=custom&startdt=2024-10-20&enddt=${TODAY}`;
+    const itunes = (term: string, limit: number) => `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=podcast&entity=podcastEpisode&limit=${limit}`;
+    const r = routeFetches({
+      "https://pavewise.com": `<html><head><title>Pavewise | Usage billing for infrastructure APIs</title><meta name="description" content="Pavewise meters API usage and bills it for infrastructure companies."></head><body><h1>Bill every API call</h1><p>Pavewise turns metered API usage into invoices your finance team trusts.</p></body></html>`,
+      [efts]: fixture("edgar-search.json"),
+      "https://www.sec.gov/Archives/edgar/data/1987654/000198765426000002/primary_doc.xml": fixture("edgar-formd.xml"),
+      [itunes("Dana Okafor Pavewise", 10)]: fixture("itunes-podcasts.json"),
+      [itunes("Pavewise", 8)]: fixture("itunes-podcasts.json"),
+    });
+    vi.mocked(fetchText).mockImplementation(r.fetchText);
+    vi.mocked(fetchJSON).mockImplementation(r.fetchJSON);
+    await replaceWorkspace(
+      makeWorkspace({
+        accounts: { "pavewise.com": makeAccount("pavewise.com", { status: "new", peopleIds: ["per_dana"] }) },
+        people: { per_dana: makePerson("per_dana", "pavewise.com", { name: "Dana Okafor", title: "CEO", role: "champion" }) },
+      }),
+    );
+    tape = await useTape("dossier-records");
+    const { summary, events } = await runWorkflow(dossier, { domain: "pavewise.com" });
+    await expectHealthyRun(summary, tape, { submits: ["record_evidence", "submit_dossier"] });
+
+    expect(events).toContainEqual(expect.objectContaining({ type: "read", url: FILING, host: "sec.gov" }));
+    expect(logLines(events)).toContain("1 SEC filing · 2 podcast episodes");
+    // Two dated items came from the public record, so no web search was needed.
+    expect(summary.receipt?.searches).toBe(0);
+    const ws = readWorkspace();
+    const cited = Object.values(ws.evidence).filter((e) => e.url === FILING || e.url.startsWith("https://podcasts.apple.com/"));
+    expect(cited.length).toBeGreaterThan(0);
+    for (const e of cited) expect(e.sourceType).toBe(e.url === FILING ? "filing" : "podcast");
   });
 });
