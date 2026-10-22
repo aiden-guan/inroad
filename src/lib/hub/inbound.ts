@@ -7,7 +7,7 @@ import type { Account, Activity, ActivityKind, Deal, Meeting, Person, Workspace 
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { emitHubEvent } from "./events";
 import { accountData, activityData, personData } from "./payloads";
-import { companyDomainOf, ensureAccount, ensurePerson, findPerson, normalizeDomain, normalizeEmail } from "./records";
+import { askedToBeDeleted, companyDomainOf, ensureAccount, ensurePerson, findPerson, normalizeDomain, normalizeEmail } from "./records";
 import { mutateHub, readHub } from "./store";
 import type { InboundCounts, InboundLogEntry } from "./types";
 
@@ -504,7 +504,8 @@ function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: L
 
   for (const p of n.people) {
     const domain = p.domain ?? companyDomainOf(p.email);
-    if (!domain) {
+    // Someone who asked to be deleted isn't brought back by a sync; only their address is kept, on the suppression list.
+    if (!domain || askedToBeDeleted(ws, p.email)) {
       counts.skipped++;
       continue;
     }
@@ -519,6 +520,12 @@ function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: L
       continue;
     }
     let person = findPerson(ws, { email: x.email, name: x.name, domain: x.domain });
+    if (!person && askedToBeDeleted(ws, x.email)) {
+      // Their sequencer still reports on them (a late unsubscribe, a bounce): nothing to keep.
+      markSeen(key);
+      counts.skipped++;
+      continue;
+    }
     const domain = person?.accountDomain ?? x.domain ?? companyDomainOf(x.email);
     if (!person && domain && (x.email || x.name)) {
       if (ensureAccount(ws, { domain }, meta).created) counts.accounts++;
