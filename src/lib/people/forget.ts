@@ -264,6 +264,8 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   // An attendee is them by id, or by name when the row isn't someone else's.
   const attendee = (x: { personId?: ID; name: string }, domain: string | undefined) => x.personId === id || (!(x.personId && namesakeIds.has(x.personId)) && isThem(x.name, domain));
   for (const deal of Object.values(ws.deals)) {
+    // A step written for them names them by first name alone ("Call with Dana").
+    if (deal.nextStep && deal.contacts.some((c) => c.personId === id)) deal.nextStep.what = redactName(deal.nextStep.what, person, { firstName: true });
     deal.contacts = deal.contacts.filter((c) => c.personId !== id);
     unname(deal.card, deal.accountDomain);
     unown(deal.map, deal.accountDomain);
