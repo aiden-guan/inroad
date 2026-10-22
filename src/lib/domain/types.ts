@@ -372,7 +372,7 @@ export interface PovItem {
 /** Things a CTA can offer. A draft that offers a resource must point at one of these. */
 export interface Asset {
   id: ID;
-  kind: "one_pager" | "demo_script" | "security" | "design_partner_terms" | "pilot_proposal" | "insight" | "case_study" | "other";
+  kind: "one_pager" | "demo_script" | "security" | "design_partner_terms" | "pilot_proposal" | "insight" | "case_study" | "other" | "post" | "community_answer" | "launch";
   title: string;
   body: string; // markdown
   createdAt: ISODateTime;
@@ -391,6 +391,8 @@ export interface Asset {
   kit?: "design_partner";
   origin?: "agent" | "template" | "founder";
   runId?: ID;
+  /** Founder content: the question it answers or the founder's note, kept so a fresh version has the same brief. */
+  brief?: string;
 }
 
 /** People who can make introductions (investors, advisors, customers…). */

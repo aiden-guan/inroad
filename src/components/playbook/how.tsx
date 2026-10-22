@@ -15,7 +15,7 @@ import { newId, nowISO } from "@/lib/domain/ids";
 import type { ObjectionCard } from "@/lib/domain/types";
 import { listItem, spring } from "@/lib/motion";
 import { conversationsTarget } from "@/lib/moves/scoreboard";
-import { AssetsBlock, DesignPartnerBlock } from "./assets";
+import { AssetsBlock, ContentBlock, DesignPartnerBlock } from "./assets";
 import { usePlaybook } from "./context";
 import {
   BAND_LABELS,
@@ -33,6 +33,7 @@ import {
   provenance,
   quoteLog,
   usdRange,
+  type AssetKind,
   type Rate,
 } from "./model";
 import { starterObjections } from "./templates";
@@ -48,6 +49,7 @@ export function HowSection() {
       <Commercial />
       <Objections />
       <AssetsBlock />
+      <ContentBlock />
       <DesignPartnerBlock />
     </Section>
   );
@@ -247,13 +249,24 @@ const TRUST_ORDER = [
   "Investor and advisor intros",
   "Signal-based cold email",
   "Communities where your buyer asks for help",
-  "Founder content, 2–3 posts a week",
+  "Founder content, one optional post a week from your calls",
   "Rooms: a virtual roundtable first, a dinner only with a co-host",
   "Launches, once people can try it without a sales call",
 ];
 
+/** The channels whose first action is a draft: each opens the matching Founder content draft. */
+const MOTION_DRAFT: Partial<Record<string, { kind: AssetKind; label: string }>> = {
+  communities: { kind: "community_answer", label: "Find a question to answer" },
+  founder_content: { kind: "post", label: "Draft this week's post" },
+  launches: { kind: "launch", label: "Draft a Show HN post" },
+};
+
 function Channels() {
-  const { p, set } = usePlaybook();
+  const { p, set, setComposer } = usePlaybook();
+  const startDraft = (kind: AssetKind) => {
+    setComposer({ kind });
+    requestAnimationFrame(() => document.getElementById("content")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   const plan = p.channelPlan;
   const motions = plan ? [...plan.motions].map((m, i) => ({ m, i })).sort((a, b) => a.m.rank - b.m.rank) : [];
   return (
@@ -278,6 +291,16 @@ function Channels() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {MOTION_DRAFT[m.motion] && (
+                  <button
+                    type="button"
+                    onClick={() => startDraft(MOTION_DRAFT[m.motion]!.kind)}
+                    className="mt-1.5 inline-flex items-center gap-1 text-[13px] text-fg-2 underline-offset-2 hover:text-fg hover:underline"
+                  >
+                    {MOTION_DRAFT[m.motion]!.label}
+                    <ArrowRight className="size-3.5" aria-hidden />
+                  </button>
                 )}
               </div>
             </li>

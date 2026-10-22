@@ -345,7 +345,8 @@ function sanitizeRefs(
     if (!ok) problems.push(`CLAIM_UNAPPROVED: ${id} isn't an approved claim. Remove the statement it supports.`);
     return ok;
   });
-  const assetId = draft.assetId && ws.assets.some((a) => a.id === draft.assetId && a.approved === true) ? draft.assetId : null;
+  // Founder content (a post, an answer, a launch post) is never something an email offers, even once posted.
+  const assetId = draft.assetId && ws.assets.some((a) => a.id === draft.assetId && a.approved === true && a.kind !== "post" && a.kind !== "community_answer" && a.kind !== "launch") ? draft.assetId : null;
   if (draft.assetId && !assetId) problems.push(`assetId ${draft.assetId} isn't an approved asset. Drop the resource offer or use a listed asset.`);
   return { spans, lintSpans, povId, credentialClaimId: cred, claimIds, assetId, problems };
 }
