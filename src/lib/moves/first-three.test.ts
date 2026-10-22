@@ -5,6 +5,7 @@ import { NOW, TODAY, at, day, makeAccount, makeDossier, makePackage, makePerson,
 import { draftsToStart } from "./ahead";
 import { codeGreeting } from "./brief-data";
 import { TOP_MOVES, computeMoves, firstThreeDomains, mergeMoves, visibleMoves } from "./rules";
+import { actionableRecommendation } from "./util";
 
 /**
  * The audit's day one: onboarding showed Alpha (a 25-day-old founding-role post), Beta (hiring, 10 days) and
@@ -132,6 +133,17 @@ describe("the first three on day one", () => {
       ["linkedin", "Connect with Bana at Beta on LinkedIn", "No public email; active on LinkedIn · doesn't count toward your email cap"],
       ["research", "Keep watching Gamma", "Not yet · Nothing dated yet; check back after their launch"],
     ]);
+  });
+
+  it("agrees with the dossier: with nothing citable, both say watch, and the dossier offers no draft button", () => {
+    const ws = dayOne();
+    // Only low-confidence search snippets behind Beta's angle and signal.
+    ws.evidence["ev_beta.example"].confidence = "low";
+    const card = computeMoves(ws, NOW).find((m) => m.id === "mv_first_beta.example")!;
+    expect(card.title).toBe("Keep watching Beta");
+    expect(actionableRecommendation(ws, ws.accounts["beta.example"])).toMatchObject({ move: "watch", nothingCitable: true });
+    // Something citable: the dossier's own call stands.
+    expect(actionableRecommendation(ws, ws.accounts["alpha.example"])).toEqual({ move: "cold_email", why: "A dated hire for the job you do", personId: "per_al", nothingCitable: false });
   });
 
   it("shows the ten more prospects queued behind the research as a search in progress, not a button", () => {

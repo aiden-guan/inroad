@@ -136,3 +136,19 @@ test("'Not now' on the network card means next week, and the referral card has o
   await expect(page.getByRole("button", { name: /^Track 2 companies where you know someone/ })).toHaveCount(0);
   await expect.poll(() => moveStatus(request, "mv_network_companies_")).toEqual(["snoozed"]);
 });
+
+test("a dossier with nothing citable says watch, as Today does, and offers no draft that can only fail", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  const ws = await workspace(request);
+  const acc = Object.values(ws.accounts as Record<string, Json>).find((a) => a.dossier?.recommendation?.move === "cold_email")!;
+  expect(acc).toBeTruthy();
+  // Everything behind its angles and signals is a low-confidence search snippet.
+  const ids = [...acc.dossier.angles.flatMap((a: Json) => a.evidenceIds), ...acc.signals.map((s: Json) => s.evidenceId)].filter(Boolean);
+  for (const id of ids) if (ws.evidence[id]) ws.evidence[id].confidence = "low";
+  expect((await request.post("/api/workspace/restore", { data: ws })).ok()).toBe(true);
+
+  await page.goto(`/companies?c=${encodeURIComponent(acc.domain)}`);
+  await expect(page.getByText("My recommendation")).toBeVisible();
+  await expect(page.getByText("Watch, don't write yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Write the first email" })).toHaveCount(0);
+});
