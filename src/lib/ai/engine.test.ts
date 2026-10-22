@@ -1,52 +1,30 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import net from "node:net";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { startMock, type MockServer } from "@/test/mock-anthropic";
 import { AgentError, defineTool, runAgent, type RunOptions } from "./engine";
 import type { AgentEvent } from "./events";
+import { costOf } from "./models";
 
 /**
  * The agent loop against scripts/mock-anthropic.mjs, which speaks the real streaming wire format
- * (thinking → web search → web fetch → tool call). Nothing leaves this machine. A spy on fetch
- * records each request the engine sends, so the tests can check what reaches the API too.
+ * (thinking → web search → web fetch → tool call), reports usage from what each request contains and
+ * fails on demand the way the API does. Nothing leaves this machine. A spy on fetch records each request
+ * the engine sends, so the tests can check what reaches the API too.
  */
 
-const MOCK = fileURLToPath(new URL("../../../scripts/mock-anthropic.mjs", import.meta.url));
-let mock: ChildProcess;
-const mockLog: string[] = [];
-
-async function freePort(): Promise<number> {
-  const srv = net.createServer();
-  await new Promise<void>((resolve) => srv.listen(0, "127.0.0.1", resolve));
-  const { port } = srv.address() as net.AddressInfo;
-  await new Promise((resolve) => srv.close(resolve));
-  return port;
-}
+let mock: MockServer;
 
 beforeAll(async () => {
-  const port = await freePort();
-  mock = spawn(process.execPath, [MOCK], { env: { ...process.env, MOCK_PORT: String(port), MOCK_DELAY: "0" }, stdio: ["ignore", "pipe", "pipe"] });
-  // Its error log (the 400 below is on purpose) stays out of the test output.
-  mock.stderr!.on("data", (chunk: Buffer) => mockLog.push(chunk.toString().trim()));
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("mock Anthropic server did not start")), 10_000);
-    mock.once("exit", (code) => reject(new Error(`mock Anthropic server exited (${code})`)));
-    mock.stdout!.on("data", (chunk: Buffer) => {
-      for (const line of chunk.toString().split("\n")) if (line.trim()) mockLog.push(line);
-      if (mockLog.some((l) => l.includes("listening"))) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-  process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${port}`;
+  mock = await startMock();
+  process.env.ANTHROPIC_BASE_URL = mock.url;
   process.env.ANTHROPIC_API_KEY = "mock";
 });
 
 afterAll(() => {
-  mock?.kill();
+  mock?.stop();
 });
+
+const fault = (...faults: Parameters<MockServer["fault"]>) => mock.fault(...faults);
 
 interface SentRequest {
   headers: Headers;
@@ -54,12 +32,14 @@ interface SentRequest {
 }
 let sent: SentRequest[];
 
-beforeEach(() => {
+beforeEach(async () => {
   sent = [];
-  mockLog.length = 0;
+  // A clean mock per test: no queued faults, an empty prompt cache.
+  await mock.reset();
   const real = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    sent.push({ headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
+    const url = String(input instanceof Request ? input.url : input);
+    if (url.includes("/v1/messages")) sent.push({ headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
     return real(input, init);
   });
 });
@@ -71,42 +51,60 @@ async function run<T>(opts: Omit<RunOptions, "emit">) {
   return { ...out, events, of: <K extends AgentEvent["type"]>(type: K) => events.filter((e): e is Extract<AgentEvent, { type: K }> => e.type === type) };
 }
 
-const submitPlan = defineTool({
-  name: "submit_plan",
-  description: "Submit the outreach plan.",
-  terminal: true,
-  schema: z.object({
-    headline: z.string().max(200).describe("One line"),
-    score: z.number().min(0).max(100),
-    steps: z.array(z.string()).max(5),
-    url: z.string(),
-  }),
+const planSchema = z.object({
+  headline: z.string().max(200).describe("One line"),
+  score: z.number().min(0).max(100),
+  steps: z.array(z.string()).max(5),
+  url: z.string(),
 });
+type Plan = z.infer<typeof planSchema>;
+const submitPlan = defineTool({ name: "submit_plan", description: "Submit the outreach plan.", terminal: true, schema: planSchema });
 
 describe("runAgent with a terminal tool", () => {
   it("streams the work and returns the validated tool input as the result", async () => {
-    const r = await run<z.infer<typeof submitPlan.schema>>({
+    const r = await run<Plan>({
       system: ["Core rules", "Workflow rules", "Company context"],
       messages: [{ role: "user", content: "Plan outreach for Acme" }],
       tools: [submitPlan],
       webSearch: 3,
       webFetch: 2,
     });
-    expect(r.result).toEqual({ headline: "Mock headline", score: 78, steps: ["Mock steps1", "Mock steps2", "Mock steps3"], url: "https://example.com" });
+    // Schema-valid input that keeps to the caps the strict schema carries in its descriptions.
+    expect(r.result).toEqual({ headline: "Hiring a first finance lead this quarter", score: 78, steps: ["Send the first email Thursday morning", "Send the first email Thursday morning"], url: "https://example.com" });
     expect(r.stopReason).toBe("tool_use");
-    expect(r.of("thinking").map((e) => e.text)).toEqual(["Reviewing what the founder asked for.", "Checking public sources before drafting."]);
-    expect(r.of("search")).toEqual([{ type: "search", query: "Plan outreach for Acme funding news 2026" }]);
+    expect(r.of("thinking").map((e) => e.text)).toEqual(["Reading what was asked: Plan outreach for Acme.", "Checking the material I was given before writing."]);
+    expect(r.of("search")).toEqual([{ type: "search", query: "Acme funding news 2026" }]);
     expect(r.of("sources")[0].sources.map((s) => s.host)).toEqual(["techcrunch.com", "jobs.ashbyhq.com", "forbes.com"]);
     expect(r.of("read")).toEqual([{ type: "read", url: "https://example.com", host: "example.com" }]);
-    expect(r.of("status")).toEqual([{ type: "status", text: "Writing it up" }]);
+    // The dynamic-filtering search runs code over its results before the model writes.
+    expect(r.of("status")).toEqual([{ type: "status", text: "Filtering results" }, { type: "status", text: "Writing it up" }]);
     expect(r.of("writing").at(-1)?.chars).toBeGreaterThan(0);
-    // One turn: 100 input and 420 output tokens on Sonnet ($2 / $10 per million).
-    expect(r.usage).toMatchObject({ inputTokens: 100, outputTokens: 420, cacheReadTokens: 0, webSearches: 0 });
-    expect(r.costUsd).toBeCloseTo(0.0044, 10);
+    // One turn, billed from the usage the response reported: one search, one fetch, prompt too short to cache.
+    expect(r.usage).toMatchObject({ cacheReadTokens: 0, cacheWriteTokens: 0, webSearches: 1, webFetches: 1 });
+    expect(r.usage.inputTokens).toBeGreaterThan(100);
+    expect(r.usage.outputTokens).toBeGreaterThan(220);
+    expect(r.costUsd).toBeCloseTo(costOf("operator", r.usage), 10);
     expect(r.events.at(-1)).toEqual({ type: "usage", costUsd: r.costUsd, model: "operator" });
     expect(r.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
     expect(r.messages[2].content).toEqual([expect.objectContaining({ type: "tool_result", content: "Saved." })]);
     expect(sent).toHaveLength(1);
+  });
+
+  it("reports usage that grows with the request, and reads a repeated prefix from the cache", async () => {
+    const tools = [submitPlan];
+    const short = await run({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools });
+    const long = await run({ system: "Rules", messages: [{ role: "user", content: `Plan ${"outreach for Acme ".repeat(400)}` }], tools });
+    expect(long.usage.inputTokens + long.usage.cacheWriteTokens).toBeGreaterThan(short.usage.inputTokens + 1500);
+    // A long, stable system prompt is written to the cache once, then read on the next request.
+    const system = ["Core rules ".repeat(500), "Workflow rules"];
+    const first = await run({ system, messages: [{ role: "user", content: "Plan for Acme" }], tools });
+    const second = await run({ system, messages: [{ role: "user", content: "Plan for Northwind" }], tools });
+    expect(first.usage).toMatchObject({ cacheReadTokens: 0 });
+    expect(first.usage.cacheWriteTokens).toBeGreaterThan(1024);
+    // The tools and system blocks come back from the cache; only the new message is written.
+    expect(second.usage.cacheReadTokens).toBeGreaterThan(1024);
+    expect(second.usage.cacheWriteTokens).toBeLessThan(20);
+    expect(second.costUsd).toBeLessThan(first.costUsd);
   });
 
   it("sends a strict, cache-friendly request to the routed model", async () => {
@@ -140,13 +138,14 @@ describe("runAgent with a terminal tool", () => {
   });
 
   it("returns invalid tool input to the model to fix instead of accepting it", async () => {
-    const strict = defineTool({ name: "submit_plan", description: "Submit.", terminal: true, schema: z.object({ headline: z.string().min(50) }) });
-    const r = await run({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [strict] });
-    expect(r.result).toBeUndefined();
+    await fault({ type: "invalid_submit" });
+    const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
     expect(sent).toHaveLength(2);
     const feedback = (sent[1].body.messages.at(-1)!.content as { is_error?: boolean; content: string }[])[0];
     expect(feedback.is_error).toBe(true);
     expect(feedback.content).toMatch(/^Invalid input\. Fix these fields and call submit_plan again: headline: /);
+    // The resubmission keeps to the cap.
+    expect(r.result?.headline.length).toBeLessThanOrEqual(200);
   });
 });
 
@@ -164,10 +163,10 @@ describe("runAgent with app tools", () => {
       },
     });
     const r = await run({ system: "Rules", messages: [{ role: "user", content: "Please add a note about Acme" }], tools: [addNote] });
-    expect(calls).toEqual([{ text: "Mock text" }]);
+    expect(calls).toEqual([{ text: "Their team is hiring for the role this replaces" }]);
     expect(r.result).toBeUndefined();
     expect(r.stopReason).toBe("end_turn");
-    expect(r.of("action")).toEqual([{ type: "action", text: "Adding “Mock text”" }]);
+    expect(r.of("action")).toEqual([{ type: "action", text: "Adding “Their team is hiring for the role this replaces”" }]);
     // The narration before the tool call is wiped from the live answer.
     const reset = r.events.findIndex((e) => e.type === "text_reset");
     expect(r.events[reset]).toEqual({ type: "text_reset", text: "" });
@@ -178,7 +177,9 @@ describe("runAgent with app tools", () => {
     expect(sent[0].body.tools?.[0]).not.toHaveProperty("strict");
     expect(sent[1].body.messages.at(-1)!.content).toEqual([expect.objectContaining({ type: "tool_result", content: "Note saved" })]);
     expect(r.messages).toHaveLength(4);
-    expect(r.usage.outputTokens).toBe(840);
+    // Two turns; the second re-sends the first, so it costs more input.
+    expect(r.usage.inputTokens).toBeGreaterThan(0);
+    expect(r.costUsd).toBeCloseTo(costOf("operator", r.usage), 10);
   });
 
   it("reports a tool that throws as a tool error the model can see", async () => {
