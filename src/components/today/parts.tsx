@@ -212,7 +212,7 @@ export function HoldButton({ onConfirm, children, ms = 900 }: { onConfirm: () =>
 /** Quiet key legend for a card or a list. */
 export function Keys({ items, className }: { items: [string, string][]; className?: string }) {
   return (
-    <div className={cn("hidden flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-3 md:flex", className)}>
+    <div className={cn("hidden flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-3 md:pointer-fine:flex", className)}>
       {items.map(([k, label]) => (
         <span key={k + label} className="inline-flex items-center gap-1.5">
           <Kbd>{k}</Kbd>

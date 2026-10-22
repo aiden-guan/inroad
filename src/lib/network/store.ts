@@ -2,6 +2,7 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import type { Connection, ISODateTime } from "@/lib/domain/types";
+import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { DATA_DIR } from "@/lib/store/settings";
 import type { ImportBatch } from "./types";
@@ -75,11 +76,7 @@ export function updateConnections<R>(fn: (rows: Connection[]) => R | Promise<R>)
   const next = queue.p.then(async () => {
     const rows = readConnections();
     const value = await fn(rows);
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const file = CONNECTIONS_FILE();
-    const tmp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(rows));
-    fs.renameSync(tmp, file);
+    writeFileAtomic(CONNECTIONS_FILE(), JSON.stringify(rows));
     // Nobody should hold a cached FileDB for this file, but drop one if a module created it.
     (globalThis as unknown as { __fileDBs?: Map<string, unknown> }).__fileDBs?.delete("connections.json");
     return value;

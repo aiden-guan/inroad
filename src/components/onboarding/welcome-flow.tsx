@@ -10,6 +10,8 @@ import { AiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Orb, type OrbState } from "@/components/ui/orb";
+import { OrbMorph, useWide } from "@/components/ui/orb-morph";
+import { BILLING_URL } from "@/lib/ai/errors";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
@@ -30,6 +32,9 @@ const ERROR_COPY: Record<string, string> = {
   overloaded: "Claude is busy right now. Try again in a moment.",
   refusal: "I couldn’t do that one. Try again, or tell me in two sentences what you sell.",
   network: "I couldn’t reach Claude. Check your connection, then try again.",
+  no_credit: "Your Anthropic account is out of credits. Add credits in the Anthropic Console, then try again. Your answers and corrections are saved.",
+  model_unavailable: "Your Anthropic account can’t use one of the models I need yet. Check your model access in the Anthropic Console, then try again.",
+  no_submit: "I lost the thread on that one. Your answers and corrections are saved, so trying again picks up from there.",
 };
 
 const isLive = (s: RunSummary["status"] | undefined) => s === "running" || s === "queued";
@@ -47,7 +52,14 @@ function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?:
       transition={{ duration: 0.24, ease: ease.out }}
       className="mt-6 rounded-lg bg-surface p-4 shadow-xs ring-1 ring-border sm:p-5"
     >
-      <p className="text-pretty text-[14px] leading-[21px] text-fg">{copy}</p>
+      <p className="text-pretty text-[14px] leading-[21px] text-fg">
+        {copy}
+        {code === "no_credit" && (
+          <a href={BILLING_URL} target="_blank" rel="noreferrer" className="ml-1.5 whitespace-nowrap font-medium text-accent-text underline-offset-2 hover:underline">
+            Add credits ↗
+          </a>
+        )}
+      </p>
       {!stopped && !needsKey && !(code && ERROR_COPY[code]) && message && <p className="mt-1 text-pretty text-[12.5px] text-fg-3">{message}</p>}
       {needsKey ? (
         <div className="mt-4">
@@ -58,6 +70,7 @@ function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?:
             saved={keyForm.saved}
             saving={keyForm.saving}
             title={code === "auth" ? "Paste a working Anthropic API key." : "I run on your Anthropic API key."}
+            autoFocus
             onSave={async () => {
               if (await keyForm.submit()) onRetry();
             }}
@@ -171,7 +184,7 @@ function WorkingColumn({
             >
               <Square className="size-2.5 fill-current" aria-hidden />
               Stop
-              <Kbd className="hidden sm:inline-flex">Esc</Kbd>
+              <Kbd className="hidden sm:pointer-fine:inline-flex">Esc</Kbd>
             </button>
           )}
         </div>
@@ -247,6 +260,7 @@ export function WelcomeFlow() {
   const [pending, setPending] = useState<{ runId: string; args: StartArgs } | null>(null);
   const [starting, setStarting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const wide = useWide();
 
   const status = ws?.onboarding.status;
   useEffect(() => {
@@ -312,8 +326,13 @@ export function WelcomeFlow() {
             className="mx-auto grid w-full max-w-[960px] grid-cols-1 gap-5 px-4 pb-24 pt-4 sm:px-6 md:grid-cols-[112px_minmax(0,1fr)] md:gap-10 md:px-10 md:pt-12"
           >
             <aside className="md:sticky md:top-12 md:self-start">
-              <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
-              <Orb state={orb} size={36} tick={tick} className="md:hidden" />
+              {/* When the founder says go, this orb flies into the sidebar (or the phone header). */}
+              <OrbMorph on={wide}>
+                <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
+              </OrbMorph>
+              <OrbMorph on={!wide}>
+                <Orb state={orb} size={36} tick={tick} className="md:hidden" />
+              </OrbMorph>
             </aside>
             <div className="min-w-0 max-w-[640px]">
               <AnimatePresence mode="wait" initial={false}>

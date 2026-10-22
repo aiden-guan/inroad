@@ -1,37 +1,62 @@
 "use client";
 
-import { useAsk } from "@/components/providers/ask-provider";
+import { AnimatePresence } from "motion/react";
+import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
 import { EmptyState } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
+import { askedForReferral } from "@/lib/customers/known-users";
 import { money, plural, shortDate } from "@/lib/client/format";
 import { daysBetween } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
+import { AddCustomers } from "./add-customers";
 import { championOf, customerRows, dealValue, type ChampionInfo } from "./lib";
+import { ReferralAsk } from "./referral-ask";
 
 const GRID = "md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_72px_minmax(0,1fr)]";
 
-/** Won deals and imported paying customers: when they went live, who champions it, and whether you've asked for a referral yet. */
+/**
+ * Won deals, imported paying customers and the users the founder named: when they went live, who
+ * champions it, and whether you've asked for a referral yet. ?referral=domain (from Today) opens the
+ * written ask for that customer.
+ */
 export function Customers({ ws, today, onOpen, onTalking }: { ws: Workspace; today: string; onOpen: (domain: string) => void; onTalking: () => void }) {
-  const { openAsk } = useAsk();
+  const params = useSearchParams();
+  const [asking, setAsking] = useState<string | null>(() => params.get("referral"));
   const rows = customerRows(ws);
+  // Closing drops ?referral= too, so a reload doesn't reopen it (history only, like the view's other params).
+  const closeAsk = () => {
+    setAsking(null);
+    const next = new URLSearchParams(window.location.search);
+    if (!next.has("referral")) return;
+    next.delete("referral");
+    window.history.replaceState(null, "", `${window.location.pathname}${next.size ? `?${next}` : ""}`);
+  };
 
   if (!rows.length) {
     return (
       <EmptyState
         title="No customers yet."
-        body="Your first one is in Talking. Deals land here when you mark them won."
-        action={<Button onClick={onTalking}>Go to Talking</Button>}
+        body="Already have users or design partners? Add them, and I'll ask them who else has this problem. Deals you win land here too."
+        action={
+          <div className="flex flex-col items-center gap-3">
+            <AddCustomers ws={ws} />
+            <Button variant="ghost" onClick={onTalking}>
+              Go to Talking
+            </Button>
+          </div>
+        }
       />
     );
   }
 
-  const askedReferral = (domain: string, since: string) =>
-    ws.activities.some((a) => a.accountDomain === domain && a.at >= since && (a.kind === "intro_requested" || a.sentiment === "referral" || /referr/i.test(a.summary)));
+  const askedReferral = (domain: string, since: string) => askedForReferral(ws, domain, since);
 
   return (
     <div className="pb-16">
+      <AnimatePresence initial={false}>{asking && ws.accounts[asking] && <ReferralAsk key={asking} ws={ws} domain={asking} onClose={closeAsk} />}</AnimatePresence>
       <div className={cn("hidden h-8 items-center gap-3 border-b border-border px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
         <span>Company</span>
         <span>Customer since</span>
@@ -73,17 +98,7 @@ export function Customers({ ws, today, onOpen, onTalking }: { ws: Workspace; tod
                 {asked ? (
                   <span className="text-[12.5px] text-fg-3">Asked</span>
                 ) : (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    className="-ml-2"
-                    onClick={() =>
-                      openAsk({
-                        context: { kind: "account", id: r.domain },
-                        prefill: `Draft a short referral ask for ${name}: who else they know with the same problem, and a forwardable two-line blurb.`,
-                      })
-                    }
-                  >
+                  <Button size="xs" variant="ghost" className="-ml-2" onClick={() => setAsking(r.domain)}>
                     Ask for a referral
                   </Button>
                 )}

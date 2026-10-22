@@ -8,6 +8,7 @@ import { useRuns } from "@/components/providers/runs-provider";
 import { cn } from "@/lib/client/cn";
 import { duration, usd } from "@/lib/client/format";
 import { ease, spring } from "@/lib/motion";
+import { AgentErrorNote } from "./agent-error";
 import { Favicon } from "./favicon";
 import { Orb } from "./orb";
 
@@ -113,7 +114,7 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
     return (
       <div className={cn("flex items-center gap-2", className)}>
         <Receipt run={run} onClick={() => setOpen(true)} />
-        {run.error && run.status !== "stopped" && <span className="text-[12px] text-danger">{run.error.message}</span>}
+        {run.error && run.status !== "stopped" && <AgentErrorNote error={run.error} className="min-w-0" />}
       </div>
     );
   }
@@ -180,7 +181,11 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
           {!active && <Receipt run={run} />}
         </div>
       )}
-      {run.error && run.status !== "stopped" && <p className="mt-2 text-[12px] text-danger">{run.error.message}</p>}
+      {run.error && run.status !== "stopped" && (
+        <p className="mt-2">
+          <AgentErrorNote error={run.error} />
+        </p>
+      )}
     </motion.div>
   );
 }

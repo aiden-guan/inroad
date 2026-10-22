@@ -437,6 +437,8 @@ export default defineWorkflow({
           messages: [{ role: "user", content: pipelinePrompt(ws, data) }],
           tools: [submitPipeline],
           requireTerminal: true,
+          // The review renders from code alone when the model's picks don't come back.
+          optionalResult: true,
         });
         out = res.result;
       }
@@ -468,6 +470,7 @@ export default defineWorkflow({
         messages: [{ role: "user", content: learningPrompt(ws, data) }],
         tools: [submitLearning],
         requireTerminal: true,
+        optionalResult: true,
       });
       out = res.result;
     }

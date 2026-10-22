@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { ComposeButton } from "@/components/compose/composer";
 import type { RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { AgentErrorNote } from "@/components/ui/agent-error";
 import { AiBadge, Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SourceChip } from "@/components/ui/source";
@@ -49,6 +50,7 @@ const MOVE_COPY: Record<Dossier["recommendation"]["move"], string> = {
 /** Before any research: what code found for free, and the one action that matters. */
 export function EnrichmentView({ account, onResearch, researching, lastRun }: { account: Account; onResearch: () => void; researching: boolean; lastRun?: RunState }) {
   const e = account.enrichment;
+  const failed = !researching && lastRun?.status === "error" ? lastRun : undefined;
   return (
     <div className="space-y-8">
       <div className="rounded-lg bg-surface px-5 py-6 ring-1 ring-border">
@@ -59,10 +61,19 @@ export function EnrichmentView({ account, onResearch, researching, lastRun }: { 
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button variant="agent" size="lg" loading={researching} onClick={onResearch} icon={<Search className="size-4" />}>
-            {researching ? `Researching ${account.name}` : `Research ${account.name}`}
+            {researching ? `Researching ${account.name}` : failed ? "Research again" : `Research ${account.name}`}
           </Button>
-          {lastRun?.status === "error" && <span className="text-[13px] text-danger">{lastRun.error?.message ?? "The last attempt failed."} Try again.</span>}
         </div>
+        {/* The one place a failed run is explained: what it cost, why, and that a retry costs about as much again. */}
+        {failed && (
+          <div className="mt-3 space-y-1">
+            <Receipt run={failed} />
+            <p className="px-1.5">
+              <AgentErrorNote error={failed.error ?? { message: "That attempt didn't finish." }} className="text-[13px] leading-[19px]" />
+            </p>
+            <p className="px-1.5 text-[12px] text-fg-3">Trying again costs about the same as the first attempt.</p>
+          </div>
+        )}
       </div>
 
       <WaysIn account={account} />
@@ -170,6 +181,12 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
           )}
           {lastRun && lastRun.status !== "running" && lastRun.status !== "queued" && lastRun.workflow === "dossier" && <Receipt run={lastRun} />}
         </div>
+        {lastRun?.status === "error" && lastRun.workflow === "dossier" && !refreshing && (
+          <p className="mb-3">
+            <AgentErrorNote error={lastRun.error ?? { message: "The refresh didn't finish." }} className="text-[13px] leading-[19px]" />{" "}
+            <span className="text-[12px] text-fg-3">This dossier from {shortDate(d.generatedAt)} is unchanged.</span>
+          </p>
+        )}
         <Cited evidence={ev(d.snapshot.descriptionEvidenceIds)}>
           <p className="font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg text-pretty">{d.snapshot.plainDescription}</p>
         </Cited>

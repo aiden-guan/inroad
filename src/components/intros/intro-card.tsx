@@ -56,27 +56,33 @@ function OwnerChip({ next }: { next: IntroNext }) {
   return <span className="inline-flex h-5 items-center rounded-full bg-bg-subtle px-2 text-[11.5px] text-fg-3 ring-1 ring-border">Waiting</span>;
 }
 
-/** "Claire → Rafael at Ashgrove" or "Ava ↔ Marcus". */
+/**
+ * "Claire → Rafael at Ashgrove" or "Ava ↔ Marcus". Who's being introduced is the point, so on a phone the
+ * names wrap onto a second line instead of being cut off; wider screens keep one line.
+ */
 export function IntroTitle({ intro, ws }: { intro: Intro; ws: Workspace }) {
   if (intro.kind === "give") {
     const [a, b] = intro.sides ?? [];
     return (
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span className="truncate font-medium text-fg">{a?.name}</span>
+      <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 sm:flex-nowrap">
+        <span className="font-medium text-fg sm:truncate">{a?.name}</span>
         <ArrowLeftRight className="size-3.5 shrink-0 text-fg-3" aria-label="and" />
-        <span className="truncate font-medium text-fg">{b?.name}</span>
+        <span className="font-medium text-fg sm:truncate">{b?.name}</span>
       </span>
     );
   }
   const acc = intro.accountDomain ? ws.accounts[intro.accountDomain] : undefined;
   return (
-    <span className="flex min-w-0 items-center gap-1.5">
+    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 sm:flex-nowrap">
       <span className="shrink-0 text-fg-2">{intro.connectorName ?? "Connector"}</span>
       <ArrowRight className="size-3.5 shrink-0 text-fg-3" aria-label="to" />
-      {acc && <Favicon domain={acc.domain} name={acc.name} size={14} />}
-      <span className="truncate font-medium text-fg">
-        {intro.targetName.split(",")[0]}
-        {acc && !intro.targetName.toLowerCase().includes(acc.name.split(" ")[0].toLowerCase()) && <span className="font-normal text-fg-2"> at {acc.name}</span>}
+      {/* The mark travels with the name it belongs to when the line wraps. */}
+      <span className="flex min-w-0 items-center gap-1.5">
+        {acc && <Favicon domain={acc.domain} name={acc.name} size={14} />}
+        <span className="min-w-0 font-medium text-fg [overflow-wrap:anywhere] sm:truncate">
+          {intro.targetName.split(",")[0]}
+          {acc && !intro.targetName.toLowerCase().includes(acc.name.split(" ")[0].toLowerCase()) && <span className="font-normal text-fg-2"> at {acc.name}</span>}
+        </span>
       </span>
     </span>
   );
@@ -101,12 +107,20 @@ export function IntroCard({ intro, ws, today, defaultOpen, highlight }: { intro:
             <IntroTitle intro={intro} ws={ws} />
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            {/* On a phone the status chip joins this row, so the title above gets the full width. */}
+            {next.owner !== null && (
+              <span className="sm:hidden">
+                <OwnerChip next={next} />
+              </span>
+            )}
             <Stepper intro={intro} />
             <span className="text-[12.5px] text-fg-2">{next.line}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
-          <OwnerChip next={next} />
+          <span className="hidden sm:contents">
+            <OwnerChip next={next} />
+          </span>
           <ChevronDown className={cn("size-4 text-fg-3 transition-transform duration-200", open && "rotate-180")} aria-hidden />
         </div>
       </button>

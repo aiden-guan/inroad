@@ -474,8 +474,30 @@
     filter: none;
   }
 }
+/* The orb's flight from onboarding into the sidebar (orb-morph.tsx, share="morph"): one on-screen
+   morph, then a small landing pop once it has arrived. Nothing else shares a name. */
+::view-transition-group(.morph) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-in-out);
+}
+::view-transition-image-pair(.morph) {
+  animation: 620ms var(--ease-out) both orb-land;
+}
+@keyframes orb-land {
+  0%,
+  68% {
+    transform: scale(1);
+  }
+  84% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
+  ::view-transition-image-pair(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;

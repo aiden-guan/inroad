@@ -1,0 +1,883 @@
+{
+ "version": 1,
+ "name": "foundation-first-run",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-haiku-5-5|share_learning,submit_snapshot|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "share_learning",
+     "submit_snapshot"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 2689,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 2689,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading the founder's pages for what they sell and who buys it. Quoting the site exactly so every chip has a source. Then the snapshot. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "text",
+      "text": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "text_delta",
+      "text": "Here's what the pages say so far. "
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "content_block_start",
+     "index": 2,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock3",
+      "name": "share_learning",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 2,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"key\":\"what\",\"text\":\"Acme turns metered usage into accurate invoices, so finance closes the month\",\"source\":\"site\",\"sourceUrl\":\"https://www.acme.com/\",\"quote\":\"Acme turns metered usage into accurate invoices, so finance closes the month\",\"confidence\":\"high\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 2
+    },
+    {
+     "type": "content_block_start",
+     "index": 3,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock4",
+      "name": "share_learning",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 3,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"key\":\"pricing\",\"text\":\"Plans start at $500 a month, billed on usage.\",\"source\":\"site\",\"sourceUrl\":\"https://www.acme.com/pricing\",\"quote\":\"Plans start at $500 a month, billed on usage.\",\"confidence\":\"high\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 3
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 2689,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 2689,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 233,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-haiku-5-5|share_learning,submit_snapshot|3",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "share_learning",
+     "submit_snapshot"
+    ],
+    "messages": 3,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock6"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock5",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 220,
+       "cache_read_input_tokens": 2689,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 220,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading the founder's pages for what they sell and who buys it. Quoting the site exactly so every chip has a source. Then the snapshot. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock7",
+      "name": "submit_snapshot",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"name\":\"Acme\",\"plainOneLiner\":\"Acme turns metered usage into accurate invoices, so finance closes the month in hours.\",\"whoItsFor\":\"API companies\",\"howYouCharge\":{\"model\":\"usage\",\"isPublic\":true,\"summary\":\"Plans start at $500 a month, billed on usage.\"},\"proof\":[],\"alternatives\":[{\"name\":\"Spreadsheets and manual work\",\"kind\":\"status_quo\"}],\"stage\":\"design_partners\",\"messagingIssues\":[],\"coverage\":\"thin\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 220,
+      "cache_read_input_tokens": 2689,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 220,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 211,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-opus-5-5|finish_bet,submit_section,web_search|1",
+   "request": {
+    "model": "claude-opus-5-5",
+    "tools": [
+     "finish_bet",
+     "submit_section",
+     "web_search"
+    ],
+    "messages": 1,
+    "maxTokens": 32000,
+    "effort": "high",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock9"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock8",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 5435,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 5435,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Positioning first: what they'd use instead of this. Then who buys, and the words to use with them. Saving each section as it's ready. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "server_tool_use",
+      "id": "srvtoolu_mocka",
+      "name": "web_search",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"query\":\"Acme (acme.com) alternatives competitors\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "content_block_start",
+     "index": 2,
+     "content_block": {
+      "type": "server_tool_use",
+      "id": "srvtoolu_mockb",
+      "name": "bash_code_execution",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 2,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"command\":\"python3 -c \\\"filter_results(min_relevance=0.6)\\\"\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 2
+    },
+    {
+     "type": "content_block_start",
+     "index": 3,
+     "content_block": {
+      "type": "bash_code_execution_tool_result",
+      "tool_use_id": "srvtoolu_mockb",
+      "content": {
+       "type": "bash_code_execution_result",
+       "stdout": "3 results kept",
+       "stderr": "",
+       "return_code": 0,
+       "content": []
+      }
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 3
+    },
+    {
+     "type": "content_block_start",
+     "index": 4,
+     "content_block": {
+      "type": "web_search_tool_result",
+      "tool_use_id": "srvtoolu_mocka",
+      "content": [
+       {
+        "type": "web_search_result",
+        "title": "Top Northbeam alternatives and competitors in 2026",
+        "url": "https://www.g2.com/products/northbeam/competitors/alternatives",
+        "encrypted_content": "x",
+        "page_age": "1 month ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "Northbeam pricing and reviews",
+        "url": "https://northbeam.com/pricing",
+        "encrypted_content": "x",
+        "page_age": "3 weeks ago"
+       },
+       {
+        "type": "web_search_result",
+        "title": "How finance and ops teams compare tools in this category",
+        "url": "https://www.forbes.com/sites/category-buyers-guide",
+        "encrypted_content": "x",
+        "page_age": "2 months ago"
+       }
+      ]
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 4
+    },
+    {
+     "type": "content_block_start",
+     "index": 5,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mockc",
+      "name": "submit_section",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 5,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"positioning\":{\"alternatives\":[{\"name\":\"Spreadsheets and manual work\",\"kind\":\"status_quo\",\"whyChosenToday\":\"It's free and already in place, so nobody has to ask for budget.\",\"domain\":null,\"sourceUrl\":null},{\"name\":\"Northbeam\",\"kind\":\"competitor\",\"whyChosenToday\":\"A known name buyers find first when they search for the category.\",\"domain\":\"northbeam.com\",\"sourceUrl\":\"https://www.g2.com/products/northbeam/competitors/alternatives\"}],\"differentiators\":[{\"capability\":\"Does the month-end close work in hours instead of days\",\"vsAlternative\":\"Spreadsheets and manual work\",\"status\":\"proven\",\"evidenceIds\":[\"ev_t00000007\"]}],\"valueThemes\":[{\"theme\":\"Hours back every week\",\"outcome\":\"The finance team stops rebuilding the same month-end close by hand\",\"proofEvidenceIds\":[\"ev_t00000007\"],\"needsProof\":false},{\"theme\":\"Fewer errors\",\"outcome\":\"Numbers people trust without a second check\",\"proofEvidenceIds\":null,\"needsProof\":true}],\"bestFit\":[\"API companies\"],\"category\":{\"name\":\"Finance Automation\",\"style\":\"head_to_head\",\"why\":\"Buyers already budget for this and compare a few options.\"},\"warning\":null}}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 5
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 5435,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 5435,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 967,
+      "server_tool_use": {
+       "web_search_requests": 1,
+       "web_fetch_requests": 0
+      }
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-opus-5-5|finish_bet,submit_section,web_search|3",
+   "request": {
+    "model": "claude-opus-5-5",
+    "tools": [
+     "finish_bet",
+     "submit_section",
+     "web_search"
+    ],
+    "messages": 3,
+    "maxTokens": 32000,
+    "effort": "high",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mocke"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mockd",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 629,
+       "cache_read_input_tokens": 5435,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 629,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Positioning first: what they'd use instead of this. Then who buys, and the words to use with them. Saving each section as it's ready. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mockf",
+      "name": "submit_section",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"icp\":{\"hypothesis\":{\"companyGroup\":\"API companies\",\"role\":\"Head of Finance\",\"obstacle\":\"Month-end close takes days every month\",\"cause\":\"The team grew faster than its tools\",\"improvement\":\"Month-end close done the same day\",\"sentence\":\"API companies where the head of finance still owns month-end close by hand, because the team grew faster than its tools; we make it a same-day job.\"},\"primarySegment\":\"API companies\",\"testSlices\":[],\"employeeBand\":\"50_300\",\"criteria\":[{\"text\":\"Is API companies\",\"kind\":\"firmographic\",\"mustHave\":true,\"detection\":\"yc_directory\",\"status\":\"hypothesis\",\"howToTest\":\"Check it on the next 25 touches and 5 calls.\"},{\"text\":\"Between 20 and 300 employees\",\"kind\":\"firmographic\",\"mustHave\":false,\"detection\":\"site\",\"status\":\"hypothesis\",\"howToTest\":null},{\"text\":\"Hiring for finance roles in the last 90 days\",\"kind\":\"situational\",\"mustHave\":false,\"detection\":\"job_posts\",\"status\":\"hypothesis\",\"howToTest\":null}],\"antiIcp\":[{\"text\":\"Agencies and consultancies\",\"reason\":\"They resell the work instead of owning the problem.\"}],\"triggers\":[{\"type\":\"hiring\",\"windowDays\":90,\"implication\":\"A new finance hire means month-end close is about to change hands\"}],\"confirmIf\":\"3 of the next 5 calls name this pain before we do\",\"killIf\":\"Buyers say a spreadsheet is good enough after a demo\"},\"personas\":[{\"role\":\"champion\",\"titles\":[\"Head of Finance\",\"Controller\"],\"kpis\":[\"Month-end close time\"],\"pains\":[\"Rebuilding month-end close by hand every month\"],\"triggers\":[\"A new hire on the team\"],\"objections\":[\"We'll fix it with a script\"],\"wateringHoles\":[],\"line\":\"You stop rebuilding month-end close by hand.\"},{\"role\":\"economic_buyer\",\"titles\":[\"CFO\",\"VP Finance\"],\"kpis\":[\"Team hours per month\"],\"pains\":[\"Paying senior people to do manual work\"],\"triggers\":[\"Planning next year's hires\"],\"objections\":[\"Not a priority this quarter\"],\"wateringHoles\":[],\"line\":\"Your team spends its time on the work you hired it for.\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 629,
+      "cache_read_input_tokens": 5435,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 629,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 1150,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-haiku-5-5|submit_screen|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "submit_screen"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mockh"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mockg",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 4014,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 4014
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Checking each card against the criteria. Unknown is not false: most situational facts aren't on a card. One result per candidate. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mocki",
+      "name": "submit_screen",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"results\":[{\"i\":1,\"domain\":\"tallyrock.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"false\",\"why\":\"Card says Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":2,\"domain\":\"meterly.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":3,\"domain\":\"brightledger.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":4,\"domain\":\"quantaloop.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":5,\"domain\":\"northpeak.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":6,\"domain\":\"sablewire.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":7,\"domain\":\"coppergate.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":8,\"domain\":\"fernstack.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":9,\"domain\":\"lumenly.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":10,\"domain\":\"ratecard.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":11,\"domain\":\"usagewise.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":12,\"domain\":\"billwright.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":13,\"domain\":\"metricmint.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":14,\"domain\":\"invoiceforge.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":15,\"domain\":\"pricepoint.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":16,\"domain\":\"countwell.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"false\",\"why\":\"Card says Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":17,\"domain\":\"ledgerloop.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":18,\"domain\":\"tollbooth.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":19,\"domain\":\"gaugeworks.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":20,\"domain\":\"accruely.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":21,\"domain\":\"ratewell.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":22,\"domain\":\"meterbase.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":23,\"domain\":\"seatcount.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":24,\"domain\":\"tiermark.com\",\"criteria\":[{\"id\":\"icp_t0000000b\",\"met\":\"false\",\"why\":\"Card says Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000c\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_t0000000d\",\"met\":\"unknown\",\"why\":\"\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 4014,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 4014
+      },
+      "output_tokens": 2362,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-opus-5-5|finish_bet,submit_section,web_search|5",
+   "request": {
+    "model": "claude-opus-5-5",
+    "tools": [
+     "finish_bet",
+     "submit_section",
+     "web_search"
+    ],
+    "messages": 5,
+    "maxTokens": 32000,
+    "effort": "high",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mockk"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mockj",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 557,
+       "cache_read_input_tokens": 6064,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 557,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Positioning first: what they'd use instead of this. Then who buys, and the words to use with them. Saving each section as it's ready. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mockl",
+      "name": "submit_section",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"messaging\":{\"oneLiner\":\"Acme turns metered usage into accurate invoices, so finance closes the month in hours, so finance teams get month-end close done the same day.\",\"themes\":[{\"valueTheme\":1,\"headline\":\"Hours back every week\",\"vsAlternative\":\"Spreadsheets and manual work\"}],\"byPersona\":[{\"persona\":1,\"line\":\"You stop rebuilding month-end close by hand.\"}],\"bySignal\":[{\"signal\":\"hiring\",\"implication\":\"A new finance hire inherits month-end close; we make their first month easier.\"}],\"customerWords\":[],\"bannedWords\":[]},\"questions\":[{\"question\":\"Which of your last 3 customers had this problem worst, and why?\",\"whyItMatters\":\"It sharpens who we look for first.\",\"affects\":[\"icp\"]},{\"question\":\"What did they pay for before you, in money or hours?\",\"whyItMatters\":\"It sets the price anchor.\",\"affects\":[\"pricing\"]}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "content_block_start",
+     "index": 2,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mockm",
+      "name": "finish_bet",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 2,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"confidence\":\"medium\",\"note\":\"The ICP rests on the site and your answers; calls will confirm or kill it.\"}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 2
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 557,
+      "cache_read_input_tokens": 6064,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 557,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 900,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}

@@ -1,7 +1,8 @@
 "use client";
 
 import { CalendarPlus, ChevronDown, FileText, Phone, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -54,6 +55,9 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
     [deal.meetingIds, ws],
   );
   const runs = useMeetingRuns(deal.meetingIds);
+  // ⌘K "Prep for…" lands on its meeting, opened.
+  const params = useSearchParams();
+  const focusId = params.get("intent") === "prep" ? params.get("ref") : null;
   const needsDebrief = meetings.find((m) => !m.debrief && new Date(m.startsAt).getTime() <= now);
   const next = [...meetings].reverse().find((m) => new Date(m.startsAt).getTime() > now);
 
@@ -79,7 +83,7 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
         )}
         <ul className="space-y-2">
           {meetings.map((m) => (
-            <MeetingRow key={m.id} meeting={m} deal={deal} now={now} today={today} run={runs.find((r) => r.ref?.id === m.id)} />
+            <MeetingRow key={m.id} meeting={m} deal={deal} now={now} today={today} run={runs.find((r) => r.ref?.id === m.id)} focus={m.id === focusId} />
           ))}
         </ul>
       </div>
@@ -87,14 +91,18 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
   );
 }
 
-function MeetingRow({ meeting, deal, now, today, run }: { meeting: Meeting; deal: Deal; now: number; today: string; run?: RunState }) {
+function MeetingRow({ meeting, deal, now, today, run, focus }: { meeting: Meeting; deal: Deal; now: number; today: string; run?: RunState; focus?: boolean }) {
   const { start } = useRuns();
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (focus) row.current?.scrollIntoView({ block: "nearest" });
+  }, [focus]);
   const upcoming = new Date(meeting.startsAt).getTime() > now;
   const active = run && (run.status === "running" || run.status === "queued");
   const unapplied = !!meeting.debrief && !meeting.debrief.appliedAt;
   const soon = upcoming && new Date(meeting.startsAt).getTime() - now < 36 * 3_600_000;
   const [open, setOpen] = useState<boolean | null>(null);
-  const expanded = open ?? (unapplied || !!active || (soon && !!meeting.brief));
+  const expanded = open ?? (!!focus || unapplied || !!active || (soon && !!meeting.brief));
   const [view, setView] = useState<"brief" | "debrief" | null>(null);
   const shown = meeting.debrief && meeting.brief ? (view ?? (upcoming && !unapplied ? "brief" : "debrief")) : meeting.debrief ? "debrief" : "brief";
 
@@ -105,7 +113,7 @@ function MeetingRow({ meeting, deal, now, today, run }: { meeting: Meeting; deal
   };
 
   return (
-    <li className={cn("rounded-lg bg-surface ring-1 transition-shadow duration-150", unapplied ? "ring-border-strong" : "ring-border")}>
+    <li ref={row} className={cn("scroll-mt-16 rounded-lg bg-surface ring-1 transition-shadow duration-150", unapplied || focus ? "ring-border-strong" : "ring-border")}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
         <button onClick={() => setOpen(!expanded)} aria-expanded={expanded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <ChevronDown className={cn("size-3.5 shrink-0 text-fg-3 transition-transform duration-200", !expanded && "-rotate-90")} aria-hidden />

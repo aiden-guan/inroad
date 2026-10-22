@@ -6,6 +6,12 @@ import { Agent, fetch, type Response } from "undici";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36";
 
+/**
+ * What Inroad calls itself to public APIs (SEC, GitHub, Algolia, iTunes). Their usage policies ask
+ * automated tools to say what they are instead of posing as a browser.
+ */
+export const API_UA = "Inroad/0.1 (local-first research tool)";
+
 // Loopback, private, link-local, CGNAT, benchmark, multicast/reserved, and the IPv6 ranges that
 // embed or translate IPv4 (NAT64, 6to4, IPv4-compatible). BlockList also matches IPv4-mapped
 // IPv6 (::ffff:7f00:1) against the IPv4 subnets, which hand-written prefix checks get wrong.
@@ -67,11 +73,28 @@ async function isPublicUrl(raw: string): Promise<boolean> {
   }
 }
 
-/** Plain HTTP fetch with a timeout and size cap. Returns null on any failure — signals are best-effort. */
-export async function fetchText(
-  url: string,
-  { timeoutMs = 10_000, maxBytes = 1_500_000, accept = "text/html,application/xhtml+xml" } = {},
-): Promise<{ url: string; status: number; body: string } | null> {
+interface Fetched {
+  url: string;
+  status: number;
+  contentType: string;
+  headers: Pick<Response["headers"], "get">;
+  bytes: Buffer;
+  /** The body was longer than `maxBytes` and was cut there. */
+  truncated: boolean;
+}
+
+interface GuardedOptions {
+  timeoutMs: number;
+  maxBytes: number;
+  accept: string;
+  /** Extra request headers (an API's User-Agent, a token). */
+  headers?: Record<string, string>;
+  /** Hand back 4xx/5xx answers too, so a caller can tell a rate limit from a failure. */
+  allowErrors?: boolean;
+}
+
+/** The guarded fetch behind fetchText and fetchBytes: public addresses only, on every hop, with a size cap. */
+async function fetchGuarded(url: string, { timeoutMs, maxBytes, accept, headers, allowErrors }: GuardedOptions): Promise<Fetched | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -81,7 +104,7 @@ export async function fetchText(
       if (!(await isPublicUrl(current))) return null;
       // undici's own fetch (not Next's patched global one, so no data cache) with the guarded dispatcher.
       res = await fetch(current, {
-        headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9" },
+        headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9", ...headers },
         redirect: "manual",
         signal: controller.signal,
         dispatcher,
@@ -91,22 +114,24 @@ export async function fetchText(
       current = new URL(location, current).toString();
       res = null;
     }
-    if (!res || !res.ok || !res.body) return null;
+    if (!res || (!res.ok && !allowErrors)) return null;
+    if (!res.body) return allowErrors ? { url: current, status: res.status, contentType: res.headers.get("content-type") ?? "", headers: res.headers, bytes: Buffer.alloc(0), truncated: false } : null;
     const reader = res.body.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;
+    let truncated = false;
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
       chunks.push(value);
       if (size > maxBytes) {
+        truncated = true;
         await reader.cancel();
         break;
       }
     }
-    const body = new TextDecoder().decode(Buffer.concat(chunks));
-    return { url: current, status: res.status, body };
+    return { url: current, status: res.status, contentType: res.headers.get("content-type") ?? "", headers: res.headers, bytes: Buffer.concat(chunks), truncated };
   } catch {
     return null;
   } finally {
@@ -114,8 +139,45 @@ export async function fetchText(
   }
 }
 
-export async function fetchJSON<T>(url: string, timeoutMs = 10_000): Promise<T | null> {
-  const res = await fetchText(url, { timeoutMs, accept: "application/json", maxBytes: 5_000_000 });
+/**
+ * Plain HTTP fetch with a timeout and size cap. Returns null on any failure — signals are best-effort.
+ * `responseHeaders` names headers to hand back (lowercase), e.g. an API's rate-limit counters.
+ */
+export async function fetchText(
+  url: string,
+  {
+    timeoutMs = 10_000,
+    maxBytes = 1_500_000,
+    accept = "text/html,application/xhtml+xml",
+    headers,
+    allowErrors,
+    responseHeaders,
+  }: { timeoutMs?: number; maxBytes?: number; accept?: string; headers?: Record<string, string>; allowErrors?: boolean; responseHeaders?: string[] } = {},
+): Promise<{ url: string; status: number; body: string; headers?: Record<string, string> } | null> {
+  const res = await fetchGuarded(url, { timeoutMs, maxBytes, accept, headers, allowErrors });
+  if (!res) return null;
+  const out: { url: string; status: number; body: string; headers?: Record<string, string> } = { url: res.url, status: res.status, body: new TextDecoder().decode(res.bytes) };
+  if (responseHeaders?.length) {
+    out.headers = {};
+    for (const h of responseHeaders) {
+      const v = res.headers.get(h);
+      if (v !== null) out.headers[h] = v;
+    }
+  }
+  return out;
+}
+
+/** A small binary file (an icon), whole or not at all: anything over `maxBytes` is null, never a cut-off file. */
+export async function fetchBytes(
+  url: string,
+  { timeoutMs = 8_000, maxBytes = 200_000, accept = "image/*" } = {},
+): Promise<{ url: string; contentType: string; bytes: Buffer } | null> {
+  const res = await fetchGuarded(url, { timeoutMs, maxBytes, accept });
+  return res && !res.truncated ? { url: res.url, contentType: res.contentType, bytes: res.bytes } : null;
+}
+
+export async function fetchJSON<T>(url: string, timeoutMs = 10_000, opts: { headers?: Record<string, string>; maxBytes?: number } = {}): Promise<T | null> {
+  const res = await fetchText(url, { timeoutMs, accept: "application/json", maxBytes: opts.maxBytes ?? 5_000_000, headers: opts.headers });
   if (!res) return null;
   try {
     return JSON.parse(res.body) as T;

@@ -12,6 +12,7 @@ import { cn } from "@/lib/client/cn";
 import { inboundSourceName, type InboundSourceMeta } from "@/lib/connectors/catalog";
 import type { HubStatus, InboundLogEntry } from "@/lib/hub/types";
 import { ease } from "@/lib/motion";
+import { NamedTunnelSetup, type TunnelState } from "./named-tunnel";
 import { Ago, Callout, CodeBlock, ConfirmButton, CopyField, Disclosure, ExternalLink, Steps, SubLabel, ToggleRow } from "./parts";
 import { useHubApi, usePolling } from "./use-hub";
 
@@ -33,21 +34,14 @@ export function hookPath(source: string, secret: string) {
 
 /* ───────────── Public URL (tunnel) ───────────── */
 
-interface Tunnel {
-  installed: boolean;
-  running: boolean;
-  starting: boolean;
-  url?: string;
-  error?: string;
-  installCommand: string;
-}
+type Tunnel = TunnelState;
 
 async function fetchTunnel(): Promise<Tunnel | null> {
   const res = await fetch("/api/integrations/tunnel", { cache: "no-store" });
   return res.ok ? ((await res.json()) as Tunnel) : null;
 }
 
-/** "Enable public URL": a Cloudflare quick tunnel the app starts and stops itself. */
+/** "Enable public URL": a Cloudflare tunnel the app starts and stops itself (quick, or the founder's named one). */
 function TunnelToggle({ tunnel, onChange }: { tunnel: Tunnel; onChange: (t: Tunnel) => void }) {
   const { refresh } = useWorkspace();
   // The state being switched to, while the request is in flight.
@@ -75,14 +69,25 @@ function TunnelToggle({ tunnel, onChange }: { tunnel: Tunnel; onChange: (t: Tunn
     <div className="space-y-2">
       <ToggleRow title="Enable public URL" checked={on} onChange={(v) => void toggle(v)} disabled={pending !== null || !tunnel.installed}>
         {pending === true ? (
-          "Starting a Cloudflare tunnel…"
+          tunnel.mode === "named" ? (
+            "Connecting your named tunnel…"
+          ) : (
+            "Starting a Cloudflare tunnel…"
+          )
         ) : tunnel.running ? (
           <>
-            Cloud tools reach this app at <span className="break-all font-mono text-fg-2">{tunnel.url}</span>. Only hook URLs, the agent API and MCP answer there. The address changes
-            each time the tunnel starts.
+            Cloud tools reach this app at <span className="break-all font-mono text-fg-2">{tunnel.url}</span>. Only hook URLs, the agent API and MCP answer there.{" "}
+            {tunnel.mode === "named" ? "The address stays the same across restarts." : "The address changes each time the tunnel starts."}
           </>
         ) : tunnel.installed ? (
-          "Starts a free Cloudflare tunnel while Inroad runs, so cloud tools and remote agents can reach it. Only hook URLs, the agent API and MCP answer through it."
+          tunnel.mode === "named" ? (
+            <>
+              Starts your named tunnel at <span className="break-all font-mono text-fg-2">{tunnel.namedUrl}</span> while Inroad runs. Only hook URLs, the agent API and MCP answer
+              through it.
+            </>
+          ) : (
+            "Starts a free Cloudflare tunnel while Inroad runs, so cloud tools and remote agents can reach it. Only hook URLs, the agent API and MCP answer through it."
+          )
         ) : (
           "Needs cloudflared, Cloudflare's free tunnel tool. Install it, then turn this on."
         )}
@@ -127,7 +132,12 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
     }
   }
 
-  const toggle = tunnel && <TunnelToggle tunnel={tunnel} onChange={setTunnel} />;
+  const toggle = tunnel && (
+    <div className="space-y-2.5">
+      <TunnelToggle tunnel={tunnel} onChange={setTunnel} />
+      {tunnel.installed && <NamedTunnelSetup tunnel={tunnel} port={port} onChange={setTunnel} />}
+    </div>
+  );
   if (tunnel?.running) return toggle;
 
   if (!isLocal && !editing) {
@@ -181,7 +191,8 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
   const ownTunnel = (
     <>
       <div className="mt-2.5 grid gap-1.5">
-        <CopyField value={`cloudflared tunnel --url ${appUrl || `http://localhost:${port}`}`} />
+        {/* The launcher listens on IPv4 loopback; "localhost" can resolve to ::1 first. */}
+        <CopyField value={`cloudflared tunnel --url http://127.0.0.1:${port}`} />
         <p className="text-[12px] text-fg-3">
           or <code className="font-mono">ngrok http {port}</code>. Keep it running while tools send events.
         </p>
@@ -197,8 +208,8 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
       <Callout tone={isLocal ? "warning" : "neutral"}>
         {isLocal ? (
           <p>
-            <span className="font-medium">This address only works on this computer.</span> Cloud tools can&apos;t reach it. Until it&apos;s public, I check connected sequencers for
-            replies every few minutes while Inroad is open.
+            <span className="font-medium">This address only works on this computer.</span> Cloud tools can&apos;t reach it. Until it&apos;s public, I check connected sequencers and
+            booking tools every few minutes while Inroad is open.
           </p>
         ) : (
           <p>Paste the https address your tunnel prints. Tunnel addresses change when you restart them.</p>

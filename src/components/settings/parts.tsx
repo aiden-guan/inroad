@@ -59,6 +59,25 @@ export function Row({ label, hint, htmlFor, children, className, align = "center
   );
 }
 
+/** An inline confirm or detail that opens under its row (never a modal). */
+export function Expand({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
+          transition={{ duration: 0.22, ease: ease.out }}
+          className="overflow-hidden"
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 /** A quiet "Saved" that appears for a moment after a field commits. */
 export function SavedMark({ show, className }: { show: boolean; className?: string }) {
   return (

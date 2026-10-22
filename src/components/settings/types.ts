@@ -2,6 +2,7 @@
 
 export type NewsSource = "gdelt" | "google_news" | "off";
 export type Geocoder = "osm" | "off";
+export type CompanyIcons = "letters" | "site";
 
 /** GET/POST /api/settings. The key itself never leaves the server; only where it came from and its last 4. */
 export interface SettingsStatus {
@@ -11,8 +12,16 @@ export interface SettingsStatus {
   newsSource: NewsSource;
   /** Whether places outside the built-in city list are looked up on OpenStreetMap. */
   geocoder: Geocoder;
+  /** Company marks: first letters only (nothing sent), or each company's icon from its own site. */
+  companyIcons: CompanyIcons;
+  /** A GitHub token is saved (its last 4 only); it lifts GitHub's limit from 60 to 5,000 lookups an hour. */
+  githubTokenHint: string | null;
+  /** The contact named to SEC EDGAR with Form D lookups, or null. */
+  secContact: string | null;
   /** Absolute path of the folder that holds workspace.json, settings.json and the caches. */
   dataDir: string;
+  /** The data folder is inside Inroad's own folder (no GTM_DATA_DIR), so deleting or re-cloning Inroad deletes it. */
+  dataDirInApp: boolean;
 }
 
 export type CheckStatus = "pass" | "warn" | "fail";

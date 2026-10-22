@@ -187,7 +187,7 @@ export function SettingsView() {
             <YouSection ws={ws} dispatch={dispatch} />
             <SendingSection ws={ws} dispatch={dispatch} refresh={refresh} now={now} today={today} />
             <UsageSection ws={ws} dispatch={dispatch} now={now} />
-            <DataSection ws={ws} refresh={refresh} dataDir={settings.status?.dataDir ?? null} today={today} />
+            <DataSection ws={ws} refresh={refresh} dataDir={settings.status?.dataDir ?? null} dataDirInApp={settings.status?.dataDirInApp} today={today} />
           </div>
         </div>
       </div>

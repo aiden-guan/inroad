@@ -52,8 +52,16 @@ export function PlaybookView() {
     const kind = params.get("new");
     const target = asset ? `asset-${asset}` : isKind(kind) ? (isContentKind(kind) ? "content" : "assets") : window.location.hash.slice(1);
     if (!target) return;
-    const frame = requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({ block: "start" }));
-    return () => cancelAnimationFrame(frame);
+    // A frame cancelled before it ran (Strict Mode's second mount, arriving from ⌘K with the workspace loaded) tries again.
+    let ran = false;
+    const frame = requestAnimationFrame(() => {
+      ran = true;
+      document.getElementById(target)?.scrollIntoView({ block: "start" });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (!ran) arrived.current = false;
+    };
   }, [ready, params]);
 
   const assetRuns = useMemo(() => Object.values(runs).filter((r) => r.workflow === "asset").sort((a, b) => b.startedAt - a.startedAt), [runs]);
