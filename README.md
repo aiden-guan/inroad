@@ -15,6 +15,8 @@
 
 <br/>
 
+![Inroad Hero Banner](assets/readme/hero.png)
+
 </div>
 
 ---
