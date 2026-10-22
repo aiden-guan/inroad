@@ -144,6 +144,14 @@ describe("person.forget", () => {
     expect(s.people.per_none).toBeUndefined();
   });
 
+  it("takes their first name out of a next step on a deal they were a contact on", () => {
+    const s = structuredClone(sample);
+    const deal = Object.values(s.deals).find((d) => d.contacts.some((c) => c.personId === PERSON.dana))!;
+    deal.nextStep = { what: "Call with Dana", date: TODAY, buyerAgreed: true };
+    forget(s);
+    expect(s.deals[deal.id].nextStep?.what).toBe("Call with a deleted contact");
+  });
+
   it("drops a warm path that ran through them", () => {
     const s = structuredClone(sample);
     s.people.per_other = makePerson("per_other", DOMAIN.northwind, { contactPaths: [{ kind: "warm_intro", value: "x", via: "Dana Okafor", verified: true, founderConfirmed: true }] });
