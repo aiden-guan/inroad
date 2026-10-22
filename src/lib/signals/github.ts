@@ -124,6 +124,19 @@ async function cachedGet<T>(key: string, ttl: number, path: string, accept?: str
   }
 }
 
+/** Asks GitHub whether a token works (GET /rate_limit costs nothing). "unknown" when GitHub can't be reached. */
+export async function checkGithubToken(token: string): Promise<"ok" | "bad" | "unknown"> {
+  const res = await fetchText(`${API}/rate_limit`, {
+    timeoutMs: 8000,
+    accept: "application/vnd.github+json",
+    headers: { "User-Agent": API_UA, "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${token}` },
+    allowErrors: true,
+  });
+  if (!res) return "unknown";
+  if (res.status === 401) return "bad";
+  return res.status >= 200 && res.status < 300 ? "ok" : "unknown";
+}
+
 /* ─────────────────────────── Orgs ─────────────────────────── */
 
 interface RawOwner {

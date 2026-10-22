@@ -24,7 +24,7 @@ export function useSettingsStatus() {
   }, []);
 
   /** Posts a change; returns an error message to show inline, or null when it saved. */
-  const save = useCallback(async (body: { anthropicApiKey?: string | null; newsSource?: NewsSource; geocoder?: Geocoder; companyIcons?: CompanyIcons }): Promise<string | null> => {
+  const save = useCallback(async (body: { anthropicApiKey?: string | null; newsSource?: NewsSource; geocoder?: Geocoder; companyIcons?: CompanyIcons; githubToken?: string | null; secContact?: string | null }): Promise<string | null> => {
     try {
       const res = await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json();

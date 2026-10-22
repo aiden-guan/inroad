@@ -169,6 +169,9 @@ export function CommandPalette() {
             <Item value="import linkedin connections warm network csv" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=linkedin"))}>
               Import LinkedIn connections
             </Item>
+            <Item value="import github stargazers repo developers warm" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=github"))}>
+              Import GitHub stargazers
+            </Item>
             <Item value="make an intro introduce two people give" icon={<ArrowLeftRight className="size-4" />} onSelect={() => run(() => router.push("/intros?new=give"))}>
               Make an intro
             </Item>

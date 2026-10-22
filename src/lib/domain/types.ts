@@ -457,6 +457,8 @@ export type DiscoverySource =
   | "competitor_customers"
   | "community"
   | "founder_network"
+  /** GitHub stargazers of the founder's repo (W2). */
+  | "stargazers"
   | "referral"
   | "web_search"
   | "manual"
