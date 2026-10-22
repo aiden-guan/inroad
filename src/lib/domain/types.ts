@@ -1012,6 +1012,8 @@ export interface Brief {
   /** Signal and reply keys a brief already covered, so the model only runs when something is new. */
   seen?: string[];
   llmRuns?: number;
+  /** What Today started on its own today ("mtg:<id>:<brief at>", "acc:<domain>:<move id>"): capped per day, never twice (moves/ahead). */
+  ahead?: string[];
   reviewKind?: "monday" | "friday";
   proposals?: ReviewProposal[];
   reviewRunId?: ID;
