@@ -41,8 +41,9 @@ import { VoicePrompt } from "./voice-prompt";
  * every personalized span, live lint as a single line ("Ready" or the worst issue), blockers as
  * tiny inline forms, the code-generated footer, and the handoff (Mark as sent / Open in Gmail /
  * Copy / Push to a connected sequencer). `focused` turns on the wash and the A/E/]/[ keys.
+ * `moveId`: the Today card this draft finishes, so Undo after "Mark as sent" puts the card back.
  */
-export function DraftView({ pkg, step, focused, onApproved }: { pkg: OutreachPackage; step?: number; focused?: boolean; onApproved?: () => void }) {
+export function DraftView({ pkg, step, focused, onApproved, moveId }: { pkg: OutreachPackage; step?: number; focused?: boolean; onApproved?: () => void; moveId?: string }) {
   const { ws, dispatch } = useWorkspace();
   const live = ws?.outreach[pkg.id] ?? pkg;
   const current = currentStep(live, step);
@@ -70,6 +71,7 @@ export function DraftView({ pkg, step, focused, onApproved }: { pkg: OutreachPac
       step={current}
       focused={Boolean(focused)}
       onApproved={onApproved}
+      moveId={moveId}
       onSwap={swap}
       lastSwap={lastSwap}
       animateIn={version === 0}
@@ -93,6 +95,7 @@ function DraftBody({
   step,
   focused,
   onApproved,
+  moveId,
   onSwap,
   lastSwap,
   animateIn,
@@ -102,6 +105,7 @@ function DraftBody({
   step: DraftStep;
   focused: boolean;
   onApproved?: () => void;
+  moveId?: string;
   onSwap: (index: number) => void;
   lastSwap: number | null;
   /** Off after a swap: "]" is a keyboard action, and those don't animate. */
@@ -271,7 +275,8 @@ function DraftBody({
           : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
       toast(sentTo, {
         duration: 10_000,
-        action: { label: "Undo", onClick: () => void dispatch({ type: "outreach.unapproveStep", packageId: pkg.id, step: step.step, activityId }) },
+        // Undo also reopens the card this approval finished (onApproved marks it done).
+        action: { label: "Undo", onClick: () => void dispatch({ type: "outreach.unapproveStep", packageId: pkg.id, step: step.step, activityId, ...(moveId ? { moveIds: [moveId] } : {}) }) },
       });
       onApproved?.();
     });

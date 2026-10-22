@@ -90,8 +90,11 @@ export type Action =
   | { type: "outreach.swapAlternate"; packageId: ID; index: number }
   /** Edits the parts of a package that aren't steps: LinkedIn note/DM, warm-intro wrapper. */
   | { type: "outreach.editExtra"; packageId: ID; linkedinNote?: string | null; postAcceptDm?: string; introWrapper?: string }
-  /** Undo for "Mark as sent": back to draft, removes the logged activity, reopens its moves. */
-  | { type: "outreach.unapproveStep"; packageId: ID; step: number; activityId: ID }
+  /**
+   * Undo for "Mark as sent": back to draft, removes the logged activity, reopens its moves.
+   * `moveIds`: the Today cards the approval finished (a reply card has no draft link), reopened too.
+   */
+  | { type: "outreach.unapproveStep"; packageId: ID; step: number; activityId: ID; moveIds?: ID[] }
   /** Points a draft at a person (drafts written to a role before anyone was known). */
   | { type: "outreach.setPerson"; packageId: ID; personId: ID }
   | { type: "activity.log"; activity: Activity }
@@ -563,6 +566,14 @@ export function applyAction(ws: Workspace, action: Action): void {
       ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
       for (const move of Object.values(ws.moves)) {
         if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "open";
+      }
+      // The card the founder finished by approving, whether or not it carried the draft link (gone moves are skipped).
+      for (const id of action.moveIds ?? []) {
+        const move = ws.moves[id];
+        if (move?.status === "done") {
+          move.status = "open";
+          delete move.autoDone;
+        }
       }
       // Undoing an intro ask also undoes the intro it opened, if nothing has happened on it since.
       const intro = ws.intros?.[`intro_${pkg.id}`];

@@ -1,8 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { computeMoves, mergeMoves } from "@/lib/moves/rules";
+import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
 import { sampleWorkspace } from "@/lib/sample";
 import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids";
-import { NOW, TODAY, at, makeMove, makeStep, makeWorkspace } from "@/test/factories";
+import { NOW, TODAY, at, makeMove, makePackage, makeStep, makeWorkspace } from "@/test/factories";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
 
@@ -490,6 +490,13 @@ const cases: Record<Action["type"], () => void> = {
     expect(step.sentAt).toBeUndefined();
     expect(s.activities.find((a) => a.id === sentActivity.id)).toBeUndefined();
     expect(s.moves.mv_done.status).toBe("open");
+    // The card the approval finished comes back too, even without a draft link; missing ids are skipped.
+    s.moves.mv_card = makeMove("mv_card", { status: "done" });
+    s.moves.mv_skipped = makeMove("mv_skipped", { status: "skipped" });
+    apply(s, { type: "outreach.approveStep", packageId: PACKAGE.driftglassCold, step: 1, at: at(0), activityId: "act_again" });
+    apply(s, { type: "outreach.unapproveStep", packageId: PACKAGE.driftglassCold, step: 1, activityId: "act_again", moveIds: ["mv_card", "mv_skipped", "mv_missing"] });
+    expect(s.moves.mv_card.status).toBe("open");
+    expect(s.moves.mv_skipped.status).toBe("skipped");
   },
 
   "outreach.setPerson": () => {
@@ -680,6 +687,29 @@ describe("applyAction", () => {
   it("throws ActionError for records that don't exist", () => {
     expect(() => apply(ws(), { type: "move.skip", id: "mv_missing", reason: "other" })).toThrow(ActionError);
     expect(() => apply(ws(), { type: "event.chooseTheme", id: "evt_missing", index: 0 })).toThrow(ActionError);
+  });
+});
+
+describe("Undo after Mark as sent on Today", () => {
+  it("puts a reply card back on Today, and it survives the next prepare", () => {
+    const s = ws();
+    const card = s.moves.mv_reply_act_034;
+    expect(card).toMatchObject({ status: "open", kind: "reply" });
+    // The reply draft Today showed for Dana. Its card carries no draft link (the reply rule never sets one).
+    s.outreach.out_reply = makePackage("out_reply", DOMAIN.northwind, { mode: "reply", personId: PERSON.dana, createdAt: at(0, "09:00"), steps: [makeStep(1, { thread: "reply", subject: null })], replyAction: "draft" });
+    expect(card.draft).toBeUndefined();
+
+    // A (or "Mark as sent"), then the card finishes quietly.
+    apply(s, { type: "outreach.approveStep", packageId: "out_reply", step: 1, at: at(0, "09:40"), activityId: "act_sent" }, { type: "move.done", id: card.id });
+    s.moves = mergeMoves(s.moves, computeMoves(s, NOW), TODAY);
+    expect(s.moves[card.id].status).toBe("done");
+
+    // Undo from the toast.
+    apply(s, { type: "outreach.unapproveStep", packageId: "out_reply", step: 1, activityId: "act_sent", moveIds: [card.id] });
+    s.moves = mergeMoves(s.moves, computeMoves(s, NOW), TODAY);
+    expect(s.outreach.out_reply.steps[0].status).toBe("draft");
+    expect(s.moves[card.id].status).toBe("open");
+    expect(visibleMoves(s.moves, TODAY).map((m) => m.id)).toContain(card.id);
   });
 });
 
