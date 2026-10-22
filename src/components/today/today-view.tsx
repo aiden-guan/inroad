@@ -413,7 +413,7 @@ function DayOne({ warm }: { warm: boolean }) {
       title="Let's find your first three companies"
       body={
         warm
-          ? "I'll look for companies with a dated reason to talk to you now, starting where people you already know work. Then I research each one before you write a word."
+          ? "I'll look for companies with a dated reason to talk to you now, and rank first the ones where people you know work. Then I research each one before you write a word."
           : "I'll look for companies with a dated reason to talk to you now, then research each one before you write a word. Import your LinkedIn connections and I'll start with people who already know you."
       }
       action={

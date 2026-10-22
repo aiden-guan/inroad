@@ -26,6 +26,7 @@ import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
 import { DealResolver } from "./deal-resolver";
+import { NetworkCompaniesBody } from "./network-companies";
 import { RunInline } from "./parts";
 import { ReviewBody } from "./review-panel";
 import { RefreshBet, useReviseAfterAnswer } from "@/components/playbook/refresh";
@@ -450,6 +451,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
     case "network":
     case "connectors":
       return <NetworkBody {...props} />;
+    case "network_companies":
+      return <NetworkCompaniesBody {...props} />;
     case "import":
       return (
         <div className="space-y-3">
