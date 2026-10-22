@@ -109,6 +109,13 @@ describe("matchSender", () => {
     expect(matchSender(ws, [lena], { email: "lena@glassmoor.com" }, NOW)[0]).toMatchObject({ kind: "connection", why: "email" });
     // Without a company website there's nothing to file them under.
     expect(matchSender(ws, [conn("c_x")], { name: "Lena Fischer" }, NOW)).toEqual([]);
+    // A connection already on file under that company, or by profile, is that person, offered once.
+    const dana = conn("c_dana", { firstName: "Dana", lastName: "Kim", matchedDomain: "northwind.io", company: "Northwind" });
+    expect(matchSender(ws, [dana], { name: "Dana Kim" }, NOW)).toEqual([expect.objectContaining({ kind: "person", personId: "per_dana" })]);
+    ws.people.per_sam.linkedinUrl = "https://linkedin.com/in/sam-o/";
+    expect(matchSender(ws, [conn("c_sam", { firstName: "Samuel", lastName: "Ortiz", url: "https://www.linkedin.com/in/sam-o" })], { name: "Samuel Ortiz" }, NOW)).toEqual([
+      expect.objectContaining({ kind: "person", personId: "per_sam" }),
+    ]);
     // A connection already filed as a person resolves to that person.
     ws.people.per_lena = makePerson("per_lena", "glassmoor.com", { name: "Lena Fischer" });
     expect(matchSender(ws, [{ ...lena, personId: "per_lena" }], { email: "lena@glassmoor.com" }, NOW)[0]).toMatchObject({ kind: "person", personId: "per_lena" });
