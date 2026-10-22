@@ -143,6 +143,10 @@ describe("signup and user lists", () => {
 
     await undoImport(batch.id);
     expect(Object.values(readWorkspace().people)).toEqual([]);
+    // The tags the list put on their connections go too: they no longer count as knowing the product.
+    expect(conn("Lee").tags).toBeUndefined();
+    expect(conn("Dana").tags).toBeUndefined();
+    expect(knowsProduct(readWorkspace(), conn("Lee"))).toBe(false);
   });
 
   it("date a prospect on a customer list from the import, not from when discovery found it", async () => {

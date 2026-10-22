@@ -18,7 +18,8 @@ export interface ImportBatch {
   github?: { repo: string; total: number; read: number; matched: number; rateLimited: boolean; withToken: boolean };
   /** What this import created or filled in, so undo can take exactly that back out. */
   created: { accounts: string[]; people: ID[] };
-  filled: { kind: "account" | "person"; id: string; field: string; value: unknown }[];
+  /** "connection": a tag put on a row of the founder's LinkedIn connections (connections.json). */
+  filled: { kind: "account" | "person" | "connection"; id: string; field: string; value: unknown }[];
   statusChanged: { domain: string; from: Account["status"]; to: Account["status"] }[];
   undoneAt?: ISODateTime;
   undo?: { removedAccounts: number; removedPeople: number; kept: number };
