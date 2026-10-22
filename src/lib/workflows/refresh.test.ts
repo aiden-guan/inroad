@@ -116,6 +116,27 @@ describe("the review workflow, offline", () => {
     expect(saved.review).toContain("## Pricing log");
   });
 
+  it("monthly: a real run whose model never submits still saves the parts computed in code", async () => {
+    const w = ws();
+    // The first answer and both nudges come back as plain text: the engine gives up without a result.
+    await mock.fault({ type: "no_submit", times: 3, when: { tool: "submit_monthly_review" } });
+    const { result } = await runOffline(review, { kind: "monthly" }, w);
+    expect(result).toMatchObject({ kind: "monthly" });
+    expect(mock.sent.filter((r) => r.tools?.some((t) => t.name === "submit_monthly_review"))).toHaveLength(3);
+    const saved = w.briefs[`${monthKey()}:monthly`];
+    expect(saved.review).toMatch(/I couldn't finish reading \d+ calls?.*, so nothing in your playbook changed/);
+    expect(saved.review).toContain("## Pricing log");
+  });
+
+  it("refresh: a real run whose model never submits says the playbook is unchanged", async () => {
+    const w = ws();
+    await mock.fault({ type: "no_submit", times: 3, when: { tool: "submit_refresh" } });
+    const run = runOffline(review, { kind: "refresh" }, w);
+    await expect(run).rejects.toThrow("I couldn't finish rebuilding the bet. Nothing in your playbook changed");
+    await expect(run).rejects.toMatchObject({ code: "no_submit" });
+    expect(Object.keys(w.briefs).some((k) => k.includes(":refresh:"))).toBe(false);
+  });
+
   it("monthly: names the replies it read when there were no calls", async () => {
     const w = ws();
     for (const m of Object.values(w.meetings)) delete m.debrief;

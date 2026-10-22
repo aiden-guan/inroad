@@ -1,19 +1,15 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import net from "node:net";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, vi } from "vitest";
 import { runAgent } from "@/lib/ai/engine";
 import type { AgentEvent } from "@/lib/ai/events";
 import type { Workspace } from "@/lib/domain/types";
 import type { WorkflowContext, WorkflowDef } from "@/lib/workflows/types";
+import { startMock, type MockFault, type MockServer } from "./mock-anthropic";
 
 /**
  * Runs a workflow offline: the model is scripts/mock-anthropic.mjs (spawned per test file on a free port, the real
- * streaming wire format, tool inputs synthesized from each schema) and the workspace lives in memory. Every request
- * the engine sends is recorded, so a test can check what reached the model.
+ * streaming wire format, tool inputs from the workflow's playbook or else synthesized from each schema) and the
+ * workspace lives in memory. Every request the engine sends is recorded, so a test can check what reached the model.
  */
-
-const MOCK = fileURLToPath(new URL("../../scripts/mock-anthropic.mjs", import.meta.url));
 
 export interface SentRequest {
   model: string;
@@ -22,37 +18,20 @@ export interface SentRequest {
   messages: { role: string; content: unknown }[];
 }
 
-async function freePort(): Promise<number> {
-  const srv = net.createServer();
-  await new Promise<void>((resolve) => srv.listen(0, "127.0.0.1", resolve));
-  const { port } = srv.address() as net.AddressInfo;
-  await new Promise((resolve) => srv.close(resolve));
-  return port;
-}
-
-/** Starts the mock for this test file and records the requests each test sends. */
-export function startMockModel(): { sent: SentRequest[] } {
-  let mock: ChildProcess | undefined;
-  const state = { sent: [] as SentRequest[] };
+/**
+ * Starts the mock for this test file and records the requests each test sends. `fault` queues failures the real
+ * API produces (src/test/mock-anthropic.ts), for the paths a workflow takes when the model doesn't cooperate.
+ */
+export function startMockModel(): { sent: SentRequest[]; fault: (...faults: MockFault[]) => Promise<void> } {
+  let mock: MockServer | undefined;
+  const state = { sent: [] as SentRequest[], fault: (...faults: MockFault[]) => mock!.fault(...faults) };
   beforeAll(async () => {
-    const port = await freePort();
-    mock = spawn(process.execPath, [MOCK], { env: { ...process.env, MOCK_PORT: String(port), MOCK_DELAY: "0" }, stdio: ["ignore", "pipe", "pipe"] });
-    mock.stderr!.resume();
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("mock Anthropic server did not start")), 10_000);
-      mock!.once("exit", (code) => reject(new Error(`mock Anthropic server exited (${code})`)));
-      mock!.stdout!.on("data", (chunk: Buffer) => {
-        if (chunk.toString().includes("listening")) {
-          clearTimeout(timer);
-          resolve();
-        }
-      });
-    });
-    process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${port}`;
+    mock = await startMock();
+    process.env.ANTHROPIC_BASE_URL = mock.url;
     process.env.ANTHROPIC_API_KEY = "mock";
   });
   afterAll(() => {
-    mock?.kill();
+    mock?.stop();
   });
   beforeEach(() => {
     state.sent.length = 0;
