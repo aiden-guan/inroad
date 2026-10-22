@@ -228,10 +228,12 @@ export async function runRefresh(ctx: WorkflowContext<{ kind: string; questionId
     messages: [{ role: "user", content: task }],
     tools: [submitRefresh],
     requireTerminal: true,
+    // A missing submit gets the message below, which says the playbook is unchanged, not the engine's generic one.
+    optionalResult: true,
   });
   const out = res.result;
   // No answer is not "the bet holds": say it didn't finish, and change nothing.
-  if (!out) throw new AgentError(light ? "I couldn't check what your answer changes. Your playbook is as it was." : "I couldn't finish rebuilding the bet. Nothing in your playbook changed; try again in a moment.", "unknown");
+  if (!out) throw new AgentError(light ? "I couldn't check what your answer changes. Your playbook is as it was." : "I couldn't finish rebuilding the bet. Nothing in your playbook changed; try again in a moment.", "no_submit");
   const proposals = revisionProposals(ctx.read(), out.changes, inputs, { allowed, max: light ? 3 : 6 });
   const review = [out.headline ? noBang(out.headline) : "", changesMarkdown(proposals, inputs)].filter(Boolean).join("\n\n");
   await ctx.mutate((draft) => {
@@ -309,6 +311,8 @@ export async function runMonthly(ctx: WorkflowContext<{ kind: string }>, now: Da
       messages: [{ role: "user", content: monthlyTask(ws, data) }],
       tools: [submitMonthly],
       requireTerminal: true,
+      // The bet readout, pricing log and hiring are computed in code; the review still lands without the model's part.
+      optionalResult: true,
     });
     out = res.result;
   }
