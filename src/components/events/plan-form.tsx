@@ -46,21 +46,21 @@ function Chip({ active, onClick, children, disabled }: { active: boolean; onClic
  * The planner expands in place at the top of /events (never a modal). It asks five things and
  * recommends the room that fits the founder's stage: a roundtable until there's a customer to host.
  */
-export function PlanForm({ ws, onClose, initialCity }: { ws: Workspace; onClose: () => void; initialCity?: string }) {
+export function PlanForm({ ws, onClose, initialCity, initialKind, initialCoHost }: { ws: Workspace; onClose: () => void; initialCity?: string; initialKind?: EventKind; initialCoHost?: string }) {
   const router = useRouter();
   const { start } = useRuns();
   const s = useMemo(() => stats(ws), [ws]);
   const clusters = useMemo(() => cityClusters(ws), [ws]);
 
-  // Arriving from the map ("Plan a dinner here") means a dinner in that city.
-  const [kind, setKind] = useState<EventKind>(initialCity ? "dinner" : s.won > 0 ? "dinner" : "roundtable");
+  // Arriving from the map ("Plan a dinner here") means a dinner in that city; Today's room suggestion names its kind.
+  const [kind, setKind] = useState<EventKind>(initialKind ?? (initialCity ? "dinner" : s.won > 0 ? "dinner" : "roundtable"));
   const [city, setCity] = useState(initialCity ?? clusters[0]?.city ?? "");
   const months = upcomingMonths(kind);
   const [monthPick, setMonth] = useState<string | null>(null);
   const month = monthPick && months.includes(monthPick) ? monthPick : months[0];
   const [goal, setGoal] = useState<EventGoal>(s.open >= 3 ? "accelerate_deals" : "create_pipeline");
   const [budget, setBudget] = useState("");
-  const [coHost, setCoHost] = useState("");
+  const [coHost, setCoHost] = useState(initialCoHost ?? "");
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
 
