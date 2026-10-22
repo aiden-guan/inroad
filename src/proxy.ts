@@ -58,6 +58,16 @@ export function proxy(request: NextRequest) {
       : new NextResponse("Inroad is only available on the computer it runs on.", { status: 403, headers: { "content-type": "text/plain" } });
   }
 
+  // Another site can't read the API either: an <img> or a fetch from a page the founder has open would
+  // otherwise tell it what's here (a near-instant /api/favicon answer means that company is on the list)
+  // and make Inroad fetch for it. Inroad's own pages are same-origin; a URL typed in the address bar is "none".
+  if (pathname.startsWith("/api/") && SAFE_METHODS.has(request.method)) {
+    const fetchSite = request.headers.get("sec-fetch-site");
+    if (fetchSite === "cross-site" || fetchSite === "same-site") {
+      return NextResponse.json({ error: "Other sites can't read your workspace." }, { status: 403 });
+    }
+  }
+
   if (pathname.startsWith("/api/") && !SAFE_METHODS.has(request.method)) {
     const origin = request.headers.get("origin");
     const fetchSite = request.headers.get("sec-fetch-site");

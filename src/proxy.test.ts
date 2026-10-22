@@ -113,9 +113,27 @@ describe("proxy: cross-site writes", () => {
     expect(passes(write({ origin: "http://localhost:3000", "sec-fetch-site": "cross-site" }))).toBe(false);
   });
 
-  it("leaves safe methods and pages alone", () => {
-    for (const method of ["GET", "HEAD", "OPTIONS"]) expect(passes(write({ origin: "https://evil.example.com", "sec-fetch-site": "cross-site" }, method))).toBe(true);
+  it("leaves pages alone", () => {
     expect(passes(write({ origin: "https://evil.example.com" }, "POST", "/companies"))).toBe(true);
+    expect(passes(proxy(request("/companies", { headers: { "sec-fetch-site": "cross-site", "sec-fetch-dest": "document" } })))).toBe(true);
+  });
+});
+
+describe("proxy: cross-site reads", () => {
+  const read = (headers: Record<string, string>, method = "GET", path = "/api/favicon?domain=secret-prospect.com") => proxy(request(path, { method, headers }));
+
+  it("refuses API reads from another site: an <img> probe can't tell which companies are on the list", async () => {
+    const probe = { "sec-fetch-site": "cross-site", "sec-fetch-dest": "image", referer: "https://evil.example/" };
+    expect(await blocked(read(probe))).toBe("Other sites can't read your workspace.");
+    for (const method of ["GET", "HEAD", "OPTIONS"]) expect(passes(read({ "sec-fetch-site": "cross-site" }, method, "/api/workspace/export"))).toBe(false);
+    // Another port on localhost is another site too.
+    expect(passes(read({ "sec-fetch-site": "same-site" }))).toBe(false);
+  });
+
+  it("serves the app's own reads, a URL typed in the address bar, and clients without Fetch Metadata", () => {
+    expect(passes(read({ "sec-fetch-site": "same-origin", "sec-fetch-dest": "image" }))).toBe(true);
+    expect(passes(read({ "sec-fetch-site": "none" }, "GET", "/api/workspace/export"))).toBe(true);
+    expect(passes(read({}))).toBe(true);
   });
 });
 
