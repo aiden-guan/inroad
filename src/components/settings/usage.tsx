@@ -250,6 +250,7 @@ function ProductHealth({ ws, now }: { ws: Workspace; now: number }) {
             <span className="text-right font-mono text-[12px] tnum">
               <span className={cn(r.value === null ? "text-fg-4" : r.ok === false ? "text-warning" : "text-fg")}>{r.value ?? "—"}</span>
               {r.n !== undefined && r.value !== null && <span className="text-fg-4"> n={r.n}</span>}
+              {r.value === null && !!r.n && r.min !== undefined && <span className="text-fg-4"> {r.n} of {r.min}</span>}
               <span className="block text-[11px] text-fg-3">target {r.target}</span>
             </span>
           </li>

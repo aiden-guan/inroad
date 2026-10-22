@@ -9,9 +9,11 @@ import type { DraftCritic, Workspace } from "@/lib/domain/types";
 export interface HealthRow {
   key: string;
   label: string;
-  /** "64%", "1m 40s", "Yes". Null when there's nothing to measure yet. */
+  /** "64%", "1m 40s", "Yes". Null when there's nothing to measure yet, or too little for a rate. */
   value: string | null;
   n?: number;
+  /** Rates: the sample size a rate needs before it shows. */
+  min?: number;
   target: string;
   /** null when there's too little to judge. */
   ok: boolean | null;
@@ -30,16 +32,17 @@ function seconds(ms: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
 }
 
-/** A rate row: hidden below `min` samples, judged against `target` (at least, or at most). */
+/** A rate row: hidden below `min` samples (a percentage of three says nothing), judged against `target` (at least, or at most). */
 function rate(key: string, label: string, hits: number, n: number, target: number, dir: "min" | "max", min = 5, note?: string): HealthRow {
-  const value = n ? hits / n : null;
+  const value = n >= min ? hits / n : null;
   return {
     key,
     label,
     value: value === null ? null : pct(value),
     n,
+    min,
     target: `${dir === "min" ? "≥" : "≤"}${pct(target)}`,
-    ok: value === null || n < min ? null : dir === "min" ? value >= target : value <= target,
+    ok: value === null ? null : dir === "min" ? value >= target : value <= target,
     note,
   };
 }
