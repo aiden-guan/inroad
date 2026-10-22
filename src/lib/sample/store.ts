@@ -102,6 +102,7 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
   const { list, kept: keptSuppressions } = keepSuppressions(restored.suppression ?? [], since);
   const prints = [...new Set([...(restored.forgotten ?? []), ...optOuts.forgotten, ...(current.sample ? [] : (current.forgotten ?? []))])];
   const next: Workspace = { ...restored, suppression: list, ...(prints.length ? { forgotten: prints } : {}) };
+  keepTunnelState(next, current);
   const forgotten = forgetRequested(next);
   const ws = await replaceWorkspace(next);
   const files = ["workspace.json"];
@@ -123,6 +124,27 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
   for (const f of forgotten) await forgetInFiles(f);
   await forgetConnections(ws);
   return { ws, backup, files, keptSuppressions, forgotten: forgotten.length };
+}
+
+/**
+ * Whether the public URL comes back by itself, and the address a running tunnel gave, belong to this
+ * computer now (its token is in secrets.json, which a restore never touches), not to the backup: a restore
+ * never turns a tunnel the founder switched off back on at the next start, nor shows a dead tunnel's
+ * address. In place.
+ */
+function keepTunnelState(next: Workspace, current: Workspace) {
+  const now = current.integrations.webhook_in?.config ?? {};
+  const was = next.integrations.webhook_in;
+  if (!was) return;
+  const config = { ...was.config };
+  if (now.namedTunnelAuto === undefined) delete config.namedTunnelAuto;
+  else config.namedTunnelAuto = now.namedTunnelAuto;
+  if (now.publicUrlTunnel === true) Object.assign(config, { publicUrl: now.publicUrl, publicUrlTunnel: true });
+  else if (config.publicUrlTunnel === true) {
+    delete config.publicUrl;
+    delete config.publicUrlTunnel;
+  }
+  next.integrations = { ...next.integrations, webhook_in: { ...was, config } };
 }
 
 /**
