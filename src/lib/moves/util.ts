@@ -145,6 +145,20 @@ export function hasDraftableAngle(ws: Workspace, acc: Account): boolean {
   return (acc.dossier?.angles ?? []).some((a) => a.evidenceIds.some(usable)) || acc.signals.some((s) => s.usableInOutreach && usable(s.evidenceId));
 }
 
+/**
+ * The dossier's recommendation as the app can act on it. A cold email or a LinkedIn note needs something to
+ * cite (hasDraftableAngle); with only low-confidence snippets the composer would refuse, so the dossier says
+ * what Today's card says, watch, instead of offering a draft that can only fail.
+ */
+export function actionableRecommendation(ws: Workspace, acc: Account): { move: NonNullable<Account["dossier"]>["recommendation"]["move"]; why: string; personId?: string; nothingCitable: boolean } | null {
+  const rec = acc.dossier?.recommendation;
+  if (!rec) return null;
+  if ((rec.move === "cold_email" || rec.move === "linkedin_first") && !hasDraftableAngle(ws, acc)) {
+    return { move: "watch", why: "What I found is context only (search snippets I can't cite), so there's no dated reason to write yet. I'll bring it back when there's news.", nothingCitable: true };
+  }
+  return { move: rec.move, why: rec.why, personId: rec.personId, nothingCitable: false };
+}
+
 /** The newest stored run of a workflow about one company (its dossier, a draft), if any. */
 export function latestRun(ws: Workspace, workflow: RunSummary["workflow"], domain: string): RunSummary | undefined {
   return ws.runs.filter((r) => r.workflow === workflow && r.ref?.kind === "account" && r.ref.id === domain).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];

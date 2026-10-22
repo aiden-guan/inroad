@@ -15,6 +15,7 @@ import { cn } from "@/lib/client/cn";
 import { age, hostOf, shortDate } from "@/lib/client/format";
 import { daysBetween } from "@/lib/domain/ids";
 import { listItem } from "@/lib/motion";
+import { actionableRecommendation } from "@/lib/moves/util";
 import type { Account, Angle, Dossier, Signal, SignalType } from "@/lib/domain/types";
 import { WaysIn } from "@/components/intros/ways-in";
 import { usePeopleData } from "@/components/people/use-people-data";
@@ -143,7 +144,9 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
 
   const signals = useMemo(() => account.signals.filter((s) => !s.evidenceId || ev([s.evidenceId]).length > 0).slice(0, 6), [account.signals, ev]);
   const people = ws?.people ?? {};
-  const recommended = d.recommendation.personId ? people[d.recommendation.personId] : undefined;
+  // What Today's card says too: with nothing citable, watch rather than a draft button that can only fail.
+  const rec = (ws && actionableRecommendation(ws, account)) || { move: d.recommendation.move, why: d.recommendation.why, personId: d.recommendation.personId };
+  const recommended = rec.personId ? people[rec.personId] : undefined;
   const bestAngle = d.angles[0];
   const sourceIds = useMemo(
     () => [
@@ -208,7 +211,7 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
       <div className="rounded-lg bg-surface p-4 ring-1 ring-border">
         <p className="text-[12px] font-medium text-fg-3">My recommendation</p>
         <p className="mt-1 font-serif text-[19px] leading-[27px] text-fg">
-          {MOVE_COPY[d.recommendation.move]}
+          {MOVE_COPY[rec.move]}
           {recommended && (
             <>
               {" "}
@@ -217,9 +220,9 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
           )}
           .
         </p>
-        <p className="mt-1 font-serif text-[16px] leading-[24px] text-fg-2">{d.recommendation.why}</p>
+        <p className="mt-1 font-serif text-[16px] leading-[24px] text-fg-2">{rec.why}</p>
         <div className="mt-3">
-          <RecommendationAction account={account} angle={bestAngle} personId={recommended?.id} move={d.recommendation.move} signals={signals} />
+          <RecommendationAction account={account} angle={bestAngle} personId={recommended?.id} move={rec.move} signals={signals} />
         </div>
       </div>
 
