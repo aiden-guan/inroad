@@ -168,6 +168,23 @@ test("on a phone, a referral's quote gets the card's width, with its action belo
   expect((await add.boundingBox())!.y).toBeGreaterThan(q.y + q.height - 1);
 });
 
+test("the monthly review says whose time each number is, in plain words", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  const ws = await workspace(request);
+  ws.onboarding.hiredAt = daysAgo(40);
+  expect((await request.post("/api/workspace/restore", { data: ws })).ok()).toBe(true);
+  expect((await request.post("/api/today/prepare", { data: { reason: "refresh" } })).ok()).toBe(true);
+  const others = Object.values((await workspace(request)).moves as Record<string, Json>).filter((m) => m.status === "open" && !m.id.startsWith("mv_review_monthly_"));
+  if (others.length) expect((await request.post("/api/workspace/actions", { data: { actions: others.map((m) => ({ type: "move.done", id: m.id })) } })).ok()).toBe(true);
+  expect((await request.post("/api/today/prepare", { data: { reason: "refresh" } })).ok()).toBe(true);
+
+  await page.goto("/today");
+  const review = await card(page, /^Monthly review/);
+  await open(review);
+  await expect(page.getByText(/About two minutes for me, then about half an hour for you to decide\./)).toBeVisible();
+  await expect(page.getByText(/log your quotes against how they landed/)).toHaveCount(0);
+});
+
 test("with reduced motion, holding to close as lost says to keep holding", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);
