@@ -179,7 +179,7 @@ describe("plan levers drive Today", () => {
         "beta.example": makeAccount("beta.example", { fitScore: 70 }),
       },
       people: { per_ana: makePerson("per_ana", acme, { name: "Ana Lima" }) },
-      connectors: [{ id: "con_ivy", name: "Ivy Chen", relationship: "investor", introsMade: 0 }],
+      connectors: [{ id: "con_ivy", name: "Ivy Chen", relationship: "investor", introsMade: 0, reach: ["beta.example"] }],
       activities: [0, 1, 2, 3].map((i) => makeActivity(`ask_${i}`, { kind: "intro_requested", at: at(-1) })),
     });
     const warm = () => computeMoves(ws, NOW).find((m) => m.id === `mv_warm_${acme}`)!;
@@ -189,7 +189,7 @@ describe("plan levers drive Today", () => {
     applyAction(ws, { type: "goal.update", patch: { introAsksPerWeek: 10 } });
     expect(warm()).toMatchObject({ priority: 60 });
     expect(warm().why).toContain("4 of 10 intro asks this week");
-    expect(connector().map((m) => m.why)).toEqual(["Investor · 4 of 10 intro asks this week"]);
+    expect(connector().map((m) => m.why)).toEqual(["Investor · reaches “beta.example” · 4 of 10 intro asks this week"]);
   });
 
   it("aims Today at the conversations the founder picked in the Plan, over the bet's channel plan", () => {

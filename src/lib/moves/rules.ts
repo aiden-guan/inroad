@@ -4,6 +4,7 @@ import { referralLeads } from "@/lib/deals/referrals";
 import { pilotWatch, type PilotWatch } from "@/lib/deals/rules";
 import { leadPoints, metros, nearby } from "@/lib/geo/leads";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
+import { LIST_MAX, LIST_MIN, LIST_WAIT_DAYS, reachFor } from "@/lib/intros/list";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { offeredResource } from "@/lib/quality/lint";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
@@ -54,7 +55,9 @@ const RULES = {
   close_out: { base: 60, label: "End-of-day close-out" },
   nurture: { base: 60, label: "Nurture check-back date reached" },
   warm_path: { base: 58, label: "Warm path at an ICP company" },
-  connector: { base: 58, label: "Weekly intro asks not met and a connector exists" },
+  connector: { base: 58, label: "Weekly intro asks not met, and a connector's reach names a target" },
+  connector_list: { base: 58, label: "Weekly intro asks not met: a list for an investor or advisor to mark" },
+  connector_marks: { base: 57, label: "A connector has your target list: record what they marked" },
   intro_draft: { base: 58, label: "Intro ask drafted" },
   intro_reply: { base: 96, label: "An intro landed: reply within a day" },
   intro_send: { base: 80, label: "Both sides said yes to an intro you're making" },
@@ -525,9 +528,12 @@ function sequences({ ws, now, today, out }: Ctx) {
     if (pkg.mode === "warm_intro") {
       const step = pkg.steps.find((s) => s.status === "draft");
       if (step && daysSince(pkg.createdAt, today) <= 14) {
+        // Same id as the warm-path / connector card it was drafted from, so that card fills in place. Forwardables
+        // for a marked list are several drafts to one connector in a week: the second and later get their own card.
+        const shared = pkg.connectorId ? `mv_connector_${pkg.connectorId}_${weekOf(localDate(pkg.createdAt))}` : `mv_warm_${domain}`;
+        const id = out.some((x) => x.id === shared) ? `mv_introdraft_${pkg.id}` : shared;
         out.push({
-          // Same id as the warm-path / connector card it was drafted from, so that card fills in place.
-          id: pkg.connectorId ? `mv_connector_${pkg.connectorId}_${weekOf(localDate(pkg.createdAt))}` : `mv_warm_${domain}`,
+          id,
           kind: "intro_ask",
           rule: "intro_draft",
           title: pkg.intro?.connectorName ? `Send the intro ask to ${first(pkg.intro.connectorName)}` : `Send your intro ask for ${company}`,
@@ -1195,25 +1201,73 @@ function warmPaths({ ws, today, weekStart, c, out, firstThree: covered }: Ctx) {
     });
   }
 
+  // A list out for marks: ask what came back, a day after it went.
+  for (const x of ws.connectors) {
+    const list = x.list;
+    if (!list || list.markedOn || daysSince(list.sentOn, today) < 1 || daysSince(list.sentOn, today) > LIST_WAIT_DAYS) continue;
+    out.push({
+      id: `mv_connmarks_${x.id}_${list.sentOn}`,
+      kind: "intro_ask",
+      rule: "connector_marks",
+      title: `Record which targets ${first(x.name)} marked`,
+      why: `${plural(list.domains.length, "target")} sent ${when(list.sentOn, today)} · forwardables only for the ones they mark`,
+      minutes: 2,
+      priority: RULES.connector_marks.base,
+      subjectIds: [x.id],
+      href: "/intros",
+    });
+  }
+
   if (quotaMet || !ws.connectors.length) return;
-  const target = prospects.find((a) => a.warmPathCount === 0);
-  if (!target) return;
+  const cold = prospects.filter((a) => a.warmPathCount === 0);
+  if (!cold.length) return;
   // Only a connector the ledger says is ready: no open ask, rested two weeks, not owed a give first.
-  const connector = [...ws.connectors]
+  const ready = [...ws.connectors]
     .filter((x) => x.relationship !== "connection" && ledger(ws, x, today).status === "ready")
-    .sort((a, b) => (ledger(ws, a, today).lastAskedOn ?? "").localeCompare(ledger(ws, b, today).lastAskedOn ?? ""))[0];
-  if (!connector) return;
+    .sort((a, b) => (ledger(ws, a, today).lastAskedOn ?? "").localeCompare(ledger(ws, b, today).lastAskedOn ?? ""));
+  if (!ready.length) return;
+
+  // An ask only where the connector's own reach names the company: where they work or a domain first, then a topic.
+  let best: { connector: (typeof ready)[number]; acc: (typeof cold)[number]; entry: string; exact: boolean } | undefined;
+  for (const x of ready) {
+    for (const acc of cold) {
+      const m = reachFor(x, acc);
+      if (m && (!best || (m.exact && !best.exact))) best = { connector: x, acc, ...m };
+    }
+  }
+  if (best) {
+    const { connector, acc: target, entry } = best;
+    out.push({
+      id: `mv_connector_${connector.id}_${weekStart}`,
+      kind: "intro_ask",
+      rule: "connector",
+      title: `Ask ${first(connector.name)} for an intro to ${target.name}`,
+      why: `${RELATIONSHIP[connector.relationship] ?? "Connector"} · reaches “${clip(entry, 30)}” · ${asks} of ${askTarget} intro asks this week`,
+      minutes: 4,
+      priority: RULES.connector.base,
+      ref: { kind: "account", id: target.domain },
+      subjectIds: [connector.id],
+      href: sheet(target.domain),
+    });
+    return;
+  }
+
+  // Nobody's reach names a target: never a blind ask. An investor or advisor gets a short list to mark instead
+  // (once a month at most), and forwardables follow for the rows they mark.
+  const lister = ready.find((x) => (x.relationship === "investor" || x.relationship === "angel" || x.relationship === "advisor") && (!x.list || !!x.list.markedOn || daysSince(x.list.sentOn, today) > LIST_WAIT_DAYS));
+  if (!lister || cold.length < LIST_MIN) return;
+  const targets = cold.filter((a) => !isSuppressed(ws, bestPerson(ws, a), a.domain)).slice(0, LIST_MAX);
+  if (targets.length < LIST_MIN) return;
   out.push({
-    id: `mv_connector_${connector.id}_${weekStart}`,
+    id: `mv_connlist_${lister.id}_${weekStart}`,
     kind: "intro_ask",
-    rule: "connector",
-    title: `Ask ${first(connector.name)} for an intro to ${target.name}`,
-    why: `${RELATIONSHIP[connector.relationship] ?? "Connector"} · ${asks} of ${askTarget} intro asks this week`,
-    minutes: 4,
-    priority: RULES.connector.base,
-    ref: { kind: "account", id: target.domain },
-    subjectIds: [connector.id],
-    href: sheet(target.domain),
+    rule: "connector_list",
+    title: `Send ${first(lister.name)} your top ${targets.length} targets to mark`,
+    why: `${RELATIONSHIP[lister.relationship]} · a short list to mark beats a blind ask · ${asks} of ${askTarget} intro asks this week`,
+    minutes: 5,
+    priority: RULES.connector_list.base,
+    subjectIds: [lister.id, ...targets.map((a) => a.domain)],
+    href: "/intros",
   });
 }
 

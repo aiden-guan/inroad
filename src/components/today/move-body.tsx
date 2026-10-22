@@ -22,6 +22,7 @@ import { QUESTIONS_PER_CARD, RULE_PREFIX } from "@/lib/moves/rules";
 import { ago, clip, clockTime, companyName, first, knowsDirectly, plural, shortDay } from "@/lib/moves/util";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
+import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
 import { DealResolver } from "./deal-resolver";
 import { RunInline } from "./parts";
 import { ReviewBody } from "./review-panel";
@@ -218,6 +219,10 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
           lead="Follow-ups are written when they're due, on a new angle: never a bump. Step 3 is the last email; after that, one blank LinkedIn invite."
         />
       );
+    case "connector_list":
+      return <ConnectorListBody {...props} />;
+    case "connector_marks":
+      return <ConnectorMarksBody {...props} />;
     case "cold_draft":
     case "signal":
     case "linkedin":

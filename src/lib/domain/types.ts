@@ -385,6 +385,8 @@ export interface Connector {
   introsMade: number;
   /** What the founder did for them: intros, favors. The ledger weighs asks against these. */
   gives?: { at: ISODate; what: string }[];
+  /** The last target list sent for them to mark (one ask), and the rows they marked. Forwardables follow for those only. */
+  list?: { sentOn: ISODate; domains: string[]; marked?: string[]; markedOn?: ISODate };
 }
 
 /* ─────────────────────────────── Intros ─────────────────────────────── */
