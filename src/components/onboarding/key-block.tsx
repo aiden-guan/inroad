@@ -41,8 +41,9 @@ export const KeyBlock = forwardRef<
     /** Shows its own Save button (used after a run failed on the key). */
     onSave?: () => void;
     saving?: boolean;
+    autoFocus?: boolean;
   }
->(function KeyBlock({ value, onChange, error, saved, title = "I run on your Anthropic API key.", onSave, saving }, ref) {
+>(function KeyBlock({ value, onChange, error, saved, title = "I run on your Anthropic API key.", onSave, saving, autoFocus }, ref) {
   if (saved?.hasKey) {
     return (
       <p className="flex items-center gap-2 text-[13px] text-fg-2">
@@ -72,6 +73,7 @@ export const KeyBlock = forwardRef<
           ref={ref}
           id="anthropic-key"
           type="password"
+          autoFocus={autoFocus}
           autoComplete="off"
           spellCheck={false}
           placeholder="sk-ant-…"
@@ -94,7 +96,7 @@ export const KeyBlock = forwardRef<
         )}
       </div>
       <p id="anthropic-key-help" className="mt-1.5 text-[12px] text-fg-3">
-        Saved only in <span className="font-mono">settings.json</span> in your data folder on this machine, readable by you alone.
+        Stored only on this computer, never sent anywhere but Anthropic.
       </p>
       <FieldError>{error}</FieldError>
     </div>

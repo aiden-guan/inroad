@@ -69,6 +69,7 @@ function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?:
             saved={keyForm.saved}
             saving={keyForm.saving}
             title={code === "auth" ? "Paste a working Anthropic API key." : "I run on your Anthropic API key."}
+            autoFocus
             onSave={async () => {
               if (await keyForm.submit()) onRetry();
             }}
