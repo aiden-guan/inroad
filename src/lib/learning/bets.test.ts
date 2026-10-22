@@ -107,6 +107,14 @@ describe("readout", () => {
     expect(r).toEqual({ control: { sent: 4, replies: 2, positive: 2 }, variant: { sent: 3, replies: 0, positive: 0 }, enough: false });
   });
 
+  it("counts a draft handed to a sequencer or a LinkedIn note as a send", () => {
+    const ws = makeWorkspace();
+    ws.activities.push(makeActivity("act_push", { kind: "pushed", personId: "per_p", at: at(-5), tags: { bet: { id: "prop_b", arm: "control" } } }));
+    ws.activities.push(makeActivity("act_li", { kind: "linkedin_connect", personId: "per_l", at: at(-5), tags: { bet: { id: "prop_b", arm: "variant" } } }));
+    ws.activities.push(makeActivity("rep_p", { kind: "reply_received", personId: "per_p", at: at(-3), sentiment: "positive" }));
+    expect(betReadout(ws, "prop_b")).toEqual({ control: { sent: 1, replies: 1, positive: 1 }, variant: { sent: 1, replies: 0, positive: 0 }, enough: false });
+  });
+
   it("keeps the verdict inconclusive below 100 sends per arm, whatever was suggested", () => {
     const ws = makeWorkspace();
     sends(ws, "control", BET_MIN_PER_ARM, 10);

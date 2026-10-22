@@ -8,6 +8,14 @@ import { activeBet, betArmFor } from "./bets";
  * reducer runs it on both sides of an approval.
  */
 
+/** The channel a send went out on, for the reviews: a pushed draft goes out as what it was written for. */
+export function sendChannel(ws: Workspace, a: Activity): string {
+  if (a.kind === "linkedin_dm" || a.kind === "linkedin_connect") return "linkedin";
+  if (a.kind === "intro_requested") return "intro";
+  if (a.kind === "pushed") return ws.outreach[a.draftRef?.packageId ?? ""]?.mode === "linkedin" ? "linkedin" : "email";
+  return a.channel ?? "email";
+}
+
 /** The account signal this draft rests on: the angle's own signal, else one its evidence shows, else the freshest usable one. */
 export function signalTypeFor(account: Account | undefined, angleId: string | undefined, evidenceIds: string[] = []): SignalType | undefined {
   if (!account) return undefined;

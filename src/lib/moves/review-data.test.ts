@@ -34,6 +34,41 @@ describe("learningData conversions from real sends", () => {
     expect(row("persona")).toEqual([["champion", 1, 1, 1]]);
   });
 
+  it("counts first sends on every channel: LinkedIn, a sequencer push and an intro ask too", () => {
+    const ws = sent();
+    ws.people.per_li = makePerson("per_li", "acme.example", { role: "champion" });
+    ws.people.per_seq = makePerson("per_seq", "acme.example", { title: "VP Finance" });
+    ws.people.per_intro = makePerson("per_intro", "acme.example", { role: "economic_buyer" });
+    ws.outreach.out_li = makePackage("out_li", "acme.example", { mode: "linkedin", personId: "per_li", angleId: "ang_1", steps: [makeStep(1, { subject: null, frame: "mouse_trap" })] });
+    ws.outreach.out_intro = makePackage("out_intro", "acme.example", { mode: "warm_intro", personId: "per_intro", steps: [makeStep(1, { frame: "referral" })] });
+    applyAction(ws, { type: "outreach.approveStep", packageId: "out_li", step: 1, at: at(-2), activityId: "act_li" });
+    applyAction(ws, { type: "outreach.approveStep", packageId: "out_intro", step: 1, at: at(-2), activityId: "act_intro" });
+    // Handed to a sequencer: the push carries the tags; the tool's own "sent" event comes later, untagged.
+    ws.outreach.out_seq = makePackage("out_seq", "acme.example", { personId: "per_seq" });
+    ws.activities.push(makeActivity("act_push", { kind: "pushed", personId: "per_seq", accountDomain: "acme.example", channel: "integration", at: at(-3), draftRef: { packageId: "out_seq", step: 1 }, signalType: "funding", tags: { frame: "4t", persona: "economic_buyer" } }));
+    ws.activities.push(makeActivity("act_tool_sent", { kind: "touch_sent", personId: "per_seq", accountDomain: "acme.example", at: at(-2) }));
+    ws.activities.push(makeActivity("act_li_reply", { kind: "reply_received", personId: "per_li", at: at(-1), sentiment: "positive" }));
+
+    const rows = learningData(ws, NOW).conversions;
+    const row = (dimension: string) => Object.fromEntries(rows.filter((r) => r.dimension === dimension).map((r) => [r.key, [r.sent, r.replies, r.positive]]));
+    expect(row("channel")).toEqual({ email: [2, 1, 1], linkedin: [1, 1, 1], intro: [1, 0, 0] });
+    // The pushed draft counts once, with its tags; the intro ask only says who and how, not how it was written.
+    expect(row("signal")).toEqual({ first_hire: [2, 2, 2], funding: [1, 0, 0] });
+    expect(row("frame")).toEqual({ "advice ask (founder card)": [1, 1, 1], "mouse trap": [1, 1, 1], "4T": [1, 0, 0] });
+    // LinkedIn notes have no subject line.
+    expect(row("subject_style")).toEqual({ "subject names their trigger": [1, 1, 1], "no subject tagged": [1, 0, 0] });
+    // Persona is the one the send was written to, not the raw title.
+    expect(row("persona")).toEqual({ champion: [2, 2, 2], "economic buyer": [2, 0, 0] });
+  });
+
+  it("reads which send a reply answers on any channel", () => {
+    const ws = makeWorkspace();
+    ws.people.per_li = makePerson("per_li", "acme.example", { title: "Head of Finance" });
+    ws.activities.push(makeActivity("act_li", { kind: "linkedin_dm", personId: "per_li", at: at(-2), signalType: "funding", tags: { persona: "champion" } }));
+    ws.activities.push(makeActivity("act_r", { kind: "reply_received", personId: "per_li", at: at(0, "09:00"), sentiment: "positive", body: "Sure" }));
+    expect(learningData(ws, NOW).replies[0]).toMatchObject({ signal: "funding", persona: "champion" });
+  });
+
   it("says when a touch went out untagged", () => {
     const ws = makeWorkspace();
     ws.activities.push(makeActivity("act_old", { kind: "touch_sent", personId: "per_x", at: at(-3) }));
