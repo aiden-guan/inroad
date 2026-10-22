@@ -1250,7 +1250,7 @@ export function ComposeButton({
               Hide
             </Button>
           </div>
-          {pkg ? <DraftView pkg={pkg} /> : <DraftSkeleton />}
+          {pkg ? <DraftView pkg={pkg} /> : personId && ws && !ws.people[personId] ? <ForgottenNote /> : <DraftSkeleton />}
         </div>
       )}
     </div>

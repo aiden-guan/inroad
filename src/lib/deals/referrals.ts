@@ -27,17 +27,25 @@ export interface ReferralLead extends DebriefReferral {
   domain?: string;
   /** Already a person on file. */
   personId?: ID;
-  /** Written to (or drafted) since the call, or someone not to contact. */
+  /** Written to since the call, already on this deal, or someone not to contact. */
   acted: boolean;
+  /** A draft to them exists since the call (not sent yet): its own card on Today carries it. */
+  drafted: boolean;
 }
+
+const lower = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 
 /** What the debrief keeps of the model's referrals: trimmed, quoted only from verified quotes, empty ones dropped. */
 export function structuredReferrals(raw: { name: string | null; company: string | null; quoteId: string | null }[], quoteText: Map<string, string>): DebriefReferral[] {
+  const seen = new Set<string>();
   return raw.flatMap((r) => {
     const name = r.name?.trim();
     const company = r.company?.trim();
     const quote = r.quoteId ? quoteText.get(r.quoteId) : undefined;
-    return name || company ? [{ ...(name ? { name } : {}), ...(company ? { company } : {}), ...(quote ? { quote } : {}) }] : [];
+    const key = `${lower(name)}|${lower(company)}`;
+    if ((!name && !company) || seen.has(key)) return [];
+    seen.add(key);
+    return [{ ...(name ? { name } : {}), ...(company ? { company } : {}), ...(quote ? { quote } : {}) }];
   });
 }
 
@@ -52,7 +60,6 @@ export function debriefReferrals(d: Debrief): DebriefReferral[] {
     .filter((r) => r.name || r.company);
 }
 
-const lower = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 const firstOf = (s: string | undefined) => lower(s).split(/\s+/)[0] ?? "";
 
 /** The account a company name refers to, if the workspace has it. */
@@ -89,8 +96,8 @@ export function referralLeads(ws: Workspace, meeting: Meeting): ReferralLead[] {
       !!person &&
       (onDeal ||
         person.doNotContact ||
-        Object.values(ws.outreach).some((p) => p.personId === person.id && p.createdAt >= since) ||
         ws.activities.some((a) => a.personId === person.id && a.at >= since && (a.kind === "touch_sent" || a.kind === "linkedin_dm" || a.kind === "linkedin_connect" || a.kind === "intro_requested")));
+    const drafted = !!person && Object.values(ws.outreach).some((p) => p.personId === person.id && p.createdAt >= since);
     return {
       ...r,
       key: `${meeting.id}:${i}`,
@@ -99,6 +106,7 @@ export function referralLeads(ws: Workspace, meeting: Meeting): ReferralLead[] {
       ...(domain ? { domain } : {}),
       ...(person ? { personId: person.id } : {}),
       acted,
+      drafted,
     };
   });
 }
