@@ -211,7 +211,10 @@ function Plan() {
         {m.warm ? (
           <p>
             Warm capacity: {plural(m.warm.atIcp, "person", "people")} in your network at companies that fit, {m.warm.buyerTitles} in buyer roles.
-            {m.warm.weeksOfAsks !== null && ` At ${m.intro.perWeek} asks a week, that's about ${plural(m.warm.weeksOfAsks, "week")} before you need new sources.`}
+            {m.warm.weeksOfAsks !== null &&
+              (m.warm.weeksOfAsks < 1
+                ? ` At ${m.intro.perWeek} asks a week, that's under a week of asks: your investors and advisors are the next source.`
+                : ` At ${m.intro.perWeek} asks a week, that's about ${plural(m.warm.weeksOfAsks, "week")} before you need new sources.`)}
           </p>
         ) : (
           <p>
