@@ -39,6 +39,10 @@ function withDanaEverywhere(): Workspace {
   s.intros.intro_dana = { id: "intro_dana", kind: "ask", stage: "asked", personId: PERSON.dana, accountDomain: DOMAIN.northwind, targetName: "Dana Okafor, Controller", askedOn: TODAY, history: [], createdAt: at(0), updatedAt: at(0) };
   s.evidence.ev_named = { id: "ev_named", claim: "Dana Okafor spoke at the close roundtable", quote: "Dana Okafor, Controller at Northwind", url: "https://events.example/close", host: "events.example", sourceType: "press", retrievedAt: at(-3), confidence: "high" };
   s.accounts[DOMAIN.northwind].signals.push({ id: "sig_named", type: "persona_post", headline: "Dana Okafor posted about usage tie-outs", date: TODAY, url: "https://x.example", host: "x.example", evidenceId: "ev_named", strength: 2, usableInOutreach: true, implication: "" });
+  // Named as a referral on another company's call.
+  const other = Object.values(s.meetings).find((m) => m.debrief && s.deals[m.dealId]?.accountDomain !== DOMAIN.northwind)!;
+  other.debrief!.referrals = ["Dana Okafor at Northwind"];
+  other.debrief!.referralPeople = [{ name: "Dana Okafor", company: "Northwind" }, { name: "Sam Ortiz" }];
   return s;
 }
 
@@ -75,6 +79,9 @@ describe("person.forget", () => {
     expect(Object.values(s.deals).flatMap((d) => d.contacts.map((c) => c.personId))).not.toContain(PERSON.dana);
     expect(Object.values(s.meetings).flatMap((m) => m.attendees.map((x) => x.personId))).not.toContain(PERSON.dana);
     expect(Object.values(s.events).flatMap((e) => Object.values(e.guests).map((g) => g.personId))).not.toContain(PERSON.dana);
+    const other = Object.values(s.meetings).find((m) => m.debrief?.referralPeople)!;
+    expect(other.debrief!.referralPeople).toEqual([{ name: "Sam Ortiz" }]);
+    expect(other.debrief!.referrals).toEqual([]);
 
     // The suppression entry holds the email and nothing else about them.
     expect(s.suppression.at(-1)).toEqual({ id: "sup_forget", email: DANA, reason: "requested_delete", at: at(0) });

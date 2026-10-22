@@ -7,6 +7,7 @@ import { DraftView } from "@/components/compose/composer";
 import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
 import { ForgetPerson } from "@/components/people/forget-person";
+import { ReferralLeads } from "@/components/people/referral-leads";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
@@ -181,6 +182,21 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       return <CheckReplies ws={ws} now={props.now} active={props.focused} onFinished={onComplete} onChanged={props.onChanged} ref={repliesHandle} />;
     case "reply_book":
       return <BookBody {...props} />;
+    case "referrals": {
+      const meeting = move.ref?.kind === "meeting" ? ws.meetings[move.ref.id] : undefined;
+      if (!meeting) break;
+      return (
+        <div className="space-y-3">
+          <Lead>They named people worth meeting. A note that says who sent you is the warmest first touch there is, and it doesn&apos;t need a dated signal.</Lead>
+          <ReferralLeads meeting={meeting} />
+          <Row>
+            <Button variant="ghost" onClick={onComplete}>
+              Done for now
+            </Button>
+          </Row>
+        </div>
+      );
+    }
     case "meeting_prep":
       return <PrepBody {...props} />;
     case "debrief":

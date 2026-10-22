@@ -799,7 +799,10 @@ export interface Debrief {
   tasks: { what: string; due?: ISODate; owner: "founder" | "buyer" }[];
   newObjections: string[];
   customerWords: string[];
+  /** "Name at Company", for display. Debriefs since referrals became leads also carry `referralPeople`. */
   referrals: string[];
+  /** Who they suggested talking to ("who else should I talk to?"), structured, with their words when quoted. */
+  referralPeople?: { name?: string; company?: string; quote?: string; domain?: string }[];
   toConfirm: string[];
   coaching: string[];
   generatedAt: ISODateTime;
