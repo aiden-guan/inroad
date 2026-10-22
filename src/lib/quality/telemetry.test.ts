@@ -5,7 +5,7 @@ import type { DraftCritic } from "@/lib/domain/types";
 import { DATA_DIR } from "@/lib/store/settings";
 import { NOW, at, makeActivity, makeDeal, makeMeeting, makePackage, makeStep, makeWorkspace } from "@/test/factories";
 import { lintDraft } from "./lint";
-import { pickReference } from "./references";
+import { REFERENCES, pickReference } from "./references";
 import { localReferences } from "./references-store";
 import { criticPass, productHealth } from "./telemetry";
 
@@ -22,11 +22,13 @@ describe("productHealth", () => {
     ws.activities.push(makeActivity("r", { kind: "reply_received", personId: "p2", at: at(-8) }));
     ws.evidence.e1 = { id: "e1", claim: "", quote: "", url: "", host: "", sourceType: "press", retrievedAt: at(-1), confidence: "high", flaggedWrong: { at: at(0) } };
     const rows = Object.fromEntries(productHealth(ws, NOW).map((r) => [r.key, r]));
-    // Three verdicts: too few to judge against the target yet.
-    expect(rows.critic_first_pass).toMatchObject({ value: "33%", n: 3, ok: null, target: "≥70%" });
-    expect(rows.critic_vs_reference).toMatchObject({ value: "67%", n: 3 });
+    // Three verdicts: too few for a rate, so none shows (Settings says how many it has of the 5 it needs).
+    expect(rows.critic_first_pass).toMatchObject({ value: null, n: 3, min: 5, ok: null, target: "≥70%" });
+    expect(rows.critic_vs_reference).toMatchObject({ value: null, n: 3 });
     expect(rows.light_edits).toMatchObject({ value: "80%", n: 5, ok: true });
-    expect(rows.flagged_wrong).toMatchObject({ value: "100%", n: 1, ok: null });
+    expect(rows.flagged_wrong).toMatchObject({ value: null, n: 1, min: 20, ok: null });
+    for (let i = 0; i < 2; i++) ws.outreach[`o${i + 2}`] = makePackage(`o${i + 2}`, "a.example", { steps: [makeStep(1, { critic: critic() })] });
+    expect(Object.fromEntries(productHealth(ws, NOW).map((r) => [r.key, r])).critic_first_pass).toMatchObject({ value: "60%", n: 5, ok: false });
     expect(rows.outcomes_marked).toMatchObject({ value: "60%", n: 5, ok: false });
   });
 
@@ -80,5 +82,33 @@ describe("drafts that read like a pasted AI-written email", () => {
     expect(echo.violations).toContainEqual(expect.objectContaining({ code: "NEAR_DUPLICATE", severity: "warn" }));
     const own = lint("Dana, the billing analyst post at Northwind asks the new hire to own usage reconciliation in their first 90 days. That script tends to outlive the person who wrote it. Is reconciliation going to sit with the analyst, or stay with you?");
     expect(own.violations.filter((v) => v.code === "NEAR_DUPLICATE")).toEqual([]);
+  });
+});
+
+describe("bundled critic references", () => {
+  it("cover every frame and step the composer writes, so a draft is never judged against a different kind of email", () => {
+    const pairs: [Parameters<typeof pickReference>[1], number][] = [
+      ["founder_card", 1], ["4t", 1], ["observation_problem_proof", 1], ["mouse_trap", 1], ["problem_prompter", 1], ["referral", 1],
+      ["4t", 2], ["mouse_trap", 2], ["founder_card", 2], ["observation_problem_proof", 2],
+      ["referral", 3], ["permission_to_close", 3],
+    ];
+    for (const [frame, step] of pairs) {
+      const ref = REFERENCES.find((r) => r.id === pickReference(makeWorkspace(), frame, step, () => 0).id)!;
+      expect([frame, step, ref.frames.includes(frame) && ref.step === step]).toEqual([frame, step, true]);
+    }
+  });
+
+  it("match the step before the frame when nothing matches both", () => {
+    const ref = pickReference(makeWorkspace(), "problem_prompter", 2, () => 0);
+    expect(REFERENCES.find((r) => r.id === ref.id)?.step).toBe(2);
+  });
+
+  it("pass lint as the frame and step they stand for", () => {
+    const errors = REFERENCES.flatMap((r) =>
+      lintDraft({ subject: r.subject, body: r.body, frame: r.frames[0], step: r.step, kind: "email", sourcedText: r.body, thread: r.step === 1 ? "new" : "reply" })
+        .violations.filter((v) => v.severity === "error")
+        .map((v) => `${r.id}: ${v.code}`),
+    );
+    expect(errors).toEqual([]);
   });
 });

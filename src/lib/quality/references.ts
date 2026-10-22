@@ -60,17 +60,32 @@ export const REFERENCES: ReferenceEmail[] = [
     body: `Dana, sounds like the timing is off for you, so this is my last note. Will reconciliation matter to your team in about two quarters?`,
   },
   {
-    id: "ref-dm-talk",
+    id: "ref-mouse-talk",
     frames: ["mouse_trap"],
     step: 1,
+    subject: "cost alerts a sprint late",
+    body: `Raj, your KubeCon talk said cost alerts show up a sprint after the code that caused them has shipped. Do your teams see spend per service before a merge, or only once the bill lands?`,
+  },
+  {
+    id: "ref-referral-intro",
+    frames: ["referral"],
+    step: 1,
+    subject: "Ana suggested I write",
+    body: `Mei, Ana Ruiz said you own month-end close at Lumen now. I asked her who has thought hardest about tying usage to invoices, and she named you. I spent six years on billing systems and I'm trying to learn where that work still breaks. Could you spare 20 minutes to walk me through how your team does it today?`,
+  },
+  {
+    id: "ref-step2-proof",
+    frames: ["observation_problem_proof"],
+    step: 2,
     subject: null,
-    body: `Thanks for connecting, Raj. Your point at KubeCon that cost alerts arrive a sprint too late matched what I hear from platform leads. Do your teams see spend per service before merge, or only after the bill?`,
+    body: `Ana, one more thought. Teams that move to usage tiers usually find the first audit question is which invoice came from which usage event. If that trail is a spreadsheet today, it tends to be the slowest part of close. Is that the case for you?`,
   },
 ];
 
 /**
- * Picks the reference to compare against: one of the founder's pasted emails if any, else the
- * bundled reference closest to this frame and step.
+ * Picks the reference to compare against: one of the founder's pasted emails if any, else the bundled reference
+ * closest to this frame and step. The step matters more than the frame: a 40-word follow-up judged against a cold
+ * first touch, or a referral against a breakup note, would make the comparison about length and moment, not quality.
  */
 export function pickReference(ws: Workspace, frame: DraftFrame, step: number, rand = Math.random, bundled: ReferenceEmail[] = REFERENCES): { id: string; text: string } {
   const own = (ws.voice?.samples ?? []).filter((s) => s.kind === "email" && s.text.split(/\s+/).length >= 25);
@@ -79,8 +94,9 @@ export function pickReference(ws: Workspace, frame: DraftFrame, step: number, ra
     return { id: `voice-${i}`, text: own[i].text.slice(0, 1200) };
   }
   const exact = bundled.filter((r) => r.frames.includes(frame) && r.step === step);
+  const sameStep = bundled.filter((r) => r.step === Math.min(step, 3));
   const byFrame = bundled.filter((r) => r.frames.includes(frame));
-  const pool = exact.length ? exact : byFrame.length ? byFrame : bundled.filter((r) => r.step === Math.min(step, 3));
+  const pool = exact.length ? exact : sameStep.length ? sameStep : byFrame;
   const ref = pool[Math.floor(rand() * pool.length)] ?? bundled[0];
   return { id: ref.id, text: ref.subject ? `Subject: ${ref.subject}\n\n${ref.body}` : ref.body };
 }
