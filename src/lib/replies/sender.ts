@@ -170,6 +170,7 @@ function recentlyTouched(ws: Workspace, now: Date, days = 60): Set<ID> {
 export function matchSender(ws: Workspace, connections: Connection[], parsed: ParsedSender, now: Date): SenderMatch[] {
   const out: SenderMatch[] = [];
   const seen = new Set<string>();
+  const people = Object.values(ws.people);
   const push = (m: SenderMatch) => {
     const key = m.kind === "person" ? `p:${m.personId}` : m.kind === "connection" ? `c:${m.connectionId}` : `n:${m.domain}`;
     if (seen.has(key)) return;
@@ -180,12 +181,17 @@ export function matchSender(ws: Workspace, connections: Connection[], parsed: Pa
     const p = ws.people[id];
     if (p) push({ kind: "person", personId: p.id, name: p.name, ...(p.title ? { title: p.title } : {}), domain: p.accountDomain, company: companyName(ws, p.accountDomain), why });
   };
+  const linkedinKey = (u: string | undefined) => (u ?? "").toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "");
   const asConnection = (c: Connection, why: "email" | "name") => {
     if (c.personId && ws.people[c.personId]) return asPerson(c.personId, why);
+    // Already on file under that company (or that profile): the same person, offered once.
+    const filed = people.find(
+      (p) => (!!c.url && !!p.linkedinUrl && linkedinKey(p.linkedinUrl) === linkedinKey(c.url)) || (!!c.matchedDomain && p.accountDomain === c.matchedDomain && norm(p.name) === norm(connName(c))),
+    );
+    if (filed) return asPerson(filed.id, why);
     if (!c.matchedDomain) return;
     push({ kind: "connection", connectionId: c.id, name: connName(c), ...(c.position ? { title: c.position } : {}), domain: c.matchedDomain, company: ws.accounts[c.matchedDomain]?.name ?? (c.company || companyName(ws, c.matchedDomain)), why });
   };
-  const people = Object.values(ws.people);
   const email = parsed.email ? normalizeEmail(parsed.email) : null;
   const name = parsed.name ? norm(parsed.name) : email ? norm(nameFromEmail(email) ?? "") : "";
 
