@@ -11,6 +11,8 @@ import {
   ROLE_LABELS,
   assetGate,
   computedNumbers,
+  contentRunTitle,
+  isContentKind,
   debriefCount,
   parts,
   placeholders,
@@ -20,6 +22,7 @@ import {
   themeNeedsProof,
   unsourcedNumbers,
 } from "@/components/playbook/model";
+import { contentNotes } from "@/lib/quality/content";
 import { defineWorkflow } from "./types";
 
 /**
@@ -29,7 +32,7 @@ import { defineWorkflow } from "./types";
  * placeholders become gaps, numbers without a source get flagged. Nothing is approved here.
  */
 
-const KINDS = ["one_pager", "demo_script", "security", "design_partner_terms", "pilot_proposal", "insight", "case_study", "other"] as const;
+const KINDS = ["one_pager", "demo_script", "security", "design_partner_terms", "pilot_proposal", "insight", "case_study", "other", "post", "community_answer", "launch"] as const;
 const DISCLAIMER = "_Draft. Not legal advice. Have counsel review before signing._";
 
 const ASSET_RULES = `ASSET RULES
@@ -101,6 +104,21 @@ case_study (≤400 words): only from approved customer and metric claims, quoted
   if one is given. Gaps for anything missing.
 other: follow the founder's note; same sourcing rules.
 
+FOUNDER CONTENT (post, community_answer, launch). The founder posts these by hand under their own name; you never post,
+  schedule or plan a calendar. Facts come ONLY from the FOUNDER MATERIAL block (and, for a launch, the company context).
+  No customer, company or person names from calls; anonymize ("a 40-person fintech"). First person, plain, specific.
+post (120–250 words, no heading): the first line is the hook, at most 12 words, a claim or an observation, never a
+  question bait. Then one story from the material and the one insight it taught; end on what the reader can try, or a
+  genuine question. No pitch and no link to the product. At most 2 hashtags at the end, or none. title is the hook.
+community_answer (≤200 words, no heading): answer the QUESTION in the founder's note as the most useful reply in the
+  thread: the direct answer first, then how the founder has seen it done (from the material), then one caveat. No
+  pitch, no link, no call to action. Mention the founder's product only if it's the honest answer, and then say "I
+  built {name}, so I'm biased" in the same sentence. title is the question, shortened.
+launch (≤350 words): a Show HN post. H1 is the title: "Show HN: {name} – {what it does in plain words}", at most 80
+  characters, no superlatives. Then: what it is in one line; why the founder built it (from the material); how it
+  works in 3–5 plain sentences, including the tradeoffs; what isn't done yet; how to try it without talking to anyone
+  ([[link where people can try it]] if none is given); one line asking for honest feedback. Never ask for upvotes.
+
 OUTPUT: call submit_asset once. title ≤80 characters. claimIds and povIds only use ids from the context. gaps lists
 every [[placeholder]] in the body (up to 8, each ≤80 characters).`;
 
@@ -126,6 +144,9 @@ const args = z.object({
   dealId: z.string().optional(),
   /** Client-generated id for the new asset, so the UI can follow this run and open the result. */
   assetId: z.string().max(40).optional(),
+  /** Founder content: one debriefed call, or one insight memo, to build the draft from first. */
+  meetingId: z.string().max(40).optional(),
+  fromAssetId: z.string().max(40).optional(),
 });
 type Args = z.infer<typeof args>;
 
@@ -225,8 +246,43 @@ function taskMessage(ws: Workspace, a: Args, deal: Deal | undefined): string {
     out.push(`Persona: ${champion?.titles[0] ?? "buyers"}`, "", insightBlock(ws));
   }
   if (deal) out.push("", dealBlock(ws, deal));
+  if (isContentKind(a.kind)) out.push("", founderMaterialBlock(ws, a));
   out.push("", "Write it now and submit it with submit_asset.");
   return out.join("\n");
+}
+
+/**
+ * What a post, an answer or a launch post may be built from: the founder's points of view and answers, what they
+ * noted on calls (coaching), the buyer's words, and approved insight memos. `meetingId` or `fromAssetId` puts one call or
+ * one memo first, for "turn this into a post".
+ */
+function founderMaterialBlock(ws: Workspace, a: Args): string {
+  const lines = ["<founder_material>", "The only allowed basis for founder content. Anonymize every company and person from calls."];
+  const meeting = a.meetingId ? ws.meetings[a.meetingId] : undefined;
+  const memo = a.fromAssetId ? ws.assets.find((x) => x.id === a.fromAssetId && x.kind === "insight") : undefined;
+  const call = (m: NonNullable<typeof meeting>) => {
+    const d = m.debrief!;
+    const bits = [
+      d.card.pain.value && `pain: ${clip(d.card.pain.value, 200)}`,
+      ...d.coaching.slice(0, 3).map((c) => `founder's note: ${clip(c, 200)}`),
+      d.customerWords.length ? `their words: ${d.customerWords.slice(0, 4).map((w) => `"${clip(w, 60)}"`).join(", ")}` : null,
+      d.newObjections.length ? `objections: ${d.newObjections.slice(0, 2).map((o) => clip(o, 100)).join(" | ")}` : null,
+    ].filter(Boolean);
+    return `- Call (${m.startsAt.slice(0, 10)}): ${bits.join(" · ")}`;
+  };
+  if (meeting?.debrief) lines.push("Start from this call:", call(meeting));
+  if (memo) lines.push(`Start from this insight memo, "${clip(memo.title, 80)}":`, clip(memo.body, 2400));
+  for (const p of ws.povs.slice(0, 6)) lines.push(`- [${p.id}] Point of view: ${clip(p.text, 240)} (${clip(p.evidence, 120)})`);
+  for (const q of (ws.foundation?.founderQuestions ?? []).filter((x) => x.answer).slice(0, 4)) lines.push(`- Founder answer: ${clip(q.question, 120)} → ${clip(q.answer, 240)}`);
+  const calls = Object.values(ws.meetings)
+    .filter((m) => m.debrief && m.id !== meeting?.id)
+    .sort((x, y) => y.startsAt.localeCompare(x.startsAt))
+    .slice(0, 6);
+  for (const m of calls) lines.push(call(m));
+  if (a.kind !== "post") for (const x of ws.assets.filter((x) => x.kind === "insight" && x.approved && x.id !== memo?.id).slice(0, 1)) lines.push(`- Insight memo "${clip(x.title, 80)}": ${clip(x.body, 600)}`);
+  if (lines.length === 2) lines.push("(none yet)");
+  lines.push("</founder_material>");
+  return lines.join("\n");
 }
 
 function dedupe(items: string[]): string[] {
@@ -245,6 +301,7 @@ export default defineWorkflow({
   title: (a, ws) => {
     const deal = a.dealId ? ws.deals[a.dealId] : undefined;
     const noun = ASSET_KINDS[a.kind].noun;
+    if (isContentKind(a.kind)) return contentRunTitle(a.kind);
     return deal ? `Drafting ${noun} for ${deal.name}` : `Drafting ${a.title ? clip(a.title, 60) : noun}`;
   },
   // A deal's pilot proposal belongs to the deal, so the company sheet can show the run wherever it was started.
@@ -262,6 +319,7 @@ export default defineWorkflow({
     ctx.emit({ type: "action", text: `Using ${approved === 1 ? "1 approved claim" : `${approved} approved claims`} and ${ws.povs.length === 1 ? "1 point of view" : `${ws.povs.length} points of view`}` });
     if (deal) ctx.emit({ type: "action", text: `Reading ${deal.name}'s qualification card` });
     if (a.kind === "insight") ctx.emit({ type: "action", text: `Reading ${debriefCount(ws)} debriefed calls` });
+    if (isContentKind(a.kind)) ctx.emit({ type: "action", text: "Using only what you said, noted or heard on calls" });
 
     const run = await ctx.agent<Submit>({
       tier: "operator",
@@ -279,8 +337,11 @@ export default defineWorkflow({
     const latest = ctx.read();
     let body = out.body.trim();
     if (a.kind === "pilot_proposal" && !body.includes("Not legal advice")) body = `${body}\n\n${DISCLAIMER}`;
-    const unsourced = unsourcedNumbers(body, sourcedText(latest, a.dealId));
-    const gaps = dedupe([...placeholders(body), ...out.gaps.filter((g) => !/^\s*$/.test(g)), ...unsourced.map((n) => `Check “${n}”: no approved source`)]).slice(0, 12);
+    // Founder content may use numbers from the material it was given (a call note, a memo).
+    const sourced = isContentKind(a.kind) ? `${sourcedText(latest, a.dealId)}\n${founderMaterialBlock(latest, a)}` : sourcedText(latest, a.dealId);
+    const unsourced = unsourcedNumbers(body, sourced);
+    const notes = contentNotes(latest, a.kind, body);
+    const gaps = dedupe([...placeholders(body), ...out.gaps.filter((g) => !/^\s*$/.test(g)), ...unsourced.map((n) => `Check “${n}”: no approved source`), ...notes]).slice(0, 12);
     const claimIds = out.claimIds.filter((id) => latest.claims.some((c) => c.id === id && c.approved));
     const povIds = out.povIds.filter((id) => latest.povs.some((p) => p.id === id));
     ctx.emit({ type: "action", text: gaps.length ? `Left ${gaps.length === 1 ? "1 gap" : `${gaps.length} gaps`} for you to fill` : "Checked every number against your sources" });
@@ -312,6 +373,7 @@ export default defineWorkflow({
         kit: existing?.kit,
         origin: "agent",
         runId: ctx.runId,
+        brief: isContentKind(a.kind) ? a.brief || existing?.brief : undefined,
       };
       const i = w.assets.findIndex((x) => x.id === id);
       if (i === -1) w.assets.push(asset);

@@ -47,12 +47,14 @@ export function usePrepare() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reason }),
         });
-        const body = (await res.json()) as { error?: string; briefRunId?: string | null; sweepRunId?: string | null; changed?: boolean };
+        const body = (await res.json()) as { error?: string; briefRunId?: string | null; sweepRunId?: string | null; aheadRunIds?: string[]; changed?: boolean };
         if (!res.ok) throw new Error(body.error ?? "Couldn't refresh your moves.");
         // Attach without a title: the brief is background work and shouldn't toast when it lands.
         if (body.briefRunId) attach(body.briefRunId);
         // The day's free signal check runs in the background too; the timer re-prepare turns what it finds into moves.
         if (body.sweepRunId) attach(body.sweepRunId);
+        // Briefs and drafts started ahead: their cards show the live log in place, and land without a toast.
+        for (const id of body.aheadRunIds ?? []) attach(id);
         if (body.changed || body.briefRunId) await refresh();
         setState((s) => ({ preparing: false, error: null, briefRunId: body.briefRunId ?? s.briefRunId }));
       } catch (e) {

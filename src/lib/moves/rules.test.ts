@@ -68,9 +68,8 @@ describe("moves on the sample workspace", () => {
         "mv_research_ashgrove.example today.research 50 2026-10-21",
         "mv_research_bramblecast.example today.research 50 2026-10-21",
         "mv_research_glassmoor.example today.research 50 2026-10-21",
-        "mv_question_fq_sources today.question 35 2026-10-21",
-        "mv_question_fq_soc2 today.question 35 2026-10-21",
-        "mv_question_fq_network today.question 35 2026-10-21",
+        "mv_review_monthly_2026-10 today.review_monthly 46 2026-10-21",
+        "mv_questions_fq_soc2 today.questions 35 2026-10-21",
         "mv_discover_2026-10-19 today.discover 28 2026-10-21",
       ]
     `);
@@ -217,6 +216,24 @@ describe("move rules", () => {
       // A touch marked "didn't send" gives its slot back.
       ws.activities[0].outcome = "not_sent";
       expect(drafts(ws)).toEqual(["pkg_0", "pkg_1"]);
+    });
+
+    it("counts first touches handed to a sequencer and cold dinner invites against the same cap", () => {
+      const ws = coldDesk({ firstTouchesPerWeek: 3 });
+      ws.accounts["s.example"] = makeAccount("s.example");
+      ws.outreach.pkg_pushed = makePackage("pkg_pushed", "s.example", { steps: [makeStep(1, { status: "approved", sentAt: at(-1) })] });
+      ws.activities.push(makeActivity("act_push", { kind: "pushed", channel: "integration", at: at(-1), draftRef: { packageId: "pkg_pushed", step: 1 } }));
+      expect(drafts(ws)).toEqual(["pkg_0", "pkg_1"]);
+      ws.events.ev = {
+        id: "ev",
+        kind: "dinner",
+        title: "Dinner",
+        status: "inviting",
+        createdAt: at(-5),
+        guests: { g: { id: "g", personId: "per_g", title: "CFO", accountDomain: "g.example", role: "prospect", score: 1, personalLine: "", status: "invited" } },
+      };
+      ws.activities.push(makeActivity("act_inv", { kind: "event_invited", channel: "email", eventId: "ev", personId: "per_g", at: at(0) }));
+      expect(drafts(ws)).toEqual(["pkg_0"]);
     });
 
     it("skips suppressed companies and accounts already at the per-account weekly limit", () => {

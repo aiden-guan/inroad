@@ -13,7 +13,9 @@ const Body = z.object({
 
 /**
  * Polls connected tools that no webhook can reach (zero tokens), then recomputes Today's moves and
- * scoreboard in code and, only when something new deserves a sentence, starts the small brief run. Cheap enough to call on open, after actions and on a timer.
+ * scoreboard in code and, only when something new deserves a sentence, starts the small brief run. With a key it
+ * also starts the day's capped briefs and drafts ahead (moves/ahead), decided from state, never from the request.
+ * Cheap enough to call on open, after actions and on a timer.
  */
 export async function POST(request: Request) {
   try {

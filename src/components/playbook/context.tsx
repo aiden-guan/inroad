@@ -12,6 +12,16 @@ export interface AssetRunArgs {
   brief?: string;
   dealId?: string;
   assetId: string;
+  /** Founder content: a debriefed call or an insight memo to start from. */
+  meetingId?: string;
+  fromAssetId?: string;
+}
+
+/** What the "new asset" panel opens with. `brief` pre-fills the note (a community question to answer). */
+export interface ComposerState {
+  kind: AssetKind;
+  dealId?: string;
+  brief?: string;
 }
 
 export interface PlaybookContextValue {
@@ -31,8 +41,8 @@ export interface PlaybookContextValue {
   openAsset: string | null;
   setOpenAsset: (id: string | null) => void;
   /** The "new asset" panel (also driven by `?new=<kind>&deal=<id>`). */
-  composer: { kind: AssetKind; dealId?: string } | null;
-  setComposer: (next: { kind: AssetKind; dealId?: string } | null) => void;
+  composer: ComposerState | null;
+  setComposer: (next: ComposerState | null) => void;
 }
 
 export const PlaybookContext = createContext<PlaybookContextValue | null>(null);

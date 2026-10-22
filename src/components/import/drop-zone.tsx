@@ -17,6 +17,7 @@ export function DropZone({
   busy,
   error,
   icon,
+  compact,
 }: {
   title: ReactNode;
   hint?: ReactNode;
@@ -24,6 +25,8 @@ export function DropZone({
   busy?: boolean;
   error?: string | null;
   icon?: ReactNode;
+  /** A shorter zone for inside another card (onboarding's "Two quick ones"). */
+  compact?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -73,7 +76,8 @@ export function DropZone({
           disabled={busy}
           onClick={() => input.current?.click()}
           className={cn(
-            "flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-9 text-center",
+            "flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-center",
+            compact ? "px-4 py-5" : "px-6 py-9",
             "transition-[background-color,border-color,transform] duration-150 ease-out-quad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
             over ? "scale-[1.01] border-fg-3 bg-bg-subtle" : "border-border-strong hover:bg-bg-subtle/70",
             busy && "cursor-default opacity-70",

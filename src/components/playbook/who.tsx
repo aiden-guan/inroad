@@ -13,6 +13,7 @@ import type { Action } from "@/lib/domain/actions";
 import type { ICP, ICPCriterion, Persona, PersonaRole, SegmentBet } from "@/lib/domain/types";
 import { spring } from "@/lib/motion";
 import { usePlaybook } from "./context";
+import { RefreshSub } from "./refresh";
 import { BET_TOUCHES, DETECTION_LABELS, ROLE_LABELS, SIGNAL_LABELS, betProgress, hypothesisSentence, plural, provenance } from "./model";
 import { AddRow, Choice, Editable, FieldLabel, RemoveButton, ResearchCite, Section, Stamp, StringList, Sub, TagList, undoable } from "./ui";
 
@@ -25,6 +26,7 @@ export function WhoSection() {
   const prov = provenance(ws, "who");
   return (
     <Section id="who" title="Who" kicker={<Stamp label={prov.label} isBet={prov.isBet} />}>
+      <RefreshSub />
       <SegmentBetBlock />
       <Criteria />
       <NotAFit />

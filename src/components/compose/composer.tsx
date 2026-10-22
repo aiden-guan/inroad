@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { ArrowUpRight, Check, ExternalLink, MoreHorizontal, PenLine, RotateCcw, Send, Shuffle, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { toast } from "sonner";
+import { ForgetPerson } from "@/components/people/forget-person";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +21,9 @@ import { ledger } from "@/lib/intros/rules";
 import { firstName, shortDate } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
-import type { DraftStep, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import { OPEN_STAGES, type DraftStep, type OutreachPackage, type Person, type Workspace } from "@/lib/domain/types";
 import { currentStep, lintStep } from "@/lib/quality/context";
-import { PERSONAL_DOMAINS, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
+import { PERSONAL_DOMAINS, footerPromisesDeletion, jurisdictionFor, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
 import { LIMITS, limitsFor } from "@/lib/quality/lint";
 import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { ease } from "@/lib/motion";
@@ -41,8 +42,9 @@ import { VoicePrompt } from "./voice-prompt";
  * every personalized span, live lint as a single line ("Ready" or the worst issue), blockers as
  * tiny inline forms, the code-generated footer, and the handoff (Mark as sent / Open in Gmail /
  * Copy / Push to a connected sequencer). `focused` turns on the wash and the A/E/]/[ keys.
+ * `moveId`: the Today card this draft finishes, so Undo after "Mark as sent" puts the card back.
  */
-export function DraftView({ pkg, step, focused, onApproved }: { pkg: OutreachPackage; step?: number; focused?: boolean; onApproved?: () => void }) {
+export function DraftView({ pkg, step, focused, onApproved, moveId }: { pkg: OutreachPackage; step?: number; focused?: boolean; onApproved?: () => void; moveId?: string }) {
   const { ws, dispatch } = useWorkspace();
   const live = ws?.outreach[pkg.id] ?? pkg;
   const current = currentStep(live, step);
@@ -61,6 +63,8 @@ export function DraftView({ pkg, step, focused, onApproved }: { pkg: OutreachPac
   );
 
   if (!ws) return <DraftSkeleton />;
+  // "Delete their details" took the draft with the person.
+  if (!ws.outreach[pkg.id] && pkg.personId && !ws.people[pkg.personId]) return <ForgottenNote />;
   if (!current) return live.mode === "reply" ? <ReplyOnly ws={ws} pkg={live} /> : null;
   return (
     <DraftBody
@@ -70,6 +74,7 @@ export function DraftView({ pkg, step, focused, onApproved }: { pkg: OutreachPac
       step={current}
       focused={Boolean(focused)}
       onApproved={onApproved}
+      moveId={moveId}
       onSwap={swap}
       lastSwap={lastSwap}
       animateIn={version === 0}
@@ -93,6 +98,7 @@ function DraftBody({
   step,
   focused,
   onApproved,
+  moveId,
   onSwap,
   lastSwap,
   animateIn,
@@ -102,6 +108,7 @@ function DraftBody({
   step: DraftStep;
   focused: boolean;
   onApproved?: () => void;
+  moveId?: string;
   onSwap: (index: number) => void;
   lastSwap: number | null;
   /** Off after a swap: "]" is a keyboard action, and those don't animate. */
@@ -263,15 +270,20 @@ function DraftBody({
       await flush();
       await copyText(pkg.mode === "warm_intro" ? introText() : outgoing);
       const activityId = newId("act");
+      // Answering a yes opens a deal at Talking when there's no open one (see the reducer).
+      const opensDeal = pkg.mode === "reply" && pkg.replyAction === "book" && !(account?.dealId && OPEN_STAGES.includes(ws.deals[account.dealId]?.stage));
       const ok = await dispatch({ type: "outreach.approveStep", packageId: pkg.id, step: step.step, at: nowISO(), activityId });
       if (!ok) return;
       const sentTo =
         pkg.mode === "warm_intro"
           ? `Asked ${firstName(pkg.intro?.connectorName || "your connector")}. I'll track it in Intros and tell you when it's your move.`
-          : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
+          : opensDeal
+            ? `Marked as sent and copied. ${account?.name ?? "They"} ${account ? "is" : "are"} now a deal at Talking; I'll keep it on Today until the call is booked.`
+            : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
       toast(sentTo, {
         duration: 10_000,
-        action: { label: "Undo", onClick: () => void dispatch({ type: "outreach.unapproveStep", packageId: pkg.id, step: step.step, activityId }) },
+        // Undo also reopens the card this approval finished (onApproved marks it done).
+        action: { label: "Undo", onClick: () => void dispatch({ type: "outreach.unapproveStep", packageId: pkg.id, step: step.step, activityId, ...(moveId ? { moveIds: [moveId] } : {}) }) },
       });
       onApproved?.();
     });
@@ -830,14 +842,46 @@ function referredPerson(ws: Workspace, name: string, email: string | undefined):
  * A referral is the warmest lead a founder gets: one click adds the person they named and drafts a
  * first touch that says who sent you. The draft opens inline, never in a layer on top.
  */
-function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pkg: OutreachPackage; name: string; email?: string }) {
+function ReferralCompose({ ws, pkg, name, email }: { ws: Workspace; pkg: OutreachPackage; name: string; email?: string }) {
+  return <ReferralWrite ws={ws} name={name} email={email} referrerId={pkg.personId} fallbackDomain={pkg.accountDomain} />;
+}
+
+/**
+ * The same one click for a referral from anywhere (a reply, a call's debrief): adds the person if
+ * they're new and drafts the first touch that says who sent you. `domain` pins their company when
+ * it's known; otherwise it's their email's domain, else `fallbackDomain` (the referrer's company).
+ * `quote`: the referrer's words when they came from a call. `how`: appended to "Referred by …".
+ */
+export function ReferralWrite({
+  ws,
+  name,
+  email: rawEmail,
+  referrerId,
+  personId,
+  domain: pinned,
+  fallbackDomain,
+  quote,
+  how,
+  className,
+}: {
+  ws: Workspace;
+  name: string;
+  email?: string;
+  referrerId?: string;
+  personId?: string;
+  domain?: string;
+  fallbackDomain: string;
+  quote?: string;
+  how?: string;
+  className?: string;
+}) {
   const { dispatch } = useWorkspace();
   const compose = useCompose();
   const [packageId, setPackageId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const email = rawEmail?.trim().toLowerCase() || undefined;
-  const referrer = pkg.personId ? ws.people[pkg.personId] : undefined;
-  const known = referredPerson(ws, name, email);
+  const referrer = referrerId ? ws.people[referrerId] : undefined;
+  const known = (personId ? ws.people[personId] : undefined) ?? (pinned ? undefined : referredPerson(ws, name, email));
   const open = known ? findOpenDraft(ws, { domain: known.accountDomain, personId: known.id, mode: "cold" }) : undefined;
   const shown = packageId ? ws.outreach[packageId] : undefined;
   const first = firstName(name);
@@ -856,7 +900,7 @@ function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pk
     if (!person) {
       // Their company: the email's domain unless it's a personal address, else the referrer's company.
       const host = email && !PERSONAL_DOMAINS.test(email) ? email.split("@")[1] : undefined;
-      const domain = (host && (Object.keys(ws.accounts).find((d) => host === d || host.endsWith(`.${d}`)) ?? host)) || pkg.accountDomain;
+      const domain = pinned || (host && (Object.keys(ws.accounts).find((d) => host === d || host.endsWith(`.${d}`)) ?? host)) || fallbackDomain;
       if (!ws.accounts[domain]) {
         actions.push({
           type: "account.add",
@@ -891,7 +935,7 @@ function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pk
         contactPaths: path ? [path] : [],
         jurisdiction: "unknown",
         doNotContact: false,
-        notes: `Referred by ${via}`,
+        notes: `Referred by ${via}${how ? ` ${how}` : ""}`,
         source: "referral",
       };
       actions.push({ type: "person.upsert", person });
@@ -902,12 +946,12 @@ function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pk
     const ok = actions.length ? await dispatch(actions) : true;
     setAdding(false);
     if (!ok) return;
-    await compose.begin({ domain: person.accountDomain, personId: person.id, mode: "cold", referredBy: referrer?.id }, (r) => setPackageId(r.packageId));
+    await compose.begin({ domain: person.accountDomain, personId: person.id, mode: "cold", referredBy: referrer?.id, ...(quote ? { referralQuote: quote } : {}) }, (r) => setPackageId(r.packageId));
   };
 
   return (
     // Keys inside this draft belong to it, not to the reply draft around it.
-    <div className="mt-2.5 space-y-3" onKeyDown={(e) => e.stopPropagation()}>
+    <div className={cn("mt-2.5 space-y-3", className)} onKeyDown={(e) => e.stopPropagation()}>
       {!shown && (
         <Button variant="agent" size="xs" icon={<PenLine className="size-3" />} onClick={() => void write()} loading={adding || compose.busy}>
           {open ? `Open your draft to ${first}` : `Write to ${first}`}
@@ -926,10 +970,19 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
   const email = resolveEmail(person).to;
   // One person opting out suppresses that address (and marks them do-not-contact), never their whole company.
   const suppressed = Boolean(person?.doNotContact) || ws.suppression.some((s) => (email && s.email?.toLowerCase() === email.toLowerCase()) || (!person && s.domain === pkg.accountDomain));
+  // EU, UK and unknown places got the footer that promises deletion on "stop": offer it first there.
+  const promised = person ? footerPromisesDeletion(jurisdictionFor(ws, person, pkg.accountDomain).value) : false;
+  const [forgetting, setForgetting] = useState(promised);
   return (
     <div className="draft-rule rounded-md py-3 pr-3 pl-4">
       <div className="max-w-[68ch]">
         <QuotedReply ws={ws} pkg={pkg} />
+        {pkg.replyAction === "suppress" && person && forgetting && (
+          <div className="mt-3 animate-[fade-in_150ms_var(--ease-out)]">
+            {promised && <p className="mb-1.5 text-[12.5px] font-medium text-fg">Your footer told {firstName(person.name)} you&apos;d delete their details if they asked.</p>}
+            <ForgetPerson person={person} onCancel={promised ? undefined : () => setForgetting(false)} reveal={!promised} />
+          </div>
+        )}
         {pkg.replyAction === "suppress" && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {suppressed ? (
@@ -938,7 +991,7 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
               </span>
             ) : (
               <Button
-                variant="primary"
+                variant={promised ? "secondary" : "primary"}
                 size="sm"
                 onClick={() => {
                   const at = nowISO();
@@ -948,13 +1001,27 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
                   ]);
                 }}
               >
-                Add {person ? firstName(person.name) : "them"} to your suppression list
+                {promised && person ? `Only suppress ${firstName(person.name)}` : `Add ${person ? firstName(person.name) : "them"} to your suppression list`}
               </Button>
+            )}
+            {person && !forgetting && (
+              <button type="button" onClick={() => setForgetting(true)} className="h-7 px-1 text-[12.5px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
+                Delete their details
+              </button>
             )}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+/** In place of a draft whose person was deleted at their request. */
+function ForgottenNote() {
+  return (
+    <p className="flex items-center gap-1.5 py-1 text-[12.5px] text-fg-2 animate-[fade-in_150ms_var(--ease-out)]">
+      <Check className="size-3.5 text-success" aria-hidden /> Their details are deleted. Only their email stays, on your suppression list.
+    </p>
   );
 }
 
@@ -1183,7 +1250,7 @@ export function ComposeButton({
               Hide
             </Button>
           </div>
-          {pkg ? <DraftView pkg={pkg} /> : <DraftSkeleton />}
+          {pkg ? <DraftView pkg={pkg} /> : personId && ws && !ws.people[personId] ? <ForgottenNote /> : <DraftSkeleton />}
         </div>
       )}
     </div>

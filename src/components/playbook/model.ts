@@ -3,7 +3,7 @@
  * progress, asset checks and the Markdown export. Pure and isomorphic — the asset workflow imports
  * it on the server, the Playbook imports it in the browser.
  */
-import { addDays, daysBetween } from "@/lib/domain/ids";
+import { addDays, daysBetween, todayISO, weekOf } from "@/lib/domain/ids";
 import type {
   Asset,
   ChannelPlan,
@@ -22,7 +22,7 @@ import type {
   ValueTheme,
   Workspace,
 } from "@/lib/domain/types";
-import { isColdFirstTouch } from "@/lib/moves/scoreboard";
+import { introAsksTarget, isColdFirstTouch } from "@/lib/moves/scoreboard";
 
 /* ───────────────────────────── Navigation ───────────────────────────── */
 
@@ -56,6 +56,7 @@ export const SECTIONS = [
       { id: "commercial", label: "Pricing & terms" },
       { id: "objections", label: "Objections" },
       { id: "assets", label: "Assets" },
+      { id: "content", label: "Founder content" },
       { id: "design-partners", label: "Design partners" },
     ],
   },
@@ -64,6 +65,7 @@ export const SECTIONS = [
     label: "Voice",
     children: [
       { id: "voice-card", label: "How you write" },
+      { id: "voice-traits", label: "What I've learned" },
       { id: "povs", label: "Points of view" },
     ],
   },
@@ -74,6 +76,8 @@ export const SECTIONS = [
       { id: "questions", label: "Questions" },
       { id: "reviews", label: "Reviews" },
       { id: "bets", label: "Segment bets" },
+      { id: "message-bets", label: "Message bets" },
+      { id: "versions", label: "Versions" },
     ],
   },
 ] as const;
@@ -175,12 +179,65 @@ export const ASSET_KINDS: Record<AssetKind, { label: string; noun: string; descr
   insight: { label: "Insight memo", noun: "an insight memo", description: "What you learned from 10+ calls, anonymized. Good to offer instead of a meeting." },
   case_study: { label: "Case study", noun: "a case study", description: "Built only from approved customer claims." },
   other: { label: "Document", noun: "a document", description: "Anything else you send buyers." },
+  post: { label: "Post", noun: "a post", description: "One story and one insight from your calls, in your words. One a week at most; you post it yourself." },
+  community_answer: { label: "Community answer", noun: "an answer", description: "A useful answer to a question your buyer asked in public. No pitch; you post it yourself." },
+  launch: { label: "Show HN post", noun: "a Show HN post", description: "A plain launch post for when people can try it without talking to you." },
 };
+
+/** Founder content: drafts the founder posts by hand (SPEC non-goal 11), never something a cold email offers. */
+export const CONTENT_KINDS: AssetKind[] = ["post", "community_answer", "launch"];
+
+export function isContentKind(kind: AssetKind): boolean {
+  return CONTENT_KINDS.includes(kind);
+}
+
+/** An asset an email may offer: approved, and not founder content (a "posted" post is approved but never offered). */
+export function offerable(a: Asset): boolean {
+  return a.approved === true && !isContentKind(a.kind);
+}
+
+/** The run title for founder content, so the Playbook can show a drafting run under Founder content, not Assets. */
+export function contentRunTitle(kind: AssetKind): string {
+  return `Drafting ${ASSET_KINDS[kind].noun}`;
+}
+
+/**
+ * At most one post draft a week (SPEC non-goal 11), counting the one last Friday's review drafted. `except` is the post
+ * being rewritten in place, which doesn't count against itself.
+ */
+export function postThisWeek(ws: Workspace, today: string, except?: string): "drafted" | "review" | null {
+  const start = weekOf(today);
+  if (ws.assets.some((a) => a.kind === "post" && a.id !== except && a.createdAt.slice(0, 10) >= start)) return "drafted";
+  const friday = ws.briefs[`${addDays(start, -7)}:friday`];
+  if (friday?.proposals?.some((p) => p.post && p.status !== "dismissed")) return "review";
+  return null;
+}
+
+/** A found question as the community-answer brief: what they asked, then where, within the brief's 2000 characters. */
+export function questionBrief(q: { title: string; text: string; url: string }): string {
+  const ask = [q.title, q.text].filter(Boolean).join("\n\n");
+  return `${ask.slice(0, 1800)}\n\nAsked at ${q.url}`;
+}
+
+/** What the founder can start a post from: a recent debriefed call, or an approved insight memo. Newest first. */
+export function postSources(ws: Workspace): { id: string; kind: "call" | "memo"; label: string }[] {
+  const calls = Object.values(ws.meetings)
+    .filter((m) => m.debrief)
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
+    .slice(0, 3)
+    .map((m) => {
+      const deal = ws.deals[m.dealId];
+      const day = new Date(m.startsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+      return { id: m.id, kind: "call" as const, label: `Call with ${deal?.name ?? "a buyer"}, ${day}` };
+    });
+  const memos = ws.assets.filter((a) => a.kind === "insight" && a.approved).slice(0, 2).map((a) => ({ id: a.id, kind: "memo" as const, label: a.title || "Insight memo" }));
+  return [...calls, ...memos];
+}
 
 export const MIN_INSIGHT_CALLS = 10;
 
 /** Hard requirements per kind, checked in code before any tokens are spent (and shown as the reason a button is off). */
-export function assetGate(ws: Workspace, a: { kind: AssetKind; dealId?: string }): string | null {
+export function assetGate(ws: Workspace, a: { kind: AssetKind; dealId?: string; brief?: string; assetId?: string }, today = todayISO()): string | null {
   if (!ws.foundation) return "Your playbook isn't written yet. Finish the first read of your site, then draft documents from it.";
   if (a.kind === "pilot_proposal") {
     if (!a.dealId) return "Pick the deal this pilot proposal is for.";
@@ -193,6 +250,15 @@ export function assetGate(ws: Workspace, a: { kind: AssetKind; dealId?: string }
   if (a.kind === "case_study" && !ws.claims.some((c) => c.approved && (c.kind === "customer" || c.kind === "metric"))) {
     return "A case study needs an approved customer or metric claim first. Approve one under Why us → Claims.";
   }
+  if (a.kind === "post") {
+    const week = postThisWeek(ws, today, a.assetId);
+    if (week === "drafted") return "This week's post is already drafted. One a week is plenty; edit that one.";
+    if (week === "review") return "Last Friday's review drafted this week's post. It's on Today.";
+    const material = ws.povs.length + debriefed(ws).length + (ws.foundation?.founderQuestions.filter((q) => q.answer).length ?? 0);
+    if (!material) return "A post is built only from what you said or saw. Add a point of view, or debrief a call, first.";
+  }
+  if (a.kind === "community_answer" && !a.brief?.trim()) return "Paste the question you're answering, or find one first.";
+  if (a.kind === "launch" && ws.company?.stage === "pre_launch") return "A Show HN post needs something people can try without talking to you. Come back when there's a link.";
   return null;
 }
 
@@ -385,7 +451,8 @@ export function planMath(ws: Workspace, today: string): PlanMath {
   const q2p = rate(ws.goal.winRate, paidDeals.filter((d) => reached(d, ["qualified", "pilot", "proposal", "won"])).length, qualifiedDeals.length);
 
   const coldPerWeek = ws.caps.firstTouchesPerWeek;
-  const introPerWeek = ws.goal.introAsksPerWeek ?? PLAN_DEFAULTS.introAsksPerWeek;
+  // The same number Today chases: the founder's setting, else the bet's channel plan, else the default.
+  const introPerWeek = introAsksTarget(ws);
   const communityPerWeek = ws.goal.communityPerWeek ?? PLAN_DEFAULTS.communityPerWeek;
   const cold = { perWeek: coldPerWeek, rate: coldRate, meetings: coldPerWeek * coldRate.value };
   const intro = { perWeek: introPerWeek, rate: introRate, meetings: introPerWeek * introRate.value };
@@ -511,7 +578,7 @@ export function nextAction(ws: Workspace): NextAction | null {
   if (!ws.povs.length) return { text: "Every cold email needs a point of view only you have. Add your first one.", cta: "Add a point of view", anchor: "povs" };
   const draftObjections = ws.objections.filter((o) => !o.approved);
   if (draftObjections.length) return { text: `${plural(draftObjections.length, "objection response")} ${draftObjections.length === 1 ? "needs" : "need"} your eye before I use ${draftObjections.length === 1 ? "it" : "them"} in call prep.`, cta: "Review", anchor: "objections" };
-  if (!ws.assets.some((a) => a.approved)) return { text: "Your emails can offer a one-pager once you have an approved one.", cta: "Make a one-pager", anchor: "assets" };
+  if (!ws.assets.some(offerable)) return { text: "Your emails can offer a one-pager once you have an approved one.", cta: "Make a one-pager", anchor: "assets" };
   return null;
 }
 
@@ -742,7 +809,7 @@ export function playbookMarkdown(ws: Workspace, today: string): string {
     out.push("", "### Objections");
     for (const o of objections) out.push("", `**“${o.objection}”**`, ...li([`Ask: ${o.clarifyingQ}`, `Answer: ${o.response}`, o.walkAwayIf && `Walk away if: ${o.walkAwayIf}`]));
   }
-  const assets = ws.assets.filter((a) => a.approved);
+  const assets = ws.assets.filter(offerable);
   if (assets.length) out.push("", "### Assets", ...li(assets.map((a) => `${a.title} (${ASSET_KINDS[a.kind].label})${a.url ? `: ${a.url}` : ""}`)));
 
   out.push("", "## Voice", "");
