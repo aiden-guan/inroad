@@ -1,13 +1,16 @@
 import "server-only";
 import type { ID, Person, RunStep } from "@/lib/domain/types";
+import { mutateHub, readHub } from "@/lib/hub/store";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
-import { connectionIsPerson, forgetInImports, redactRunSteps } from "./forget";
+import { rewriteThreads } from "@/lib/store/threads";
+import { connectionIsPerson, forgetInImports, forgetInThread, hubRefsOf, redactRunSteps, threadMentions } from "./forget";
 
 /**
  * The part of "Delete their details" that lives outside workspace.json: their row in the founder's
  * LinkedIn connections (a re-import brings it back from LinkedIn's file, but nothing here keeps it),
- * the import history in network.json, and their name in the step logs of runs about them.
+ * the import history in network.json, their name in the step logs of runs about them, the Ask
+ * conversations that mention them (threads.json), and the links to their CRM records (hub.json).
  * Each file is only rewritten when something in it matches.
  */
 
@@ -23,7 +26,7 @@ export interface ForgottenPerson {
 const stepsDB = () =>
   singletonDB<Record<string, RunStep[]>>("runs.json", () => new FileDB<Record<string, RunStep[]>>("runs.json", () => ({})));
 
-export async function forgetInFiles({ person, company, runIds }: ForgottenPerson): Promise<{ connections: number }> {
+export async function forgetInFiles({ person, company, runIds }: ForgottenPerson): Promise<{ connections: number; threads: number }> {
   let connections = 0;
   if (readConnections().some((r) => connectionIsPerson(r, person, company))) {
     connections = await updateConnections((rows) => {
@@ -45,5 +48,11 @@ export async function forgetInFiles({ person, company, runIds }: ForgottenPerson
       // The step log is a nicety (see the run registry); an unreadable one holds nothing to redact.
     }
   }
-  return { connections };
+  const threads = await rewriteThreads(
+    (t) => threadMentions(t, person),
+    (t) => forgetInThread(t, person),
+  );
+  const refs = hubRefsOf(readHub().refs, person);
+  if (refs.length) await mutateHub((h) => refs.forEach((k) => delete h.refs[k]));
+  return { connections, threads };
 }

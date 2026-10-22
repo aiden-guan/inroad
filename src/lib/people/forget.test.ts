@@ -3,16 +3,18 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { POST } from "@/app/api/workspace/actions/route";
 import { applyAction } from "@/lib/domain/actions";
-import type { Connection, Person, RunStep, Workspace } from "@/lib/domain/types";
+import type { AskTurn, Connection, Person, RunStep, Workspace } from "@/lib/domain/types";
+import { mutateHub, readHub } from "@/lib/hub/store";
 import { computeMoves, mergeMoves } from "@/lib/moves/rules";
 import { readConnections, readNetwork, mutateNetwork, updateConnections } from "@/lib/network/store";
 import type { ImportBatch } from "@/lib/network/types";
 import { sampleWorkspace } from "@/lib/sample";
 import { DOMAIN, PERSON } from "@/lib/sample/ids";
 import { DATA_DIR } from "@/lib/store/settings";
+import { getThread, putTurn, withThread } from "@/lib/store/threads";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { NOW, TODAY, at, makePackage, makePerson } from "@/test/factories";
-import { connectionIsPerson, emailsOf, forgetInImports, namesPerson, redactRunSteps } from "./forget";
+import { connectionIsPerson, emailsOf, forgetInImports, forgetInThread, hubRefsOf, namesPerson, redactRunSteps, threadMentions, type ForgettableThread } from "./forget";
 
 /**
  * "Delete their details" is a promise made in writing (the EU/UK cold-email footer), so these
@@ -137,6 +139,97 @@ describe("person.forget", () => {
     forget(s);
     expect(s.people.per_other.contactPaths).toEqual([]);
   });
+
+  it("takes their address out of other records, and deletes a source that quotes it", () => {
+    const s = structuredClone(sample);
+    s.activities.push({ id: "act_cc", at: at(-1), kind: "note", accountDomain: DOMAIN.northwind, summary: "Looped in finance", body: `cc ${DANA.toUpperCase()} on the pricing thread`, source: "founder" });
+    s.evidence.ev_mail = { id: "ev_mail", claim: "Finance inbox on the contact page", quote: `Questions? Write to ${DANA}`, url: "https://northwind.example/contact", host: "northwind.example", sourceType: "first_party", retrievedAt: at(-3), confidence: "high" };
+    forget(s);
+    expect(s.activities.find((a) => a.id === "act_cc")?.body).toBe("cc a deleted contact on the pricing thread");
+    expect(s.evidence.ev_mail).toBeUndefined();
+    expect(count(JSON.stringify(s).toLowerCase(), DANA)).toBe(1);
+  });
+});
+
+describe("Ask conversations", () => {
+  const dana = makePerson(PERSON.dana, DOMAIN.northwind, { name: "Dana Okafor", email: DANA, linkedinUrl: "https://www.linkedin.com/in/dana-okafor/" });
+  const turn = (id: string, role: AskTurn["role"], text: string, patch: Partial<AskTurn> = {}): AskTurn => ({ id, role, text, at: at(0), ...patch });
+
+  /** A conversation on Northwind that reached Dana through a lookup, a web page and the model's own thinking. */
+  function aboutNorthwind(): ForgettableThread {
+    return {
+      title: "Who should I write to at Northwind? Dana Okafor?",
+      context: { kind: "account", id: DOMAIN.northwind },
+      contextLabel: "Northwind",
+      noted: { contextKey: `account:${DOMAIN.northwind}`, digestHash: "abc" },
+      turns: [
+        turn("t1", "founder", "Who should I write to at Northwind? Dana Okafor?"),
+        turn("t2", "agent", `Dana Okafor (${DANA}) owns the close. Marcus is the champion.`, {
+          records: [
+            { ref: { kind: "person", id: PERSON.dana }, label: "Dana Okafor" },
+            { ref: { kind: "account", id: DOMAIN.northwind }, label: "Northwind" },
+          ],
+          proposals: [
+            { id: "p1", kind: "start_workflow", summary: "Draft to her", reason: "", payload: { workflow: "compose", args: { domain: DOMAIN.northwind, personId: PERSON.dana } }, status: "proposed" },
+            { id: "p2", kind: "start_workflow", summary: "Draft to Marcus", reason: "", payload: { workflow: "compose", args: { domain: DOMAIN.northwind, personId: "per_marcus" } }, status: "proposed" },
+            { id: "p3", kind: "suppress", summary: "Suppress her", reason: "", payload: { email: DANA }, status: "proposed" },
+          ],
+          citations: [{ url: "https://www.linkedin.com/in/dana-okafor/", title: "Profile" }, { url: "https://northwind.example/about", title: "About Northwind" }],
+        }),
+        turn("t3", "founder", "And their CFO?"),
+        turn("t4", "agent", "", { error: { code: "unknown", message: "Something went wrong." } }),
+        turn("t5", "founder", "Try again: their CFO?"),
+        turn("t6", "agent", "Nobody on file yet.", { instant: { title: "People at Northwind", rows: [{ label: "Dana Okafor", ref: { kind: "person", id: PERSON.dana } }, { label: "Marcus Lindqvist" }] } }),
+      ],
+      messages: [
+        { role: "user", content: [{ type: "text", text: "Who should I write to at Northwind? Dana Okafor?" }] },
+        { role: "assistant", content: [{ type: "thinking", thinking: "Dana Okafor is the controller.", signature: "sig" }, { type: "tool_use", id: "tu_1", name: "search", input: { q: "Dana Okafor" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "tu_1", content: `{"id":"${PERSON.dana}","email":"${DANA}"}` }] },
+        { role: "assistant", content: [{ type: "text", text: "Dana Okafor owns the close." }] },
+      ],
+    };
+  }
+
+  it("deletes a conversation opened on their record", () => {
+    expect(forgetInThread({ ...aboutNorthwind(), context: { kind: "person", id: PERSON.dana } }, dana)).toBe("delete");
+  });
+
+  it("redacts the founder's view and rebuilds the model's history from it, without tool results or thinking", () => {
+    const t = aboutNorthwind();
+    expect(threadMentions(t, dana)).toBe(true);
+    expect(forgetInThread(t, dana)).toBe(true);
+    expect(t.title).toBe("Who should I write to at Northwind? a deleted contact?");
+    expect(t.turns[1].text).toBe("a deleted contact (a deleted contact) owns the close. Marcus is the champion.");
+    expect(t.turns[1].records?.map((r) => r.label)).toEqual(["Northwind"]);
+    expect(t.turns[1].proposals?.map((p) => p.id)).toEqual(["p2"]);
+    expect(t.turns[1].citations?.map((c) => c.title)).toEqual(["About Northwind"]);
+    expect(t.turns[5].instant?.rows).toEqual([{ label: "Marcus Lindqvist" }]);
+    // Plain text, alternating, starting with the founder and ending on an answer; the failed answer is skipped.
+    expect(t.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "Who should I write to at Northwind? a deleted contact?" }] },
+      { role: "assistant", content: [{ type: "text", text: "a deleted contact (a deleted contact) owns the close. Marcus is the champion." }] },
+      { role: "user", content: [{ type: "text", text: "And their CFO?\n\nTry again: their CFO?" }] },
+      { role: "assistant", content: [{ type: "text", text: "Nobody on file yet." }] },
+    ]);
+    expect(t.noted).toBeUndefined();
+    const all = JSON.stringify(t);
+    expect(all).not.toContain("Okafor");
+    expect(all).not.toContain(DANA);
+    expect(all).not.toContain(PERSON.dana);
+    expect(threadMentions(t, dana)).toBe(false);
+  });
+
+  it("leaves a conversation that never mentions them exactly as it was", () => {
+    const t: ForgettableThread = { title: "Pricing", turns: [turn("t1", "founder", "How should I price?")], messages: [{ role: "user", content: "How should I price?" }], noted: { date: TODAY } };
+    const before = structuredClone(t);
+    expect(forgetInThread(t, dana)).toBe(false);
+    expect(t).toEqual(before);
+  });
+
+  it("finds their CRM links by address", () => {
+    const refs = { [`hubspot:person:${DANA}`]: { id: "1", at: at(0) }, "attio:person:sam@elsewhere.example": { id: "2", at: at(0) }, [`hubspot:company:${DOMAIN.northwind}`]: { id: "3", at: at(0) } };
+    expect(hubRefsOf(refs, dana)).toEqual([`hubspot:person:${DANA}`]);
+  });
 });
 
 describe("matching", () => {
@@ -197,5 +290,35 @@ describe("POST /api/workspace/actions with person.forget", () => {
     expect(readConnections().map((r) => r.id)).toEqual(["c_other"]);
     expect(readNetwork().imports[0].created.people).toEqual([]);
     expect(fs.readFileSync(path.join(DATA_DIR, "runs.json"), "utf8")).not.toContain("Dana");
+  });
+
+  it("also reaches their Ask conversations and their CRM links, and leaves the rest alone", async () => {
+    await replaceWorkspace(structuredClone(sample));
+    const init = (title: string, context?: { kind: "person" | "account"; id: string }) => () => ({ title, context, createdAt: at(0), updatedAt: at(0) });
+    await withThread("thr_dana", init("About Dana", { kind: "person", id: PERSON.dana }), (t) => putTurn(t, { id: "t1", role: "founder", text: "Is Dana Okafor the buyer?", at: at(0) }));
+    await withThread("thr_acct", init("Northwind", { kind: "account", id: DOMAIN.northwind }), (t) => {
+      putTurn(t, { id: "t1", role: "founder", text: "Should I loop in Dana Okafor?", at: at(0) });
+      putTurn(t, { id: "t2", role: "agent", text: "Yes, she owns the close.", at: at(0) });
+      t.messages.push({ role: "user", content: "Should I loop in Dana Okafor?" }, { role: "assistant", content: [{ type: "thinking", thinking: `${DANA}`, signature: "s" }, { type: "text", text: "Yes, she owns the close." }] });
+    });
+    await withThread("thr_other", init("Pricing"), (t) => putTurn(t, { id: "t1", role: "founder", text: "How should I price?", at: at(0) }));
+    await mutateHub((h) => {
+      h.refs[`hubspot:person:${DANA}`] = { id: "hs_1", at: at(0) };
+      h.refs[`hubspot:company:${DOMAIN.northwind}`] = { id: "hs_2", at: at(0) };
+    });
+
+    const res = await POST(new Request("http://localhost/api/workspace/actions", { method: "POST", body: JSON.stringify({ actions: [{ type: "person.forget", id: PERSON.dana, at: at(0), suppressionId: "sup_api2" }] }) }));
+    expect(res.status).toBe(200);
+    expect(getThread("thr_dana")).toBeUndefined();
+    expect(getThread("thr_acct")?.turns[0].text).toBe("Should I loop in a deleted contact?");
+    expect(getThread("thr_acct")?.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "Should I loop in a deleted contact?" }] },
+      { role: "assistant", content: [{ type: "text", text: "Yes, she owns the close." }] },
+    ]);
+    expect(getThread("thr_other")?.turns[0].text).toBe("How should I price?");
+    const file = fs.readFileSync(path.join(DATA_DIR, "threads.json"), "utf8");
+    expect(file).not.toContain("Okafor");
+    expect(file).not.toContain(DANA);
+    expect(Object.keys(readHub().refs)).toEqual([`hubspot:company:${DOMAIN.northwind}`]);
   });
 });

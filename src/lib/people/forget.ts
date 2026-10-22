@@ -1,4 +1,5 @@
-import type { Connection, ID, Person, RunStep, Suppression, Workspace } from "@/lib/domain/types";
+import type Anthropic from "@anthropic-ai/sdk";
+import type { AskTurn, Connection, EntityRef, ID, Person, RunStep, Suppression, Workspace } from "@/lib/domain/types";
 import { linkedinKey, normalizeCompany } from "@/lib/network/csv";
 import type { ImportBatch } from "@/lib/network/types";
 
@@ -12,7 +13,8 @@ import type { ImportBatch } from "@/lib/network/types";
  *  - one `requested_delete` suppression entry per address remains, holding only the email, so
  *    nothing ever writes to them again.
  * Pure: the reducer runs it in the browser and on the server. Files outside the workspace
- * (connections.json, network.json, run logs) go through the same matchers, on the server.
+ * (connections.json, network.json, run logs, Ask conversations, CRM links) go through the same
+ * matchers, on the server.
  */
 
 /** Every email address on file for them, lowercased, without repeats. */
@@ -32,6 +34,11 @@ export function namesPerson(text: string | undefined, person: Person): boolean {
   const parts = nameParts(person);
   return !!text && parts.length >= 2 && wordsPattern(parts, "iu").test(text);
 }
+
+/** Does this text spell out one of their email addresses? */
+const mentionsEmail = (text: string | undefined, emails: string[]) => !!text && emails.some((e) => text.toLowerCase().includes(e));
+/** A case-insensitive pattern for any of their addresses, or null when they have none. */
+const emailsPattern = (emails: string[], flags: string) => (emails.length ? new RegExp(emails.map(escape).join("|"), flags) : null);
 
 /** Replaces their full name (and, with `firstName`, their first name) with a neutral phrase. */
 export function redactName(text: string, person: Person, opts: { firstName?: boolean } = {}): string {
@@ -100,11 +107,12 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   if (!person) return;
   const named = (text: string | undefined) => namesPerson(text, person);
   const li = linkedinKey(person.linkedinUrl);
+  const emails = emailsOf(person);
 
-  // 1. Evidence about them, or that names them, and what was built on it.
+  // 1. Evidence about them, or that names them or their address, and what was built on it.
   const gone = new Set(person.evidenceIds);
   for (const ev of Object.values(ws.evidence)) {
-    if (named(ev.claim) || named(ev.quote) || (li && linkedinKey(ev.url) === li)) gone.add(ev.id);
+    if (named(ev.claim) || named(ev.quote) || mentionsEmail(ev.claim, emails) || mentionsEmail(ev.quote, emails) || (li && linkedinKey(ev.url) === li)) gone.add(ev.id);
   }
   for (const e of gone) delete ws.evidence[e];
   const keep = (ids: ID[]) => ids.filter((x) => !gone.has(x));
@@ -215,26 +223,136 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
   });
 }
 
-/** Replaces their full name in every string of the workspace (in place). Ids and URLs never contain a spaced name. */
-function redactEverywhere(ws: Workspace, person: Person): void {
+/** Takes their full name and email addresses out of one string, or null when there's nothing to look for. */
+function scrubber(person: Person): ((s: string) => string) | null {
   const parts = nameParts(person);
-  if (parts.length < 2) return;
-  const test = wordsPattern(parts, "iu");
-  const all = wordsPattern(parts, "giu");
-  const clean = (s: string) => (test.test(s) ? s.replace(all, "a deleted contact") : s);
-  const visit = (node: unknown): void => {
-    if (Array.isArray(node)) {
-      node.forEach((v, i) => {
-        if (typeof v === "string") node[i] = clean(v);
+  const name = parts.length >= 2 ? wordsPattern(parts, "giu") : null;
+  const mail = emailsPattern(emailsOf(person), "gi");
+  if (!name && !mail) return null;
+  return (s) => {
+    let out = s;
+    if (name && out.search(name) !== -1) out = out.replace(name, "a deleted contact");
+    if (mail && out.search(mail) !== -1) out = out.replace(mail, "a deleted contact");
+    return out;
+  };
+}
+
+/**
+ * Replaces their full name and email addresses in every string it reaches (in place). Ids and URLs
+ * never contain a spaced name; an address is only ever their address.
+ */
+function redactDeep(node: unknown, person: Person): void {
+  const clean = scrubber(person);
+  if (!clean) return;
+  const visit = (n: unknown): void => {
+    if (Array.isArray(n)) {
+      n.forEach((v, i) => {
+        if (typeof v === "string") n[i] = clean(v);
         else visit(v);
       });
-    } else if (node && typeof node === "object") {
-      const rec = node as Record<string, unknown>;
+    } else if (n && typeof n === "object") {
+      const rec = n as Record<string, unknown>;
       for (const [k, v] of Object.entries(rec)) {
         if (typeof v === "string") rec[k] = clean(v);
         else visit(v);
       }
     }
   };
-  visit(ws);
+  visit(node);
+}
+
+/** Every string of the workspace except the suppression list, which keeps their address on purpose. */
+function redactEverywhere(ws: Workspace, person: Person): void {
+  for (const [key, value] of Object.entries(ws)) if (key !== "suppression") redactDeep(value, person);
+}
+
+/* ───────────── Ask conversations (threads.json) ───────────── */
+
+/** An Ask conversation as stored on the server (structurally `StoredThread`). */
+export interface ForgettableThread {
+  title: string;
+  context?: EntityRef;
+  contextLabel?: string;
+  turns: AskTurn[];
+  messages: Anthropic.Beta.BetaMessageParam[];
+  noted?: object;
+}
+
+const isPersonRef = (ref: EntityRef | undefined, id: ID) => ref?.kind === "person" && ref.id === id;
+
+/** Does this text point at them: their id, full name, an address or their profile? */
+function pointsAt(text: string | undefined, person: Person): boolean {
+  if (!text) return false;
+  const li = linkedinKey(person.linkedinUrl);
+  return text.includes(person.id) || namesPerson(text, person) || mentionsEmail(text, emailsOf(person)) || (!!li && text.toLowerCase().includes(li));
+}
+
+/** Does anything in this conversation (the founder's view or the model's history, thinking included) point at them? */
+export function threadMentions(thread: ForgettableThread, person: Person): boolean {
+  return isPersonRef(thread.context, person.id) || pointsAt(JSON.stringify(thread), person);
+}
+
+/** What the model sees of a long pasted message (the same cut the Ask workflow makes). */
+const clipForModel = (text: string) => (text.length > 4000 ? `${text.slice(0, 3000)}\n\n[… ${text.length - 3000} more characters not shown.]` : text);
+
+/** The conversation as plain text turns: what was asked and answered, without tool calls, results or thinking. */
+function transcript(turns: AskTurn[]): Anthropic.Beta.BetaMessageParam[] {
+  const out: { role: "user" | "assistant"; content: Anthropic.Beta.BetaTextBlockParam[] }[] = [];
+  for (const t of turns) {
+    if (t.pending || t.error) continue;
+    const text =
+      t.role === "founder"
+        ? clipForModel(t.text)
+        : t.text || (t.instant ? [t.instant.title, ...t.instant.rows.map((r) => `- ${r.label}${r.detail ? `: ${r.detail}` : ""}`)].join("\n") : "");
+    if (!text.trim()) continue;
+    const role = t.role === "founder" ? "user" : "assistant";
+    const last = out.at(-1);
+    if (last?.role === role) last.content[0].text += `\n\n${text}`;
+    else out.push({ role, content: [{ type: "text", text }] });
+  }
+  while (out[0]?.role === "assistant") out.shift();
+  // A question that never got an answer stays on screen; the next one follows on from the last answer.
+  if (out.at(-1)?.role === "user") out.pop();
+  return out;
+}
+
+/**
+ * Deleting someone from an Ask conversation. A conversation opened on their record is about them, so
+ * it goes ("delete"). Elsewhere, whatever names them comes out of what the founder sees (records,
+ * rows, proposals and sources about them; their name and address in the text), and the model's
+ * history is rebuilt from that redacted view. The history can't be edited in place: thinking blocks
+ * are signed, and tool results and web pages may hold them too. Returns whether anything changed.
+ */
+export function forgetInThread(thread: ForgettableThread, person: Person): "delete" | boolean {
+  if (isPersonRef(thread.context, person.id)) return "delete";
+  if (!threadMentions(thread, person)) return false;
+  const aboutThem = (x: unknown) => pointsAt(JSON.stringify(x), person);
+  for (const t of thread.turns) {
+    if (t.records) t.records = t.records.filter((r) => !isPersonRef(r.ref, person.id));
+    if (t.instant) t.instant.rows = t.instant.rows.filter((r) => !isPersonRef(r.ref, person.id));
+    // A chip to add, write to or suppress them; a page about them.
+    if (t.proposals) t.proposals = t.proposals.filter((p) => !aboutThem(p));
+    if (t.citations) t.citations = t.citations.filter((c) => !aboutThem(c));
+  }
+  redactDeep(thread.turns, person);
+  const scrub = scrubber(person);
+  if (scrub) {
+    thread.title = scrub(thread.title);
+    if (thread.contextLabel) thread.contextLabel = scrub(thread.contextLabel);
+  }
+  thread.messages = transcript(thread.turns);
+  // The context notes went with the old history: the next answer gets the open record again.
+  delete thread.noted;
+  return true;
+}
+
+/* ───────────── Links to connected tools (hub.json) ───────────── */
+
+/** Their CRM record links, keyed by their address ("hubspot:person:dana@…"). */
+export function hubRefsOf(refs: Record<string, unknown>, person: Person): string[] {
+  const keys = new Set(emailsOf(person).map((e) => `:person:${e}`));
+  return Object.keys(refs).filter((key) => {
+    const i = key.indexOf(":person:");
+    return i !== -1 && keys.has(key.slice(i).toLowerCase());
+  });
 }
