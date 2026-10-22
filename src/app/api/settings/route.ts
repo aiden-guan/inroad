@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { SettingsStatus } from "@/components/settings/types";
 import { checkGithubToken } from "@/lib/signals/github";
 import { errorResponse, readJSON } from "@/lib/server/http";
-import { DATA_DIR, readSettings, writeSettings } from "@/lib/store/settings";
+import { DATA_DIR, dataDirInsideApp, readSettings, writeSettings } from "@/lib/store/settings";
 
 function status(): SettingsStatus {
   const settings = readSettings();
@@ -21,6 +21,7 @@ function status(): SettingsStatus {
     githubTokenHint: settings.githubToken ? `…${settings.githubToken.slice(-4)}` : null,
     secContact: settings.secContact ?? null,
     dataDir: path.resolve(DATA_DIR),
+    dataDirInApp: dataDirInsideApp(),
   };
 }
 

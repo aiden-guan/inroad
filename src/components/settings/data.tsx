@@ -67,7 +67,19 @@ async function downloadBackup(today: string) {
   }
 }
 
-export function DataSection({ ws, refresh, dataDir, today }: { ws: Workspace; refresh: () => Promise<void>; dataDir: string | null; today: string }) {
+export function DataSection({
+  ws,
+  refresh,
+  dataDir,
+  dataDirInApp = false,
+  today,
+}: {
+  ws: Workspace;
+  refresh: () => Promise<void>;
+  dataDir: string | null;
+  dataDirInApp?: boolean;
+  today: string;
+}) {
   const counts = { companies: Object.keys(ws.accounts).length, people: Object.keys(ws.people).length, deals: Object.keys(ws.deals).length };
   const [downloading, setDownloading] = useState(false);
   return (
@@ -81,19 +93,28 @@ export function DataSection({ ws, refresh, dataDir, today }: { ws: Workspace; re
               Data stays on this machine
             </span>
           }
-          hint="Only two things leave it: calls to Anthropic with the context a task needs, and free public lookups that carry company names and domains. Connected tools get only what you push to them."
+          hint="What leaves it: calls to Anthropic with the context a task needs, and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in General). Connected tools get only what you push to them."
         />
-        <div className="flex items-center gap-2 px-4 py-3">
-          {dataDir ? (
-            <>
-              {/* RTL + an isolated LTR run keeps the end of a long path visible (the folder name matters most). */}
-              <code className="min-w-0 flex-1 truncate rounded-xs bg-sunken px-2 py-1 text-left font-mono text-[12px] text-fg-2 ring-1 ring-inset ring-border [direction:rtl]" title={dataDir}>
-                <bdi>{dataDir}</bdi>
-              </code>
-              <CopyButton text={dataDir} label="Copy path" />
-            </>
-          ) : (
-            <Skeleton className="h-6 w-full" />
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            {dataDir ? (
+              <>
+                {/* RTL + an isolated LTR run keeps the end of a long path visible (the folder name matters most). */}
+                <code className="min-w-0 flex-1 truncate rounded-xs bg-sunken px-2 py-1 text-left font-mono text-[12px] text-fg-2 ring-1 ring-inset ring-border [direction:rtl]" title={dataDir}>
+                  <bdi>{dataDir}</bdi>
+                </code>
+                <CopyButton text={dataDir} label="Copy path" />
+              </>
+            ) : (
+              <Skeleton className="h-6 w-full" />
+            )}
+          </div>
+          {dataDirInApp && (
+            <p className="mt-2 text-[12px] leading-[17px] text-fg-3 text-pretty">
+              <span className="font-medium text-warning">This is inside Inroad&apos;s own folder,</span> so deleting or re-cloning Inroad deletes your data
+              with it. To keep it safe, start Inroad with <span className="font-mono text-[11.5px] text-fg-2">GTM_DATA_DIR</span> set to a folder of its
+              own; the README shows how.
+            </p>
           )}
         </div>
       </Group>
