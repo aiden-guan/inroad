@@ -2,6 +2,9 @@
   "name": "inroad",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "node scripts/serve.mjs dev",
     "build": "next build",

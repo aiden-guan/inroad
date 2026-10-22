@@ -23,72 +23,32 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchPlan } from "./launch-plan.mjs";
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-const [mode, ...rest] = process.argv.slice(2);
-if (mode !== "dev" && mode !== "start") {
-  console.error("Usage: node scripts/serve.mjs dev|start [--mock] [next options]");
+const plan = launchPlan(process.argv.slice(2), process.env, path.join(here, "peer-guard.cjs"));
+if (plan.error) {
+  console.error(plan.error);
   process.exit(2);
 }
+const { port, local } = plan;
 
-const mock = rest.includes("--mock");
-const args = rest.filter((a) => a !== "--mock");
-
-/** The value of a flag like `-p 3301`, `--port=3301`; also drops it from `args`. */
-function take(short, long) {
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === short || a === long) {
-      const value = args[i + 1];
-      args.splice(i, 2);
-      return value;
-    }
-    if (a.startsWith(`${long}=`)) {
-      args.splice(i, 1);
-      return a.slice(long.length + 1);
-    }
-  }
-  return undefined;
-}
-
-const env = { ...process.env };
-const host = take("-H", "--hostname") ?? (env.INROAD_HOST || "127.0.0.1");
-const port = take("-p", "--port") ?? (mock ? "3100" : env.PORT || "3000");
-
-if (mock) {
-  const mockUrl = `http://localhost:${env.MOCK_PORT || 4010}`;
-  env.ANTHROPIC_BASE_URL = mockUrl;
-  env.ANTHROPIC_API_KEY = "mock";
-  env.FIRECRAWL_API_URL = mockUrl;
-  env.GTM_DATA_DIR ||= ".data-mock";
-}
-
-// The app reads these: where it listens and on which port (the tunnel connects there).
-env.INROAD_HOST = host;
-env.PORT = String(port);
-// Forward slashes: NODE_OPTIONS treats a backslash inside quotes as an escape, and Windows accepts both.
-const guard = path.join(here, "peer-guard.cjs").replace(/\\/g, "/");
-env.NODE_OPTIONS = [env.NODE_OPTIONS, `--require "${guard}"`].filter(Boolean).join(" ");
-
-const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|localhost)$/i;
-if (!LOOPBACK.test(host)) {
+if (plan.exposed) {
   console.warn(
-    `[inroad] Listening on ${host}, so other devices on your network can connect. They still get "only available on the computer it runs on" for every page and internal API.`,
+    `[inroad] Listening on ${plan.host}, so other devices on your network can connect. They still get "only available on the computer it runs on" for every page and internal API.`,
   );
 }
 
 const next = require.resolve("next/dist/bin/next");
-const child = spawn(process.execPath, [next, mode, "-H", host, "-p", String(port), ...args], { stdio: "inherit", env });
+const child = spawn(process.execPath, [next, ...plan.args], { stdio: "inherit", env: plan.env });
 
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(signal, () => {
     if (!child.killed) child.kill(signal);
   });
 }
-/** The address to reach the server on from this machine. */
-const local = host === "0.0.0.0" || host === "" ? "127.0.0.1" : host === "::" ? "[::1]" : host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 
 // Startup work, as soon as the server answers (dev compiles on the first request, so allow a while).
 (async () => {
