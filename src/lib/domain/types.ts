@@ -971,6 +971,8 @@ export interface Activity {
   tags?: TouchTags;
   /** Touches from a draft: how much the founder changed it before sending, 0 (as drafted) to 1 (rewritten). */
   editDistance?: number;
+  /** Replies only: a yes the founder answered and then let go (no call, and no deal to close as lost). */
+  loopClosedAt?: ISODateTime;
 }
 
 export type SkipReason = "not_relevant_now" | "wrong_person" | "weak_angle" | "already_handled" | "tone_off" | "other";

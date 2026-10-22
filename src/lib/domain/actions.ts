@@ -136,6 +136,8 @@ export type Action =
   | { type: "move.reopen"; id: ID }
   /** "Check replies": marks touches replied / no reply / bounced / not sent (null clears the mark). */
   | { type: "activity.markOutcome"; ids: ID[]; outcome: NonNullable<Activity["outcome"]> | null; at: string }
+  /** "Let it go" on a yes that has no deal: Today stops chasing the booking (null opens it again). */
+  | { type: "activity.closeLoop"; id: ID; at: string | null }
   /** Applies or dismisses a weekly-review proposal (the change itself is dispatched alongside). */
   | { type: "brief.setProposal"; date: string; proposalId: ID; status: "open" | "applied" | "dismissed"; at: string }
   | { type: "event.upsert"; event: GtmEvent }
@@ -649,7 +651,12 @@ export function applyAction(ws: Workspace, action: Action): void {
       const acc = ws.accounts[pkg.accountDomain];
       if (acc && acc.status === "new") acc.status = "tracked";
       if (pkg.mode === "warm_intro") openIntroFromAsk(ws, pkg.id, action.at);
-      if (pkg.mode === "reply" && pkg.replyAction === "book") openDealFromReply(ws, pkg, action.at);
+      if (pkg.mode === "reply" && pkg.replyAction === "book") {
+        openDealFromReply(ws, pkg, action.at);
+        // The answer is the deal's first touch: it belongs on the deal it just opened.
+        const answer = ws.activities.find((a) => a.id === action.activityId);
+        if (answer && !answer.dealId) answer.dealId = ws.accounts[pkg.accountDomain]?.dealId;
+      }
       for (const move of Object.values(ws.moves)) {
         if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "done";
       }
@@ -800,6 +807,15 @@ export function applyAction(ws: Workspace, action: Action): void {
           a.outcomeAt = action.at;
         }
       }
+      return;
+    }
+    case "activity.closeLoop": {
+      const reply = need(
+        ws.activities.find((a) => a.id === action.id),
+        "Reply",
+      );
+      if (action.at === null) delete reply.loopClosedAt;
+      else reply.loopClosedAt = action.at;
       return;
     }
     case "brief.setProposal": {

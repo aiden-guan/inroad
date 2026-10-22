@@ -50,6 +50,7 @@ describe("answering a yes", () => {
     const deal = ws.deals.deal_out_reply;
     expect(deal).toMatchObject({ stage: "talking", accountDomain: DOMAIN, contacts: [{ personId: "per_dana" }], nextStep: { what: "Book the call with Dana", date: "2026-10-14", buyerAgreed: false } });
     expect(ws.accounts[DOMAIN]).toMatchObject({ dealId: deal.id, status: "in_pipeline" });
+    expect(ws.activities.find((a) => a.id === "act_answer")?.dealId).toBe(deal.id);
 
     applyAction(ws, { type: "outreach.unapproveStep", packageId: "out_reply", step: 1, activityId: "act_answer" });
     expect(ws.deals.deal_out_reply).toBeUndefined();
@@ -155,6 +156,27 @@ describe("the booking loop on Today", () => {
     expect(close((ws) => applyAction(ws, { type: "deal.setNextStep", id: "deal_out_reply", nextStep: { what: "Call", date: "2026-10-27", buyerAgreed: true }, at: iso(10, 19) }))).toEqual([]);
     expect(close((ws) => ws.activities.push(makeActivity("act_later", { at: iso(10, 16), kind: "reply_received", personId: "per_dana", sentiment: "negative" })))).toEqual([]);
     expect(close((ws) => ws.suppression.push({ id: "sup", email: "dana@northwind.example", reason: "unsubscribe", at: iso(10, 16) }))).toEqual([]);
+  });
+
+  it("lets go of a loop with no deal everywhere: Today and Check replies stop chasing it, Undo brings it back", () => {
+    const ws = yesFromDana("info_request");
+    applyAction(ws, approve);
+    expect(ws.deals).toEqual({});
+    const nov2 = d(11, 2);
+    expect(ofRule(computeMoves(ws, nov2), "reply_book")).toHaveLength(1);
+    expect(awaitingOutcome(ws, nov2).map((r) => r.awaitingTime)).toEqual([true]);
+
+    applyAction(ws, { type: "activity.closeLoop", id: "act_yes", at: iso(11, 2) });
+    expect(bookingLoops(ws, nov2)).toEqual([]);
+    expect(ofRule(computeMoves(ws, nov2), "reply_book")).toEqual([]);
+    // Past 14 days, the answered thread leaves the search like any other touch.
+    expect(awaitingOutcome(ws, nov2)).toEqual([]);
+    // A later touch doesn't revive it either.
+    applyAction(ws, { type: "activity.log", activity: makeActivity("act_later", { at: iso(11, 3), kind: "touch_sent", personId: "per_dana", accountDomain: DOMAIN, channel: "email" }) });
+    expect(ofRule(computeMoves(ws, d(11, 10)), "reply_book")).toEqual([]);
+
+    applyAction(ws, { type: "activity.closeLoop", id: "act_yes", at: null });
+    expect(ofRule(computeMoves(ws, d(11, 10)), "reply_book")).toHaveLength(1);
   });
 
   it("covers LinkedIn answers and 'send me info' replies too", () => {
