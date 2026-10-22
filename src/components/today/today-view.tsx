@@ -342,7 +342,7 @@ export function Today({ ws }: { ws: Workspace }) {
         />
 
         <section className="mt-10" aria-label="Your moves">
-          {dayOne && <DayOne warm={!!ws.network} />}
+          {dayOne && <DayOne warm={!!ws.network} networkCard={visible.some((m) => m.rule === "today.network")} />}
           {visible.length === 0 ? (
             !dayOne && <CaughtUp worth={worth} />
           ) : (
@@ -432,7 +432,9 @@ function WeekCard({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "m
 }
 
 /** Day one, no companies yet. Warm-first only once there's a network to start from; until then, say how to get one. */
-function DayOne({ warm }: { warm: boolean }) {
+/** `networkCard`: "Bring in your network" is on the desk below, so the import is asked for there, once. */
+function DayOne({ warm, networkCard }: { warm: boolean; networkCard: boolean }) {
+  const askImport = !warm && !networkCard;
   return (
     <EmptyState
       icon={<Compass className="size-6" />}
@@ -440,12 +442,12 @@ function DayOne({ warm }: { warm: boolean }) {
       body={
         warm
           ? "I'll look for companies with a dated reason to talk to you now, and rank first the ones where people you know work. Then I research each one before you write a word."
-          : "I'll look for companies with a dated reason to talk to you now, then research each one before you write a word. Import your LinkedIn connections and I'll start with people who already know you."
+          : `I'll look for companies with a dated reason to talk to you now, then research each one before you write a word.${askImport ? " Import your LinkedIn connections and I'll start with people who already know you." : ""}`
       }
       action={
         <div className="flex flex-col items-center gap-3">
           <RunInline workflow="discovery" args={{ count: 3, source: "manual" }} label="Find three companies" hint="Free sources first · a few minutes" />
-          {!warm && (
+          {askImport && (
             <Link href="/integrations?import=linkedin" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
               Or import your LinkedIn connections first
             </Link>
