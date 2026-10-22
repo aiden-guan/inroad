@@ -327,6 +327,7 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       );
     }
     case "pilot_roi":
+    case "pilot_kickoff":
     case "pilot_convert":
     case "pilot_checkin":
     case "map_overdue": {
@@ -968,6 +969,8 @@ function QuestionBody({ move, ws, onComplete }: BodyProps) {
 const PILOT_LEADS: Record<string, string> = {
   pilot_roi:
     "Book the ROI review before the pilot ends, with the economic buyer in the room: results against the baseline and the success criteria, then the conversion decision. A review booked after the end date usually slips.",
+  pilot_kickoff:
+    "Book the ROI review in the pilot's first days, while everyone is paying attention: the date the pilot ends, the economic buyer in the room, and the success criteria you'll walk through. Pilots with a review on the calendar from kickoff convert; the rest drift.",
   pilot_convert:
     "The pilot is over. Ask for the decision now: walk through the results against the criteria you agreed, then send the order form, or agree a dated conversion with a price. An open-ended pilot turns into a free trial.",
   pilot_checkin:
@@ -1014,7 +1017,7 @@ function PilotBody({ move, ws, today, onComplete, deal, rule }: BodyProps & { de
         </ul>
       )}
       <Row>
-        {rule === "pilot_roi" ? (
+        {rule === "pilot_roi" || rule === "pilot_kickoff" ? (
           <Button variant="primary" icon={<Check className="size-3.5" />} onClick={() => void act({ type: "deal.update", id: deal.id, patch: { checklist: { ...deal.checklist, "pilot.roi": true } }, at })}>
             The review is booked
           </Button>

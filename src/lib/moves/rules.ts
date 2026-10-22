@@ -78,6 +78,7 @@ const RULES = {
   slipped: { base: 55, label: "Close date pushed twice or more" },
   pilot_convert: { base: 62, label: "Pilot past its end date, still at Pilot" },
   pilot_roi: { base: 58, label: "Pilot ends within 5 days and no ROI review is booked" },
+  pilot_kickoff: { base: 50, label: "Pilot just started and no ROI review is booked" },
   map_overdue: { base: 55, label: "A mutual action plan step is overdue" },
   pilot_checkin: { base: 45, label: "Pilot running, no check-in for 3 days" },
   switch_channel: { base: 54, label: "Three emails without a reply" },
@@ -656,6 +657,8 @@ function lastDealActivity(ws: Workspace, deal: Deal, now: Date): string {
 
 const PILOT_CHECKIN_DAYS = 3;
 const ROI_WINDOW_DAYS = 5;
+/** The pilot's first days: book the ROI review now, while the kickoff is fresh. */
+const KICKOFF_DAYS = 3;
 
 /** The champion's first name on a deal: the card's, then a contact with the role, then the first contact. */
 function championOf(ws: Workspace, deal: Deal): string {
@@ -688,9 +691,7 @@ function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean,
       href: sheet(domain),
     });
   } else if (deal.stage === "pilot" && endsOn && pw.endsIn !== undefined && pw.endsIn <= ROI_WINDOW_DAYS && !pw.roiBooked) {
-    const nowIso = now.toISOString();
-    const booked = Object.values(ws.meetings).some((m) => m.dealId === deal.id && m.startsAt > nowIso && /\b(roi|review|readout|results)\b/i.test(m.title));
-    if (!booked) {
+    if (!reviewOnCalendar(ws, deal, now)) {
       out.push({
         id: `mv_pilot_roi_${deal.id}_${endsOn}`,
         kind: "next_step_missing",
@@ -704,6 +705,25 @@ function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean,
         href: sheet(domain),
       });
     }
+  }
+
+  // The research says book the ROI review at kickoff: on the calendar from day one, it rarely slips. The last-week
+  // card above is the fallback, so this one stands down once the end is that close.
+  const started = deal.pilot?.startedOn;
+  const ending = !!endsOn && pw.endsIn !== undefined && pw.endsIn <= ROI_WINDOW_DAYS;
+  if (running && started && daysSince(started, today) < KICKOFF_DAYS && !pw.roiBooked && !ending && !reviewOnCalendar(ws, deal, now)) {
+    out.push({
+      id: `mv_pilot_kickoff_${deal.id}_${started}`,
+      kind: "next_step_missing",
+      rule: "pilot_kickoff",
+      title: `Book the ${company} ROI review now`,
+      why: `Pilot started ${shortDay(started)}${endsOn ? ` · ends ${shortDay(endsOn)}` : ""} · put the review on ${champion ? `${champion}'s` : "their"} calendar at kickoff`,
+      minutes: 3,
+      priority: RULES.pilot_kickoff.base * mult,
+      ref: { kind: "deal", id: deal.id },
+      subjectIds: [deal.id],
+      href: sheet(domain),
+    });
   }
 
   if (running) {
@@ -748,6 +768,12 @@ function pilotMoves(ws: Workspace, deal: Deal, pw: PilotWatch, running: boolean,
       href: sheet(domain),
     });
   }
+}
+
+/** A results review already on the calendar for this deal (an ROI review, a readout). */
+function reviewOnCalendar(ws: Workspace, deal: Deal, now: Date): boolean {
+  const nowIso = now.toISOString();
+  return Object.values(ws.meetings).some((m) => m.dealId === deal.id && m.startsAt > nowIso && /\b(roi|review|readout|results)\b/i.test(m.title));
 }
 
 function upcomingMeeting(ws: Workspace, deal: Deal, now: Date): boolean {
