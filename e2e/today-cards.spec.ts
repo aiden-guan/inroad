@@ -185,6 +185,21 @@ test("the monthly review says whose time each number is, in plain words", async 
   await expect(page.getByText(/log your quotes against how they landed/)).toHaveCount(0);
 });
 
+test("day one asks for the LinkedIn import once, in the card for it", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  const ws = await workspace(request);
+  // Hired, no companies yet, no network and no investors: the first Today after onboarding without a list.
+  Object.assign(ws, { sample: undefined, accounts: {}, people: {}, deals: {}, meetings: {}, outreach: {}, intros: {}, events: {}, activities: [], moves: {}, connectors: [], network: undefined });
+  expect((await request.post("/api/workspace/restore", { data: ws })).ok()).toBe(true);
+  expect((await request.post("/api/today/prepare", { data: { reason: "refresh" } })).ok()).toBe(true);
+
+  await page.goto("/today");
+  await expect(page.getByText("Let's find your first three companies")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Bring in your network/ })).toBeVisible();
+  await expect(page.getByText(/Import your LinkedIn connections and I'll start/)).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Or import your LinkedIn connections first" })).toHaveCount(0);
+});
+
 test("with reduced motion, holding to close as lost says to keep holding", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);
