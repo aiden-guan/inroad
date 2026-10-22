@@ -279,6 +279,8 @@ export default defineWorkflow({
         messages: [{ role: "user", content: `${taskHeader()}\n\n<transcript>\n${notes.slice(0, 400_000)}\n</transcript>\n\nSubmit up to 60 verbatim excerpts.` }],
         tools: [excerptsTool],
         requireTerminal: true,
+        // No excerpts falls back to the head and tail of the transcript.
+        optionalResult: true,
         maxTokens: 12_000,
       });
       const kept = (ex.result?.excerpts ?? []).filter((e) => quoteIn(e.text, haystack));

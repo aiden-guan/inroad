@@ -1174,6 +1174,8 @@ export default defineWorkflow({
       system: [EMBER_CORE, FOUNDATION_RULES],
       tools: [finishBet, submitSection],
       requireTerminal: true,
+      // Sections are saved as they arrive; a missing finish_bet falls through to the continuation below.
+      optionalResult: true,
     };
     if (resume && saved.has("icp")) await startDiscovery(); // no-op when the stopped run already started it
 

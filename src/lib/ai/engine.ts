@@ -17,7 +17,10 @@ export { AgentError };
  * - Server-side web search + web fetch (Anthropic runs them; we narrate them to the UI)
  * - App tools validated with zod before they run; "terminal" tools end the run and their
  *   input becomes the structured result (e.g. `submit_playbook`)
- * - Handles pause_turn, refusal, max_tokens and unparseable tool JSON explicitly
+ * - Handles pause_turn, refusal, max_tokens and unparseable tool JSON explicitly: a turn cut off at
+ *   max_tokens is retried once with twice the room, a mid-stream overload is re-issued after a pause,
+ *   a run that must end in a submit tool is nudged and then retried once before it fails (no_submit),
+ *   and a submit that keeps breaking its caps gets at most two resubmissions
  */
 
 /** Optional request features. If the API rejects one we retry without it (compat mode). */
@@ -83,8 +86,19 @@ export interface RunOptions {
   webFetch?: number;
   effort?: Effort;
   maxTokens?: number;
-  /** When set, the run is expected to end by calling a terminal tool; Claude is nudged once if it doesn't. */
+  /**
+   * Prompt-cache lifetime for the system blocks and the conversation. "1h" suits bursty routes that send
+   * the same prefix more than twice within an hour (screening batches, drafts): a 1-hour write costs 2x
+   * input instead of 1.25x and pays off from the third request.
+   */
+  cacheTtl?: "5m" | "1h";
+  /**
+   * The run must end by calling a terminal tool. If Claude answers in text instead it's nudged, then
+   * retried once ("I lost the thread on that one. Retrying."); after that the run fails with no_submit.
+   */
   requireTerminal?: boolean;
+  /** With requireTerminal: return `result: undefined` instead of failing, for callers with a fallback in code. */
+  optionalResult?: boolean;
   emit: (event: AgentEvent) => void;
   signal?: AbortSignal;
 }
@@ -105,6 +119,16 @@ export interface RunResult<T = unknown> {
 
 const MAX_TURNS = 24;
 const MAX_PAUSE_CONTINUATIONS = 6;
+/** Resubmissions a terminal tool gets after its input breaks the schema's caps (SPEC: at most twice). */
+const MAX_RESUBMITS = 2;
+/** Nudges before giving up on a missing submit: the nudge, then the one retry. */
+const MAX_NUDGES = 2;
+/** Pause before re-issuing a turn the API dropped mid-stream as overloaded (doubles on the second try). */
+const STREAM_RETRY_MS = 600;
+
+export const NO_SUBMIT_MESSAGE = "I lost the thread on that one and stopped instead of guessing. Try again.";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function toInputSchema(schema: z.ZodType, strict: boolean): Anthropic.Beta.BetaTool.InputSchema {
   const json = z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>;
@@ -180,8 +204,9 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
 
   const systemTexts = (Array.isArray(opts.system) ? opts.system : [opts.system]).filter(Boolean);
   const breakpoints = new Set([systemTexts.length - 1, ...(systemTexts.length >= 3 ? [systemTexts.length - 2] : [])]);
+  const marker: Anthropic.Beta.BetaCacheControlEphemeral = opts.cacheTtl === "1h" ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" };
   const systemBlocks: Anthropic.Beta.BetaTextBlockParam[] = systemTexts.map((text, i) =>
-    breakpoints.has(i) ? { type: "text", text, cache_control: { type: "ephemeral" } } : { type: "text", text },
+    breakpoints.has(i) ? { type: "text", text, cache_control: marker } : { type: "text", text },
   );
   const messages: Anthropic.Beta.BetaMessageParam[] = [...opts.messages];
   let text = "";
@@ -192,7 +217,11 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   const dropped = new Set<CompatFeature>(rejected.keys());
   let jsonRetries = 0;
   let pauses = 0;
-  let nudged = false;
+  let nudges = 0;
+  let maxTokens = opts.maxTokens ?? 32000;
+  let roomRetried = false;
+  const invalidSubmits = new Map<string, number>();
+  let gaveUp = false;
   let emittedAnything = false;
   let usage = emptyUsage();
   // Priced per request by the model that served it (a fallback bills at its own rates).
@@ -206,7 +235,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       const noBetas = dropped.has("betas");
       const params: Anthropic.Beta.Messages.MessageCreateParams = {
         model,
-        max_tokens: opts.maxTokens ?? 32000,
+        max_tokens: maxTokens,
         thinking: noBetas
           ? { type: "adaptive", display: "summarized" }
           : { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } },
@@ -215,7 +244,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         // Automatic caching: the breakpoint follows the last block each turn, so turn N reads what
         // turn N-1 wrote. Never mark `messages` itself: it is returned and persisted, and markers
         // would pile up past the 4-breakpoint limit. Worst case here: 2 system + Ask's turn + this.
-        cache_control: { type: "ephemeral" },
+        // Longer TTLs must come first, so the tail is 1h only when no 5-minute marker sits in messages.
+        cache_control: opts.cacheTtl === "1h" && !hasShorterMarker(messages) ? marker : { type: "ephemeral" },
         tools: tools.length ? (dropped.has("strict") ? [...buildTools(false), ...tools.slice(appTools.length)] : tools) : undefined,
         messages,
         ...(noBetas
@@ -324,6 +354,16 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         }
         // APIConnectionError (and its timeout subclass) extends APIError, so check it first.
         if (err instanceof Anthropic.APIConnectionError) throw new AgentError("Couldn't reach Claude. Check your connection.", "network");
+        // An overload after the stream started arrives as an error event (no status, so the SDK's own
+        // retries never saw it): pause, drop what the attempt streamed, and re-issue the turn (twice at most).
+        if (err instanceof Anthropic.APIError && err.status === undefined && (err.type === "overloaded_error" || err.type === "api_error") && jsonRetries < 2) {
+          await sleep(STREAM_RETRY_MS * 2 ** jsonRetries++);
+          if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
+          text = text.slice(0, textStart);
+          emit({ type: "status", text: "Claude is busy. Retrying…" });
+          turn--;
+          continue;
+        }
         if (err instanceof Anthropic.APIError) throw toAgentError(err, tier);
         // SDK stream errors (unparseable tool JSON from eager input streaming, a mid-stream drop):
         // re-issue the turn (capped) and drop the text the failed attempt streamed. Errors from our
@@ -355,26 +395,38 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
 
       const toolUses = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
 
+      // Out of room (reasoning counts toward max_tokens): re-issue the turn once with twice the budget,
+      // dropping the cut-off attempt. A tool input cut off there can still look valid, so it never runs.
+      if (message.stop_reason === "max_tokens") {
+        if (!roomRetried) {
+          roomRetried = true;
+          maxTokens = Math.min(128_000, maxTokens * 2);
+          if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
+          text = text.slice(0, textStart);
+          console.warn(`[agent] turn hit max_tokens; retrying once with ${maxTokens}`);
+          emit({ type: "status", text: "That ran long. Giving it more room" });
+          continue;
+        }
+        if (!toolUses.length) messages.push({ role: "assistant", content: message.content });
+        throw new AgentError("The response ran too long and was cut off. Try a narrower request.", "truncated");
+      }
+
       if (toolUses.length === 0) {
         messages.push({ role: "assistant", content: message.content });
-        if (message.stop_reason === "max_tokens") {
-          throw new AgentError("The response ran too long and was cut off. Try a narrower request.", "truncated");
-        }
-        if (opts.requireTerminal && result === undefined && !nudged) {
-          nudged = true;
-          const terminal = appTools.find((t) => t.terminal);
+        if (opts.requireTerminal && result === undefined && nudges < MAX_NUDGES) {
+          const terminal = appTools.find((t) => t.terminal)?.name ?? "submit";
+          // The first nudge is a reminder; the second is the one retry the founder sees.
+          if (nudges++ > 0) emit({ type: "status", text: "I lost the thread on that one. Retrying." });
           messages.push({
             role: "user",
-            content: `Now call the ${terminal?.name ?? "submit"} tool with your final output. Do not reply in plain text.`,
+            content:
+              nudges === 1
+                ? `Now call the ${terminal} tool with your final output. Do not reply in plain text.`
+                : `You still haven't called ${terminal}. Call it now with your final output, built from what you found above. Plain text is discarded.`,
           });
           continue;
         }
         break;
-      }
-
-      // A tool input cut off at max_tokens can still look valid; never run it.
-      if (message.stop_reason === "max_tokens") {
-        throw new AgentError("The response ran too long and was cut off. Try a narrower request.", "truncated");
       }
 
       messages.push({ role: "assistant", content: message.content });
@@ -392,6 +444,10 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         }
         const parsed = tool.schema.safeParse(use.input);
         if (!parsed.success) {
+          // A submit that keeps missing its caps re-bills the whole conversation each time: two resubmits, then stop.
+          const misses = tool.terminal ? (invalidSubmits.get(use.name) ?? 0) + 1 : 0;
+          if (tool.terminal) invalidSubmits.set(use.name, misses);
+          if (misses > MAX_RESUBMITS) gaveUp = true;
           toolResults.push({
             type: "tool_result",
             tool_use_id: use.id,
@@ -421,7 +477,12 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       }
       messages.push({ role: "user", content: toolResults });
       if (finished) break;
+      if (gaveUp && result === undefined) {
+        console.warn(`[agent] ${[...invalidSubmits.keys()].join(", ")} failed validation ${MAX_RESUBMITS + 1} times; stopping`);
+        break;
+      }
     }
+    if (opts.requireTerminal && result === undefined && !opts.optionalResult) throw new AgentError(NO_SUBMIT_MESSAGE, "no_submit");
   } catch (err) {
     // Turns already billed travel with the error, so receipts and the monthly budget count them.
     if (err instanceof AgentError && !err.usage) {
@@ -450,6 +511,13 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       emit({ type: "status", text: "Filtering results" });
     }
   }
+}
+
+/** A message block marked with a TTL shorter than one hour (the automatic tail may not be longer). */
+function hasShorterMarker(messages: Anthropic.Beta.BetaMessageParam[]): boolean {
+  return messages.some(
+    (m) => Array.isArray(m.content) && m.content.some((b) => "cache_control" in b && b.cache_control && (b.cache_control as { ttl?: string }).ttl !== "1h"),
+  );
 }
 
 type UsageCounts = { input_tokens?: number | null; output_tokens?: number | null; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null; cache_creation?: { ephemeral_1h_input_tokens?: number } | null };

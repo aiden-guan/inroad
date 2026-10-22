@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { startMock, type MockServer } from "@/test/mock-anthropic";
-import { AgentError, compatState, defineTool, resetCompat, runAgent, type RunOptions } from "./engine";
+import { AgentError, NO_SUBMIT_MESSAGE, compatState, defineTool, resetCompat, runAgent, type RunOptions } from "./engine";
 import type { AgentEvent } from "./events";
 import { costOf, requestCost } from "./models";
 
@@ -212,12 +212,112 @@ describe("runAgent with app tools", () => {
     expect(sent[1].body.messages.at(-1)!.content).toEqual([expect.objectContaining({ type: "tool_result", is_error: true, content: "CRM is down" })]);
   });
 
-  it("nudges once for the final output when a run must end in a tool call", async () => {
-    const r = await run({ system: "Rules", messages: [{ role: "user", content: "Summarize Acme" }], tools: [], requireTerminal: true });
-    expect(sent).toHaveLength(2);
-    expect(sent[1].body.messages.at(-1)).toEqual({ role: "user", content: "Now call the submit tool with your final output. Do not reply in plain text." });
+});
+
+describe("runAgent when the model doesn't submit", () => {
+  const plan = { system: "Rules", messages: [{ role: "user" as const, content: "Plan outreach for Acme" }], tools: [submitPlan], requireTerminal: true };
+
+  it("nudges, retries once, and takes the submit that follows", async () => {
+    await fault({ type: "no_submit", times: 2 });
+    const r = await run<Plan>(plan);
+    expect(r.result).toBeDefined();
+    expect(sent).toHaveLength(3);
+    expect(sent[1].body.messages.at(-1)).toEqual({ role: "user", content: "Now call the submit_plan tool with your final output. Do not reply in plain text." });
+    expect(sent[2].body.messages.at(-1)?.content).toMatch(/^You still haven't called submit_plan\./);
+    // The retry is the one the founder sees in the log (SPEC's no_submit copy).
+    expect(r.of("status").map((e) => e.text)).toContain("I lost the thread on that one. Retrying.");
+  });
+
+  it("fails with no_submit after the retry, keeping what the turns cost", async () => {
+    await fault({ type: "no_submit", times: 3 });
+    const err = (await run(plan).catch((e: unknown) => e)) as AgentError;
+    expect(err).toBeInstanceOf(AgentError);
+    expect(err).toMatchObject({ code: "no_submit", message: NO_SUBMIT_MESSAGE });
+    expect(sent).toHaveLength(3);
+    expect(err.usage?.inputTokens).toBeGreaterThan(0);
+    expect(err.costUsd).toBeGreaterThan(0);
+  });
+
+  it("returns no result instead of failing when the caller has a fallback", async () => {
+    await fault({ type: "no_submit", times: 3 });
+    const r = await run({ ...plan, optionalResult: true });
     expect(r.result).toBeUndefined();
-    expect(r.text).toContain("Here's my take on");
+    expect(r.text).toContain("Here's what I found");
+  });
+
+  it("gives a submit that keeps breaking its caps two resubmissions, then stops", async () => {
+    await fault({ type: "invalid_submit", times: 5 });
+    const err = await run(plan).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "no_submit" });
+    // First try plus two resubmissions; the third rejection isn't sent back to be billed again.
+    expect(sent).toHaveLength(3);
+    const feedback = (sent[2].body.messages.at(-1)!.content as { is_error?: boolean }[])[0];
+    expect(feedback.is_error).toBe(true);
+  });
+});
+
+describe("runAgent retries the API's transient failures", () => {
+  it("gives a turn cut off at max_tokens one more try with twice the room", async () => {
+    await fault({ type: "max_tokens" });
+    const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan], maxTokens: 2000, requireTerminal: true });
+    expect(r.result).toBeDefined();
+    expect(sent.map((s) => s.body.max_tokens)).toEqual([2000, 4000]);
+    // The cut-off attempt is dropped, not kept in the conversation.
+    expect(sent[1].body.messages).toHaveLength(1);
+    expect(r.of("status").map((e) => e.text)).toContain("That ran long. Giving it more room");
+  });
+
+  it("fails as truncated when the second try is cut off too", async () => {
+    await fault({ type: "max_tokens", times: 2 });
+    await expect(run({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan], maxTokens: 2000 })).rejects.toMatchObject({ code: "truncated" });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("re-issues a turn the API dropped mid-stream as overloaded", async () => {
+    await fault({ type: "overloaded_midstream" });
+    const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(r.result).toBeDefined();
+    expect(sent).toHaveLength(2);
+    expect(r.of("status").map((e) => e.text)).toContain("Claude is busy. Retrying…");
+  });
+
+  it("lets the SDK retry 429 and 529 with backoff before anything fails", async () => {
+    await fault({ type: "overloaded", times: 2 }, { type: "rate_limit" });
+    const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(r.result).toBeDefined();
+    expect((await mock.requests()).map((q) => q.status)).toEqual([529, 529, 429, 200]);
+  });
+
+  it("names an overload that outlasts the retries in plain words", async () => {
+    await fault({ type: "overloaded", times: 4 });
+    await expect(run({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] })).rejects.toMatchObject({ code: "overloaded", message: "Claude is overloaded right now. Try again in a moment." });
+  });
+});
+
+describe("runAgent cache lifetime", () => {
+  it("marks the system blocks and the conversation for an hour on bursty routes", async () => {
+    const r = await run({ system: ["Core", "Workflow", "Company"], messages: [{ role: "user", content: "Screen these" }], tools: [submitPlan], cacheTtl: "1h" });
+    expect(r.result).toBeDefined();
+    expect(sent[0].body.system.map((b) => b.cache_control)).toEqual([undefined, { type: "ephemeral", ttl: "1h" }, { type: "ephemeral", ttl: "1h" }]);
+    expect(sent[0].body.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+  });
+
+  it("keeps the automatic tail at 5 minutes when a message already carries a 5-minute marker", async () => {
+    const r = await run({
+      system: "Core",
+      messages: [{ role: "user", content: [{ type: "text", text: "The bet", cache_control: { type: "ephemeral" } }] }],
+      tools: [submitPlan],
+      cacheTtl: "1h",
+    });
+    // A 1-hour tail after a 5-minute marker is a 400; the mock checks that ordering like the API.
+    expect(r.result).toBeDefined();
+    expect(sent[0].body.cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  it("defaults to the 5-minute TTL", async () => {
+    await run({ system: "Core", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(sent[0].body.cache_control).toEqual({ type: "ephemeral" });
+    expect(sent[0].body.system[0].cache_control).toEqual({ type: "ephemeral" });
   });
 });
 
