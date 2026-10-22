@@ -6,6 +6,7 @@ import { useState, type ReactNode, type Ref } from "react";
 import { DraftView } from "@/components/compose/composer";
 import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
+import { ForgetPerson } from "@/components/people/forget-person";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
@@ -400,18 +401,21 @@ function ReplyBody(props: BodyProps) {
       <div className="space-y-3">
         <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
         <Lead>They asked not to be contacted. Suppressing them cancels every draft and keeps them out of future lists. Don&apos;t reply.</Lead>
-        <Button
-          variant="primary"
-          onClick={async () => {
-            const ok = await dispatch([
-              { type: "suppression.add", entry: { id: newId("sup"), email: email?.toLowerCase(), reason: "unsubscribe", at: nowISO() } },
-              { type: "person.upsert", person: { ...person, doNotContact: true } },
-            ]);
-            if (ok) onComplete();
-          }}
-        >
-          Suppress {name}
-        </Button>
+        <Row>
+          <Button
+            variant="primary"
+            onClick={async () => {
+              const ok = await dispatch([
+                { type: "suppression.add", entry: { id: newId("sup"), email: email?.toLowerCase(), reason: "unsubscribe", at: nowISO() } },
+                { type: "person.upsert", person: { ...person, doNotContact: true } },
+              ]);
+              if (ok) onComplete();
+            }}
+          >
+            Suppress {name}
+          </Button>
+          <DeleteDetails person={person} />
+        </Row>
       </div>
     );
   }
@@ -427,6 +431,19 @@ function ReplyBody(props: BodyProps) {
       />
     </div>
   );
+}
+
+/** "Stop" can also mean "delete what you hold on me" (the footer promises it): one quiet link, then hold to confirm. Deleting takes the card with it. */
+function DeleteDetails({ person }: { person: Person }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
+        Delete their details
+      </button>
+    );
+  }
+  return <ForgetPerson person={person} onCancel={() => setOpen(false)} className="w-full animate-[fade-in_150ms_var(--ease-out)]" />;
 }
 
 /** Words from a buyer: Inter (it's theirs, not ours), a hairline rule in ink, never the agent's blue. */

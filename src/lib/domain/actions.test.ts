@@ -317,6 +317,15 @@ const cases: Record<Action["type"], () => void> = {
     expect(() => apply(s, { type: "person.remove", id: PERSON.dana })).not.toThrow();
   },
 
+  "person.forget": () => {
+    // The full contract is in src/lib/people/forget.test.ts.
+    const s = apply(ws(), { type: "person.forget", id: PERSON.dana, at: at(0), suppressionId: "sup_del" });
+    expect(s.people[PERSON.dana]).toBeUndefined();
+    expect(s.suppression.at(-1)).toEqual({ id: "sup_del", email: "dana@northwind.example", reason: "requested_delete", at: at(0) });
+    expect(() => apply(s, { type: "person.forget", id: PERSON.dana, at: at(0), suppressionId: "sup_again" })).not.toThrow();
+    expect(s.suppression.filter((x) => x.reason === "requested_delete")).toHaveLength(1);
+  },
+
   "deal.create": () => {
     const s = ws();
     const deal = { ...s.deals[DEAL.saltmarsh], id: "deal_fernwick", accountDomain: DOMAIN.fernwick, name: "Fernwick" };

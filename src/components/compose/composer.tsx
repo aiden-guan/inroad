@@ -22,7 +22,8 @@ import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { DraftStep, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { currentStep, lintStep } from "@/lib/quality/context";
-import { PERSONAL_DOMAINS, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
+import { PERSONAL_DOMAINS, jurisdictionFor, outgoingText, preflight, resolveEmail, signOff } from "@/lib/quality/gates";
+import { ForgetPerson } from "@/components/people/forget-person";
 import { LIMITS, limitsFor } from "@/lib/quality/lint";
 import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { ease } from "@/lib/motion";
@@ -62,6 +63,8 @@ export function DraftView({ pkg, step, focused, onApproved, moveId }: { pkg: Out
   );
 
   if (!ws) return <DraftSkeleton />;
+  // "Delete their details" took the draft with the person.
+  if (!ws.outreach[pkg.id] && pkg.personId && !ws.people[pkg.personId]) return <ForgottenNote />;
   if (!current) return live.mode === "reply" ? <ReplyOnly ws={ws} pkg={live} /> : null;
   return (
     <DraftBody
@@ -931,10 +934,19 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
   const email = resolveEmail(person).to;
   // One person opting out suppresses that address (and marks them do-not-contact), never their whole company.
   const suppressed = Boolean(person?.doNotContact) || ws.suppression.some((s) => (email && s.email?.toLowerCase() === email.toLowerCase()) || (!person && s.domain === pkg.accountDomain));
+  // EU, UK and unknown places got the footer that promises deletion on "stop": offer it first there.
+  const promised = person ? ["EU", "UK", "unknown"].includes(jurisdictionFor(ws, person, pkg.accountDomain).value) : false;
+  const [forgetting, setForgetting] = useState(promised);
   return (
     <div className="draft-rule rounded-md py-3 pr-3 pl-4">
       <div className="max-w-[68ch]">
         <QuotedReply ws={ws} pkg={pkg} />
+        {pkg.replyAction === "suppress" && person && forgetting && (
+          <div className="mt-3 animate-[fade-in_150ms_var(--ease-out)]">
+            {promised && <p className="mb-1.5 text-[12.5px] font-medium text-fg">Your footer told {firstName(person.name)} you&apos;d delete their details if they asked.</p>}
+            <ForgetPerson person={person} onCancel={promised ? undefined : () => setForgetting(false)} />
+          </div>
+        )}
         {pkg.replyAction === "suppress" && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {suppressed ? (
@@ -943,7 +955,7 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
               </span>
             ) : (
               <Button
-                variant="primary"
+                variant={promised ? "secondary" : "primary"}
                 size="sm"
                 onClick={() => {
                   const at = nowISO();
@@ -953,13 +965,27 @@ function ReplyOnly({ ws, pkg }: { ws: Workspace; pkg: OutreachPackage }) {
                   ]);
                 }}
               >
-                Add {person ? firstName(person.name) : "them"} to your suppression list
+                {promised && person ? `Only suppress ${firstName(person.name)}` : `Add ${person ? firstName(person.name) : "them"} to your suppression list`}
               </Button>
+            )}
+            {person && !forgetting && (
+              <button type="button" onClick={() => setForgetting(true)} className="h-7 px-1 text-[12.5px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
+                Delete their details
+              </button>
             )}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+/** In place of a draft whose person was deleted at their request. */
+function ForgottenNote() {
+  return (
+    <p className="flex items-center gap-1.5 py-1 text-[12.5px] text-fg-2 animate-[fade-in_150ms_var(--ease-out)]">
+      <Check className="size-3.5 text-success" aria-hidden /> Their details are deleted. Only their email stays, on your suppression list.
+    </p>
   );
 }
 

@@ -1,11 +1,15 @@
 "use client";
 
-import { ArrowUpRight, Copy, Handshake, MapPin } from "lucide-react";
+import { ArrowUpRight, Copy, Handshake, MapPin, MoreHorizontal } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ComposeButton } from "@/components/compose/composer";
 import { FindEmailButton, FindPeople } from "@/components/people/find-people";
+import { ForgetPerson } from "@/components/people/forget-person";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/button";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { isDataProvider } from "@/lib/connectors/catalog";
 import { rankPaths, PATH_LABEL } from "@/lib/deals/rules";
 import type { Account, ContactPath, Dossier, Person } from "@/lib/domain/types";
@@ -77,6 +81,7 @@ export function PeopleSection({ account, committee, topAngleId }: { account: Acc
 
 function PersonRow({ person, domain, angleId }: { person: Person; domain: string; angleId?: string }) {
   const ev = useEvidence();
+  const [forgetting, setForgetting] = useState(false);
   const paths = rankPaths(person.contactPaths).filter((p) => !p.bounced);
   const top = paths[0];
   const direct = top?.kind === "warm_intro" && top.via === "connection";
@@ -116,7 +121,19 @@ function PersonRow({ person, domain, angleId }: { person: Person; domain: string
             )}
           </div>
           {!person.doNotContact && <ComposeButton domain={domain} personId={person.id} angleId={angleId} mode={mode} label={label} />}
+          <Menu
+            trigger={
+              <IconButton label={`More for ${person.name}`}>
+                <MoreHorizontal className="size-4" />
+              </IconButton>
+            }
+          >
+            <MenuItem danger onSelect={() => setForgetting(true)}>
+              Delete their details
+            </MenuItem>
+          </Menu>
         </div>
+        {forgetting && <ForgetPerson person={person} onCancel={() => setForgetting(false)} className="mt-3 border-t border-border pt-3 animate-[fade-in_150ms_var(--ease-out)]" />}
       </Cited>
     </li>
   );
