@@ -10,11 +10,14 @@ import { AiBadge, Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover } from "@/components/ui/menu";
+import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
+import { OrbMorph, useWide } from "@/components/ui/orb-morph";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { usd } from "@/lib/client/format";
 import { monthKey } from "@/lib/domain/ids";
+import { goalLine } from "@/lib/moves/nav-counts";
 import { spring } from "@/lib/motion";
 import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
 import { SampleBanner } from "./sample-banner";
@@ -85,13 +88,16 @@ export function AgentLine({ status, className }: { status: AgentStatus; classNam
 
 function AgentBlock() {
   const status = useAgentStatus();
+  const wide = useWide();
   return (
     <Popover
       align="start"
       className="w-72 p-2"
       trigger={
         <button className="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-subtle">
-          <Orb state={status.state} size={22} tick={status.ticks} />
+          <OrbMorph on={wide}>
+            <Orb state={status.state} size={22} tick={status.ticks} />
+          </OrbMorph>
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-[12px] font-medium text-fg">
               Head of GTM <AiBadge />
@@ -151,6 +157,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-0.5 px-2 pb-2">
+        <GoalLine />
         <button
           onClick={() => window.dispatchEvent(new Event("inroad:palette"))}
           aria-haspopup="dialog"
@@ -173,6 +180,38 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+/**
+ * "Paid pilots 1 of 5 · Customers 0 of 20": the near-term goal and the long arc, in view on every page.
+ * The numbers tick (NumberFlow) when a deal is won. Opens the plan they come from.
+ */
+export function GoalLine({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+  const { ws } = useWorkspace();
+  if (!ws) return null;
+  const { pilots, customers } = goalLine(ws);
+  return (
+    <Link
+      href="/playbook#plan"
+      onClick={onNavigate}
+      title="Your goal, from the plan"
+      className={cn("mb-2 block border-t border-border px-2 pb-1 pt-2.5 text-[12px] leading-[18px] transition-colors hover:text-fg", className)}
+    >
+      <GoalRow label="Paid pilots" value={pilots} />
+      <GoalRow label="Customers" value={customers} />
+    </Link>
+  );
+}
+
+function GoalRow({ label, value: [n, of] }: { label: string; value: [number, number] }) {
+  return (
+    <span className="flex items-baseline justify-between gap-2">
+      <span className="text-fg-3">{label}</span>
+      <span className="text-fg-3">
+        <Num value={n} className="font-medium text-fg" /> of <Num value={of} className="text-fg-2" />
+      </span>
+    </span>
   );
 }
 

@@ -24,8 +24,25 @@ test("from the welcome screen to a rendered dossier", async ({ page }) => {
   const cta = page.getByRole("button", { name: /^(Go to Today|Research these \d|Research this one)/ });
   await expect(cta).toBeEnabled({ timeout: 120_000 });
   await page.locator("#founder-name").fill("Priya");
+  // Record what the navigation's view transition animates: the orb should fly into the sidebar.
+  await page.evaluate(() => {
+    const w = window as unknown as { __vt: string[] };
+    w.__vt = [];
+    const start = document.startViewTransition.bind(document);
+    document.startViewTransition = ((arg: Parameters<typeof start>[0]) => {
+      const t = start(arg);
+      void t.ready.then(() => w.__vt.push(...document.getAnimations().map((a) => (a.effect as KeyframeEffect | null)?.pseudoElement ?? "")), () => {});
+      return t;
+    }) as typeof document.startViewTransition;
+  });
   await cta.click();
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb)")))).toBe(true);
+
+  // The goal stays in view: paid pilots against the goal, customers against the long arc.
+  const goal = page.getByTitle("Your goal, from the plan").first();
+  await expect(goal).toContainText("Paid pilots");
+  await expect(goal).toContainText("Customers");
 
   // Add a company and research it: the dossier renders with its sources.
   await page.goto("/companies?add=northwind.io");

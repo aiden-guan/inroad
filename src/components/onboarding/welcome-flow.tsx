@@ -10,6 +10,7 @@ import { AiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Orb, type OrbState } from "@/components/ui/orb";
+import { OrbMorph, useWide } from "@/components/ui/orb-morph";
 import { BILLING_URL } from "@/lib/ai/errors";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
@@ -259,6 +260,7 @@ export function WelcomeFlow() {
   const [pending, setPending] = useState<{ runId: string; args: StartArgs } | null>(null);
   const [starting, setStarting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const wide = useWide();
 
   const status = ws?.onboarding.status;
   useEffect(() => {
@@ -324,8 +326,13 @@ export function WelcomeFlow() {
             className="mx-auto grid w-full max-w-[960px] grid-cols-1 gap-5 px-4 pb-24 pt-4 sm:px-6 md:grid-cols-[112px_minmax(0,1fr)] md:gap-10 md:px-10 md:pt-12"
           >
             <aside className="md:sticky md:top-12 md:self-start">
-              <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
-              <Orb state={orb} size={36} tick={tick} className="md:hidden" />
+              {/* When the founder says go, this orb flies into the sidebar (or the phone header). */}
+              <OrbMorph on={wide}>
+                <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
+              </OrbMorph>
+              <OrbMorph on={!wide}>
+                <Orb state={orb} size={36} tick={tick} className="md:hidden" />
+              </OrbMorph>
             </aside>
             <div className="min-w-0 max-w-[640px]">
               <AnimatePresence mode="wait" initial={false}>
