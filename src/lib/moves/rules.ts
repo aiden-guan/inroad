@@ -442,8 +442,9 @@ function meetings({ ws, now, today, out }: Ctx) {
 function callReferrals({ ws, today, out }: Ctx) {
   for (const m of Object.values(ws.meetings)) {
     if (!m.debrief || daysSince(m.debrief.generatedAt, today) > 14) continue;
-    // A drafted note has its own card (a cold draft); this one asks for the rest.
-    const open = referralLeads(ws, m).filter((l) => !l.acted && !l.drafted);
+    // A drafted note has its own card (a cold draft); this one asks for the rest. A company named without
+    // a person is handled once it's on file: its own cards (research, first touch) take it from there.
+    const open = referralLeads(ws, m).filter((l) => !l.acted && !l.drafted && !(!l.name && l.domain));
     if (!open.length) continue;
     const domain = ws.deals[m.dealId]?.accountDomain;
     const who = (l: (typeof open)[number]) => (l.name ? `${first(l.name)}${l.company ? ` at ${l.company}` : ""}` : (l.company ?? "them"));
@@ -453,7 +454,8 @@ function callReferrals({ ws, today, out }: Ctx) {
       id: `mv_referrals_${m.id}`,
       kind: "first_touch",
       rule: "referrals",
-      title: open.length === 1 ? `Write to ${who(open[0])}, ${by ? `${by}'s` : "a"} referral` : `Write to the ${open.length} people ${by || "they"} suggested`,
+      // A company named without a person is added (and researched) before anyone is written to.
+      title: open.length === 1 ? `${open[0].name ? "Write to" : "Add"} ${who(open[0])}, ${by ? `${by}'s` : "a"} referral` : `Write to the ${open.length} people ${by || "they"} suggested`,
       why: `Named on the ${companyName(ws, domain)} call ${shortDay(localDate(m.startsAt))} · a referral is the warmest first touch`,
       minutes: 3 * open.length,
       priority: RULES.referrals.base,
