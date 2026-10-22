@@ -266,8 +266,9 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
                     <Button variant="secondary" size="sm" onClick={() => void findCompanies(true)}>
                       Widen the bet
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire("/integrations?import=linkedin", [])}>
-                      Start from your network: drop your LinkedIn export
+                    {/* A list dropped while reading is already in: start from it on Today rather than ask for it again. */}
+                    <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire(net ? "/today" : "/integrations?import=linkedin", [])}>
+                      {net ? "Start from the people you know" : "Start from your network: drop your LinkedIn export"}
                     </Button>
                   </div>
                 </>

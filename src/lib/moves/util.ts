@@ -1,5 +1,5 @@
 import { daysBetween, todayISO } from "@/lib/domain/ids";
-import { OPEN_STAGES, type Account, type Deal, type Person, type RunSummary, type Stage, type Workspace } from "@/lib/domain/types";
+import { OPEN_STAGES, type Account, type Deal, type NetworkCompany, type Person, type RunSummary, type Stage, type Workspace } from "@/lib/domain/types";
 
 /** Pure helpers shared by the move rules, the scoreboard and the review data. Server and browser. */
 
@@ -162,6 +162,12 @@ export function researchState(ws: Workspace, domain: string, now: Date): "runnin
   if (!run) return "none";
   if (run.status === "running" || run.status === "queued") return now.getTime() - Date.parse(run.startedAt) > RESEARCH_STALE_MS ? "failed" : "running";
   return run.status === "error" || run.status === "stopped" ? "failed" : "none";
+}
+
+/** Likely-fit companies the network screen found where the founder knows someone, and that aren't on file yet. */
+export function untrackedNetworkCompanies(ws: Workspace): NetworkCompany[] {
+  const names = new Set(Object.values(ws.accounts).map((a) => a.name.trim().toLowerCase()));
+  return (ws.network?.topCompanies ?? []).filter((c) => c.fit === "likely" && !c.tracked && !(c.domain && ws.accounts[c.domain]) && !names.has(c.name.trim().toLowerCase()));
 }
 
 /** Someone the founder knows first-hand (a LinkedIn connection): write to them directly, no intro and no cold template. */

@@ -191,4 +191,28 @@ describe("warm network first", () => {
     // A LinkedIn connection asked through a path isn't an investor or advisor.
     expect(warm(hired({ network, connectors: [{ ...ivy, relationship: "connection" }] }))).toEqual(["57 today.connectors | Add your investors and advisors"]);
   });
+
+  it("brings the screen's likely fits to Today to track, since a list dropped while reading never saw the approval point", () => {
+    const screened = {
+      ...network,
+      screenedAt: at(-1),
+      topCompanies: [
+        { name: "Northwind", domain: "northwind.io", contacts: 2, buyerTitles: 1, fit: "likely" as const, reason: "Head of Finance on file" },
+        { name: "Saltmarsh", contacts: 1, buyerTitles: 0, fit: "likely" as const, reason: "Usage-priced API" },
+        { name: "Kestrel", contacts: 1, buyerTitles: 0, fit: "unknown" as const, reason: "Not enough to go on" },
+        { name: "Wrenfield", domain: "wrenfield.com", contacts: 1, buyerTitles: 0, fit: "likely" as const, reason: "x", tracked: true },
+      ],
+    };
+    const card = (ws: Workspace) => computeMoves(ws, NOW).filter((m) => m.rule === "today.network_companies").map((m) => [m.id, m.priority, m.title, m.why, m.subjectIds]);
+    const ws = hired({ network: screened, connectors: [ivy] });
+    expect(card(ws)).toEqual([
+      [`mv_network_companies_${day(-1)}`, 58, "Track 2 companies where you know someone", "Northwind, Saltmarsh · likely fits among your LinkedIn connections", ["Northwind", "Saltmarsh"]],
+    ]);
+    // Second to the first three on day one; gone once they're on file (by domain or by name); nothing before a screen.
+    expect(card({ ...ws, onboarding: { status: "hired", hiredAt: at(0, "09:00"), firstThree: ["alpha.example"] }, accounts: { "alpha.example": makeAccount("alpha.example") } })[0][1]).toBe(49);
+    ws.accounts["northwind.io"] = makeAccount("northwind.io", { name: "Northwind" });
+    ws.accounts["saltmarsh.io"] = makeAccount("saltmarsh.io", { name: "Saltmarsh" });
+    expect(card(ws)).toEqual([]);
+    expect(card(hired({ network: { ...screened, screenedAt: undefined }, connectors: [ivy] }))).toEqual([]);
+  });
 });

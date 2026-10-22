@@ -34,6 +34,7 @@ import {
   shortDay,
   stageMult,
   topSignal,
+  untrackedNetworkCompanies,
 } from "./util";
 
 /**
@@ -96,6 +97,7 @@ const RULES = {
   import: { base: 30, label: "Connections import missing or older than 30 days" },
   network: { base: 57, label: "No LinkedIn import and no investors or advisors listed yet" },
   connectors: { base: 57, label: "No investors or advisors listed to ask for intros" },
+  network_companies: { base: 58, label: "Likely-fit companies among your LinkedIn connections, not tracked yet" },
   asset: { base: 30, label: "A draft offers an asset that doesn't exist yet" },
   post: { base: 32, label: "Optional post from last Friday's best insight" },
   room: { base: 38, label: "Tracked companies cluster on a theme or a city: worth a room" },
@@ -1416,6 +1418,23 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
           href: "/integrations?import=linkedin",
         });
       }
+    }
+
+    // The screen's likely fits where the founder knows someone wait on an approval point (nothing is tracked without
+    // it). A list dropped while onboarding read the site is screened in the background, so this is where it lands.
+    const known = untrackedNetworkCompanies(ws);
+    if (ws.network?.screenedAt && known.length) {
+      out.push({
+        id: `mv_network_companies_${localDate(ws.network.screenedAt)}`,
+        kind: "import",
+        rule: "network_companies",
+        title: `Track ${plural(known.length, "company", "companies")} where you know someone`,
+        why: `${known.slice(0, 2).map((c) => c.name).join(", ")}${known.length > 2 ? ` and ${known.length - 2} more` : ""} · likely fits among your LinkedIn connections`,
+        minutes: 2,
+        // Warm before cold, one above the other warm setup cards; second to the first three on day one.
+        priority: covered.size ? 49 : RULES.network_companies.base,
+        subjectIds: known.map((c) => c.name),
+      });
     }
   }
 
