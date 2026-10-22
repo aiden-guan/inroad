@@ -62,6 +62,10 @@ export type Action =
   | { type: "connector.remove"; id: ID }
   /** Something the founder did for a connector: it balances the ledger against asks. */
   | { type: "connector.give"; id: ID; what: string; at: string }
+  /** A list of targets went to a connector to mark. It is one ask: it starts their rest like any other. */
+  | { type: "connector.sendList"; id: ID; domains: string[]; at: string }
+  /** The rows the connector marked (none is an answer too). */
+  | { type: "connector.markList"; id: ID; marked: string[]; at: string }
   | { type: "intro.create"; intro: Intro }
   /** Move an intro to a stage (forward, or reopened). Dates, history and the intro_made activity follow in code. */
   | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID }
@@ -368,6 +372,20 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "connector.give": {
       const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
       (c.gives ??= []).push({ at: todayISO(new Date(action.at)), what: action.what.trim().slice(0, 140) });
+      return;
+    }
+    case "connector.sendList": {
+      const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
+      const on = todayISO(new Date(action.at));
+      c.list = { sentOn: on, domains: [...new Set(action.domains)].slice(0, 20) };
+      c.lastAskedOn = on;
+      return;
+    }
+    case "connector.markList": {
+      const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
+      const list = need(c.list, "List");
+      list.marked = action.marked.filter((d) => list.domains.includes(d));
+      list.markedOn = todayISO(new Date(action.at));
       return;
     }
     case "intro.create":

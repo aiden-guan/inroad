@@ -196,6 +196,22 @@ const cases: Record<Action["type"], () => void> = {
     expect(() => apply(s, { type: "connector.give", id: "con_missing", what: "x", at: at(0) })).toThrow(ActionError);
   },
 
+  "connector.sendList": () => {
+    const id = sample.connectors[1].id;
+    const s = apply(ws(), { type: "connector.sendList", id, domains: ["a.example", "b.example", "a.example"], at: at(0) });
+    const c = s.connectors.find((x) => x.id === id)!;
+    expect(c.list).toEqual({ sentOn: TODAY, domains: ["a.example", "b.example"] });
+    expect(c.lastAskedOn).toBe(TODAY);
+    expect(() => apply(s, { type: "connector.sendList", id: "con_missing", domains: [], at: at(0) })).toThrow(ActionError);
+  },
+
+  "connector.markList": () => {
+    const id = sample.connectors[1].id;
+    const s = apply(ws(), { type: "connector.sendList", id, domains: ["a.example", "b.example"], at: at(-2) }, { type: "connector.markList", id, marked: ["b.example", "z.example"], at: at(0) });
+    expect(s.connectors.find((x) => x.id === id)!.list).toMatchObject({ marked: ["b.example"], markedOn: TODAY });
+    expect(() => apply(ws(), { type: "connector.markList", id, marked: [], at: at(0) })).toThrow(ActionError);
+  },
+
   "intro.create": () => {
     const intro = { id: "intro_t", kind: "ask" as const, stage: "asked" as const, targetName: "Rafael Ortiz", askedOn: TODAY, history: [], createdAt: at(0), updatedAt: at(0) };
     const s = apply(ws(), { type: "intro.create", intro });
