@@ -200,6 +200,22 @@ test("day one asks for the LinkedIn import once, in the card for it", async ({ p
   await expect(page.getByRole("link", { name: "Or import your LinkedIn connections first" })).toHaveCount(0);
 });
 
+test("research that ran out of credits says so after a reload, with Add credits first", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  const ws = await workspace(request);
+  const domain = "ashgrove.example";
+  delete ws.accounts[domain].dossier;
+  ws.runs.unshift({ id: "run_e2e_credit", workflow: "dossier", title: "Researching Ashgrove", ref: { kind: "account", id: domain }, startedAt: daysAgo(0, 9), endedAt: daysAgo(0, 9), status: "error", error: { code: "no_credit", message: "Your Anthropic account is out of credits." } });
+  expect((await request.post("/api/workspace/restore", { data: ws })).ok()).toBe(true);
+
+  await page.goto(`/companies?c=${domain}`);
+  await expect(page.getByText(/My research on .+ didn't finish\./)).toBeVisible();
+  await expect(page.getByText("Your Anthropic account is out of credits.")).toBeVisible();
+  const add = page.getByRole("link", { name: "Add credits" }).first();
+  await expect(add).toHaveAttribute("href", /console\.anthropic\.com/);
+  await expect(page.getByText("Trying again costs about the same as the first attempt.")).toHaveCount(0);
+});
+
 test("with reduced motion, holding to close as lost says to keep holding", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);
