@@ -1,7 +1,7 @@
 import { todayISO } from "@/lib/domain/ids";
 import type { ID, Move, OutreachPackage, Workspace } from "@/lib/domain/types";
 import { RULE_PREFIX, visibleMoves } from "./rules";
-import { isSuppressed, knowsDirectly } from "./util";
+import { hasDraftableAngle, isSuppressed, knowsDirectly } from "./util";
 
 /**
  * What Today prepares before the founder asks (SPEC §5.1, W7): the brief for every meeting in the next
@@ -118,7 +118,7 @@ export function draftsToStart(ws: Workspace, now: Date): AheadPlan["drafts"] {
     } else if ((m.kind === "first_touch" && (rule === "signal" || rule === "first_three")) || (m.kind === "linkedin" && rule === "first_three")) {
       // Someone the founder knows gets a note in their own words, never a cold template; and a dossier is
       // what makes a draft worth reading (the first three's draft starts the moment theirs lands).
-      if (knowsDirectly(person) || !ws.accounts[domain].dossier) continue;
+      if (knowsDirectly(person) || !ws.accounts[domain].dossier || !hasDraftableAngle(ws, ws.accounts[domain])) continue;
       const mode = m.kind === "linkedin" ? "linkedin" : "cold";
       if (!drafted(ws, m, domain, person?.id, [mode])) args = { domain, personId: person?.id, mode };
     }

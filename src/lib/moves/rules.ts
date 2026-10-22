@@ -19,6 +19,7 @@ import {
   companyName,
   daysSince,
   first,
+  hasDraftableAngle,
   isOpen,
   isSuppressed,
   knowsDirectly,
@@ -947,7 +948,7 @@ function firstThree(ctx: Ctx) {
     } else if (rec?.move === "disqualify") {
       out.push({ ...base, kind: "research", minutes: 1, title: `${acc.name} may not be a fit`, why: clip(rec.why, 90) });
     } else {
-      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · draft on its way` });
+      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · ${hasDraftableAngle(ws, acc) ? "draft on its way" : clip(rec?.why ?? "nothing cited to write from yet", 60)}` });
     }
   });
 }
