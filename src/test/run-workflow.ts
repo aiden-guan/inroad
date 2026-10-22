@@ -26,3 +26,13 @@ export async function runWorkflow<A>(def: WorkflowDef<A>, args: unknown): Promis
 export function logLines(events: AgentEvent[]): string[] {
   return events.flatMap((e) => (e.type === "status" || e.type === "action" ? [e.text] : []));
 }
+
+/** Waits for a run something else started (e.g. the discovery a first run kicks off) and returns its summary. */
+export async function waitForRun(runId: string): Promise<RunSummary> {
+  await new Promise<void>((resolve) => {
+    subscribe(runId, (e) => {
+      if (e.type === "done") resolve();
+    });
+  });
+  return readWorkspace().runs.find((r) => r.id === runId)!;
+}

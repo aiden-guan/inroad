@@ -1,0 +1,242 @@
+{
+ "version": 1,
+ "name": "discovery-yc",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-haiku-5-5|submit_screen|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "submit_screen"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 4741,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 4741
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Checking each card against the criteria. Unknown is not false: most situational facts aren't on a card. One result per candidate. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock3",
+      "name": "submit_screen",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"results\":[{\"i\":1,\"domain\":\"quantaloop.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":2,\"domain\":\"northpeak.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":3,\"domain\":\"sablewire.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":4,\"domain\":\"coppergate.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":5,\"domain\":\"fernstack.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":6,\"domain\":\"lumenly.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":7,\"domain\":\"ratecard.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":8,\"domain\":\"usagewise.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":9,\"domain\":\"billwright.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":10,\"domain\":\"metricmint.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":11,\"domain\":\"invoiceforge.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":12,\"domain\":\"pricepoint.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":13,\"domain\":\"countwell.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"false\",\"why\":\"Card says Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":14,\"domain\":\"ledgerloop.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":15,\"domain\":\"tollbooth.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":16,\"domain\":\"gaugeworks.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":17,\"domain\":\"accruely.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":18,\"domain\":\"ratewell.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":19,\"domain\":\"meterbase.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":20,\"domain\":\"seatcount.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 4741,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 4741
+      },
+      "output_tokens": 3532,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-haiku-5-5|submit_screen|1",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "tools": [
+     "submit_screen"
+    ],
+    "messages": 1,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "1h",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock5"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock4",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 565,
+       "cache_read_input_tokens": 2757,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 565
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Checking each card against the criteria. Unknown is not false: most situational facts aren't on a card. One result per candidate. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "tool_use",
+      "id": "toolu_mock6",
+      "name": "submit_screen",
+      "input": {}
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"results\":[{\"i\":1,\"domain\":\"tiermark.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"false\",\"why\":\"Card says Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":2,\"domain\":\"tallyrock.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"false\",\"why\":\"Card says Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"},{\"i\":3,\"domain\":\"meterly.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for infrastructure companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for infrastructure companies\"},{\"i\":4,\"domain\":\"brightledger.com\",\"criteria\":[{\"id\":\"icp_usage_pricing\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_size\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_warehouse_usage\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_funded\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_finance_owner\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"},{\"id\":\"icp_pricing_change\",\"met\":\"true\",\"why\":\"Usage-based billing API for SaaS companies\"}],\"antiIcp\":null,\"note\":\"Usage-based billing API for SaaS companies\"}]}"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 565,
+      "cache_read_input_tokens": 2757,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 565
+      },
+      "output_tokens": 800,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}
