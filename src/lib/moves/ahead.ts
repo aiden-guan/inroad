@@ -98,11 +98,12 @@ export function draftsToStart(ws: Workspace, now: Date): AheadPlan["drafts"] {
     if (rule === "follow_up" && person && !drafted(ws, m, domain, person.id, ["follow_up", "cold"])) {
       const pkg = m.id.startsWith("mv_followup_") ? m.id.slice("mv_followup_".length).replace(/_\d+$/, "") : undefined;
       args = { domain, personId: person.id, mode: "follow_up", ...(pkg && ws.outreach[pkg] ? { packageId: pkg } : {}) };
-    } else if (m.kind === "first_touch" && (rule === "signal" || rule === "first_three")) {
+    } else if ((m.kind === "first_touch" && (rule === "signal" || rule === "first_three")) || (m.kind === "linkedin" && rule === "first_three")) {
       // Someone the founder knows gets a note in their own words, never a cold template; and a dossier is
-      // what makes a cold draft worth reading.
+      // what makes a draft worth reading (the first three's draft starts the moment theirs lands).
       if (knowsDirectly(person) || !ws.accounts[domain].dossier) continue;
-      if (!drafted(ws, m, domain, person?.id, ["cold"])) args = { domain, personId: person?.id, mode: "cold" };
+      const mode = m.kind === "linkedin" ? "linkedin" : "cold";
+      if (!drafted(ws, m, domain, person?.id, [mode])) args = { domain, personId: person?.id, mode };
     }
     if (!args) continue;
     domains.add(domain);

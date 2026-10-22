@@ -1340,6 +1340,8 @@ export interface Workspace {
     sections?: Partial<Record<"snapshot" | FoundationSection, ISODateTime>>;
     discoveryRunId?: ID;
     dossierRunIds?: ID[];
+    /** The "first three" the founder hired Ember to research (domains, best first). Today keeps a card for each. */
+    firstThree?: string[];
     error?: { code: string; message: string };
   };
   founder: {

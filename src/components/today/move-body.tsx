@@ -17,8 +17,8 @@ import { newId, nowISO } from "@/lib/domain/ids";
 import type { Action } from "@/lib/domain/actions";
 import type { Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { nextStep } from "@/lib/intros/rules";
-import { RULE_PREFIX } from "@/lib/moves/rules";
-import { ago, clip, clockTime, companyName, first, knowsDirectly, shortDay } from "@/lib/moves/util";
+import { QUESTIONS_PER_CARD, RULE_PREFIX } from "@/lib/moves/rules";
+import { ago, clip, clockTime, companyName, first, knowsDirectly, plural, shortDay } from "@/lib/moves/util";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { DealResolver } from "./deal-resolver";
@@ -126,6 +126,8 @@ export function cardDraft(ws: Workspace, move: Move): OutreachPackage | undefine
       return domain ? findDraft(ws, { domain, modes: ["warm_intro"], after: move.createdAt }) : undefined;
     case "linkedin":
       return domain ? findDraft(ws, { domain, personId: person?.id, modes: ["linkedin"], after: move.createdAt }) : undefined;
+    case "first_three":
+      return domain ? findDraft(ws, { domain, personId: person?.id, modes: [move.kind === "intro_ask" ? "warm_intro" : move.kind === "linkedin" ? "linkedin" : "cold"], after: move.createdAt }) : undefined;
     default:
       return undefined;
   }
@@ -421,6 +423,10 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       );
     case "post":
       return <PostBody {...props} />;
+    case "first_three":
+      return <FirstThreeBody {...props} />;
+    case "questions":
+      return <QuestionsBody {...props} />;
     case "question":
       return <QuestionBody {...props} />;
     case "pov":
@@ -744,6 +750,125 @@ function EventBody({ move, ws, onComplete }: BodyProps) {
       </Button>
       <Quiet href={move.href ?? `/events/${encodeURIComponent(ev.id)}?tab=timeline`}>Open the timeline</Quiet>
     </Row>
+  );
+}
+
+/**
+ * One of the first three: the dossier first (its live log, if onboarding's run is still going), then whatever the
+ * dossier recommends. The cold or LinkedIn draft starts on its own once the dossier lands; this shows it in place.
+ */
+function FirstThreeBody(props: BodyProps) {
+  const { move, ws, onComplete } = props;
+  const { dispatch } = useWorkspace();
+  const person = move.ref?.kind === "person" ? ws.people[move.ref.id] : undefined;
+  const domain = person?.accountDomain ?? (move.ref?.kind === "account" ? move.ref.id : "");
+  const acc = ws.accounts[domain];
+  if (!acc) return <Lead>This company is no longer in your workspace.</Lead>;
+  if (!acc.dossier) {
+    return (
+      <div className="space-y-3">
+        <Lead>
+          Who to talk to at {acc.name}, why now and the angle worth writing, every fact cited. The first draft follows on its own when the research lands.
+          {move.source && (
+            <>
+              {" "}
+              <SourceChip url={move.source.url} publishedAt={move.source.date} />
+            </>
+          )}
+        </Lead>
+        <RunInline workflow="dossier" args={{ domain }} runRef={{ kind: "account", id: domain }} label={`Research ${acc.name}`} onResult={props.onChanged} hint="About 2 minutes" />
+      </div>
+    );
+  }
+  const rec = acc.dossier.recommendation;
+  if (move.kind === "signal") return <ThreadBody {...props} />;
+  if (move.kind === "research") {
+    const ruleOut = rec.move === "disqualify";
+    return (
+      <div className="space-y-3">
+        <Lead>{rec.why}</Lead>
+        <Row>
+          {ruleOut ? (
+            <Button
+              variant="primary"
+              onClick={async () => {
+                if (await dispatch({ type: "account.disqualify", domain, reason: "not_icp", note: clip(rec.why, 140), at: nowISO() })) onComplete();
+              }}
+            >
+              Rule it out
+            </Button>
+          ) : (
+            <Button variant="primary" icon={<Check className="size-3.5" />} onClick={onComplete}>
+              Keep watching
+            </Button>
+          )}
+          <Quiet href={sheet(domain)}>Read the {acc.name} dossier</Quiet>
+          {ruleOut && (
+            <Button variant="ghost" onClick={onComplete}>
+              Keep it
+            </Button>
+          )}
+        </Row>
+      </div>
+    );
+  }
+  const mode = move.kind === "intro_ask" ? "warm_intro" : move.kind === "linkedin" ? "linkedin" : "cold";
+  if (mode === "cold" && person && knowsDirectly(person)) return <DirectBody {...props} person={person} />;
+  return (
+    <DraftOrCompose
+      {...props}
+      compose={{ domain, personId: person?.id, mode }}
+      label={mode === "warm_intro" ? "Draft the intro ask" : mode === "linkedin" ? "Draft the invite" : "Draft the first touch"}
+      lead={rec.why}
+    />
+  );
+}
+
+/** "Answer 3 questions that change the plan": up to three open questions at once, each saved on its own. */
+function QuestionsBody({ ws, onComplete }: BodyProps) {
+  const open = (ws.foundation?.founderQuestions ?? []).filter((q) => !q.answer);
+  const shown = open.slice(0, QUESTIONS_PER_CARD);
+  if (!shown.length) return <Lead>All answered. The playbook has them.</Lead>;
+  return (
+    <div className="space-y-5">
+      {shown.map((q) => (
+        <QuestionField key={q.id} q={q} onSaved={() => open.length === 1 && onComplete()} />
+      ))}
+      {open.length > shown.length && <Quiet href="/playbook#journal">{plural(open.length - shown.length, "more question")} in the Playbook</Quiet>}
+    </div>
+  );
+}
+
+function QuestionField({ q, onSaved }: { q: NonNullable<Workspace["foundation"]>["founderQuestions"][number]; onSaved: () => void }) {
+  const { dispatch } = useWorkspace();
+  const [answer, setAnswer] = useState("");
+  const save = async () => {
+    if (answer.trim() && (await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() }))) onSaved();
+  };
+  return (
+    <div className="space-y-2">
+      <p className="font-serif text-[16px] leading-[24px] text-fg">{q.question}</p>
+      <Textarea
+        aria-label={q.question}
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        placeholder="A sentence or two is plenty"
+        className="text-[14px] leading-[22px]"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            void save();
+          }
+        }}
+      />
+      {answer.trim() ? (
+        <Button size="sm" variant="primary" kbd="⌘↵" onClick={() => void save()}>
+          Save answer
+        </Button>
+      ) : (
+        <p className="text-[12px] text-fg-3">{q.whyItMatters}</p>
+      )}
+    </div>
   );
 }
 

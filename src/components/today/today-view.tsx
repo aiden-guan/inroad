@@ -5,7 +5,7 @@ import { ChevronRight, Compass } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useActiveRuns } from "@/components/providers/runs-provider";
+import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
@@ -72,6 +72,20 @@ export function Today({ ws }: { ws: Workspace }) {
   const { prepare, schedule, error } = usePrepare();
   const [refreshing, setRefreshing] = useState(false);
   const activeRuns = useActiveRuns();
+  const { runs } = useRuns();
+  // A dossier or discovery run landing changes the desk (the first three's drafts start once their research is in):
+  // re-prepare now instead of on the five-minute timer. Runs already finished when Today opened don't count.
+  const landed = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const done = Object.values(runs).filter((r) => (r.workflow === "dossier" || r.workflow === "discovery") && r.status === "done");
+    if (!landed.current) {
+      landed.current = new Set(done.map((r) => r.id));
+      return;
+    }
+    const fresh = done.filter((r) => !landed.current!.has(r.id));
+    for (const r of fresh) landed.current.add(r.id);
+    if (fresh.length) schedule(300);
+  }, [runs, schedule]);
   const briefWorking = activeRuns.some((r) => r.workflow === "brief");
   // Day one's "While that runs" is only true while discovery is actually looking.
   const discovering = activeRuns.some((r) => r.workflow === "discovery");

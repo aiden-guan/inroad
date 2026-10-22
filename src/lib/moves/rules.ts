@@ -80,6 +80,8 @@ const RULES = {
   linkedin: { base: 50, label: "LinkedIn invite drafted" },
   pov: { base: 45, label: "Cold drafts need a point of view" },
   research: { base: 44, label: "Top account without a dossier" },
+  first_three: { base: 56, label: "One of the first three companies onboarding picked, not written to yet" },
+  questions: { base: 35, label: "Open founder questions, a few at a time" },
   event_task: { base: 40, label: "Event task due" },
   event_nearby: { base: 47, label: "Warm or pipeline leads near an upcoming dinner aren't on its list" },
   question: { base: 35, label: "Open founder question" },
@@ -134,11 +136,13 @@ interface Ctx {
   weekStart: string;
   c: Counters;
   out: Cand[];
+  /** Domains the first-three cards cover; other first-touch, warm-path and research rules stand down for them. */
+  firstThree: Set<string>;
 }
 
 export function computeMoves(ws: Workspace, now: Date): Move[] {
   const today = todayISO(now);
-  const ctx: Ctx = { ws, now, today, weekStart: weekOf(today), c: counters(ws, now), out: [] };
+  const ctx: Ctx = { ws, now, today, weekStart: weekOf(today), c: counters(ws, now), out: [], firstThree: new Set() };
 
   replies(ctx);
   checkReplies(ctx);
@@ -147,6 +151,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   callReferrals(ctx);
   sequences(ctx);
   deals(ctx);
+  firstThree(ctx);
   firstTouches(ctx);
   warmPaths(ctx);
   introFollowThrough(ctx);
@@ -877,8 +882,76 @@ function deals({ ws, now, today, out }: Ctx) {
   }
 }
 
+/** The first three onboarding picked: recorded at hire, else read back from the dossier runs it started. */
+export function firstThreeDomains(ws: Workspace): string[] {
+  const o = ws.onboarding;
+  if (o.firstThree?.length) return o.firstThree;
+  return (o.dossierRunIds ?? []).map((id) => ws.runs.find((r) => r.id === id)?.ref).flatMap((ref) => (ref?.kind === "account" ? [ref.id] : []));
+}
+
+const FIRST_THREE_DAYS = 21;
+const STARTED: Set<string> = new Set(["touch_sent", "pushed", "intro_requested", "linkedin_connect", "linkedin_dm"]);
+
+/**
+ * "Here's who I'd talk to first" keeps its promise: one card per company the founder hired Ember to research,
+ * whatever the stricter signal rule says, until the first note goes (or three weeks pass). What the card asks
+ * follows the dossier's recommendation; the cold draft starts itself once the dossier lands (see ./ahead).
+ * Best first, then the network and the plan's questions, then the other two (SPEC §3.2 step 4).
+ */
+function firstThree(ctx: Ctx) {
+  const { ws, today, out } = ctx;
+  const o = ws.onboarding;
+  if (o.status !== "hired" || !o.hiredAt || daysSince(o.hiredAt, today) > FIRST_THREE_DAYS) return;
+  firstThreeDomains(ws).forEach((domain, rank) => {
+    const acc = ws.accounts[domain];
+    if (!acc || acc.status === "disqualified" || acc.status === "customer" || (acc.dealId && ws.deals[acc.dealId])) return;
+    if (ws.activities.some((a) => a.accountDomain === domain && STARTED.has(a.kind) && a.outcome !== "not_sent")) return;
+    const person = bestPerson(ws, acc);
+    if (isSuppressed(ws, person, domain)) return;
+    const rec = acc.dossier?.recommendation;
+    // A draft of the recommended kind takes over the card (a cold draft keeps its id; LinkedIn and intro drafts have their own cards).
+    const hasDraft = (mode: OutreachPackage["mode"]) =>
+      Object.values(ws.outreach).some((p) => p.mode === mode && p.accountDomain === domain && p.createdAt >= o.hiredAt! && p.steps.some((st) => st.status === "draft"));
+    if (hasDraft("cold") || (rec?.move === "linkedin_first" && hasDraft("linkedin")) || (rec?.move === "warm_intro" && hasDraft("warm_intro"))) {
+      ctx.firstThree.add(domain);
+      return;
+    }
+    ctx.firstThree.add(domain);
+    const sig = topSignal(acc, today, 60);
+    const titled = acc.dossier?.committee.find((m) => m.role === "champion")?.likelyTitles[0] ?? acc.suggestedTitle;
+    const who = first(person?.name) || (titled ? `the ${titled}` : "the right person");
+    const because = sig ? `${clip(sig.headline, 60)} · ${ageShort(sig.date, today)}` : (acc.whyNow ? clip(acc.whyNow, 70) : `${acc.tier}-tier fit`);
+    const base = {
+      id: `mv_first_${domain}`,
+      rule: "first_three" as const,
+      minutes: 5,
+      // The best one leads the desk; the other two follow the network and the questions.
+      priority: rank === 0 ? RULES.first_three.base : 46 - rank,
+      ref: person ? { kind: "person" as const, id: person.id } : { kind: "account" as const, id: domain },
+      source: sig ? { url: sig.url, date: sig.date } : undefined,
+      evidenceIds: sig?.evidenceId ? [sig.evidenceId] : undefined,
+      href: sheet(domain),
+    };
+    if (!acc.dossier) {
+      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · researching first, then the draft` });
+    } else if (rec?.move === "warm_intro") {
+      out.push({ ...base, kind: "intro_ask", title: `Ask for an intro to ${who} at ${acc.name}`, why: `${acc.warmPathCount ? `${plural(acc.warmPathCount, "person", "people")} you know there` : "A warm path beats cold here"} · ${clip(rec.why, 60)}` });
+    } else if (rec?.move === "linkedin_first") {
+      out.push({ ...base, kind: "linkedin", title: `Connect with ${who} at ${acc.name} on LinkedIn`, why: `${clip(rec.why, 70)} · doesn't count toward your email cap` });
+    } else if (rec?.move === "reply_in_thread" && sig) {
+      out.push({ ...base, kind: "signal", title: `Answer the thread on ${sig.host}`, why: `${because} · reply there, not by email`, href: sig.url });
+    } else if (rec?.move === "watch") {
+      out.push({ ...base, kind: "research", minutes: 1, title: `Keep watching ${acc.name}`, why: `Not yet · ${clip(rec.why, 80)}` });
+    } else if (rec?.move === "disqualify") {
+      out.push({ ...base, kind: "research", minutes: 1, title: `${acc.name} may not be a fit`, why: clip(rec.why, 90) });
+    } else {
+      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · draft on its way` });
+    }
+  });
+}
+
 /** Cold drafts ready to approve, then fresh signals worth a first touch, all inside the daily/weekly cap. */
-function firstTouches({ ws, today, c, out }: Ctx) {
+function firstTouches({ ws, today, c, out, firstThree: covered }: Ctx) {
   let quota = coldQuotaLeft(ws, c);
   const perAccountCap = ws.caps.contactsPerAccountPerWeek;
   const accountFull = (domain: string, personId?: string) => {
@@ -896,11 +969,13 @@ function firstTouches({ ws, today, c, out }: Ctx) {
     const acc = ws.accounts[pkg.accountDomain];
     const sig = acc ? topSignal(acc, today) : undefined;
     const angle = angleTitle(ws, pkg.accountDomain, pkg.steps[0]?.angleId ?? pkg.angleId);
-    // A draft written from a signal card keeps that card's id, so the card stays put while it fills in.
+    // A draft written from a signal card keeps that card's id, so the card stays put while it fills in (a
+    // first-three card's draft too).
     const origin = acc ? freshSignal(acc, today) : undefined;
+    const fromFirstThree = firstThreeDomains(ws).includes(pkg.accountDomain) && !!ws.onboarding.hiredAt && pkg.createdAt >= ws.onboarding.hiredAt;
     quota--;
     out.push({
-      id: origin && localDate(pkg.createdAt) >= origin.date ? `mv_signal_${acc!.domain}_${origin.id}` : `mv_draft_${pkg.id}_1`,
+      id: fromFirstThree ? `mv_first_${pkg.accountDomain}` : origin && localDate(pkg.createdAt) >= origin.date ? `mv_signal_${acc!.domain}_${origin.id}` : `mv_draft_${pkg.id}_1`,
       kind: "first_touch",
       rule: "cold_draft",
       title: `Write to ${first(person?.name) || "the buyer"} at ${companyName(ws, pkg.accountDomain)}`,
@@ -926,7 +1001,7 @@ function firstTouches({ ws, today, c, out }: Ctx) {
     .sort((x, y) => y.s.strength - x.s.strength || y.s.date.localeCompare(x.s.date));
   const used = new Set<string>();
   for (const { acc, s } of fresh) {
-    if (used.has(acc.domain)) continue;
+    if (used.has(acc.domain) || covered.has(acc.domain)) continue;
     // Already drafted since the signal, or touched in the last 60 days: recycle only after 60 days AND a new signal.
     const busy = (pkgsByAccount.get(acc.domain) ?? []).some((p) => localDate(p.createdAt) >= s.date || daysSince(p.createdAt, today) <= 60);
     if (busy) continue;
@@ -1067,7 +1142,7 @@ const RELATIONSHIP: Record<string, string> = {
   connection: "LinkedIn connection",
 };
 
-function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
+function warmPaths({ ws, today, weekStart, c, out, firstThree: covered }: Ctx) {
   const asks = c.introAsksThisWeek;
   // The plan's number (Playbook → Plan), not a constant: raising intro asks there keeps these cards up.
   const askTarget = introAsksTarget(ws);
@@ -1075,7 +1150,7 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
   const recentPkg = (domain: string) => Object.values(ws.outreach).some((p) => p.accountDomain === domain && daysSince(p.createdAt, today) <= 30) || !!openIntroFor(ws, domain);
   const prospects = Object.values(ws.accounts)
     // Any deal, open or closed, rules a company out: open ones have their own moves, and lost or nurture ones aren't intro targets.
-    .filter((a) => (a.tier === "A" || a.tier === "B") && a.status !== "disqualified" && a.status !== "customer" && !(a.dealId && ws.deals[a.dealId]) && !recentPkg(a.domain))
+    .filter((a) => (a.tier === "A" || a.tier === "B") && a.status !== "disqualified" && a.status !== "customer" && !(a.dealId && ws.deals[a.dealId]) && !recentPkg(a.domain) && !covered.has(a.domain))
     .sort((a, b) => b.fitScore - a.fitScore);
 
   // A first-touch card already covers the account (a champion who moved, a draft): don't add an intro ask on top.
@@ -1140,13 +1215,13 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
 }
 
 /** Just-in-time setup: only what the next real move needs. */
-function setup({ ws, now, today, weekStart, out }: Ctx) {
+function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
   const accounts = Object.values(ws.accounts).filter((a) => a.status !== "disqualified");
   const anyDossier = accounts.some((a) => a.dossier);
 
-  // Research the top accounts that have no dossier yet (day one: the first three).
+  // Research the top accounts that have no dossier yet (the first three have their own cards).
   const research = accounts
-    .filter((a) => !a.dossier && !a.dealId && (a.tier === "A" || !anyDossier) && (a.watch || a.status === "tracked" || a.status === "new"))
+    .filter((a) => !a.dossier && !a.dealId && !covered.has(a.domain) && (a.tier === "A" || !anyDossier) && (a.watch || a.status === "tracked" || a.status === "new"))
     .sort((a, b) => b.fitScore - a.fitScore)
     .slice(0, 3);
   for (const acc of research) {
@@ -1165,7 +1240,8 @@ function setup({ ws, now, today, weekStart, out }: Ctx) {
     });
   }
 
-  const needsPov = !ws.povs.length && (Object.values(ws.outreach).some((p) => p.mode === "cold") || accounts.some((a) => a.dossier && a.tier === "A"));
+  // While the first three are on the desk their drafts ask for it inline, just in time (SPEC §3.2): no card on top.
+  const needsPov = !ws.povs.length && !covered.size && (Object.values(ws.outreach).some((p) => p.mode === "cold") || accounts.some((a) => a.dossier && a.tier === "A"));
   if (needsPov) {
     out.push({
       id: "mv_setup_pov",
@@ -1398,20 +1474,31 @@ function roomSuggestion({ ws, today, weekStart, out }: Ctx) {
   }
 }
 
-function questions({ ws, out }: Ctx) {
-  for (const q of ws.foundation?.founderQuestions ?? []) {
-    if (q.answer) continue;
-    out.push({
-      id: `mv_question_${q.id}`,
-      kind: "question",
-      rule: "question",
-      title: `Answer: ${clip(q.question, 90)}`,
-      why: clip(q.whyItMatters, 110),
-      minutes: 2,
-      priority: RULES.question.base,
-      ref: { kind: "playbook", id: q.id },
-    });
-  }
+/** Founder questions per card at a time. */
+export const QUESTIONS_PER_CARD = 3;
+
+/**
+ * Open founder questions, folded into one card ("Answer 3 questions that change the plan") instead of a card
+ * each: day one is for companies, not homework. The id follows the newest question, so answering inside the card
+ * keeps it, and a skip holds until the plan asks something new. Onboarding week ranks it after the first company.
+ */
+function questions({ ws, today, out }: Ctx) {
+  const all = ws.foundation?.founderQuestions ?? [];
+  const open = all.filter((q) => !q.answer);
+  if (!open.length) return;
+  const n = Math.min(QUESTIONS_PER_CARD, open.length);
+  const onboardingWeek = !!ws.onboarding.hiredAt && daysSince(ws.onboarding.hiredAt, today) <= 7;
+  out.push({
+    id: `mv_questions_${all[all.length - 1].id}`,
+    kind: "question",
+    rule: "questions",
+    title: n === 1 ? `Answer: ${clip(open[0].question, 90)}` : `Answer ${n} questions that change the plan`,
+    why: n === 1 ? clip(open[0].whyItMatters, 110) : "Your answers move the bet more than anything on your site",
+    minutes: n,
+    priority: RULES.questions.base + (onboardingWeek ? 12 : 0),
+    subjectIds: open.slice(0, n).map((q) => q.id),
+    ref: { kind: "playbook", id: open[0].id },
+  });
 }
 
 /** Monday pipeline review all week until done; Friday learning review from 14:00 Friday through Sunday. */
