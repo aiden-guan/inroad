@@ -842,14 +842,46 @@ function referredPerson(ws: Workspace, name: string, email: string | undefined):
  * A referral is the warmest lead a founder gets: one click adds the person they named and drafts a
  * first touch that says who sent you. The draft opens inline, never in a layer on top.
  */
-function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pkg: OutreachPackage; name: string; email?: string }) {
+function ReferralCompose({ ws, pkg, name, email }: { ws: Workspace; pkg: OutreachPackage; name: string; email?: string }) {
+  return <ReferralWrite ws={ws} name={name} email={email} referrerId={pkg.personId} fallbackDomain={pkg.accountDomain} />;
+}
+
+/**
+ * The same one click for a referral from anywhere (a reply, a call's debrief): adds the person if
+ * they're new and drafts the first touch that says who sent you. `domain` pins their company when
+ * it's known; otherwise it's their email's domain, else `fallbackDomain` (the referrer's company).
+ * `quote`: the referrer's words when they came from a call. `how`: appended to "Referred by …".
+ */
+export function ReferralWrite({
+  ws,
+  name,
+  email: rawEmail,
+  referrerId,
+  personId,
+  domain: pinned,
+  fallbackDomain,
+  quote,
+  how,
+  className,
+}: {
+  ws: Workspace;
+  name: string;
+  email?: string;
+  referrerId?: string;
+  personId?: string;
+  domain?: string;
+  fallbackDomain: string;
+  quote?: string;
+  how?: string;
+  className?: string;
+}) {
   const { dispatch } = useWorkspace();
   const compose = useCompose();
   const [packageId, setPackageId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const email = rawEmail?.trim().toLowerCase() || undefined;
-  const referrer = pkg.personId ? ws.people[pkg.personId] : undefined;
-  const known = referredPerson(ws, name, email);
+  const referrer = referrerId ? ws.people[referrerId] : undefined;
+  const known = (personId ? ws.people[personId] : undefined) ?? (pinned ? undefined : referredPerson(ws, name, email));
   const open = known ? findOpenDraft(ws, { domain: known.accountDomain, personId: known.id, mode: "cold" }) : undefined;
   const shown = packageId ? ws.outreach[packageId] : undefined;
   const first = firstName(name);
@@ -868,7 +900,7 @@ function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pk
     if (!person) {
       // Their company: the email's domain unless it's a personal address, else the referrer's company.
       const host = email && !PERSONAL_DOMAINS.test(email) ? email.split("@")[1] : undefined;
-      const domain = (host && (Object.keys(ws.accounts).find((d) => host === d || host.endsWith(`.${d}`)) ?? host)) || pkg.accountDomain;
+      const domain = pinned || (host && (Object.keys(ws.accounts).find((d) => host === d || host.endsWith(`.${d}`)) ?? host)) || fallbackDomain;
       if (!ws.accounts[domain]) {
         actions.push({
           type: "account.add",
@@ -903,7 +935,7 @@ function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pk
         contactPaths: path ? [path] : [],
         jurisdiction: "unknown",
         doNotContact: false,
-        notes: `Referred by ${via}`,
+        notes: `Referred by ${via}${how ? ` ${how}` : ""}`,
         source: "referral",
       };
       actions.push({ type: "person.upsert", person });
@@ -914,12 +946,12 @@ function ReferralCompose({ ws, pkg, name, email: rawEmail }: { ws: Workspace; pk
     const ok = actions.length ? await dispatch(actions) : true;
     setAdding(false);
     if (!ok) return;
-    await compose.begin({ domain: person.accountDomain, personId: person.id, mode: "cold", referredBy: referrer?.id }, (r) => setPackageId(r.packageId));
+    await compose.begin({ domain: person.accountDomain, personId: person.id, mode: "cold", referredBy: referrer?.id, ...(quote ? { referralQuote: quote } : {}) }, (r) => setPackageId(r.packageId));
   };
 
   return (
     // Keys inside this draft belong to it, not to the reply draft around it.
-    <div className="mt-2.5 space-y-3" onKeyDown={(e) => e.stopPropagation()}>
+    <div className={cn("mt-2.5 space-y-3", className)} onKeyDown={(e) => e.stopPropagation()}>
       {!shown && (
         <Button variant="agent" size="xs" icon={<PenLine className="size-3" />} onClick={() => void write()} loading={adding || compose.busy}>
           {open ? `Open your draft to ${first}` : `Write to ${first}`}

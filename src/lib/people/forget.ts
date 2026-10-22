@@ -161,6 +161,9 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
     if (m.debrief) {
       m.debrief.committeeUpdates = m.debrief.committeeUpdates.filter((x) => !sameName(x.name, person.name));
       for (const q of m.debrief.quotes) if (sameName(q.speaker, person.name)) delete q.speaker;
+      // Named as a referral on someone else's call: no longer a lead.
+      m.debrief.referrals = m.debrief.referrals.filter((r) => !named(r) && !sameName(r, person.name));
+      if (m.debrief.referralPeople) m.debrief.referralPeople = m.debrief.referralPeople.filter((r) => !sameName(r.name, person.name));
       unname(m.debrief.card);
       unown(m.debrief.map);
     }

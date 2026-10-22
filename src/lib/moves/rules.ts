@@ -1,5 +1,6 @@
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type Workspace } from "@/lib/domain/types";
+import { referralLeads } from "@/lib/deals/referrals";
 import { leadPoints, nearby } from "@/lib/geo/leads";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
@@ -41,6 +42,7 @@ const RULES = {
   meeting_prep: { base: 90, label: "Meeting today" },
   debrief: { base: 88, label: "Meeting ended with no notes" },
   recap: { base: 85, label: "Debrief drafted but not applied" },
+  referrals: { base: 62, label: "People a call suggested, not written to yet" },
   follow_up: { base: 70, label: "Follow-up step due" },
   reply_book: { base: 74, label: "They said yes and you answered; no call booked yet" },
   next_step: { base: 65, label: "Open deal without a dated next step" },
@@ -119,6 +121,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   checkReplies(ctx);
   bookings(ctx);
   meetings(ctx);
+  callReferrals(ctx);
   sequences(ctx);
   deals(ctx);
   firstTouches(ctx);
@@ -387,6 +390,30 @@ function meetings({ ws, now, today, out }: Ctx) {
         href: domain ? sheet(domain) : undefined,
       });
     }
+  }
+}
+
+/** "Who else should I talk to?": the people a call named, until the founder writes to them (two weeks after the debrief). */
+function callReferrals({ ws, today, out }: Ctx) {
+  for (const m of Object.values(ws.meetings)) {
+    if (!m.debrief || daysSince(m.debrief.generatedAt, today) > 14) continue;
+    const open = referralLeads(ws, m).filter((l) => !l.acted);
+    if (!open.length) continue;
+    const domain = ws.deals[m.dealId]?.accountDomain;
+    const who = (l: (typeof open)[number]) => (l.name ? `${first(l.name)}${l.company ? ` at ${l.company}` : ""}` : (l.company ?? "them"));
+    const referrers = [...new Set(open.map((l) => l.referrerId).filter((x): x is string => !!x))];
+    const by = referrers.length === 1 ? first(ws.people[referrers[0]]?.name) : "";
+    out.push({
+      id: `mv_referrals_${m.id}`,
+      kind: "first_touch",
+      rule: "referrals",
+      title: open.length === 1 ? `Write to ${who(open[0])}, ${by ? `${by}'s` : "a"} referral` : `Write to the ${open.length} people ${by || "they"} suggested`,
+      why: `Named on the ${companyName(ws, domain)} call ${shortDay(localDate(m.startsAt))} · a referral is the warmest first touch`,
+      minutes: 3 * open.length,
+      priority: RULES.referrals.base,
+      ref: { kind: "meeting", id: m.id },
+      href: domain ? sheet(domain) : undefined,
+    });
   }
 }
 

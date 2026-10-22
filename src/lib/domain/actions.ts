@@ -26,6 +26,7 @@ import type {
 } from "./types";
 import { addBusinessDays, addDays, todayISO } from "./ids";
 import { OPEN_STAGES } from "./types";
+import { debriefReferrals } from "@/lib/deals/referrals";
 import { newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 
@@ -86,7 +87,7 @@ export type Action =
   | { type: "meeting.upsert"; meeting: Meeting }
   /** Narrow meeting edits that patch the server's copy, so a stale client never overwrites a newer brief or debrief. */
   | { type: "meeting.toggleStar"; id: ID; briefAt: string; index: number }
-  | { type: "meeting.patchDebrief"; id: ID; generatedAt: string; patch: { recap?: { subject: string; body: string }; appliedAt?: string } }
+  | { type: "meeting.patchDebrief"; id: ID; generatedAt: string; patch: { recap?: { subject: string; body: string }; appliedAt?: string; referralDomain?: { index: number; domain: string } } }
   | { type: "outreach.editStep"; packageId: ID; step: number; subject?: string | null; body?: string }
   | { type: "outreach.useAlternate"; packageId: ID; index: number }
   | { type: "outreach.approveStep"; packageId: ID; step: number; at: string; activityId: ID }
@@ -508,6 +509,13 @@ export function applyAction(ws: Workspace, action: Action): void {
       if (!d || d.generatedAt !== action.generatedAt) return; // a newer debrief replaced it
       if (action.patch.recap) d.recap = action.patch.recap;
       if (action.patch.appliedAt) d.appliedAt = action.patch.appliedAt;
+      // A referral's company, once the founder added it: the lead finds it by domain from then on.
+      const rd = action.patch.referralDomain;
+      if (rd) {
+        d.referralPeople ??= debriefReferrals(d);
+        const r = d.referralPeople[rd.index];
+        if (r) r.domain = rd.domain;
+      }
       return;
     }
     case "outreach.editStep": {

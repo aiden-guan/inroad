@@ -57,6 +57,8 @@ const Args = z.object({
   alternate: z.boolean().optional(),
   /** Cold mode: the person who pointed the founder here (a referral reply). The referral is the premise. */
   referredBy: z.string().optional(),
+  /** Cold mode, with referredBy: what they said when the referral came on a call (a debrief quote). */
+  referralQuote: z.string().max(600).optional(),
 });
 type ComposeArgs = z.infer<typeof Args>;
 
@@ -586,10 +588,11 @@ function channelBlocker(ws: Workspace, pkg: OutreachPackage, stepNo: number) {
   return preflight(ws, pkg, { step: stepNo, status: "draft" } as DraftStep).blockers.find((b) => CHANNEL_BLOCKS.has(b.code));
 }
 
-/** What the referrer said, for a first touch that rests on their referral. */
-function referralBlock(ws: Workspace, referrer: Person, person: Person | undefined): string {
+/** What the referrer said, for a first touch that rests on their referral. `onCall`: their words from a debrief. */
+export function referralBlock(ws: Workspace, referrer: Person, person: Person | undefined, onCall?: string): string {
   const newest = <T extends { at: string }>(xs: T[]) => xs.sort((x, y) => y.at.localeCompare(x.at))[0];
   const said =
+    onCall?.trim() ||
     newest(
       Object.values(ws.outreach)
         .filter((p) => p.mode === "reply" && p.personId === referrer.id && p.reply?.intent === "referral")
@@ -678,7 +681,7 @@ async function runCold(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account
       sendOn: todayISO(),
       thread: "new",
       frames: referrer ? ["referral", ...frames] : frames,
-      extra: referrer ? referralBlock(ws, referrer, person) : undefined,
+      extra: referrer ? referralBlock(ws, referrer, person, a.referralQuote) : undefined,
     },
     "cold",
   );
