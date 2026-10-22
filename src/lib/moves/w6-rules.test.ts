@@ -213,6 +213,25 @@ describe("pilot to paid", () => {
     expect(pilotRules(booked)).toEqual([]);
   });
 
+  it("asks to book the ROI review at kickoff too, while the pilot is in its first three days", () => {
+    /** A 30-day pilot that started `daysIn` days ago. */
+    const kickoff = (daysIn: number, patch: Partial<Workspace["deals"][string]> = {}) => {
+      const ws = pilot(30 - daysIn, patch);
+      ws.deals.deal_acme.pilot!.startedOn = day(-daysIn);
+      return ws;
+    };
+    const [m] = pilotRules(kickoff(1));
+    expect(m).toMatchObject({ id: `mv_pilot_kickoff_deal_acme_${day(-1)}`, title: "Book the Acme ROI review now", priority: 50 * 1.4 });
+    expect(m.why).toBe("Pilot started Oct 19 · ends Nov 18 · put the review on Ana's calendar at kickoff");
+    expect(pilotRules(kickoff(0)).map((x) => x.rule)).toEqual(["today.pilot_kickoff"]);
+    // Past the kickoff, ticked, or already on the calendar: nothing (the last-week card is the fallback).
+    expect(pilotRules(kickoff(3))).toEqual([]);
+    expect(pilotRules(kickoff(1, { checklist: { "pilot.roi": true } }))).toEqual([]);
+    const booked = kickoff(1);
+    booked.meetings.m = makeMeeting("m", "deal_acme", { title: "Results readout", startsAt: at(28) });
+    expect(pilotRules(booked)).toEqual([]);
+  });
+
   it("checks in every three quiet days while the pilot runs, instead of the week-long stall card", () => {
     expect(pilotRules(pilot(10, {}, 2))).toEqual([]);
     const ws = pilot(10, {}, 3);
