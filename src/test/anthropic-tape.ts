@@ -24,6 +24,13 @@ import { startMock, type MockServer } from "./mock-anthropic";
 
 export type TapeMode = "replay" | "record" | "live";
 
+declare module "vitest" {
+  export interface ProvidedContext {
+    /** The live smoke's spend-capped proxy (scripts/live/global-setup.ts). */
+    liveProxy: string;
+  }
+}
+
 export interface TapeExchange {
   key: string;
   request: { model: string; tools: string[]; messages: number; maxTokens: number; effort: string | null; cacheTtl: string | null; stream: boolean };
@@ -161,7 +168,7 @@ export async function useTape(name: string): Promise<Tape> {
   }
 
   // live: the spend-capped proxy the smoke's global setup started (scripts/live/global-setup.ts).
-  const proxyUrl = inject("liveProxy" as never) as string | undefined;
+  const proxyUrl = inject("liveProxy");
   if (!proxyUrl) throw new Error("INROAD_TAPES=live only runs under the live smoke: npm run smoke:live");
   const control = (p: string, body: unknown) => fetch(`${proxyUrl}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
   await control("/__tape/start", { name });

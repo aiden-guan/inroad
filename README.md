@@ -36,6 +36,21 @@ npm run mock:anthropic   # terminal 1 — fake Claude (and fake Firecrawl) on :4
 npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder
 ```
 
+The mock works each workflow's tools the way a model would, from what the request contains (it quotes your site,
+saves the bet section by section, screens every candidate, records evidence before it writes a dossier), and it
+bills like the API: token counts that follow the request, prompt caching (5-minute and 1-hour), web-search counts,
+and reasoning that counts toward `max_tokens`. It also fails on demand, so error states can be clicked through:
+
+```bash
+MOCK_FAULT=credit npm run mock:anthropic      # every request: out of credits
+curl -X POST localhost:4010/__mock/faults -d '{"faults":[{"type":"overloaded","times":4}]}'
+```
+
+Faults: `credit`, `org_disabled`, `auth`, `permission`, `model_unavailable`, `too_large`, `context_too_long`,
+`rate_limit`, `overloaded`, `server_error`, `bad_request`, `reject_betas`, `reject_strict`, `overloaded_midstream`,
+`refusal`, `refusal_fallback`, `pause_turn`, `max_tokens`, `no_submit`, `invalid_submit`. `GET /__mock/requests`
+lists what the app sent. Discovery and research still read real websites and job boards, so they need a network.
+
 In mock mode any key starting with `fc-` connects Firecrawl; `fc-terms…` shows what happens when a data provider's
 terms haven't been accepted yet.
 
@@ -48,10 +63,39 @@ npm run test:watch   # re-runs affected tests as you edit
 
 The suite is [Vitest](https://vitest.dev) and covers the logic the product leans on: the workspace reducer, Today's
 moves and scoreboard, draft lint and pre-send gates, deal rules, the signal parsers (against saved responses in
-`src/test/fixtures/signals`), the SSRF guard, the proxy, the MCP endpoint and the agent engine (against the mock
-Anthropic server, started by the test). It is deterministic and offline: every test file gets its own temporary data
-folder instead of `.data/`, the clock runs in `America/Los_Angeles`, fetches to anything but localhost fail, and no
-Anthropic key is ever used. Tests sit next to the code they cover (`foo.test.ts`); shared builders are in `src/test/`.
+`src/test/fixtures/signals`), the SSRF guard, the proxy, the MCP endpoint, the agent engine and its failure paths
+(against the mock Anthropic server, started by the test), and the main workflows end to end: the first run with the
+discovery it starts, Find companies, research, drafts and replies, and an Ask thread. Those replay recorded Anthropic
+exchanges ("tapes", `src/test/fixtures/anthropic`), and each also checks that no run fell back to compatibility mode,
+nothing was cut off at `max_tokens`, every submit tool was called and every receipt costs what the usage says. It is
+deterministic and offline: every test file gets its own temporary data folder instead of `.data/`, the clock runs in
+`America/Los_Angeles`, fetches to anything but localhost fail, and no Anthropic key is ever used. Tests sit next to the
+code they cover (`foo.test.ts`); shared builders are in `src/test/`.
+
+After changing a workflow's prompts or tools (or the mock), re-record its tapes from the mock and commit them:
+
+```bash
+npm run tapes:record            # all of them
+npm run tapes:record -- dossier # one file
+```
+
+### Live smoke (real API, not in CI)
+
+Before a release, run the same workflow tests once against the real Anthropic API. It costs about $1–1.50 and can't
+cost more than its cap (default $3): a local proxy holds the key and refuses any request whose worst case (its prompt
+uncached, all of `max_tokens`, every allowed search and a refusal fallback) would cross the cap.
+
+```bash
+INROAD_LIVE=1 ANTHROPIC_API_KEY=sk-ant-… npm run smoke:live
+INROAD_LIVE=1 ANTHROPIC_API_KEY=sk-ant-… npm run smoke:live -- --record   # also save real tapes
+INROAD_LIVE=1 ANTHROPIC_API_KEY=sk-ant-… npm run smoke:live -- --cap 1.5  # tighter cap
+npm run smoke:live -- --mock                                              # the whole run against the mock, free
+```
+
+On top of each test's own assertions it fails if compatibility mode ever triggers, a run that needs a submit tool
+ends without one, a response is cut off, the second Ask turn doesn't read the prompt cache, or a receipt disagrees
+with the usage the API reported. `--record` writes the real responses to `src/test/fixtures/anthropic/live/`; the
+offline suite prefers those over the mock's tapes, so it then replays real wire shapes.
 
 CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `next typegen`, `tsc --noEmit`,
 `eslint src`, `npm test` and `next build`. On a fresh checkout run `npx next typegen` once before `npm run typecheck`,
