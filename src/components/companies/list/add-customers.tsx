@@ -65,7 +65,7 @@ export function AddCustomers({ ws }: { ws: Workspace }) {
             setText(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="acme.com, northwind.io, Dana at Globex"
+          placeholder="acme.com, Dana at Globex"
           aria-label="Companies already using you"
           aria-invalid={!!error}
           className="h-9 text-[16px] sm:flex-1 sm:text-[13.5px]"

@@ -64,14 +64,14 @@ export function accountFor(ws: Workspace, u: KnownUser): Account | undefined {
 
 /* ───────────── The referral ask ───────────── */
 
-/** When this company became a customer: the deal's won date, else when it was added. */
+/** When this company became a customer: the deal's won date, else when it was marked one, else when it was added. */
 export function customerSince(ws: Workspace, acc: Account): string {
   const won = Object.values(ws.deals)
     .filter((d) => d.accountDomain === acc.domain && d.stage === "won")
     .map((d) => [...d.stageHistory].reverse().find((h) => h.stage === "won")?.at ?? d.createdAt)
     .sort()
     .at(-1);
-  return won ?? acc.addedAt;
+  return won ?? acc.customerAt ?? acc.addedAt;
 }
 
 /** Whether the founder has asked this customer for a referral since `since` (an intro request, or a referral reply). */

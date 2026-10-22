@@ -135,4 +135,11 @@ describe("signup and user lists", () => {
     await undoImport(batch.id);
     expect(Object.values(readWorkspace().people)).toEqual([]);
   });
+
+  it("date a prospect on a customer list from the import, not from when discovery found it", async () => {
+    const text = ["id,email,name,created (utc),delinquent,card last4", "cus_1,ap@northwind.io,Northwind,2026-03-01,false,4242"].join("\n");
+    const parsed = parseCsv(text);
+    await applyListImport({ fileName: "customers.csv", text, preset: "stripe", mapping: autoMap(parsed.headers, presetById("stripe"), parsed.rows) });
+    expect(readWorkspace().accounts["northwind.io"]).toMatchObject({ status: "customer", customerAt: NOW.toISOString() });
+  });
 });

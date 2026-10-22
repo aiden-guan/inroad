@@ -104,6 +104,7 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
         if (preset.kind === "customers" && (account.status === "new" || account.status === "tracked")) {
           b.statusChanged.push({ domain, from: account.status, to: "customer" });
           account.status = "customer";
+          account.customerAt = at;
           if (!created) touchedAccounts.add(domain);
         }
 

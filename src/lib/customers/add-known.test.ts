@@ -8,7 +8,10 @@ import { DATA_DIR } from "@/lib/store/settings";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { makeAccount, makeWorkspace } from "@/test/factories";
 import { routeFetches } from "@/test/http-fixtures";
+import { customerRows } from "@/components/companies/list/lib";
+import { todayISO } from "@/lib/domain/ids";
 import { addKnownUsers } from "./add-known";
+import { customerSince, referralCandidates } from "./known-users";
 
 /**
  * Onboarding's "last 3 users" become customers in one click: the account (status customer, tagged), the
@@ -73,6 +76,26 @@ describe("adding the founder's users as customers", () => {
     const ravi = readConnections().find((c) => c.firstName === "Ravi")!;
     expect(ravi.previous?.company).toBe("Acme");
     expect(knowsProduct(readWorkspace(), ravi)).toBe(true);
+  });
+
+  it("dates a prospect already on file from today, so the referral ask still comes", async () => {
+    await replaceWorkspace(
+      makeWorkspace({
+        company: { name: "Ledgerline", domain: "ledgerline.io" } as never,
+        accounts: { "northwind.io": makeAccount("northwind.io", { name: "Northwind", status: "tracked", addedAt: "2026-01-05T12:00:00.000Z" }) },
+      }),
+    );
+    await addKnownUsers({ users: [{ name: "Northwind", domain: "northwind.io" }], kind: "past_user" });
+    const ws = readWorkspace();
+    const acc = ws.accounts["northwind.io"];
+    expect(Date.now() - Date.parse(acc.customerAt!)).toBeLessThan(60_000);
+    expect(customerSince(ws, acc)).toBe(acc.customerAt);
+    expect(customerRows(ws)[0].since).toBe(acc.customerAt);
+    expect(referralCandidates(ws, todayISO()).map((c) => c.acc.domain)).toEqual(["northwind.io"]);
+
+    // Naming it again doesn't move the date.
+    await addKnownUsers({ users: [{ name: "Northwind", domain: "northwind.io" }], kind: "past_user" });
+    expect(readWorkspace().accounts["northwind.io"].customerAt).toBe(acc.customerAt);
   });
 
   it("refuses an empty list", async () => {
