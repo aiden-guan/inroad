@@ -2,6 +2,7 @@
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/client/cn";
+import { useModKeys } from "@/lib/client/platform";
 
 type Variant = "primary" | "secondary" | "ghost" | "agent" | "danger" | "link";
 type Size = "xs" | "sm" | "md" | "lg";
@@ -36,6 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = "secondary", size = "md", loading, icon, kbd, className, children, disabled, ...props },
   ref,
 ) {
+  const keys = useModKeys();
   return (
     <button
       ref={ref}
@@ -59,7 +61,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
             (variant === "primary" || variant === "agent") && "opacity-70",
           )}
         >
-          {kbd}
+          {keys(kbd)}
         </kbd>
       )}
     </button>

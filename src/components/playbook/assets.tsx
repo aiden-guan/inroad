@@ -13,6 +13,7 @@ import { CopyButton, Markdown, Segmented } from "@/components/ui/misc";
 import { Receipt, WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
 import { duration, shortDate, usd } from "@/lib/client/format";
+import { useModKeys } from "@/lib/client/platform";
 import { newId, nowISO } from "@/lib/domain/ids";
 import { OPEN_STAGES, STAGE_LABELS, type Asset, type Deal } from "@/lib/domain/types";
 import { ease, listItem, spring } from "@/lib/motion";
@@ -297,6 +298,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
     setMode(asset.body.trim() ? "preview" : "write");
   }
   const area = useRef<HTMLTextAreaElement>(null);
+  const keys = useModKeys();
   const dirty = draft !== asset.body;
   const check = checkAsset(ws, { body: draft, dealId: asset.dealId });
   const deal = asset.dealId ? ws.deals[asset.dealId] : undefined;
@@ -488,7 +490,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
           }}
           className="h-8 font-mono text-[12.5px]"
         />
-        <span className="font-mono text-[11.5px] text-fg-3 sm:text-right">{dirty ? (mode === "write" ? "Unsaved · ⌘S" : "Unsaved") : "Saved"}</span>
+        <span className="font-mono text-[11.5px] text-fg-3 sm:text-right">{dirty ? (mode === "write" ? `Unsaved · ${keys("⌘S")}` : "Unsaved") : "Saved"}</span>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
