@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Debrief, Foundation, Workspace } from "@/lib/domain/types";
 import { NOW, at, makeAccount, makeDeal, makeMeeting, makeWorkspace } from "@/test/factories";
-import { hiringReadiness, lastRefreshAt, monthlyData, pricingLog, refreshInputs, refreshOffer } from "./monthly-data";
+import { hiringReadiness, lastRefreshAt, monthlyData, pricingLog, refreshInputs, refreshOffer, settledRefresh } from "./monthly-data";
 
 const field = (value: string | null) => ({ value, quotes: [], status: value ? ("captured" as const) : ("not_covered" as const) });
 
@@ -53,6 +53,24 @@ describe("refresh offer", () => {
     ws.deals.deal_acme.stage = "won";
     ws.deals.deal_acme.stageHistory.push({ stage: "won", at: at(-1) });
     expect(refreshOffer(ws)).toMatchObject({ won: 1, offered: true });
+  });
+});
+
+describe("settledRefresh", () => {
+  it("is the newest rebuild when it changed nothing, so the answer can be shown after the offer goes", () => {
+    const ws = workspace();
+    expect(settledRefresh(ws)).toBeNull();
+    const review = "No changes: 2 calls don't contradict the bet.";
+    ws.briefs["2026-10-15:refresh:run_1"] = { date: "2026-10-15", kind: "refresh", greeting: "", matters: [], generatedAt: at(-5), review, reviewKind: "refresh", proposals: [] };
+    expect(settledRefresh(ws)?.review).toBe(review);
+    expect(refreshOffer(ws).offered).toBe(false);
+    // A rebuild with changes to decide isn't settled.
+    ws.briefs["2026-10-15:refresh:run_1"].proposals = [{ id: "p1", kind: "revise_foundation", status: "open" } as never];
+    expect(settledRefresh(ws)).toBeNull();
+    ws.briefs["2026-10-15:refresh:run_1"].proposals = [];
+    // A monthly review since is the newest revision now.
+    ws.briefs["2026-10-18:monthly"] = { date: "2026-10-18", kind: "monthly", greeting: "", matters: [], generatedAt: at(-2), reviewKind: "monthly" };
+    expect(settledRefresh(ws)).toBeNull();
   });
 });
 

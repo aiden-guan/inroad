@@ -5,9 +5,11 @@ import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { ProposalRow } from "@/components/today/review-panel";
 import { RunInline } from "@/components/today/parts";
+import { Markdown } from "@/components/ui/misc";
 import { shortDate } from "@/lib/client/format";
+import { todayISO } from "@/lib/domain/ids";
 import type { Brief, ReviewProposal, Workspace } from "@/lib/domain/types";
-import { refreshOffer } from "@/lib/moves/monthly-data";
+import { refreshOffer, settledRefresh } from "@/lib/moves/monthly-data";
 import { plural } from "@/lib/moves/util";
 import { usePlaybook } from "./context";
 import { Sub } from "./ui";
@@ -37,13 +39,22 @@ export function RefreshBet({ ws, onResult, compact }: { ws: Workspace; onResult?
       <RunInline workflow="review" args={{ kind: "refresh" }} runRef={{ kind: "playbook", id: "review:refresh" }} label="Rebuild the bet from my calls" variant="secondary" onResult={onResult} hint="About a minute · about $0.40" />
     );
   }
+  // A rebuild that found nothing to change says so here: the offer it answered has gone, and with it the old text.
+  const settled = !open.length && !offer.offered ? settledRefresh(ws) : null;
   return (
     <div className="space-y-3">
-      <p className="max-w-[62ch] text-[13.5px] leading-[21px] text-fg-2">
-        {open.length
-          ? `${plural(open.length, "suggested change")} from your calls and best-fit customers, each with what showed it. Accept or reject each one; the version before is kept in the Journal.`
-          : `I'll read ${offer.calls ? plural(offer.calls, "call") : "the calls"} debriefed${since ? ` since ${since}` : ""}${offer.won ? ` and ${plural(offer.won, "deal")} you won` : ""}, start from your best-fit customers, and suggest changes to who you sell to, how you position and how you talk to each persona. Nothing changes until you accept it.`}
-      </p>
+      {settled ? (
+        <div className="max-w-[62ch]">
+          <p className="text-[12px] text-fg-3">Checked {shortDate(settled.generatedAt)}</p>
+          <Markdown className="mt-1 space-y-1.5 text-[13.5px] leading-[21px] text-fg-2">{settled.review ?? ""}</Markdown>
+        </div>
+      ) : (
+        <p className="max-w-[62ch] text-[13.5px] leading-[21px] text-fg-2">
+          {open.length
+            ? `${plural(open.length, "suggested change")} from your calls and best-fit customers, each with what showed it. Accept or reject each one; the version before is kept in the Journal.`
+            : `I'll read ${offer.calls ? plural(offer.calls, "call") : "the calls"} debriefed${since ? ` since ${since}` : ""}${offer.won ? ` and ${plural(offer.won, "deal")} you won` : ""}, start from your best-fit customers, and suggest changes to who you sell to, how you position and how you talk to each persona. Nothing changes until you accept it.`}
+        </p>
+      )}
       {open.length > 0 && (
         <ul className="space-y-2">
           {open.map(({ brief, p }) => (
@@ -86,12 +97,15 @@ export function RefreshSub() {
   const { ws } = usePlaybook();
   const offer = refreshOffer(ws);
   const open = openRevisions(ws);
-  if (!offer.offered && !open.length) return null;
+  // Today's rebuild that changed nothing stays up with its answer, instead of the section vanishing when it ends.
+  const settled = settledRefresh(ws);
+  const justSettled = !!settled && settled.date === todayISO();
+  if (!offer.offered && !open.length && !justSettled) return null;
   return (
     <Sub
       id="refresh"
       title={open.length ? "Suggested changes to the bet" : "Rebuild the bet from your calls"}
-      hint={open.length ? undefined : `${plural(offer.calls, "call")} debriefed${offer.won ? ` and ${plural(offer.won, "deal")} won` : ""} since the bet was last revised. Conversations beat the website it was written from.`}
+      hint={open.length || !offer.offered ? undefined : `${plural(offer.calls, "call")} debriefed${offer.won ? ` and ${plural(offer.won, "deal")} won` : ""} since the bet was last revised. Conversations beat the website it was written from.`}
     >
       <RefreshBet ws={ws} />
     </Sub>
