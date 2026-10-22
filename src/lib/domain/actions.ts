@@ -7,6 +7,8 @@ import type {
   Connector,
   Deal,
   EntityRef,
+  FoundationRevision,
+  FoundationVersion,
   GtmEvent,
   Guest,
   ID,
@@ -30,6 +32,7 @@ import { debriefReferrals } from "@/lib/deals/referrals";
 import { closeDatePushed, newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 import { touchTags } from "@/lib/learning/tags";
+import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -51,6 +54,10 @@ export type Action =
   | { type: "foundation.set"; path: (string | number)[]; value: unknown }
   | { type: "foundation.answerQuestion"; questionId: ID; answer: string; at: string }
   | { type: "foundation.lockSegment"; at: string }
+  /** An accepted refresh change. The first one from a run keeps the version it replaces, so a restore undoes the run. */
+  | { type: "foundation.revise"; revision: FoundationRevision; source: FoundationVersion["source"]; runId?: ID; at: string }
+  /** Brings back a kept version as a new one. */
+  | { type: "foundation.restore"; version: number; at: string }
   | { type: "claim.upsert"; claim: Claim }
   | { type: "claim.remove"; id: ID }
   | { type: "objection.upsert"; objection: ObjectionCard }
@@ -339,6 +346,14 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "foundation.lockSegment":
       need(ws.foundation, "Playbook").icp.segmentLockedAt = action.at;
+      return;
+    case "foundation.revise":
+      if (revisionStale(need(ws.foundation, "Playbook"), action.revision)) throw new ActionError("That part of the playbook changed since this was proposed");
+      reviseFoundation(ws, action);
+      return;
+    case "foundation.restore":
+      need(ws.foundationHistory?.find((v) => v.version === action.version), "Version");
+      restoreFoundation(ws, action.version, action.at);
       return;
     case "claim.upsert":
       upsertBy(ws.claims, action.claim);

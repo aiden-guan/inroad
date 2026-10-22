@@ -3,6 +3,7 @@ import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
 import { sampleWorkspace } from "@/lib/sample";
 import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids";
 import { NOW, TODAY, at, makeMove, makePackage, makeStep, makeWorkspace } from "@/test/factories";
+import { buildRevision } from "@/lib/playbook/revision";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
 
@@ -125,6 +126,43 @@ const cases: Record<Action["type"], () => void> = {
   "foundation.lockSegment": () => {
     const s = apply(ws(), { type: "foundation.lockSegment", at: at(0) });
     expect(s.foundation?.icp.segmentLockedAt).toBe(at(0));
+  },
+
+  "foundation.revise": () => {
+    const s = ws();
+    const f = structuredClone(s.foundation!);
+    const v = f.version;
+    const sentence = buildRevision(f, { target: "icp.sentence", op: "set", text: "Usage-priced API companies past $2M ARR whose controller closes the books by hand." })!;
+    const words = buildRevision(f, { target: "messaging.customerWords", op: "add", text: "month-end fire drill" })!;
+    apply(s, { type: "foundation.revise", revision: sentence, source: "refresh", runId: "run_r", at: at(0) });
+    expect(s.foundation!.icp.hypothesis.sentence).toBe(sentence.text);
+    expect(s.foundation!.version).toBe(v + 1);
+    // The version it replaced is kept whole, so the refresh can be undone.
+    expect(s.foundationHistory).toEqual([expect.objectContaining({ version: v, source: "refresh", runId: "run_r", changes: [expect.stringContaining("The ICP bet")] })]);
+    expect(s.foundationHistory![0].snapshot.icp.hypothesis.sentence).toBe(f.icp.hypothesis.sentence);
+    // A second change from the same refresh joins that version.
+    apply(s, { type: "foundation.revise", revision: words, source: "refresh", runId: "run_r", at: at(0) });
+    expect(s.foundation!.version).toBe(v + 1);
+    expect(s.foundationHistory![0].changes).toHaveLength(2);
+    expect(s.foundation!.messaging.customerWords.at(-1)).toEqual({ phrase: "month-end fire drill", source: "call" });
+    // The founder edited that part since: the old proposal no longer applies.
+    expect(() => apply(s, { type: "foundation.revise", revision: { ...sentence, before: "Something else" }, source: "refresh", at: at(0) })).toThrow(ActionError);
+  },
+
+  "foundation.restore": () => {
+    const s = ws();
+    const v = s.foundation!.version;
+    const original = s.foundation!.icp.hypothesis.sentence;
+    apply(s, { type: "foundation.revise", revision: buildRevision(s.foundation!, { target: "icp.sentence", op: "set", text: "A new bet." })!, source: "monthly", runId: "run_m", at: at(-1) });
+    apply(s, { type: "foundation.lockSegment", at: at(0) });
+    apply(s, { type: "foundation.restore", version: v, at: at(0) });
+    expect(s.foundation!.icp.hypothesis.sentence).toBe(original);
+    expect(s.foundation!.version).toBe(v + 2);
+    // What happened since the old version stays: the segment lock is a record, not part of the bet.
+    expect(s.foundation!.icp.segmentLockedAt).toBe(at(0));
+    expect(s.foundationHistory!.map((x) => x.version)).toEqual([v, v + 1]);
+    expect(s.foundationHistory!.at(-1)!.changes).toEqual([`Restored v${v}`]);
+    expect(() => apply(s, { type: "foundation.restore", version: 99, at: at(0) })).toThrow("Version not found");
   },
 
   "claim.upsert": () => {

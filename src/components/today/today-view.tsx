@@ -289,7 +289,7 @@ export function Today({ ws }: { ws: Workspace }) {
   const dayOne = Object.keys(ws.accounts).length === 0;
   const worth = Object.values(ws.accounts).filter((a) => a.status !== "disqualified" && a.signals.some((s) => s.strength >= 2 && daysSince(s.date, today) <= 14)).length;
   const weekReviews = Object.values(ws.briefs)
-    .filter((b) => b.review && b.reviewKind && b.date >= weekStart && !visible.some((m) => m.id === `mv_review_${b.reviewKind}_${weekStart}`))
+    .filter((b) => b.review && (b.reviewKind === "monday" || b.reviewKind === "friday") && b.date >= weekStart && !visible.some((m) => m.id === `mv_review_${b.reviewKind}_${weekStart}`))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
@@ -347,7 +347,7 @@ export function Today({ ws }: { ws: Workspace }) {
           </section>
         )}
 
-        {weekReviews[0]?.reviewKind && <WeekCard ws={ws} review={weekReviews[0]} kind={weekReviews[0].reviewKind} />}
+        {weekReviews[0] && <WeekCard ws={ws} review={weekReviews[0]} kind={weekReviews[0].reviewKind === "monday" ? "monday" : "friday"} />}
 
         {visible.length > 0 && (
           <Keys
