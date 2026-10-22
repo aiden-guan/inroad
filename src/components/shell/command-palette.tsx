@@ -95,9 +95,12 @@ export function CommandPalette() {
   const { start } = useRuns();
   const { openAsk } = useAsk();
 
+  // A page picked with the mouse leaves focus on the dialog, not the input: put it back, so typing filters the page.
+  const inputRef = useRef<HTMLInputElement>(null);
   const go = useCallback((next: Page | null) => {
     setPage(next);
     setQuery("");
+    requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
   useEffect(() => {
@@ -381,6 +384,7 @@ export function CommandPalette() {
           <p className="h-12 min-w-0 flex-1 truncate py-3.5 text-[13px] text-fg-3">Matched to who sent it, on this computer</p>
         ) : (
           <Command.Input
+            ref={inputRef}
             autoFocus
             value={query}
             onValueChange={setQuery}
