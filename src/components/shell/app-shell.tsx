@@ -10,6 +10,7 @@ import { ConnectorPoller } from "@/components/integrations/connector-poller";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Popover } from "@/components/ui/menu";
 import { Orb } from "@/components/ui/orb";
+import { OrbMorph, useWide } from "@/components/ui/orb-morph";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { ease } from "@/lib/motion";
@@ -17,7 +18,7 @@ import { AgentPanel, useAgentStatus, useNavCounts } from "./agent-status";
 import { CommandPalette } from "./command-palette";
 import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
-import { AgentLine, NAV, SECONDARY, Sidebar } from "./sidebar";
+import { AgentLine, GoalLine, NAV, SECONDARY, Sidebar } from "./sidebar";
 
 const GO: Record<string, string> = { t: "/today", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
 
@@ -88,6 +89,7 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
  */
 function MobileHeader({ navOpen, onToggleNav, menuRef }: { navOpen: boolean; onToggleNav: () => void; menuRef: React.RefObject<HTMLButtonElement | null> }) {
   const status = useAgentStatus();
+  const wide = useWide();
   const [runsOpen, setRunsOpen] = useState(false);
   return (
     <header className="sticky top-0 z-50 flex h-12 items-center gap-2 border-b border-border bg-bg/90 px-4 backdrop-blur md:hidden">
@@ -128,7 +130,9 @@ function MobileHeader({ navOpen, onToggleNav, menuRef }: { navOpen: boolean; onT
       </Popover>
       {/* The sidebar's "Ask or jump to…" for touch: the palette, with Ask as its first row. */}
       <button aria-label="Ask or jump to" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("inroad:palette"))} className="-mr-1.5 shrink-0 rounded-full p-1.5">
-        <Orb state={status.state} size={20} tick={status.ticks} />
+        <OrbMorph on={!wide}>
+          <Orb state={status.state} size={20} tick={status.ticks} />
+        </OrbMorph>
       </button>
     </header>
   );
@@ -198,6 +202,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Suspense fallback={null}>
                 <MobileNav onNavigate={() => nav.setOpen(false)} />
               </Suspense>
+              <GoalLine className="mx-2 mb-0 pb-2.5 text-[13px] leading-5" onNavigate={() => nav.setOpen(false)} />
             </motion.div>
           )}
         </AnimatePresence>
