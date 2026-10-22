@@ -3,7 +3,10 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { POST } from "@/app/api/workspace/actions/route";
 import { applyAction } from "@/lib/domain/actions";
+import { handleMcpPost } from "@/lib/api-keys/mcp";
+import { createKey } from "@/lib/api-keys/store";
 import type { AskTurn, Connection, Person, RunStep, Workspace } from "@/lib/domain/types";
+import { receiveInbound } from "@/lib/hub/inbound";
 import { mutateHub, readHub } from "@/lib/hub/store";
 import { computeMoves, mergeMoves } from "@/lib/moves/rules";
 import { readConnections, readNetwork, mutateNetwork, updateConnections } from "@/lib/network/store";
@@ -320,5 +323,37 @@ describe("POST /api/workspace/actions with person.forget", () => {
     expect(file).not.toContain("Okafor");
     expect(file).not.toContain(DANA);
     expect(Object.keys(readHub().refs)).toEqual([`hubspot:company:${DOMAIN.northwind}`]);
+  });
+});
+
+describe("after deletion", () => {
+  it("a connected tool or an agent doesn't bring them back", async () => {
+    const s = structuredClone(sample);
+    forget(s);
+    await replaceWorkspace(s);
+    const people = Object.keys(s.people).length;
+    const isDana = (p: Person) => p.email === DANA || p.contactPaths.some((c) => c.value === DANA);
+
+    // A CRM or Clay row with their address, and their sequencer's late unsubscribe.
+    const synced = await receiveInbound("zapier", { people: [{ email: DANA, first_name: "Dana", last_name: "Okafor", company_domain: DOMAIN.northwind }] }, "dlv_forget_1");
+    expect(synced.counts).toMatchObject({ people: 0, skipped: 1 });
+    const late = await receiveInbound("zapier", { activities: [{ type: "unsubscribe", email: DANA, id: "evt_unsub" }] }, "dlv_forget_2");
+    expect(late.counts).toMatchObject({ people: 0, activities: 0, skipped: 1 });
+
+    // An agent logging a reply from them: kept on the company, without a person.
+    const { token } = await createKey({ name: "Agent", client: "other", scopes: ["write_records"] });
+    const res = await handleMcpPost(
+      new Request("http://localhost:3000/api/mcp", {
+        method: "POST",
+        headers: { host: "localhost:3000", "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "log_activity", arguments: { type: "reply", email: DANA, summary: "Replied", source_tool: "muse", external_id: "m_1" } } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const after = readWorkspace();
+    expect(Object.keys(after.people)).toHaveLength(people);
+    expect(Object.values(after.people).filter(isDana)).toEqual([]);
+    expect(after.activities.at(-1)).toMatchObject({ kind: "reply_received", accountDomain: DOMAIN.northwind });
+    expect(after.activities.at(-1)?.personId).toBeUndefined();
   });
 });
