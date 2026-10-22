@@ -231,6 +231,19 @@ describe("warm network first", () => {
     expect(warm(hired({ network, connectors: [{ ...ivy, relationship: "connection" }] }))).toEqual(["57 today.connectors | Add your investors and advisors"]);
   });
 
+  it("keeps offering to add the users named at onboarding as customers until they are", () => {
+    const ws = hired({
+      onboarding: { status: "hired", hiredAt: at(-1), answers: { last3: "Dana at Globex, northwind.io" } },
+      accounts: { "northwind.io": makeAccount("northwind.io", { name: "Northwind", status: "tracked" }) },
+    });
+    const card = () => computeMoves(ws, NOW).filter((m) => m.rule === "today.known_users").map((m) => `${m.id} | ${m.title}`);
+    expect(card()).toEqual(["mv_known_users | Add Globex and Northwind as customers"]);
+    ws.accounts["northwind.io"].status = "customer";
+    expect(card()).toEqual(["mv_known_users | Add Globex as customers"]);
+    ws.accounts["globex.example"] = makeAccount("globex.example", { name: "Globex", status: "customer" });
+    expect(card()).toEqual([]);
+  });
+
   it("brings the screen's likely fits to Today to track, since a list dropped while reading never saw the approval point", () => {
     const screened = {
       ...network,

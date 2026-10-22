@@ -28,6 +28,7 @@ import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
 import { DealResolver } from "./deal-resolver";
 import { NetworkCompaniesBody } from "./network-companies";
+import { KnownUsersBody } from "@/components/onboarding/known-users";
 import { RunInline } from "./parts";
 import { ReviewBody } from "./review-panel";
 import { RefreshBet, useReviseAfterAnswer } from "@/components/playbook/refresh";
@@ -464,6 +465,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
       return <NetworkBody {...props} />;
     case "network_companies":
       return <NetworkCompaniesBody {...props} />;
+    case "known_users":
+      return <KnownUsersBody ws={ws} onComplete={onComplete} onChanged={props.onChanged} />;
     case "import":
       return (
         <div className="space-y-3">
