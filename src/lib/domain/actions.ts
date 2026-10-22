@@ -24,7 +24,9 @@ import type {
   Suppression,
   Workspace,
 } from "./types";
-import { addDays, todayISO } from "./ids";
+import { addBusinessDays, addDays, todayISO } from "./ids";
+import { OPEN_STAGES } from "./types";
+import { newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 
 /**
@@ -164,6 +166,35 @@ function openIntroFromAsk(ws: Workspace, packageId: ID, at: string) {
     ...(connector?.lastAskedOn ? { priorAskedOn: connector.lastAskedOn } : {}),
   };
   if (connector) connector.lastAskedOn = on;
+}
+
+/** The deal an approved "yes, let's talk" reply opens. Derived from the package so both sides agree. */
+const replyDealId = (packageId: ID) => `deal_${packageId}`;
+
+/**
+ * A yes the founder answered is a conversation under way: without an open deal it becomes one at
+ * Talking, its next step booking the call, so the deal rules (and the close-out) track it until a
+ * meeting is on the calendar or it's parked or closed. An open deal just gains the contact.
+ */
+function openDealFromReply(ws: Workspace, pkg: Workspace["outreach"][string], at: string) {
+  const acc = ws.accounts[pkg.accountDomain];
+  if (!acc) return;
+  const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+  const current = acc.dealId ? ws.deals[acc.dealId] : undefined;
+  if (current && OPEN_STAGES.includes(current.stage)) {
+    if (person && !current.contacts.some((c) => c.personId === person.id)) current.contacts.push({ personId: person.id, role: person.role });
+    return;
+  }
+  const id = replyDealId(pkg.id);
+  if (ws.deals[id]) return;
+  const first = person?.name.trim().split(/\s+/)[0];
+  ws.deals[id] = {
+    ...newDeal(acc, id, at),
+    contacts: person ? [{ personId: person.id, role: person.role }] : [],
+    nextStep: { what: first ? `Book the call with ${first}` : "Book the first call", date: addBusinessDays(todayISO(new Date(at)), 2), buyerAgreed: false },
+  };
+  acc.dealId = id;
+  acc.status = "in_pipeline";
 }
 
 function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "intro.advance" }>) {
@@ -527,6 +558,7 @@ export function applyAction(ws: Workspace, action: Action): void {
       const acc = ws.accounts[pkg.accountDomain];
       if (acc && acc.status === "new") acc.status = "tracked";
       if (pkg.mode === "warm_intro") openIntroFromAsk(ws, pkg.id, action.at);
+      if (pkg.mode === "reply" && pkg.replyAction === "book") openDealFromReply(ws, pkg, action.at);
       for (const move of Object.values(ws.moves)) {
         if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "done";
       }
@@ -591,6 +623,24 @@ export function applyAction(ws: Workspace, action: Action): void {
           else delete connector.lastAskedOn;
         }
         delete ws.intros[intro.id];
+      }
+      // Undoing a "yes" reply takes back the deal it opened, if nothing has happened on it since.
+      const opened = ws.deals[replyDealId(pkg.id)];
+      if (opened && opened.stage === "talking" && opened.stageHistory.length <= 1 && !opened.meetingIds.length) {
+        delete ws.deals[opened.id];
+        const acc = ws.accounts[opened.accountDomain];
+        if (acc?.dealId === opened.id) {
+          const prior = Object.values(ws.deals)
+            .filter((d) => d.accountDomain === acc.domain)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+          if (prior) {
+            acc.dealId = prior.id;
+            acc.status = prior.stage === "won" ? "customer" : "in_pipeline";
+          } else {
+            delete acc.dealId;
+            acc.status = "tracked";
+          }
+        }
       }
       return;
     }
