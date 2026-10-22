@@ -37,6 +37,12 @@ const DANA = "dana@northwind.example";
 const forget = (ws: Workspace, id: string = PERSON.dana) => applyAction(ws, { type: "person.forget", id, at: at(0), suppressionId: "sup_forget" });
 const count = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 
+/** Writes runs.json the way the run registry would find it (its cached copy dropped first). */
+function writeRunSteps(steps: Record<string, RunStep[]>) {
+  (globalThis as unknown as { __fileDBs?: Map<string, unknown> }).__fileDBs?.delete("runs.json");
+  fs.writeFileSync(path.join(DATA_DIR, "runs.json"), JSON.stringify(steps));
+}
+
 /** The sample, plus a draft to Dana, its card and an intro: everything a deletion has to reach. */
 function withDanaEverywhere(): Workspace {
   const s = structuredClone(sample);
@@ -297,6 +303,23 @@ describe("POST /api/workspace/actions with person.forget", () => {
     expect(fs.readFileSync(path.join(DATA_DIR, "runs.json"), "utf8")).not.toContain("Dana");
   });
 
+  it("takes their full name out of an Ask run's log too, which quotes the question that named them", async () => {
+    const s = structuredClone(sample);
+    s.runs.unshift({ id: "run_ask", workflow: "ask", title: "Answering your question", startedAt: at(0), status: "done" });
+    await replaceWorkspace(s);
+    writeRunSteps({
+      run_ask: [{ at: at(0), type: "thinking", text: "Reading what was asked: Should I email Dana Okafor at Northwind this week?" }],
+      run_other: [{ at: at(0), type: "status", text: "Dana elsewhere" }],
+    });
+
+    const res = await POST(new Request("http://localhost/api/workspace/actions", { method: "POST", body: JSON.stringify({ actions: [{ type: "person.forget", id: PERSON.dana, at: at(0), suppressionId: "sup_ask" }] }) }));
+    expect(res.status).toBe(200);
+    const steps = JSON.parse(fs.readFileSync(path.join(DATA_DIR, "runs.json"), "utf8")) as Record<string, RunStep[]>;
+    expect(steps.run_ask[0].text).toBe("Reading what was asked: Should I email a deleted contact at Northwind this week?");
+    // A first name alone, in a run that isn't about them, may be someone else.
+    expect(steps.run_other[0].text).toBe("Dana elsewhere");
+  });
+
   it("also reaches their Ask conversations and their CRM links, and leaves the rest alone", async () => {
     await replaceWorkspace(structuredClone(sample));
     const init = (title: string, context?: { kind: "person" | "account"; id: string }) => () => ({ title, context, createdAt: at(0), updatedAt: at(0) });
@@ -390,6 +413,14 @@ describe("two people with the same name", () => {
     expect(res.status).toBe(200);
     expect(getThread("thr_b")?.turns[0].text).toBe("Is Sam Lee the buyer?");
     expect(readWorkspace().people.per_2.name).toBe("Sam Lee");
+  });
+
+  it("leaves the other's name in run logs", async () => {
+    await replaceWorkspace(twoSams());
+    writeRunSteps({ run_ask: [{ at: at(0), type: "thinking", text: "Reading what was asked: Is Sam Lee the buyer at Bravo?" }] });
+    const res = await POST(new Request("http://localhost/api/workspace/actions", { method: "POST", body: JSON.stringify({ actions: [{ type: "person.forget", id: "per_1", at: at(0), suppressionId: "sup_sam2" }] }) }));
+    expect(res.status).toBe(200);
+    expect(fs.readFileSync(path.join(DATA_DIR, "runs.json"), "utf8")).toContain("Is Sam Lee the buyer at Bravo?");
   });
 });
 
