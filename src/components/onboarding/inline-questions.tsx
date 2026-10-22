@@ -25,12 +25,21 @@ export function InlineQuestions({ ws }: { ws: Workspace }) {
   if (o.questionsDone) {
     const answered = !!(o.answers?.last3 || o.answers?.before);
     const listIn = !!ws.network || Object.values(ws.accounts).some((a) => a.source === "csv_import");
-    if (!answered && !listIn) return null;
     return (
-      <motion.p {...enter} className="flex items-center gap-2 text-[13px] text-fg-2">
-        <Check className="size-3.5 text-fg-3" aria-hidden />
-        {answered && listIn ? "Got your answers and your list. They go into the bet." : answered ? "Got your answers. They go into the bet." : "Got your list. I'll start with people who already know you."}
-      </motion.p>
+      <div className="space-y-3">
+        {(answered || listIn) && (
+          <motion.p {...enter} className="flex items-center gap-2 text-[13px] text-fg-2">
+            <Check className="size-3.5 text-fg-3" aria-hidden />
+            {answered && listIn ? "Got your answers and your list. They go into the bet." : answered ? "Got your answers. They go into the bet." : "Got your list. I'll start with people who already know you."}
+          </motion.p>
+        )}
+        {/* Skip was for the two questions: the list drop stays until a list is in. */}
+        {!listIn && (
+          <motion.div {...enter} className="rounded-lg bg-surface p-4 shadow-xs ring-1 ring-border sm:p-5">
+            <ListDrop />
+          </motion.div>
+        )}
+      </div>
     );
   }
 
