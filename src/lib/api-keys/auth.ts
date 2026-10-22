@@ -1,4 +1,5 @@
 import "server-only";
+import { LOCAL_HOST } from "@/lib/server/local-request";
 import { rateLimit, verifyToken, type ApiKey } from "./store";
 
 /**
@@ -33,8 +34,6 @@ export function baseUrl(request: Request): string {
   return `${proto || url.protocol.replace(":", "")}://${host}`;
 }
 
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|::1|0\.0\.0\.0)(:\d+)?$|\.localhost(:\d+)?$/i;
-
 /**
  * Where the founder opens Inroad, for review links in tool results. Pages only load on this computer,
  * so a call through a tunnel still gets a localhost link (the tunnel name would answer 403).
@@ -43,23 +42,13 @@ export function appOrigin(request: Request): string {
   const b = baseUrl(request);
   return LOCAL_HOST.test(new URL(b).host) ? b : `http://localhost:${process.env.PORT ?? 3000}`;
 }
-const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|::ffff:127\.\d+\.\d+\.\d+|localhost)$/i;
 
 /**
  * Key management is for the founder at this machine only. Through a tunnel the Host header is the
- * public name and the proxy adds the caller's address, so creating or revoking keys from the
- * internet is refused. (Forwarded-host headers are ignored: a caller can set those.)
+ * public name and the connector adds its own headers, so creating or revoking keys from the internet
+ * is refused, and so is a caller on the same network that claims to be localhost. One check for the
+ * whole app: the socket address the launcher stamps (src/lib/server/local-request.ts).
  */
-export function isLocalRequest(request: Request): boolean {
-  const host = request.headers.get("host") ?? new URL(request.url).host;
-  if (!LOCAL_HOST.test(host.trim())) return false;
-  if (request.headers.get("cf-connecting-ip") || request.headers.get("cf-ray") || request.headers.get("ngrok-trace-id")) return false;
-  const chain = [request.headers.get("x-forwarded-for"), request.headers.get("x-real-ip")]
-    .filter(Boolean)
-    .flatMap((v) => v!.split(","))
-    .map((v) => v.trim())
-    .filter(Boolean);
-  return chain.every((ip) => LOOPBACK.test(ip));
-}
+export { isLocalRequest } from "@/lib/server/local-request";
 
 export const LOCAL_ONLY = "Agent keys can only be managed from Inroad on this computer (localhost).";

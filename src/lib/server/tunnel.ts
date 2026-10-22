@@ -103,6 +103,17 @@ export async function reconcileTunnel() {
   if (cfg?.publicUrlTunnel === true) await setPublicUrl(null);
 }
 
+/**
+ * Where cloudflared connects: the address the launcher bound (INROAD_HOST, 127.0.0.1 by default). Not
+ * "localhost", which can resolve to ::1 first while the app listens on IPv4 loopback only.
+ */
+export function tunnelTarget(host = process.env.INROAD_HOST): string {
+  const h = (host ?? "").trim();
+  if (!h || h === "0.0.0.0") return "127.0.0.1";
+  if (h === "::" || h === "::1" || h === "[::1]") return "[::1]";
+  return h.includes(":") && !h.startsWith("[") ? `[${h}]` : h;
+}
+
 function lastLine(log: string[]): string {
   const line = [...log].reverse().find((l) => /ERR|error|failed/i.test(l)) ?? log[log.length - 1] ?? "";
   return line.replace(/^\S+\s+(INF|ERR|WRN)\s+/, "").trim().slice(0, 200);
@@ -120,7 +131,7 @@ export async function startTunnel(port: number): Promise<TunnelStatus> {
   }
   state.error = undefined;
 
-  const child = spawn(bin, ["tunnel", "--no-autoupdate", "--url", `http://localhost:${port}`], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  const child = spawn(bin, ["tunnel", "--no-autoupdate", "--url", `http://${tunnelTarget()}:${port}`], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   const log: string[] = [];
   let resolveUrl!: (url: string) => void;
   let rejectUrl!: (err: Error) => void;

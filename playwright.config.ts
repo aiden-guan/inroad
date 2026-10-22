@@ -55,7 +55,8 @@ export default defineConfig({
       stdout: "ignore",
     },
     {
-      command: `npx next dev -p ${APP_PORT}`,
+      // The launcher, as `npm run dev` runs it: loopback only, with the socket stamp the app requires.
+      command: `node scripts/serve.mjs dev -p ${APP_PORT}`,
       url: `http://localhost:${APP_PORT}/welcome`,
       timeout: 180_000,
       reuseExistingServer: false,

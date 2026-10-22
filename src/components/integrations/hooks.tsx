@@ -181,7 +181,8 @@ export function PublicUrlSetup({ status }: { status: HubStatus | null }) {
   const ownTunnel = (
     <>
       <div className="mt-2.5 grid gap-1.5">
-        <CopyField value={`cloudflared tunnel --url ${appUrl || `http://localhost:${port}`}`} />
+        {/* The launcher listens on IPv4 loopback; "localhost" can resolve to ::1 first. */}
+        <CopyField value={`cloudflared tunnel --url http://127.0.0.1:${port}`} />
         <p className="text-[12px] text-fg-3">
           or <code className="font-mono">ngrok http {port}</code>. Keep it running while tools send events.
         </p>
