@@ -31,7 +31,7 @@ export function RefreshBet({ ws, onResult, compact }: { ws: Workspace; onResult?
   if (compact) {
     return open.length ? (
       <a href="#refresh" className="text-[13px] text-fg-2 underline underline-offset-2 hover:text-fg">
-        {plural(open.length, "suggested change")} to the bet wait under Who
+        {plural(open.length, "suggested change")} to the bet {open.length === 1 ? "waits" : "wait"} under Who
       </a>
     ) : (
       <RunInline workflow="review" args={{ kind: "refresh" }} runRef={{ kind: "playbook", id: "review:refresh" }} label="Rebuild the bet from my calls" variant="secondary" onResult={onResult} hint="About a minute · about $0.40" />
@@ -41,7 +41,7 @@ export function RefreshBet({ ws, onResult, compact }: { ws: Workspace; onResult?
     <div className="space-y-3">
       <p className="max-w-[62ch] text-[13.5px] leading-[21px] text-fg-2">
         {open.length
-          ? `${plural(open.length, "suggested change")} to the bet. Accept or reject each one; the version before is kept in the Journal.`
+          ? `${plural(open.length, "suggested change")} from your calls and best-fit customers, each with what showed it. Accept or reject each one; the version before is kept in the Journal.`
           : `I'll read ${offer.calls ? plural(offer.calls, "call") : "the calls"} debriefed${since ? ` since ${since}` : ""}${offer.won ? ` and ${plural(offer.won, "deal")} you won` : ""}, start from your best-fit customers, and suggest changes to who you sell to, how you position and how you talk to each persona. Nothing changes until you accept it.`}
       </p>
       {open.length > 0 && (
@@ -91,7 +91,7 @@ export function RefreshSub() {
     <Sub
       id="refresh"
       title={open.length ? "Suggested changes to the bet" : "Rebuild the bet from your calls"}
-      hint={open.length ? "From your calls and best-fit customers, each with what showed it." : `${plural(offer.calls, "call")} debriefed${offer.won ? ` and ${plural(offer.won, "deal")} won` : ""} since the bet was last revised. Conversations beat the website it was written from.`}
+      hint={open.length ? undefined : `${plural(offer.calls, "call")} debriefed${offer.won ? ` and ${plural(offer.won, "deal")} won` : ""} since the bet was last revised. Conversations beat the website it was written from.`}
     >
       <RefreshBet ws={ws} />
     </Sub>
