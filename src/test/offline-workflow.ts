@@ -73,8 +73,11 @@ export function userText(req: SentRequest): string {
     .join("\n");
 }
 
-/** Runs one workflow on an in-memory workspace. Returns its result, the workspace after, and what it emitted. */
-export async function runOffline<A>(def: WorkflowDef<A>, args: A, ws: Workspace): Promise<{ result: unknown; ws: Workspace; events: AgentEvent[] }> {
+/**
+ * Runs one workflow on an in-memory workspace. Returns its result, the workspace after, and what it emitted. `agent`
+ * replaces the model call, for a case the mock can't produce (a model that never submits).
+ */
+export async function runOffline<A>(def: WorkflowDef<A>, args: A, ws: Workspace, opts: { agent?: WorkflowContext<A>["agent"] } = {}): Promise<{ result: unknown; ws: Workspace; events: AgentEvent[] }> {
   const events: AgentEvent[] = [];
   const parsed = def.args.parse(args);
   const ctx: WorkflowContext<A> = {
@@ -82,7 +85,7 @@ export async function runOffline<A>(def: WorkflowDef<A>, args: A, ws: Workspace)
     args: parsed,
     emit: (e) => events.push(e),
     signal: new AbortController().signal,
-    agent: (opts) => runAgent({ ...opts, emit: (e) => events.push(e) }),
+    agent: opts.agent ?? ((o) => runAgent({ ...o, emit: (e) => events.push(e) })),
     read: () => structuredClone(ws),
     mutate: async (fn) => fn(ws),
     noteFreeSignals: () => {},

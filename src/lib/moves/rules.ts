@@ -1699,12 +1699,13 @@ function reviews({ ws, now, today, weekStart, out }: Ctx) {
 /**
  * The monthly review (W9, §5.2) on the first open of the month: the message-bet readout and the next bet, the bet
  * refreshed from the month's calls as tracked suggestions, the pricing log and, near the thresholds, hiring
- * readiness. Shown through the 14th, from the first full month after hiring.
+ * readiness. From the first full month after hiring. A founder who first opens the app on the 20th still gets it;
+ * it sinks down the list as the month goes on.
  */
 function monthlyReview({ ws, today, out }: Ctx) {
   const day = Number(today.slice(8, 10));
   const monthStart = `${today.slice(0, 8)}01`;
-  if (!ws.foundation || day > 14 || !ws.onboarding.hiredAt || localDate(ws.onboarding.hiredAt) >= monthStart) return;
+  if (!ws.foundation || !ws.onboarding.hiredAt || localDate(ws.onboarding.hiredAt) >= monthStart) return;
   const offer = refreshOffer(ws);
   const running = activeBet(ws, today);
   const ended = startedBets(ws).some((b) => b.endsOn < today && !b.readout);
@@ -1715,17 +1716,26 @@ function monthlyReview({ ws, today, out }: Ctx) {
     title: "Monthly review",
     why: `${plural(offer.calls, "call")} since the bet was last revised · ${ended ? "a message bet to read" : running ? `message bet runs to ${shortDay(running.endsOn)}` : "pick next month's message bet"}`,
     minutes: 35,
-    priority: RULES.review_monthly.base - (day - 1) * 2,
+    // Never below the refresh offer it stands in for once five calls (or a won deal) are waiting.
+    priority: Math.max(RULES.review_monthly.base - (day - 1) * 2, offer.offered ? refreshPriority(offer) : 24),
   });
+}
+
+function refreshPriority(offer: ReturnType<typeof refreshOffer>): number {
+  return RULES.refresh_bet.base + Math.min(8, offer.won * 4);
 }
 
 /**
  * Between monthly reviews: once five calls are debriefed (or a deal is won) since the bet was last revised, offer to
  * rebuild it from them (W1c refresh). The id follows the last revision, so a skip holds until the next one.
  */
-function refreshBet({ ws, out }: Ctx) {
+function refreshBet({ ws, today, out }: Ctx) {
   const offer = refreshOffer(ws);
-  if (!offer.offered || out.some((c) => c.rule === "review_monthly")) return;
+  // The monthly review rebuilds the bet too: it covers the offer until it has run, or the founder set its card aside.
+  const monthly = out.find((c) => c.rule === "review_monthly");
+  const status = monthly ? ws.moves[monthly.id]?.status : undefined;
+  const covered = !!monthly && !ws.briefs[`${today.slice(0, 7)}:monthly`] && status !== "done" && status !== "skipped";
+  if (!offer.offered || covered) return;
   out.push({
     id: `mv_refresh_bet_${offer.since ? localDate(offer.since) : "first"}`,
     kind: "review",
@@ -1733,7 +1743,7 @@ function refreshBet({ ws, out }: Ctx) {
     title: offer.calls >= REFRESH_AFTER_CALLS ? `Rebuild the bet from your last ${offer.calls} calls` : "Rebuild the bet around the deal you won",
     why: `Playbook v${ws.foundation!.version} is still the bet from ${offer.since ? shortDay(localDate(offer.since)) : "your site"} · each change is a suggestion you accept or reject`,
     minutes: 10,
-    priority: RULES.refresh_bet.base + Math.min(8, offer.won * 4),
+    priority: refreshPriority(offer),
     href: "/playbook#refresh",
   });
 }

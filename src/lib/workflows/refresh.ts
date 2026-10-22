@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
+import { AgentError } from "@/lib/ai/errors";
 import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
 import { newId, todayISO } from "@/lib/domain/ids";
 import type { FounderQuestion, ReviewProposal, RevisionTarget, Workspace } from "@/lib/domain/types";
@@ -76,7 +77,7 @@ const Change = z.object({
   criterionKind: z.enum(["firmographic", "technographic", "situational"]).nullable(),
   mustHave: z.boolean().nullable(),
   detection: z.enum(["job_posts", "form_d", "press", "site", "yc_directory", "github", "dns", "hn", "founder_knowledge"]).nullable(),
-  justificationIds: z.array(z.string().max(20)).max(6).describe("Ids of the calls, quotes, customers, losses, replies or answers behind it."),
+  justificationIds: z.array(z.string().max(40)).max(6).describe("Ids of the calls, quotes, customers, losses, replies or answers behind it."),
 });
 type ChangeT = z.infer<typeof Change>;
 
@@ -169,14 +170,24 @@ function dropOpenRevisions(ws: Workspace) {
   }
 }
 
-function changesMarkdown(proposals: ReviewProposal[], inputs: RefreshInputs): string {
+/** What a refresh read, in words: "3 calls, 1 best-fit customer and 2 replies". Empty when it read nothing. */
+function materialLine(inputs: RefreshInputs): string {
+  const parts = [inputs.calls && plural(inputs.calls, "call"), inputs.customers && plural(inputs.customers, "best-fit customer"), inputs.replies && plural(inputs.replies, "reply", "replies")].filter(
+    (x): x is string => !!x,
+  );
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "");
+}
+
+/** `answered` false: the model was asked and gave nothing back, so the review says it didn't finish, not that the bet holds. */
+function changesMarkdown(proposals: ReviewProposal[], inputs: RefreshInputs, answered = true): string {
+  const read = materialLine(inputs);
+  if (!answered && read) return `I couldn't finish reading ${read} this time, so nothing in your playbook changed. Rebuild the bet from Playbook → Who when you're ready.`;
   if (!proposals.some((p) => p.kind === "revise_foundation")) {
-    return inputs.calls || inputs.customers
-      ? `No changes: ${plural(inputs.calls, "call")} and ${plural(inputs.customers, "best-fit customer")} don't contradict the bet.`
-      : "No calls since the last revision, so the bet stands until conversations test it.";
+    const one = inputs.calls + inputs.customers + inputs.replies === 1;
+    return read ? `No changes: ${read} ${one ? "doesn't" : "don't"} contradict the bet.` : "No calls since the last revision, so the bet stands until conversations test it.";
   }
   const n = proposals.filter((p) => p.kind === "revise_foundation").length;
-  return `${plural(n, "change")} to the playbook, from ${plural(inputs.calls, "call")}${inputs.customers ? ` and ${plural(inputs.customers, "best-fit customer")}` : ""}. Accept or reject each one; nothing changes until you do.`;
+  return `${plural(n, "change")} to the playbook, from ${read}. Accept or reject each one; nothing changes until you do.`;
 }
 
 /* ───────────────────────────── Refresh (Playbook, Ask, after an answer) ───────────────────────────── */
@@ -219,8 +230,10 @@ export async function runRefresh(ctx: WorkflowContext<{ kind: string; questionId
     requireTerminal: true,
   });
   const out = res.result;
-  const proposals = revisionProposals(ctx.read(), out?.changes ?? [], inputs, { allowed, max: light ? 3 : 6 });
-  const review = [out?.headline ? noBang(out.headline) : "", changesMarkdown(proposals, inputs)].filter(Boolean).join("\n\n");
+  // No answer is not "the bet holds": say it didn't finish, and change nothing.
+  if (!out) throw new AgentError(light ? "I couldn't check what your answer changes. Your playbook is as it was." : "I couldn't finish rebuilding the bet. Nothing in your playbook changed; try again in a moment.", "unknown");
+  const proposals = revisionProposals(ctx.read(), out.changes, inputs, { allowed, max: light ? 3 : 6 });
+  const review = [out.headline ? noBang(out.headline) : "", changesMarkdown(proposals, inputs)].filter(Boolean).join("\n\n");
   await ctx.mutate((draft) => {
     // A full refresh replaces earlier suggestions; a light pass after an answer adds to them.
     if (!light) dropOpenRevisions(draft);
@@ -252,7 +265,7 @@ function monthlyTask(ws: Workspace, data: MonthlyData): string {
   ].join("\n\n");
 }
 
-function monthlyMarkdown(data: MonthlyData, out: MonthlyOutT | undefined, proposals: ReviewProposal[], verdict: "keep" | "drop" | "inconclusive" | null): string {
+function monthlyMarkdown(data: MonthlyData, out: MonthlyOutT | undefined, proposals: ReviewProposal[], verdict: "keep" | "drop" | "inconclusive" | null, asked: boolean): string {
   const md: string[] = [];
   if (out?.headline) md.push(noBang(out.headline));
   md.push("## The message bet");
@@ -263,7 +276,7 @@ function monthlyMarkdown(data: MonthlyData, out: MonthlyOutT | undefined, propos
   if (data.running) md.push(`**${data.running.bet.variable}** runs until ${shortDay(data.running.bet.endsOn)}. ${readoutLine(data.running.readout)} Read the replies; the counts decide nothing yet.`);
   if (!data.ended && !data.running) md.push(proposals.some((p) => p.kind === "message_bet") ? "No bet ran this month. Next month's is below." : "No bet ran this month. The Friday review proposes one when there's something to test.");
   md.push("## Your playbook");
-  md.push(changesMarkdown(proposals, data.refresh));
+  md.push(changesMarkdown(proposals, data.refresh, !asked || !!out));
   const p = data.pricing;
   md.push("## Pricing log");
   if (p.quotes) md.push(["| Quotes | Accepted | Pushback | Lost | Open |", "|---|---|---|---|---|", `| ${p.quotes} | ${p.accepted} | ${p.pushback} | ${p.lost} | ${p.open} |`].join("\n"));
@@ -303,7 +316,7 @@ export async function runMonthly(ctx: WorkflowContext<{ kind: string }>, now: Da
   const proposals = revisionProposals(ctx.read(), out?.changes ?? [], data.refresh, { max: 6 });
   const bet = out?.nextBet && !data.running ? betProposal(out.nextBet) : null;
   if (bet) proposals.push(bet);
-  const review = monthlyMarkdown(data, out, proposals, verdict);
+  const review = monthlyMarkdown(data, out, proposals, verdict, !!(material && ws.foundation));
   await ctx.mutate((draft) => {
     if (data.ended) {
       for (const b of Object.values(draft.briefs)) {
