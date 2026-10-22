@@ -264,6 +264,19 @@ describe("restore", () => {
     }
   });
 
+  it("never turns the public URL back on: whether it comes back at start is this computer's, not the backup's", async () => {
+    await realWork();
+    const tunnel = (config: Record<string, string | boolean>) =>
+      mutateWorkspace((ws) => void (ws.integrations.webhook_in = { id: "webhook_in", enabled: true, config: { namedTunnelUrl: "https://inroad.acme.com", ...config } }));
+    await tunnel({ namedTunnelAuto: true, publicUrl: "https://inroad.acme.com", publicUrlTunnel: true });
+    const daily = snapshot("daily", at("2026-10-21T16:00:00.000Z"));
+    // The founder turned it off by hand.
+    await tunnel({ namedTunnelAuto: false });
+
+    await restoreWorkspace(readSnapshot(daily.name));
+    expect(readWorkspace().integrations.webhook_in?.config).toEqual({ namedTunnelUrl: "https://inroad.acme.com", namedTunnelAuto: false });
+  });
+
   it("treats an older workspace-only export as the workspace alone", async () => {
     await realWork();
     const old = JSON.stringify(readWorkspace());
