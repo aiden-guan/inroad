@@ -1,7 +1,7 @@
 import { ActionError, applyAction } from "@/lib/domain/actions";
 import { addDays, newId, todayISO } from "@/lib/domain/ids";
 import type { Connection, ID, Workspace } from "@/lib/domain/types";
-import { ensureAccount, ensurePerson, normalizeEmail } from "@/lib/hub/records";
+import { askedToBeDeleted, ensureAccount, ensurePerson, normalizeEmail } from "@/lib/hub/records";
 import { localDate } from "@/lib/moves/util";
 import { REPLY_WINDOW_DAYS } from "@/lib/moves/replies";
 import { replyBody, type PasteTarget } from "./sender";
@@ -18,6 +18,13 @@ export interface PastedReply {
 
 /** A plain sentence the palette shows as-is (the API answers it with a 400). */
 export class PasteError extends ActionError {}
+
+/** Someone who asked to have their details deleted isn't filed again by pasting their mail: only their address is kept. */
+function refuseDeleted(ws: Workspace, email: string | null | undefined, name: string) {
+  if (askedToBeDeleted(ws, email)) {
+    throw new PasteError(`${name.split(" ")[0] || "They"} asked you to delete their details, so I won't keep their reply. Answer it from your inbox; their address stays on your suppression list.`);
+  }
+}
 
 /**
  * Logs a pasted reply on a workspace draft, as Check replies' R does: files the sender (a person on file,
@@ -42,6 +49,7 @@ export function logPastedReply(ws: Workspace, connections: Connection[], input: 
     if (c.personId && ws.people[c.personId]) personId = c.personId;
     else {
       if (!c.matchedDomain) throw new PasteError(`I don't know ${c.company || "their company"}'s website. Pick the company or add them by hand.`);
+      refuseDeleted(ws, normalizeEmail(c.email), c.firstName);
       createdAccount = ensureAccount(ws, { domain: c.matchedDomain, name: c.company || undefined }, { source: "founder_network", sourceDetail: "Replied (pasted reply)", at }).created;
       const r = ensurePerson(ws, { domain: c.matchedDomain, name: `${c.firstName} ${c.lastName}`.trim(), title: c.position, email: normalizeEmail(c.email), linkedinUrl: c.url || null }, { via: "LinkedIn connection", source: "founder_network" });
       createdPerson = r.created;
@@ -51,6 +59,7 @@ export function logPastedReply(ws: Workspace, connections: Connection[], input: 
     const domain = t.domain.trim().toLowerCase();
     if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain)) throw new PasteError("That doesn't look like a company website.");
     if (!t.name.trim()) throw new PasteError("Who sent it? Add their name.");
+    refuseDeleted(ws, normalizeEmail(t.email), t.name.trim());
     createdAccount = ensureAccount(ws, { domain, name: t.company?.trim() || undefined }, { source: "manual", sourceDetail: "Replied (pasted reply)", at }).created;
     const r = ensurePerson(ws, { domain, name: t.name.trim(), email: normalizeEmail(t.email) }, { via: "their reply", source: "manual" });
     createdPerson = r.created;

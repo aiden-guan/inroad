@@ -8,7 +8,7 @@ import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Stage, type Workspace } from "@/lib/domain/types";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { receivePolled } from "./inbound";
-import { companyDomainOf, ensureAccount, ensurePerson, normalizeDomain } from "./records";
+import { askedToBeDeleted, companyDomainOf, ensureAccount, ensurePerson, normalizeDomain } from "./records";
 import { mutateHub, readHub, type HubState } from "./store";
 
 /**
@@ -192,7 +192,8 @@ interface CrmApplied {
   seen: string[];
 }
 
-function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string, string>, seen: Record<string, string>, at: string): CrmApplied {
+/** Exported for tests. */
+export function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string, string>, seen: Record<string, string>, at: string): CrmApplied {
   const name = CONNECTORS[id].name;
   const out: CrmApplied = { people: 0, companies: 0, deals: 0, questions: 0, known: [], seen: [] };
   const meta = { source: "integration" as const, sourceDetail: `${name} sync`, at };
@@ -216,6 +217,8 @@ function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string
     const domain = companyDomainOf(email);
     // Only people at companies the founder already has; the CRM's whole contact list isn't a lead list.
     if (!domain || !ws.accounts[domain]) continue;
+    // Someone who asked to be deleted stays deleted, even while the CRM still holds them.
+    if (askedToBeDeleted(ws, email)) continue;
     const existing = Object.values(ws.people).find((x) => x.email?.toLowerCase() === email);
     const before = existing ? JSON.stringify([existing.name, existing.title, existing.email, existing.contactPaths.length]) : null;
     const { person, created } = ensurePerson(ws, { domain, email, name: p.name, title: p.title }, { via: name, source: "integration" });
