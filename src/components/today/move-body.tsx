@@ -9,6 +9,7 @@ import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
 import { ForgetPerson } from "@/components/people/forget-person";
 import { ReferralLeads } from "@/components/people/referral-leads";
+import { useRunFor } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
@@ -19,7 +20,7 @@ import type { Action } from "@/lib/domain/actions";
 import type { Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { nextStep } from "@/lib/intros/rules";
 import { QUESTIONS_PER_CARD, RULE_PREFIX } from "@/lib/moves/rules";
-import { ago, clip, clockTime, companyName, first, knowsDirectly, plural, shortDay } from "@/lib/moves/util";
+import { ago, clip, clockTime, companyName, first, knowsDirectly, latestRun, plural, researchState, shortDay } from "@/lib/moves/util";
 import { footerPromisesDeletion, jurisdictionFor } from "@/lib/quality/gates";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
@@ -806,13 +807,21 @@ function FirstThreeBody(props: BodyProps) {
   const { dispatch } = useWorkspace();
   const person = move.ref?.kind === "person" ? ws.people[move.ref.id] : undefined;
   const domain = person?.accountDomain ?? (move.ref?.kind === "account" ? move.ref.id : "");
+  const known = useRunFor({ kind: "account", id: domain }, "dossier");
   const acc = ws.accounts[domain];
   if (!acc) return <Lead>This company is no longer in your workspace.</Lead>;
   if (!acc.dossier) {
+    // A run this page holds speaks for itself below. After a reload it doesn't, so say here that the last one stopped short.
+    const failed = !known && researchState(ws, domain, new Date(props.now)) === "failed" ? latestRun(ws, "dossier", domain) : undefined;
     return (
       <div className="space-y-3">
-        <Lead>Who to talk to at {acc.name}, why now and the angle worth writing, every fact cited. The first draft follows on its own when the research lands.</Lead>
-        <RunInline workflow="dossier" args={{ domain }} runRef={{ kind: "account", id: domain }} label={`Research ${acc.name}`} onResult={props.onChanged} hint="About 2 minutes" />
+        <Lead>
+          {failed
+            ? `The research on ${acc.name} didn't finish. Run it again; the first draft follows on its own when it lands.`
+            : `Who to talk to at ${acc.name}, why now and the angle worth writing, every fact cited. The first draft follows on its own when the research lands.`}
+        </Lead>
+        {failed?.error?.message && <p className="text-[12.5px] text-fg-3">Last time: {failed.error.message}</p>}
+        <RunInline workflow="dossier" args={{ domain }} runRef={{ kind: "account", id: domain }} label={failed ? `Research ${acc.name} again` : `Research ${acc.name}`} onResult={props.onChanged} hint="About 2 minutes" />
       </div>
     );
   }
@@ -820,9 +829,15 @@ function FirstThreeBody(props: BodyProps) {
   if (move.kind === "signal") return <ThreadBody {...props} />;
   if (move.kind === "research") {
     const ruleOut = rec.move === "disqualify";
+    // "Keep watching" is the dossier's own call, or the card's when nothing found can be cited in a note.
+    const ownCall = ruleOut || rec.move === "watch";
     return (
       <div className="space-y-3">
-        <Lead>{rec.why}</Lead>
+        <Lead>
+          {ownCall
+            ? rec.why
+            : `The research didn't turn up a dated reason I can cite, so a note now would read like a template. I'll keep ${acc.name} on watch and bring it back when there's news. The dossier has what I did find.`}
+        </Lead>
         <Row>
           {ruleOut ? (
             <Button
