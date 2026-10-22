@@ -47,19 +47,20 @@ export function PlaybookView() {
   const arrived = useRef(false);
   useEffect(() => {
     if (!ready || arrived.current) return;
+    arrived.current = true;
     const asset = params.get("asset") ?? hashAsset();
     const target = asset ? `asset-${asset}` : params.get("new") ? "assets" : window.location.hash.slice(1);
-    if (!target) {
-      arrived.current = true;
-      return;
-    }
-    // Marked done only once it ran: a cancelled frame (Strict Mode's second mount, arriving from ⌘K with the
-    // workspace already loaded) would otherwise leave the founder at the top of the page.
+    if (!target) return;
+    // A frame cancelled before it ran (Strict Mode's second mount, arriving from ⌘K with the workspace loaded) tries again.
+    let ran = false;
     const frame = requestAnimationFrame(() => {
-      arrived.current = true;
+      ran = true;
       document.getElementById(target)?.scrollIntoView({ block: "start" });
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      if (!ran) arrived.current = false;
+    };
   }, [ready, params]);
 
   const assetRuns = useMemo(() => Object.values(runs).filter((r) => r.workflow === "asset").sort((a, b) => b.startedAt - a.startedAt), [runs]);
