@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "@/lib/ai/engine";
+import { defineTool, resetCompat } from "@/lib/ai/engine";
 import type { AgentEvent } from "@/lib/ai/events";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { makeWorkspace } from "@/test/factories";
@@ -25,6 +25,7 @@ afterAll(() => mock?.stop());
 
 beforeEach(async () => {
   await mock.reset();
+  resetCompat();
   await replaceWorkspace(makeWorkspace());
 });
 
@@ -84,5 +85,12 @@ describe("a run's receipt and error", () => {
     const replay: AgentEvent[] = [];
     subscribe(id, (e) => replay.push(e));
     expect(replay.find((e) => e.type === "error")).toEqual({ type: "error", ...summary.error });
+  });
+
+  it("marks a run that went without a rejected feature on its receipt", async () => {
+    await mock.fault({ type: "reject_betas" });
+    const { id } = await finished();
+    const receipt = readWorkspace().runs.find((r) => r.id === id)!.receipt!;
+    expect(receipt.compat).toEqual({ features: ["betas"], reason: expect.stringContaining("anthropic-beta") });
   });
 });

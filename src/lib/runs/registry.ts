@@ -137,6 +137,11 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
   let topTier: ModelTierName = "none";
   let sources = 0;
   let drafts = 0;
+  let compat: RunReceipt["compat"];
+  const noteCompat = (c: RunReceipt["compat"]) => {
+    if (!c) return;
+    compat = { features: [...new Set([...(compat?.features ?? []), ...c.features])], reason: compat?.reason || c.reason };
+  };
 
   const emit = (event: AgentEvent) => {
     if (live.done) return;
@@ -174,10 +179,12 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
           usage = addUsage(usage, err.usage);
           costUsd += err.costUsd ?? 0;
         }
+        if (err instanceof AgentError) noteCompat(err.compat);
         throw err;
       }
       usage = addUsage(usage, result.usage);
       costUsd += result.costUsd;
+      noteCompat(result.compat);
       return result;
     },
   };
@@ -223,6 +230,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     cacheReadTokens: usage.cacheReadTokens,
     costUsd,
     model: topTier,
+    ...(compat ? { compat } : {}),
   };
 
   const stopped = live.abort.signal.aborted;

@@ -1,5 +1,11 @@
 import type { Usage } from "./models";
 
+/**
+ * Optional request features the engine can leave out and still work: the betas (server-side refusal
+ * fallbacks and thinking-binding controls) and strict tool schemas (zod still validates every input).
+ */
+export type CompatFeature = "betas" | "strict";
+
 export type AgentErrorCode =
   | "no_key"
   | "auth"
@@ -24,6 +30,8 @@ export class AgentError extends Error {
   /** Spend from turns that completed before the failure (set by runAgent). */
   usage?: Usage;
   costUsd?: number;
+  /** The run had left out optional features the API rejected (set by runAgent). */
+  compat?: { features: CompatFeature[]; reason: string };
   /** The API's request id, for "Copy details" when asking Anthropic support about a failure. */
   requestId?: string;
   /** What the API said, verbatim (status · type · message). Never the message the founder reads. */

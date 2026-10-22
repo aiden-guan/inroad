@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getAnthropicClient } from "./client";
 import type { AgentEvent, Source } from "./events";
-import { toAgentError } from "./api-errors";
+import { apiErrorParts, droppableFeatures, toAgentError, type CompatFeature } from "./api-errors";
 import { AgentError } from "./errors";
 import { MODEL_IDS, addUsage, costOf, emptyUsage, webToolTypes, type ModelTier, type Usage } from "./models";
 
@@ -20,11 +20,31 @@ export { AgentError };
  * - Handles pause_turn, refusal, max_tokens and unparseable tool JSON explicitly
  */
 
-/** Optional request features. If the API rejects them we retry once without (compat mode). */
+/** Optional request features. If the API rejects one we retry without it (compat mode). */
 const OPTIONAL_BETAS: Anthropic.Beta.AnthropicBeta[] = [
   "server-side-fallback-2026-07-01",
   "thinking-binding-controls-2026-08-01",
 ];
+
+/**
+ * Features the API rejected, remembered for the life of the process: every later run leaves them out
+ * from its first request instead of sending a request that's bound to fail. Each run that ran without
+ * one says so on its receipt (Settings → Usage shows a health warning).
+ */
+const rejected = (() => {
+  const g = globalThis as unknown as { __inroadCompat?: Map<CompatFeature, { at: string; message: string }> };
+  g.__inroadCompat ??= new Map();
+  return g.__inroadCompat;
+})();
+
+export function compatState(): { feature: CompatFeature; at: string; message: string }[] {
+  return [...rejected.entries()].map(([feature, v]) => ({ feature, ...v }));
+}
+
+/** Tests only: forget rejected features. */
+export function resetCompat() {
+  rejected.clear();
+}
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -71,6 +91,8 @@ export interface RunOptions {
 
 export interface RunResult<T = unknown> {
   result: T | undefined;
+  /** Set when this run left out optional features the API rejected (compat mode), with what the API said. */
+  compat?: { features: CompatFeature[]; reason: string };
   /** All assistant text produced across turns (for chat replies). */
   text: string;
   /** Full conversation, append-only, safe to persist and continue later. */
@@ -139,7 +161,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   const toolByName = new Map(appTools.map((t) => [t.name, t]));
 
   // Terminal (submit_*) tools use strict schemas so structured output is guaranteed; other app tools
-  // stream their input eagerly. Compat mode (after a 400) drops strict as a fallback.
+  // stream their input eagerly. Compat mode (after a 400 about strict) drops strict; zod still checks.
   const buildTools = (strict: boolean): Anthropic.Beta.BetaToolUnion[] => [
     ...appTools.map(
       (t): Anthropic.Beta.BetaTool =>
@@ -167,7 +189,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   let answerStart = 0;
   let result: T | undefined;
   let stopReason: string | null = null;
-  let compat = false;
+  const dropped = new Set<CompatFeature>(rejected.keys());
   let jsonRetries = 0;
   let pauses = 0;
   let nudged = false;
@@ -179,10 +201,11 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
 
+      const noBetas = dropped.has("betas");
       const params: Anthropic.Beta.Messages.MessageCreateParams = {
         model,
         max_tokens: opts.maxTokens ?? 32000,
-        thinking: compat
+        thinking: noBetas
           ? { type: "adaptive", display: "summarized" }
           : { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } },
         output_config: { effort: opts.effort ?? "medium" },
@@ -191,9 +214,9 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         // turn N-1 wrote. Never mark `messages` itself: it is returned and persisted, and markers
         // would pile up past the 4-breakpoint limit. Worst case here: 2 system + Ask's turn + this.
         cache_control: { type: "ephemeral" },
-        tools: tools.length ? (compat ? [...buildTools(false), ...tools.slice(appTools.length)] : tools) : undefined,
+        tools: tools.length ? (dropped.has("strict") ? [...buildTools(false), ...tools.slice(appTools.length)] : tools) : undefined,
         messages,
-        ...(compat
+        ...(noBetas
           ? {}
           : supportsFallback
             ? { betas: OPTIONAL_BETAS, fallbacks: "default" as const }
@@ -284,9 +307,16 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         jsonRetries = 0;
       } catch (err) {
         if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
-        if (err instanceof Anthropic.BadRequestError && !compat && !emittedAnything) {
-          console.warn("[agent] request rejected, retrying in compat mode:", err.message);
-          compat = true;
+        // Retry without an optional feature only when the 400 is about that feature (never billing or size).
+        const fixable = err instanceof Anthropic.APIError && !emittedAnything ? droppableFeatures(err).filter((f) => !dropped.has(f)) : [];
+        if (fixable.length) {
+          const apiErr = err as InstanceType<typeof Anthropic.APIError>;
+          const message = apiErrorParts(apiErr).message || apiErr.message;
+          console.warn(`[agent] the API rejected ${fixable.join(" and ")}; retrying without (compat mode): ${message}`);
+          for (const f of fixable) {
+            dropped.add(f);
+            rejected.set(f, { at: new Date().toISOString(), message });
+          }
           turn--;
           continue;
         }
@@ -400,13 +430,19 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
     if (err instanceof AgentError && !err.usage) {
       err.usage = usage;
       err.costUsd = costOf(tier, usage);
+      err.compat ??= compatInfo();
     }
     throw err;
   }
 
   const costUsd = costOf(tier, usage);
   emit({ type: "usage", costUsd, model: tier });
-  return { result, text, messages, stopReason, usage, costUsd };
+  return { result, text, messages, stopReason, usage, costUsd, compat: compatInfo() };
+
+  function compatInfo(): RunResult["compat"] {
+    if (!dropped.size) return undefined;
+    return { features: [...dropped], reason: [...new Set([...dropped].map((f) => rejected.get(f)?.message).filter((m): m is string => !!m))].join(" · ") };
+  }
 
   function announceServerTool(name: string, input: Record<string, unknown>) {
     if (name === "web_search" && typeof input.query === "string") {

@@ -13,7 +13,7 @@ import type { Action } from "@/lib/domain/actions";
 import type { ModelTierName, RunStep, RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 import { Callout, Group, Row, SettingsSection, TextSetting } from "./parts";
-import { cost, ROUTING, SEARCH_PRICE, TIER_LABEL, tokens, usageReport, workflowLabel, type UsageReport } from "./usage-model";
+import { COMPAT_LABEL, cost, ROUTING, SEARCH_PRICE, TIER_LABEL, tokens, usageReport, workflowLabel, type UsageReport } from "./usage-model";
 
 type Dispatch = (actions: Action | Action[]) => Promise<boolean>;
 
@@ -31,6 +31,7 @@ export function UsageSection({ ws, dispatch, now }: { ws: Workspace; dispatch: D
       description="You pay Anthropic directly for the AI work, at cost. Every run ends with a receipt; this is the month in one place."
     >
       <SpendCard report={report} />
+      <CompatHealth report={report} now={now} />
       <BudgetGroup ws={ws} dispatch={dispatch} report={report} />
       <Stats report={report} />
       <ByWorkflow report={report} />
@@ -93,6 +94,23 @@ function BudgetBar({ share, state }: { share: number; state: UsageReport["state"
       {/* The 80% line: past it, I warn; at 100%, new runs stop. */}
       <span className="absolute inset-y-0 left-[80%] w-px bg-border-strong" aria-hidden />
     </div>
+  );
+}
+
+/* ───────────── Health ───────────── */
+
+/** Compatibility mode never hides: if the API turned down an optional feature, say what went missing. */
+function CompatHealth({ report, now }: { report: UsageReport; now: number }) {
+  const c = report.compat;
+  if (!c) return null;
+  const missing = c.features.map((f) => COMPAT_LABEL[f]).join(" and ");
+  return (
+    <Callout tone="warning" title={`${plural(c.runs, "run")} this month went without ${missing}.`}>
+      The Anthropic API turned down an optional feature, so I retried without it rather than stop. Results are still checked in code, but
+      {c.features.includes("betas") ? " a refused request won't be retried on another model" : " tool output isn't held to its schema by the API"}. This usually
+      means an Anthropic beta changed, and updating Inroad fixes it. Last seen {relativeTime(c.lastAt, now)}.
+      {c.reason ? <span className="mt-1 block font-mono text-[11.5px] text-fg-3 [overflow-wrap:anywhere]">{c.reason.slice(0, 200)}</span> : null}
+    </Callout>
   );
 }
 
@@ -345,6 +363,7 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
         ["Cache reads", tokens(rc.cacheReadTokens)],
         ["Output tokens", tokens(rc.outputTokens)],
         ["Cost", cost(rc.costUsd)],
+        ...(rc.compat ? ([["Compatibility mode", `without ${rc.compat.features.map((f) => COMPAT_LABEL[f]).join(" and ")}`]] as [string, string][]) : []),
       ]
     : [];
   return (
