@@ -2,7 +2,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { sampleWorkspace } from "@/lib/sample";
 import { NOW } from "@/test/factories";
-import { backupWhen, describeSummary, fileSize, summarizeFile, uploadBody } from "./backup-model";
+import { backupWhen, describeSummary, fileSize, restoredMessage, summarizeFile, uploadBody } from "./backup-model";
 
 describe("backup labels", () => {
   const now = new Date(2026, 9, 20, 15, 0);
@@ -38,6 +38,12 @@ describe("reading a chosen file in the browser", () => {
     const old = summarizeFile(JSON.stringify(ws));
     expect(old?.workspaceOnly).toBe(true);
     expect(old?.summary.deals).toBe(Object.keys(ws.deals).length);
+  });
+
+  it("says after a restore when suppressions made since were kept", () => {
+    expect(restoredMessage("Today, 9:05 AM")).toBe("Restored the backup from Today, 9:05 AM. What was here before is saved in Backups.");
+    expect(restoredMessage("Oct 14, 9:05 AM", 1)).toMatch(/I kept the suppression added since, so no one who opted out is emailed again\.$/);
+    expect(restoredMessage("Oct 14, 9:05 AM", 3)).toMatch(/I kept the 3 suppressions added since/);
   });
 
   it("gzips a chosen file for the upload, and sends one that's already gzipped as it is", async () => {

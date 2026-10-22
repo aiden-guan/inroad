@@ -30,8 +30,11 @@ export async function POST(request: Request) {
       if (!body.byteLength) return Response.json({ error: "Choose a backup file first." }, { status: 400 });
       bundle = parseBackup(body);
     }
-    const { ws, backup, files } = await restoreWorkspace(bundle);
-    return Response.json({ workspace: publicWorkspace(ws), restored: { createdAt: bundle.createdAt, files, legacy: bundle.legacy === true }, backup }, { headers: { "Cache-Control": "no-store" } });
+    const { ws, backup, files, keptSuppressions } = await restoreWorkspace(bundle);
+    return Response.json(
+      { workspace: publicWorkspace(ws), restored: { createdAt: bundle.createdAt, files, legacy: bundle.legacy === true, keptSuppressions }, backup },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (err) {
     if (err instanceof BackupError) return Response.json({ error: err.message }, { status: 400 });
     return errorResponse(err);

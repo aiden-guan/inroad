@@ -60,6 +60,15 @@ export function describeSummary(s: BackupSummary): string {
   return `${who}: ${n(s.companies, "company", "companies")}, ${n(s.people, "person", "people")}, ${n(s.deals, "deal", "deals")}`;
 }
 
+/** The toast after a restore, which says when suppressions added since the backup were kept. */
+export function restoredMessage(from: string, keptSuppressions = 0): string {
+  const kept =
+    keptSuppressions > 0
+      ? ` I kept the ${keptSuppressions === 1 ? "suppression" : `${keptSuppressions} suppressions`} added since, so no one who opted out is emailed again.`
+      : "";
+  return `Restored the backup from ${from}. What was here before is saved in Backups.${kept}`;
+}
+
 /**
  * The chosen file as it's uploaded: gzipped here first, because Next.js passes at most 10 MB of a
  * request body through the app's proxy, and a backup with months of run history can be bigger than

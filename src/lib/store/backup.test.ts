@@ -6,16 +6,18 @@ import { GET as getWorkspace } from "@/app/api/workspace/route";
 import { GET as exportRoute } from "@/app/api/workspace/export/route";
 import { POST as restoreRoute } from "@/app/api/workspace/restore/route";
 import { uploadBody } from "@/components/settings/backup-model";
-import { BODY_LIMIT_BYTES } from "@/lib/server/http";
+import type { Suppression } from "@/lib/domain/types";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
 import { runSteps } from "@/lib/runs/registry";
 import { loadSampleWorkspace, resetToEmptyWorkspace, restoreWorkspace } from "@/lib/sample/store";
+import { BODY_LIMIT_BYTES } from "@/lib/server/http";
 import { makeAccount, makeDeal, makePerson } from "@/test/factories";
 import {
   BACKUP_DIR,
   BackupError,
   buildBundle,
   ensureDailySnapshot,
+  keepSuppressions,
   listBackups,
   parseBackup,
   readSnapshot,
@@ -25,7 +27,7 @@ import {
 } from "./backup";
 import { DATA_DIR, writeSettings } from "./settings";
 import { getThread, withThread } from "./threads";
-import { emptyWorkspace, readWorkspace, replaceWorkspace, setSecrets } from "./workspace";
+import { emptyWorkspace, mutateWorkspace, readWorkspace, replaceWorkspace, setSecrets } from "./workspace";
 
 /**
  * Backups end to end in this file's temp data folder: what a bundle holds (every workspace file, never a
@@ -314,5 +316,65 @@ describe("restore", () => {
     expect(((await res.json()) as { error: string }).error).toMatch(/isn't an Inroad backup/);
     const empty = await restoreRoute(new Request("http://localhost:3000/api/workspace/restore", { method: "POST" }));
     expect(((await empty.json()) as { error: string }).error).toBe("Choose a backup file first.");
+  });
+});
+
+describe("a restore keeps the suppression list", () => {
+  const sup = (id: string, over: Partial<Suppression>): Suppression => ({ id, reason: "manual", at: "2026-10-01T00:00:00.000Z", ...over });
+
+  it("adds what the backup lacks, matching addresses in any case, and keeps the stronger reason", () => {
+    const restored = [sup("s1", { email: "dana@northwind.com" }), sup("s2", { domain: "rival.com", reason: "competitor" }), sup("s5", { email: "kim@kite.com", reason: "requested_delete" })];
+    const current = [
+      sup("s1", { email: "Dana@Northwind.com", reason: "unsubscribe", at: "2026-10-21T09:00:00.000Z" }),
+      sup("s2", { domain: "rival.com", reason: "competitor" }),
+      sup("s3", { email: "lena@glassmoor.com", reason: "requested_delete" }),
+      sup("s2", { email: "bounced@acme.com", reason: "bounce" }),
+      sup("s5", { email: "kim@kite.com", reason: "unsubscribe" }),
+    ];
+    const { list, kept } = keepSuppressions(restored, current);
+    expect(kept).toBe(3);
+    expect(list.map((s) => [s.id, s.email ?? s.domain, s.reason])).toEqual([
+      ["s1", "dana@northwind.com", "unsubscribe"],
+      ["s2", "rival.com", "competitor"],
+      ["s5", "kim@kite.com", "requested_delete"],
+      ["s3", "lena@glassmoor.com", "requested_delete"],
+      ["s2_kept", "bounced@acme.com", "bounce"],
+    ]);
+    expect(list[0].at).toBe("2026-10-21T09:00:00.000Z");
+    // The backup's own entries aren't changed in place.
+    expect(restored[0].reason).toBe("manual");
+  });
+
+  it("never makes anyone contactable again: opt-outs since the backup survive restoring it", async () => {
+    await realWork();
+    const kept = snapshot("daily", at("2026-10-20T16:00:00.000Z"));
+    await mutateWorkspace((ws) => {
+      ws.suppression.push(sup("sup_dana", { email: "dana@northwind.com", reason: "unsubscribe" }), sup("sup_lena", { email: "lena@glassmoor.com", reason: "requested_delete" }));
+    });
+
+    const res = await restoreRoute(new Request(`http://localhost:3000/api/workspace/restore?backup=${encodeURIComponent(kept.name)}`, { method: "POST" }));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { restored: { keptSuppressions: number } }).restored.keptSuppressions).toBe(2);
+    expect(readWorkspace().suppression.map((s) => [s.email, s.reason])).toEqual([
+      ["dana@northwind.com", "unsubscribe"],
+      ["lena@glassmoor.com", "requested_delete"],
+    ]);
+    // Everything else is the backup's.
+    expect(Object.keys(readWorkspace().people)).toEqual(["per_dana"]);
+  });
+
+  it("keeps them through an older workspace-only export too, and never carries the sample's over", async () => {
+    await realWork();
+    const old = JSON.stringify(readWorkspace());
+    await mutateWorkspace((ws) => void ws.suppression.push(sup("sup_x", { email: "x@northwind.com", reason: "bounce" })));
+    const { keptSuppressions } = await restoreWorkspace(parseBackup(old));
+    expect(keptSuppressions).toBe(1);
+    expect(readWorkspace().suppression.map((s) => s.email)).toEqual(["x@northwind.com"]);
+
+    await loadSampleWorkspace();
+    expect(readWorkspace().suppression.length).toBeGreaterThan(0);
+    const fromSample = await restoreWorkspace(parseBackup(old));
+    expect(fromSample.keptSuppressions).toBe(0);
+    expect(readWorkspace().suppression).toEqual([]);
   });
 });
