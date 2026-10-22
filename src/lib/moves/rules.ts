@@ -1034,7 +1034,9 @@ function firstTouches({ ws, today, c, out, firstThree: covered }: Ctx) {
     // first-three card's draft too).
     const origin = acc ? freshSignal(acc, today) : undefined;
     const firstRank = firstThreeDomains(ws).indexOf(pkg.accountDomain);
-    const fromFirstThree = firstRank >= 0 && !!ws.onboarding.hiredAt && pkg.createdAt >= ws.onboarding.hiredAt;
+    // Only while the first-three card is live (firstThree() kept the domain): once its first note went, it was
+    // decided or three weeks passed, a later draft there (a second contact, a news-driven one) is a draft of its own.
+    const fromFirstThree = covered.has(pkg.accountDomain) && !!ws.onboarding.hiredAt && pkg.createdAt >= ws.onboarding.hiredAt;
     // A note to someone a call or a reply named: it takes over the referral card, at the referral card's rank.
     const referred = person?.source === "referral" && !!person.notes?.startsWith("Referred by ") ? person.notes : undefined;
     quota--;
