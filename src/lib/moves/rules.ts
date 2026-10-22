@@ -30,6 +30,7 @@ import {
   openDealFor,
   overdueBoost,
   plural,
+  researchState,
   shortDay,
   stageMult,
   topSignal,
@@ -908,7 +909,7 @@ export function firstThreeDomains(ws: Workspace): string[] {
   return (o.dossierRunIds ?? []).map((id) => ws.runs.find((r) => r.id === id)?.ref).flatMap((ref) => (ref?.kind === "account" ? [ref.id] : []));
 }
 
-const FIRST_THREE_DAYS = 21;
+export const FIRST_THREE_DAYS = 21;
 const STARTED: Set<string> = new Set(["touch_sent", "pushed", "intro_requested", "linkedin_connect", "linkedin_dm"]);
 
 /**
@@ -927,6 +928,9 @@ function firstThree(ctx: Ctx) {
     if (ws.activities.some((a) => a.accountDomain === domain && STARTED.has(a.kind) && a.outcome !== "not_sent")) return;
     const person = bestPerson(ws, acc);
     if (isSuppressed(ws, person, domain)) return;
+    // Once the founder has decided the card (done or skipped), the company is the regular rules' again: news brings it back.
+    const decided = ws.moves[`mv_first_${domain}`];
+    if (decided && ((decided.status === "done" && !decided.autoDone) || decided.status === "skipped")) return;
     const rec = acc.dossier?.recommendation;
     // A draft of the recommended kind takes over the card (a cold draft keeps its id; LinkedIn and intro drafts have their own cards).
     const hasDraft = (mode: OutreachPackage["mode"]) =>
@@ -952,9 +956,16 @@ function firstThree(ctx: Ctx) {
       href: sheet(domain),
     };
     if (!acc.dossier) {
-      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · researching first, then the draft` });
+      // Say what the research is actually doing: a failed run never reads as "researching".
+      const research = researchState(ws, domain, ctx.now);
+      const state = research === "running" ? "researching now, then the draft" : research === "failed" ? "the research didn't finish · try again" : "research first, then the draft";
+      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · ${state}` });
     } else if (rec?.move === "warm_intro") {
       out.push({ ...base, kind: "intro_ask", title: `Ask for an intro to ${who} at ${acc.name}`, why: `${acc.warmPathCount ? `${plural(acc.warmPathCount, "person", "people")} you know there` : "A warm path beats cold here"} · ${clip(rec.why, 60)}` });
+    } else if (rec?.move !== "watch" && rec?.move !== "disqualify" && !(rec?.move === "reply_in_thread" && sig) && !hasDraftableAngle(ws, acc)) {
+      // A cold note or an invite needs something cited to stand on (the composer's own test). Without it, never a
+      // draft button that can only fail: watch it, and let news bring it back.
+      out.push({ ...base, kind: "research", minutes: 1, title: `Keep watching ${acc.name}`, why: "The research found no dated reason I can cite yet · I'll bring it back when there's news" });
     } else if (rec?.move === "linkedin_first") {
       out.push({ ...base, kind: "linkedin", title: `Connect with ${who} at ${acc.name} on LinkedIn`, why: `${clip(rec.why, 70)} · doesn't count toward your email cap` });
     } else if (rec?.move === "reply_in_thread" && sig) {
@@ -964,7 +975,7 @@ function firstThree(ctx: Ctx) {
     } else if (rec?.move === "disqualify") {
       out.push({ ...base, kind: "research", minutes: 1, title: `${acc.name} may not be a fit`, why: clip(rec.why, 90) });
     } else {
-      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · ${hasDraftableAngle(ws, acc) ? "draft on its way" : clip(rec?.why ?? "nothing cited to write from yet", 60)}` });
+      out.push({ ...base, kind: "first_touch", title: `Write to ${who} at ${acc.name}`, why: `${because} · draft on its way` });
     }
   });
 }
@@ -991,7 +1002,8 @@ function firstTouches({ ws, today, c, out, firstThree: covered }: Ctx) {
     // A draft written from a signal card keeps that card's id, so the card stays put while it fills in (a
     // first-three card's draft too).
     const origin = acc ? freshSignal(acc, today) : undefined;
-    const fromFirstThree = firstThreeDomains(ws).includes(pkg.accountDomain) && !!ws.onboarding.hiredAt && pkg.createdAt >= ws.onboarding.hiredAt;
+    const firstRank = firstThreeDomains(ws).indexOf(pkg.accountDomain);
+    const fromFirstThree = firstRank >= 0 && !!ws.onboarding.hiredAt && pkg.createdAt >= ws.onboarding.hiredAt;
     // A note to someone a call or a reply named: it takes over the referral card, at the referral card's rank.
     const referred = person?.source === "referral" && !!person.notes?.startsWith("Referred by ") ? person.notes : undefined;
     quota--;
@@ -1002,7 +1014,8 @@ function firstTouches({ ws, today, c, out, firstThree: covered }: Ctx) {
       title: `Write to ${first(person?.name) || "the buyer"} at ${companyName(ws, pkg.accountDomain)}`,
       why: referred ? `${clip(referred, 70)} · draft ready` : sig ? `${clip(sig.headline, 70)} · ${ageShort(sig.date, today)}` : angle ? `Draft ready · angle: ${angle}` : "Draft ready",
       minutes: 3,
-      priority: (referred ? Math.max(RULES.cold_draft.base, RULES.referrals.base) : RULES.cold_draft.base) + (acc?.tier === "A" ? 3 : 0),
+      // The first three's drafts lead day one in the order onboarding showed them, the best first.
+      priority: fromFirstThree ? RULES.first_three.base + 1 - firstRank : (referred ? Math.max(RULES.cold_draft.base, RULES.referrals.base) : RULES.cold_draft.base) + (acc?.tier === "A" ? 3 : 0),
       ref: pkg.personId ? { kind: "person", id: pkg.personId } : { kind: "account", id: pkg.accountDomain },
       draft: { packageId: pkg.id, step: 1 },
       source: sig ? { url: sig.url, date: sig.date } : undefined,
@@ -1385,12 +1398,15 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
     const touched = new Set(Object.values(ws.outreach).map((p) => p.accountDomain));
     const untouched = accounts.filter((a) => (a.tier === "A" || a.tier === "B") && (a.status === "new" || a.status === "tracked") && !touched.has(a.domain) && !a.dealId).length;
     if (untouched < 10) {
+      // A search already under way (onboarding queues ten more behind the first three's research) is shown as
+      // running, never as a button to start another (SPEC §3.2 step 4, Later: "10 more prospects, finding…").
+      const looking = ws.runs.some((r) => r.workflow === "discovery" && (r.status === "running" || r.status === "queued") && Date.parse(r.startedAt) > now.getTime() - 30 * 60_000);
       out.push({
         id: `mv_discover_${weekStart}`,
         kind: "research",
         rule: "discover",
-        title: `Find ${10 - untouched} more companies to talk to`,
-        why: `${plural(untouched, "untouched A or B prospect", "untouched A and B prospects")} left · keep 10 ready`,
+        title: looking ? "Finding more companies to talk to" : `Find ${10 - untouched} more companies to talk to`,
+        why: `${looking ? "Looking now · " : ""}${plural(untouched, "untouched A or B prospect", "untouched A and B prospects")} left · keep 10 ready`,
         minutes: 2,
         priority: RULES.discover.base,
       });

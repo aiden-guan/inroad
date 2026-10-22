@@ -73,11 +73,12 @@ export function Today({ ws }: { ws: Workspace }) {
   const [refreshing, setRefreshing] = useState(false);
   const activeRuns = useActiveRuns();
   const { runs } = useRuns();
-  // A dossier or discovery run landing changes the desk (the first three's drafts start once their research is in):
-  // re-prepare now instead of on the five-minute timer. Runs already finished when Today opened don't count.
+  // A dossier or discovery run landing changes the desk (the first three's drafts start once their research is in, and
+  // research that failed must stop reading as "researching"): re-prepare now instead of on the five-minute timer.
+  // Runs already finished when Today opened don't count.
   const landed = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const done = Object.values(runs).filter((r) => (r.workflow === "dossier" || r.workflow === "discovery") && r.status === "done");
+    const done = Object.values(runs).filter((r) => (r.workflow === "dossier" && r.status !== "running" && r.status !== "queued") || (r.workflow === "discovery" && r.status === "done"));
     if (!landed.current) {
       landed.current = new Set(done.map((r) => r.id));
       return;
