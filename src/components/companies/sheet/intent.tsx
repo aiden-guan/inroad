@@ -4,8 +4,9 @@ import { X } from "lucide-react";
 import { ComposeButton } from "@/components/compose/composer";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { IconButton } from "@/components/ui/button";
+import { rankPaths } from "@/lib/deals/rules";
+import type { Person } from "@/lib/domain/types";
 import { first } from "@/lib/moves/util";
-import { composeModeFor } from "./people";
 
 /** What a ⌘K command asked this sheet to do: `?intent=reply|write|intro&ref=<person or connector id>`. */
 export type SheetIntent = { kind: "reply" | "write" | "intro"; ref: string };
@@ -14,6 +15,15 @@ export function readIntent(params: Pick<URLSearchParams, "get">): SheetIntent | 
   const kind = params.get("intent");
   const ref = params.get("ref");
   return ref && (kind === "reply" || kind === "write" || kind === "intro") ? { kind, ref } : null;
+}
+
+/** How to reach someone first, from their best contact path (the same rule as the person rows in "Who to talk to"). */
+function composeModeFor(person: Person): { mode: "cold" | "linkedin" | "warm_intro"; label: string } {
+  const top = rankPaths(person.contactPaths).filter((p) => !p.bounced)[0];
+  const direct = top?.kind === "warm_intro" && top.via === "connection";
+  const mode = direct ? "linkedin" : top?.kind === "warm_intro" ? "warm_intro" : top?.kind === "linkedin" ? "linkedin" : "cold";
+  const label = direct ? "Message on LinkedIn" : top?.kind === "warm_intro" ? "Ask for an intro" : top?.kind === "linkedin" ? "Draft a LinkedIn note" : "Write";
+  return { mode, label };
 }
 
 /** Drops the command from the URL, so a reload or Back doesn't run it again. */
