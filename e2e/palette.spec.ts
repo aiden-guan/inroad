@@ -27,6 +27,19 @@ test("Esc on a palette page goes back, then closes", async ({ page }) => {
   await expect(page.getByRole("option", { name: /^Paste a reply/ })).toHaveCount(0);
 });
 
+test("a page picked with the mouse takes what you type next", async ({ page }) => {
+  await page.goto("/today");
+  await openPalette(page);
+  await page.getByRole("option", { name: /^Write to/ }).click();
+  const input = page.getByPlaceholder("Who are you writing to?");
+  await expect(input).toBeFocused();
+  await page.keyboard.type("zzq");
+  await expect(input).toHaveValue("zzq");
+  await expect(page.getByText("No one by that name. Research their company first, then write.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+});
+
 test("paste a reply from someone new at a company you researched, and land on the draft", async ({ page }) => {
   await page.goto("/today");
   await openPalette(page);
