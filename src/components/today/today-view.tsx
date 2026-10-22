@@ -22,7 +22,7 @@ import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { Masthead } from "./masthead";
 import { MoveCard } from "./move-card";
-import { cardDraft } from "./move-body";
+import { cardDraft, endsInBody } from "./move-body";
 import { KIND_LABELS, Keys, RunInline, SKIP_REASONS } from "./parts";
 import { ReviewDoc } from "./review-panel";
 import { useClock, usePrepare, useReveal } from "./use-today";
@@ -156,7 +156,7 @@ export function Today({ ws }: { ws: Workspace }) {
     el?.scrollIntoView({ block: "nearest" });
   };
 
-  const finish = async (move: Move, how: "done" | "skip" | "snooze", opts: { reason?: SkipReason; quiet?: boolean } = {}) => {
+  const finish = async (move: Move, how: "done" | "skip" | "snooze", opts: { reason?: SkipReason; quiet?: boolean; until?: string } = {}) => {
     setExits((e) => ({ ...e, [move.id]: how === "done" ? "done" : "skip" }));
     const idx = nav.findIndex((m) => m.id === move.id);
     const next = nav[idx + 1] ?? nav[idx - 1];
@@ -171,7 +171,7 @@ export function Today({ ws }: { ws: Workspace }) {
         ? { type: "move.done", id: move.id }
         : how === "skip"
           ? { type: "move.skip", id: move.id, reason: opts.reason ?? "other" }
-          : { type: "move.snooze", id: move.id, until: addDays(today, 1) };
+          : { type: "move.snooze", id: move.id, until: opts.until ?? addDays(today, 1) };
     // A draft skipped as "tone off" teaches the voice card what not to write.
     const draft = how === "skip" && opts.reason === "tone_off" ? cardDraft(ws, move) : undefined;
     const offText = draft?.steps.find((st) => st.status === "draft")?.body;
@@ -230,8 +230,9 @@ export function Today({ ws }: { ws: Workspace }) {
     }
     if (!current) return;
     if (k === "a") {
-      const showsDraft = !!cardDraft(ws, current);
-      if (showsDraft && expandedId === current.id) return; // DraftView approves
+      // A draft's composer approves; a booking card marks its nudge as sent. Closed, A opens them.
+      const showsDraft = !!cardDraft(ws, current) || endsInBody(current);
+      if (showsDraft && expandedId === current.id) return; // DraftView approves, BookBody logs the nudge
       e.preventDefault();
       if (showsDraft) setExpandedId(current.id);
       else void finish(current, "done");
@@ -297,6 +298,7 @@ export function Today({ ws }: { ws: Workspace }) {
         }}
         onDone={() => void finish(m, "done", { quiet: true })}
         onMarkDone={() => void finish(m, "done")}
+        onSnoozeUntil={(until) => void finish(m, "snooze", { quiet: true, until })}
         onSkipOpen={() => setSkipFor(m.id)}
         onSkip={(reason) => void finish(m, "skip", { reason })}
         onSkipCancel={() => setSkipFor(null)}

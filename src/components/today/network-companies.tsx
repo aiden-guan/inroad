@@ -7,6 +7,7 @@ import { postJson } from "@/components/import/api";
 import { CompanyRow } from "@/components/import/network-result";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
+import { addDays } from "@/lib/domain/ids";
 import type { NetworkCompany } from "@/lib/domain/types";
 import { plural, untrackedNetworkCompanies } from "@/lib/moves/util";
 import type { BodyProps } from "./move-body";
@@ -15,8 +16,8 @@ import type { BodyProps } from "./move-body";
  * "Track 3 companies where you know someone": the network screen's approval point, on Today. A list dropped
  * while onboarding read the site is screened in the background, and nothing is tracked until the founder ticks it.
  */
-export function NetworkCompaniesBody({ ws, onComplete, onChanged }: BodyProps) {
-  const { refresh } = useWorkspace();
+export function NetworkCompaniesBody({ ws, move, today, onComplete, onSnooze, onChanged }: BodyProps) {
+  const { refresh, dispatch } = useWorkspace();
   const router = useRouter();
   const [known] = useState(() => untrackedNetworkCompanies(ws));
   const [domains, setDomains] = useState<Record<string, string>>({});
@@ -43,6 +44,14 @@ export function NetworkCompaniesBody({ ws, onComplete, onChanged }: BodyProps) {
       setBusy(false);
     }
   }
+
+  // "Not now" means later, not never: the card sleeps a week, then comes back with whatever is still untracked.
+  const later = async () => {
+    const until = addDays(today, 7);
+    if (onSnooze) onSnooze(until);
+    else if (!(await dispatch({ type: "move.snooze", id: move.id, until }))) return;
+    toast("I'll bring these back next week.", { action: { label: "Undo", onClick: () => void dispatch({ type: "move.reopen", id: move.id }) } });
+  };
 
   return (
     <div className="space-y-3">
@@ -74,7 +83,7 @@ export function NetworkCompaniesBody({ ws, onComplete, onChanged }: BodyProps) {
         <Button variant="primary" onClick={() => void track()} loading={busy} disabled={!chosen.length}>
           {chosen.length ? `Track ${plural(chosen.length, "company", "companies")}` : "Pick companies to track"}
         </Button>
-        <Button variant="ghost" onClick={onComplete}>
+        <Button variant="ghost" onClick={() => void later()}>
           Not now
         </Button>
       </div>
