@@ -20,6 +20,8 @@ export interface SettingsStatus {
   secContact: string | null;
   /** Absolute path of the folder that holds workspace.json, settings.json and the caches. */
   dataDir: string;
+  /** The data folder is inside Inroad's own folder (no GTM_DATA_DIR), so deleting or re-cloning Inroad deletes it. */
+  dataDirInApp: boolean;
 }
 
 export type CheckStatus = "pass" | "warn" | "fail";

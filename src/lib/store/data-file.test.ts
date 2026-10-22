@@ -6,7 +6,7 @@ import { updateConnections } from "@/lib/network/store";
 import { resetStarted } from "@/lib/server/startup";
 import { cached } from "@/lib/signals/cache";
 import { DIR_MODE, FILE_MODE, readDataFile, secureDataDir, writeDataFile } from "./data-file";
-import { DATA_DIR, writeSettings } from "./settings";
+import { DATA_DIR, dataDirInsideApp, writeSettings } from "./settings";
 import { mutateWorkspace, setSecrets } from "./workspace";
 
 /**
@@ -84,5 +84,18 @@ describe.runIf(posix)("owner-only data files", () => {
     fs.chmodSync(file, 0o644);
     await startup();
     expect(modeOf(file)).toBe(0o644);
+  });
+});
+
+describe("where the data folder is", () => {
+  it("says when it's inside the folder Inroad runs from, where re-cloning deletes it", () => {
+    const app = path.resolve("inroad");
+    expect(dataDirInsideApp(path.join(app, ".data"), app)).toBe(true);
+    expect(dataDirInsideApp(app, app)).toBe(true);
+    expect(dataDirInsideApp(path.join(app, "..data"), app)).toBe(true);
+    expect(dataDirInsideApp(path.join(app, "..", "inroad-data"), app)).toBe(false);
+    expect(dataDirInsideApp(path.resolve("elsewhere", "Inroad"), app)).toBe(false);
+    // The test suite's own data folder is a temp folder, set with GTM_DATA_DIR.
+    expect(dataDirInsideApp()).toBe(false);
   });
 });

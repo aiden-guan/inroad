@@ -36,6 +36,15 @@ export interface Settings {
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 
+/**
+ * True when the data folder is inside the folder Inroad runs from (the default `.data/`), where deleting
+ * or re-cloning the repository, or `git clean -xfd`, deletes the founder's whole history with it.
+ */
+export function dataDirInsideApp(dir: string = DATA_DIR, app: string = process.cwd()): boolean {
+  const rel = path.relative(path.resolve(app), path.resolve(dir));
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
 /** Missing file → {}. A corrupt one throws, so writeSettings can't save over it. */
 export function readSettings(): Settings {
   return readDataFile<Settings>(SETTINGS_FILE, () => ({}));
