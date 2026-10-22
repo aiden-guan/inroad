@@ -19,6 +19,8 @@ export const HTTP_FAULTS = {
   reject_betas: (body, headers) =>
     err(400, "invalid_request_error", `Unexpected value(s) \`${String(headers["anthropic-beta"] ?? "").split(",")[0]}\` for the \`anthropic-beta\` header. Please consult our documentation at docs.anthropic.com or try again without the header.`),
   reject_strict: () => err(400, "invalid_request_error", "tools.0.custom.strict: strict mode is not available for this tool schema"),
+  // A model or route without mid-conversation system messages.
+  system_role: (body) => err(400, "invalid_request_error", `messages.${(body.messages ?? []).findIndex((m) => m.role === "system")}: role 'system' is not supported on this model`),
   auth: () => err(401, "authentication_error", "invalid x-api-key"),
   permission: () => err(403, "permission_error", "Your API key does not have permission to use the specified resource."),
   model_unavailable: (body) => err(404, "not_found_error", `model: ${body.model}`),
@@ -64,6 +66,7 @@ function matches(f, body, headers, toolNames) {
   // These two reject a feature, so a request without it (the retry) goes through.
   if (f.type === "reject_betas" && !headers["anthropic-beta"]) return false;
   if (f.type === "reject_strict" && !(body.tools ?? []).some((t) => t.strict)) return false;
+  if (f.type === "system_role" && !(body.messages ?? []).some((m) => m.role === "system")) return false;
   return true;
 }
 

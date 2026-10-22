@@ -1122,8 +1122,11 @@ function threadInit(a: Args, label: string | undefined) {
   return () => ({ title: clip(a.message, 64), context: a.context, contextLabel: label, createdAt: at, updatedAt: at });
 }
 
+/** A 400 saying this model takes no system message mid-conversation. What the API said is in `detail` (`message` is for the founder). */
 function isSystemRoleError(err: unknown): boolean {
-  return err instanceof AgentError && err.code === "bad_request" && /system/i.test(err.message) && /role|message/i.test(err.message);
+  if (!(err instanceof AgentError) || err.code !== "bad_request") return false;
+  const said = err.detail ?? err.message;
+  return /system/i.test(said) && /role|message/i.test(said);
 }
 
 export default defineWorkflow<Args>({
