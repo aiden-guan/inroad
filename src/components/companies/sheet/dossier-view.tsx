@@ -90,7 +90,7 @@ export function EnrichmentView({ account, onResearch, researching, lastRun }: { 
           <div className="mt-3 space-y-1">
             {failed && <Receipt run={failed} />}
             <p className="px-1.5">
-              <AgentErrorNote error={error} className="text-[13px] leading-[19px]" />
+              <AgentErrorNote error={error} withFix={!blocked} className="text-[13px] leading-[19px]" />
             </p>
             {!blocked && <p className="px-1.5 text-[12px] text-fg-3">Trying again costs about the same as the first attempt.</p>}
           </div>
