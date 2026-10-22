@@ -153,6 +153,31 @@ test("a dossier with nothing citable says watch, as Today does, and offers no dr
   await expect(page.getByRole("button", { name: "Write the first email" })).toHaveCount(0);
 });
 
+test("with reduced motion, holding to close as lost says to keep holding", async ({ page, request }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  const ws = await workspace(request);
+  // Leo at Saltmarsh (an open deal) said yes after the call, and the founder answered with times.
+  ws.activities.push(
+    { id: "act_e2e_leo_reply", at: daysAgo(5), kind: "reply_received", personId: "per_leo_marchetti", accountDomain: "saltmarsh.example", channel: "email", sentiment: "positive", summary: "Leo: yes", body: "This is relevant. Let's find a time." },
+    { id: "act_e2e_leo_answer", at: daysAgo(4), kind: "touch_sent", personId: "per_leo_marchetti", accountDomain: "saltmarsh.example", channel: "email", source: "founder", summary: "Answered Leo with times", body: "Tue 2pm or Wed 11am?" },
+  );
+  expect((await request.post("/api/workspace/restore", { data: ws })).ok()).toBe(true);
+  expect((await request.post("/api/today/prepare", { data: { reason: "refresh" } })).ok()).toBe(true);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/today");
+  const header = await card(page, /^Book Leo: said yes/);
+  await open(header);
+  await page.getByRole("button", { name: "Let it go" }).click();
+  const hold = page.getByRole("button", { name: "Hold to close as lost" });
+  const box = (await hold.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(page.getByRole("button", { name: "Keep holding…" })).toBeVisible();
+  await page.mouse.up();
+  await expect(page.getByRole("button", { name: "Hold to close as lost" })).toBeVisible();
+});
+
 // Last: it starts a first run on a fresh workspace and leaves it reading.
 test("skipping the two questions while the site is read keeps the list drop", async ({ page, request }) => {
   expect((await request.post("/api/workspace/reset")).ok()).toBe(true);

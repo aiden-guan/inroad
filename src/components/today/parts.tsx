@@ -165,7 +165,10 @@ export function RunInline({
   );
 }
 
-/** Hold-to-confirm, reserved for destructive actions (close lost). Linear fill shows time passing. */
+/**
+ * Hold-to-confirm, reserved for destructive actions (close lost). Linear fill shows time passing, and the
+ * label says to keep holding: with reduced motion the fill can't show the time, so the words carry it.
+ */
 export function HoldButton({ onConfirm, children, ms = 900 }: { onConfirm: () => void; children: ReactNode; ms?: number }) {
   const [holding, setHolding] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -197,6 +200,7 @@ export function HoldButton({ onConfirm, children, ms = 900 }: { onConfirm: () =>
       onKeyUp={(e) => {
         if (e.key === "Enter" || e.key === " ") cancel();
       }}
+      onBlur={cancel}
       className="relative inline-flex h-8 select-none items-center overflow-hidden rounded-sm px-3 text-[13px] font-medium text-danger ring-1 ring-danger/30 transition-transform duration-100 active:scale-[0.97]"
     >
       <span
@@ -204,7 +208,7 @@ export function HoldButton({ onConfirm, children, ms = 900 }: { onConfirm: () =>
         className="absolute inset-0 origin-left bg-danger-subtle"
         style={{ transform: `scaleX(${holding ? 1 : 0})`, transition: holding ? `transform ${ms}ms linear` : "transform 200ms var(--ease-out)" }}
       />
-      <span className="relative">{children}</span>
+      <span className="relative">{holding ? "Keep holding…" : children}</span>
     </button>
   );
 }
