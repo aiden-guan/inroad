@@ -155,6 +155,31 @@ describe("the first three on day one", () => {
     expect(beta()).toEqual(["mv_signal_beta.example_s_b"]);
   });
 
+  it("lets a later draft there reach Today once the card was decided, skipped or sent", () => {
+    // Skipped, then news, then a draft from that news: the draft's own card, not the skipped one's id.
+    const skipped = dayOne();
+    skipped.moves = mergeMoves({}, computeMoves(skipped, NOW), TODAY);
+    applyAction(skipped, { type: "move.skip", id: "mv_first_beta.example", reason: "not_relevant_now" });
+    skipped.accounts["beta.example"].signals.push({ ...makeSignal("s_new", { type: "funding", strength: 3, date: TODAY }), evidenceId: "ev_beta.example" });
+    skipped.moves = mergeMoves(skipped.moves, computeMoves(skipped, NOW), TODAY);
+    skipped.outreach.pkg_new = makePackage("pkg_new", "beta.example", { personId: "per_bana", createdAt: at(0, "11:00") });
+    skipped.moves = mergeMoves(skipped.moves, computeMoves(skipped, NOW), TODAY);
+    expect(visibleMoves(skipped.moves, TODAY).filter((m) => m.draft?.packageId === "pkg_new").map((m) => m.id)).toEqual(["mv_signal_beta.example_s_new"]);
+    expect(skipped.moves["mv_first_beta.example"].status).toBe("skipped");
+
+    // The first note went; a draft to a second person there a week later is on Today as its own card.
+    const sent = dayOne();
+    sent.outreach.pkg_al = makePackage("pkg_al", "alpha.example", { personId: "per_al", createdAt: at(0, "09:12") });
+    sent.moves = mergeMoves({}, computeMoves(sent, NOW), TODAY);
+    applyAction(sent, { type: "outreach.approveStep", packageId: "pkg_al", step: 1, at: at(0, "09:20"), activityId: "act_sent" });
+    sent.moves = mergeMoves(sent.moves, computeMoves(sent, NOW), TODAY);
+    expect(sent.moves["mv_first_alpha.example"].status).toBe("done");
+    sent.people.per_al2 = makePerson("per_al2", "alpha.example", { name: "Ana Ruiz" });
+    sent.outreach.pkg_al2 = makePackage("pkg_al2", "alpha.example", { personId: "per_al2", createdAt: at(0, "10:00") });
+    sent.moves = mergeMoves(sent.moves, computeMoves(sent, NOW), TODAY);
+    expect(visibleMoves(sent.moves, TODAY).filter((m) => m.draft?.packageId === "pkg_al2").map((m) => m.id)).toEqual(["mv_draft_pkg_al2_1"]);
+  });
+
   it("stops after three weeks, and reads older workspaces' first three from their dossier runs", () => {
     const old = dayOne(true, { onboarding: { status: "hired", hiredAt: at(-22), firstThree: ["alpha.example"] } });
     expect(computeMoves(old, NOW).filter((m) => m.rule === "today.first_three")).toEqual([]);
