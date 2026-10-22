@@ -3,6 +3,7 @@
 import { ChevronDown, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ForgetPerson } from "@/components/people/forget-person";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
@@ -13,7 +14,6 @@ import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Person, Suppression, Workspace } from "@/lib/domain/types";
 import { emailsOf } from "@/lib/people/forget";
-import { ForgetPerson } from "@/components/people/forget-person";
 import { Group } from "./parts";
 import { normalizeDomain } from "./validate";
 

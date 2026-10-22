@@ -174,8 +174,8 @@ const replyDealId = (packageId: ID) => `deal_${packageId}`;
 
 /**
  * A yes the founder answered is a conversation under way: without an open deal it becomes one at
- * Talking, its next step booking the call, so the deal rules (and the close-out) track it until a
- * meeting is on the calendar or it's parked or closed. An open deal just gains the contact.
+ * Talking, its next step booking the call, so it sits in the pipeline (and Today's booking card
+ * chases it) until a meeting is on the calendar or it's parked or closed. An open deal just gains the contact.
  */
 function openDealFromReply(ws: Workspace, pkg: Workspace["outreach"][string], at: string) {
   const acc = ws.accounts[pkg.accountDomain];
