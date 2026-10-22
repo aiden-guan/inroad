@@ -78,13 +78,21 @@ export function writeDataFile(file: string, value: unknown) {
   writeFileAtomic(file, JSON.stringify(value, null, 2));
 }
 
+/** The files Inroad keeps at the top of its data folder (with their temp files and corrupt copies). */
+const OWN_FILE = /^(workspace|threads|connections|network|desk|runs|hub|settings|secrets|keys|opt-outs|calibration|references|geo-cache)\.json(\.corrupt-\d+|\.\d+\.tmp)?$/;
+/** Its folders there; everything inside them is Inroad's. */
+const OWN_DIRS = new Set(["backups", "cache"]);
+
 /**
- * Tightens what an older version (or a umask) left readable to others: the data folder and its
- * subfolders to 0700, every file in them to 0600. Run once when the server starts. Best-effort, and
- * never follows a symlink out of the folder.
+ * Tightens what an older version (or a umask) left readable to others: Inroad's own files to 0600 and its
+ * own folders (backups/, cache/ and what's in them) to 0700. Nothing else is touched: GTM_DATA_DIR may point
+ * at a folder that holds other things too (a script keeps its execute bit), and then the folder itself is
+ * left as it is and `foreign` says how many entries aren't Inroad's. Run once when the server starts.
+ * Best-effort, and never follows a symlink.
  */
-export function secureDataDir(dir: string): { changed: number } {
+export function secureDataDir(dir: string): { changed: number; foreign: number } {
   let changed = 0;
+  let foreign = 0;
   const tighten = (p: string, mode: number) => {
     try {
       const st = fs.lstatSync(p);
@@ -95,21 +103,30 @@ export function secureDataDir(dir: string): { changed: number } {
       // gone or not ours: leave it
     }
   };
+  const entries = (d: string): fs.Dirent[] => {
+    try {
+      return fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+  };
   const walk = (d: string, depth: number) => {
     tighten(d, DIR_MODE);
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
+    for (const e of entries(d)) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) {
         if (depth < 3) walk(p, depth + 1);
       } else if (e.isFile()) tighten(p, FILE_MODE);
     }
   };
-  if (fs.existsSync(dir)) walk(dir, 0);
-  return { changed };
+  if (!fs.existsSync(dir)) return { changed, foreign };
+  for (const e of entries(dir)) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory() && OWN_DIRS.has(e.name)) walk(p, 1);
+    else if (e.isFile() && OWN_FILE.test(e.name)) tighten(p, FILE_MODE);
+    else if (!e.isSymbolicLink()) foreign++;
+  }
+  // The folder itself only when it's Inroad's alone.
+  if (!foreign) tighten(dir, DIR_MODE);
+  return { changed, foreign };
 }

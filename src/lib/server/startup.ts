@@ -19,8 +19,9 @@ export function ensureStarted(): Promise<void> {
 async function onServerStart() {
   try {
     // Files written before owner-only writes (or copied in with a loose umask) become readable by you alone.
-    const { changed } = secureDataDir(DATA_DIR);
+    const { changed, foreign } = secureDataDir(DATA_DIR);
     if (changed) console.log(`[inroad] Made ${changed} data file${changed === 1 ? "" : "s"} in ${DATA_DIR} readable by you only.`);
+    if (foreign) console.warn(`[inroad] ${DATA_DIR} also holds ${foreign} thing${foreign === 1 ? "" : "s"} that aren't Inroad's; I left those alone. Give Inroad a folder of its own (GTM_DATA_DIR).`);
   } catch (err) {
     console.warn("[inroad] Couldn't check the data folder's permissions:", err instanceof Error ? err.message : err);
   }
