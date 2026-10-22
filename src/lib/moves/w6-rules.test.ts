@@ -276,6 +276,22 @@ describe("pilot to paid", () => {
     expect(computeMoves(chased, NOW).filter((x) => x.rule === "today.map_overdue")).toEqual([]);
   });
 
+  it("shows one card for one late step: the call to log first, then the next step, never the same step twice", () => {
+    // The sample's Lumenwire check-in was on Oct 20: the deal's next step and its plan step, both due that day.
+    const ws = sampleWorkspace(new Date("2026-10-20T09:00:00-07:00"));
+    const lumenwire = (now: Date) =>
+      computeMoves(ws, now)
+        .filter((m) => m.ref?.id === "deal_lumenwire" || m.ref?.id === "mtg_lumenwire_checkin")
+        .filter((m) => /debrief|next_step|map_overdue/.test(m.rule))
+        .map((m) => m.title);
+    const wed = new Date("2026-10-21T10:00:00-07:00");
+    // Not logged yet: logging it updates both, so the debrief card is the one card.
+    expect(lumenwire(wed)).toEqual(["Log the Lumenwire call"]);
+    // Logged, with the next step still the late check-in: one card for it, not a second for the plan step.
+    ws.meetings.mtg_lumenwire_checkin.notesRaw = "Ethan: on track, two exceptions to review.";
+    expect(lumenwire(wed)).toEqual(["Set a next step for Lumenwire"]);
+  });
+
   it("covers the audit's case: a paid pilot ended three days ago with two overdue steps and a future next step", () => {
     const map = {
       targetDate: day(10),
