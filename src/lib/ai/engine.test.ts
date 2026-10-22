@@ -322,24 +322,48 @@ describe("runAgent cache lifetime", () => {
 });
 
 describe("runAgent failures", () => {
-  it("leaves out the betas the API rejects, says so, and starts later runs without them", async () => {
+  it("leaves out only the beta the API rejects, says so, and starts later runs without it", async () => {
     await fault({ type: "reject_betas" });
     const r = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
     expect(r.result).toBeDefined();
     expect(sent).toHaveLength(2);
     expect(sent[0].headers.get("anthropic-beta")).toContain("server-side-fallback-2026-07-01");
-    // Compat mode for the betas: no beta header, no fallbacks, no thinking block binding. Strict stays.
-    expect(sent[1].headers.get("anthropic-beta")).toBeNull();
+    // The 400 named the fallback beta: no fallbacks, but the thinking binding (drop_block) stays on. Strict stays.
+    expect(sent[1].headers.get("anthropic-beta")).toBe("thinking-binding-controls-2026-08-01");
     expect(sent[1].body).not.toHaveProperty("fallbacks");
-    expect(sent[1].body.thinking).toEqual({ type: "adaptive", display: "summarized" });
+    expect(sent[1].body.thinking).toEqual({ type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } });
     expect(sent[1].body.tools?.[0]).toMatchObject({ strict: true });
-    expect(r.compat).toEqual({ features: ["betas"], reason: expect.stringContaining("anthropic-beta") });
-    // Remembered for the process: the next run doesn't send a request that's bound to fail.
+    expect(r.compat).toEqual({ features: ["fallback"], reason: expect.stringContaining("anthropic-beta") });
+    // Remembered: the next run doesn't send a request that's bound to fail.
     const again = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan again" }], tools: [submitPlan] });
     expect(sent).toHaveLength(3);
-    expect(sent[2].headers.get("anthropic-beta")).toBeNull();
-    expect(again.compat?.features).toEqual(["betas"]);
-    expect(compatState().map((c) => c.feature)).toEqual(["betas"]);
+    expect(sent[2].headers.get("anthropic-beta")).toBe("thinking-binding-controls-2026-08-01");
+    expect(again.compat?.features).toEqual(["fallback"]);
+    expect(compatState().map((c) => c.feature)).toEqual(["fallback"]);
+  });
+
+  it("tries a rejected feature again after an hour, and with a new key at once", async () => {
+    await fault({ type: "reject_betas" });
+    await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(compatState().map((c) => c.feature)).toEqual(["fallback"]);
+    // A new key in Settings: its account may well accept the beta.
+    vi.stubEnv("ANTHROPIC_API_KEY", "mock-new-key");
+    const fresh = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(fresh.compat).toBeUndefined();
+    expect(sent.at(-1)!.headers.get("anthropic-beta")).toContain("server-side-fallback-2026-07-01");
+
+    // The same key an hour later: probed again.
+    await fault({ type: "reject_betas" });
+    await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+    expect(compatState().map((c) => c.feature)).toEqual(["fallback"]);
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 61 * 60_000 });
+    try {
+      const later = await run<Plan>({ system: "Rules", messages: [{ role: "user", content: "Plan" }], tools: [submitPlan] });
+      expect(later.compat).toBeUndefined();
+      expect(sent.at(-1)!.headers.get("anthropic-beta")).toContain("server-side-fallback-2026-07-01");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("drops only strict schemas when strict is what the API rejects", async () => {

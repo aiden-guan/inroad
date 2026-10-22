@@ -91,6 +91,6 @@ describe("a run's receipt and error", () => {
     await mock.fault({ type: "reject_betas" });
     const { id } = await finished();
     const receipt = readWorkspace().runs.find((r) => r.id === id)!.receipt!;
-    expect(receipt.compat).toEqual({ features: ["betas"], reason: expect.stringContaining("anthropic-beta") });
+    expect(receipt.compat).toEqual({ features: ["fallback"], reason: expect.stringContaining("anthropic-beta") });
   });
 });

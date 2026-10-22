@@ -1370,7 +1370,8 @@ export interface RunReceipt {
    * Compatibility mode: the API rejected an optional feature (the refusal-fallback and thinking betas, or
    * strict tool schemas) and the run went without it. `reason` is what the API said.
    */
-  compat?: { features: ("betas" | "strict")[]; reason: string };
+  /** What compat mode left out. "betas" is both the fallback and the binding, on receipts from before they were split. */
+  compat?: { features: ("fallback" | "binding" | "strict" | "betas")[]; reason: string };
 }
 
 export interface RunSummary {

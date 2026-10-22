@@ -4,7 +4,11 @@ import type { Usage } from "./models";
  * Optional request features the engine can leave out and still work: the betas (server-side refusal
  * fallbacks and thinking-binding controls) and strict tool schemas (zod still validates every input).
  */
-export type CompatFeature = "betas" | "strict";
+/**
+ * Optional request features compat mode can leave out, each on its own: the refusal fallback (its beta and
+ * `fallbacks`), the thinking-block binding (its beta and `thinking.block_binding`), and strict tool schemas.
+ */
+export type CompatFeature = "fallback" | "binding" | "strict";
 
 export type AgentErrorCode =
   | "no_key"
