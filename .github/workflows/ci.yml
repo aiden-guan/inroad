@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # "true" only when the repository has the secret (never on forks), so the paid evals run only then.
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +42,21 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # The draft-quality evals against the mock: checks the harness, judges nothing, costs nothing.
+      - name: Evals (mock model)
+        run: npm run eval:critic && npm run eval:classify
+        env:
+          EVAL_MOCK: "1"
+          GTM_DATA_DIR: ${{ runner.temp }}/inroad-eval-mock
+
+      # The real gates (SPEC §4.0): fail the build when the critic or the reply reader regresses. About $0.15 a run.
+      - name: Evals (real model)
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        run: npm run eval:critic && npm run eval:classify
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GTM_DATA_DIR: ${{ runner.temp }}/inroad-eval
 
       - name: Build
         run: npx next build
