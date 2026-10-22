@@ -4,6 +4,7 @@ import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import network from "@/lib/workflows/network";
 import { NOW, makeAccount, makePerson, makeWorkspace } from "@/test/factories";
 import { runWorkflow } from "@/test/run-workflow";
+import { computeMoves } from "@/lib/moves/rules";
 import { applyListImport, importConnections, knowsProduct, undoImport } from "./import";
 import { autoMap, presetById } from "./presets";
 import { parseCsv } from "./csv";
@@ -51,7 +52,15 @@ describe("tagging who knows you", () => {
     expect(conn("Lee").tags).toEqual(["ex_colleague", "connector"]);
     const ws = readWorkspace();
     expect(ws.people.per_lee.tags).toEqual(["ex_colleague", "connector"]);
-    expect(ws.connectors).toEqual([expect.objectContaining({ name: "Lee Park", relationship: "connection", linkedinUrl: "https://www.linkedin.com/in/lee-park", company: "Ledgerly" })]);
+    // An introducer, not a plain LinkedIn connection: Today asks them for intros and stops asking for introducers.
+    expect(ws.connectors).toEqual([expect.objectContaining({ name: "Lee Park", relationship: "ex_colleague", linkedinUrl: "https://www.linkedin.com/in/lee-park", company: "Ledgerly" })]);
+    const desk = (w: typeof ws) => computeMoves({ ...w, onboarding: { status: "hired", hiredAt: NOW.toISOString() }, network: { importedAt: NOW.toISOString(), total: 2, atIcpCompanies: 0, buyerTitles: 0, jobChanges: 0 } }, NOW).map((m) => m.id);
+    expect(desk(ws)).not.toContain("mv_setup_connectors");
+    expect(desk({ ...ws, connectors: ws.connectors.map((c) => ({ ...c, relationship: "connection" as const })) })).toContain("mv_setup_connectors");
+    // Someone already asked through a path (a plain connection) becomes an introducer once tagged.
+    await replaceWorkspace({ ...readWorkspace(), connectors: [{ id: "con_dana", name: "Dana Okafor", relationship: "connection", introsMade: 0 }] });
+    await setRelationshipTags({ connectionId: conn("Dana").id, tags: ["connector"] });
+    expect(readWorkspace().connectors.map((c) => [c.name, c.relationship])).toEqual([["Dana Okafor", "friend"]]);
 
     // Clearing removes them everywhere.
     await setRelationshipTags({ personId: "per_lee", tags: [] });
