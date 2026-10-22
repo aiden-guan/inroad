@@ -56,6 +56,9 @@ MOCK_FAULT=credit npm run mock:anthropic      # every request: out of credits
 curl -X POST localhost:4010/__mock/faults -d '{"faults":[{"type":"overloaded","times":4}]}'
 ```
 
+In PowerShell, set the variable first: `$env:MOCK_FAULT = "credit"; npm run mock:anthropic` (in cmd,
+`set MOCK_FAULT=credit` and then the command). The same goes for every `NAME=value command` line below.
+
 Faults: `credit`, `org_disabled`, `auth`, `permission`, `model_unavailable`, `too_large`, `context_too_long`,
 `rate_limit`, `overloaded`, `server_error`, `bad_request`, `reject_betas`, `reject_strict`, `overloaded_midstream`,
 `refusal`, `refusal_fallback`, `pause_turn`, `max_tokens`, `no_submit`, `invalid_submit`. `GET /__mock/requests`
