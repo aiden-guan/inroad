@@ -11,6 +11,7 @@ import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
 import { nowISO } from "@/lib/domain/ids";
 import type { Brief, FounderQuestion, SegmentBet } from "@/lib/domain/types";
+import { BET_MIN_PER_ARM, DIMENSION_LABELS, betReadout, readoutLine, startedBets } from "@/lib/learning/bets";
 import { spring } from "@/lib/motion";
 import { usePlaybook } from "./context";
 import { plural } from "./model";
@@ -40,6 +41,7 @@ export function JournalSection() {
       <Questions />
       <Reviews />
       <Bets />
+      <MessageBets />
     </Section>
   );
 }
@@ -192,6 +194,46 @@ function Bets() {
               )}
             </li>
           ))}
+        </ol>
+      )}
+    </Sub>
+  );
+}
+
+/* ───────────────────────────── Message bets ───────────────────────────── */
+
+const BET_VERDICTS = { keep: "Kept the variant", drop: "Dropped the variant", inconclusive: "Inconclusive" } as const;
+
+function MessageBets() {
+  const { ws, today } = usePlaybook();
+  const bets = [...startedBets(ws)].reverse();
+  return (
+    <Sub id="message-bets" title="Message bets" hint={`One variable a month, control against variant. Every send is tagged with its arm; no verdict before ${BET_MIN_PER_ARM} sends each.`}>
+      {bets.length === 0 ? (
+        <p className="text-[13px] text-fg-3">No message bets yet. The Friday learning review proposes one when there&apos;s something worth testing.</p>
+      ) : (
+        <ol className="relative space-y-4 border-l border-border pl-5">
+          {bets.map((b) => {
+            const running = today <= b.endsOn;
+            const r = betReadout(ws, b.id);
+            return (
+              <li key={b.id} className="relative">
+                <span aria-hidden className={cn("absolute -left-[23.5px] top-1.5 size-2 rounded-full ring-2 ring-bg", running ? "bg-fg" : "bg-fg-4")} />
+                <FieldLabel className="font-mono text-[11.5px] font-normal">
+                  {shortDate(b.startedOn)} – {running ? `runs to ${shortDate(b.endsOn)}` : shortDate(b.endsOn)}
+                  {b.dimension && ` · ${DIMENSION_LABELS[b.dimension]}`}
+                </FieldLabel>
+                <p className="text-[14px] font-medium leading-[21px]">{b.variable}</p>
+                <p className="mt-0.5 text-[13px] leading-5 text-fg-2">
+                  <span className="text-fg-3">Control:</span> {b.control} <span className="text-fg-3">· Variant:</span> {b.variant}
+                </p>
+                <p className="mt-1 font-mono text-[12px] tnum text-fg-3">{readoutLine(r)}</p>
+                <p className="mt-0.5 text-[12.5px] text-fg-3">
+                  {b.readout ? `${BET_VERDICTS[b.readout.verdict]}${b.readout.notes ? `. ${b.readout.notes}` : ""}` : r.enough ? "Enough sends for a verdict: the monthly review reads it." : running ? "Running. Read the replies; the count decides nothing yet." : "Ended without enough sends for a verdict."}
+                </p>
+              </li>
+            );
+          })}
         </ol>
       )}
     </Sub>

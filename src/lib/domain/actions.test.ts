@@ -460,6 +460,9 @@ const cases: Record<Action["type"], () => void> = {
         draftRef: { packageId: PACKAGE.fernwickCold, step: 1 },
         summary: "First touch to Owen Park",
         source: "founder",
+        // What the learning reviews compare: the why-now signal behind the angle, frame, POV, persona and subject.
+        signalType: "jd_names_pain",
+        tags: { frame: "founder_card", povId: "pov_script_black_box", credentialClaimId: "clm_tollgate_credential", persona: "champion", subjectStyle: "trigger" },
       }),
     ]);
     expect(s.moves[card.id].status).toBe("done");

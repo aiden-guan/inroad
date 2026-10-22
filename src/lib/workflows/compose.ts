@@ -12,6 +12,7 @@ import type {
   Account,
   Activity,
   Angle,
+  BetArm,
   DraftCritic,
   DraftFrame,
   DraftStep,
@@ -29,6 +30,8 @@ import { countWords } from "@/lib/quality/lint";
 import { pickReference } from "@/lib/quality/references";
 import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { stripGreeting, sentences } from "@/lib/quality/similarity";
+import { activeBet, betSteer, nextArm, steerable } from "@/lib/learning/bets";
+import { signalTypeFor } from "@/lib/learning/tags";
 import { defineWorkflow, type WorkflowContext } from "./types";
 
 /**
@@ -450,6 +453,8 @@ interface EmailPlan {
   frames: DraftFrame[];
   pkg?: OutreachPackage;
   extra?: string;
+  /** The message-bet arm this first touch is written for, when a bet runs. */
+  bet?: BetArm;
 }
 
 function emailTask(plan: EmailPlan): string {
@@ -525,6 +530,10 @@ async function draftEmail(ctx: WorkflowContext<ComposeArgs>, plan: EmailPlan, mo
       status: "draft",
       angleId: plan.angle?.id,
     };
+    // Stamped for the learning reviews: which why-now signal this rests on, and the bet arm it was written for.
+    const signalType = signalTypeFor(plan.account, plan.angle?.id, step.evidenceIds);
+    if (signalType) step.signalType = signalType;
+    if (plan.bet) step.bet = plan.bet;
     if (plan.step > 1 && plan.pkg) {
       const used = new Set(plan.pkg.steps.flatMap((s) => s.evidenceIds));
       if (step.evidenceIds.length && step.evidenceIds.every((id) => used.has(id)) && step.angleId === plan.pkg.angleId) {
@@ -668,6 +677,10 @@ async function runCold(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account
   for (const ev of evidence.slice(0, 3)) ctx.emit({ type: "read", url: ev.url, host: ev.host });
 
   const frames = allowedFrames(ws, person, 1);
+  // A running message bet (writing variables): this draft goes to the arm with fewer drafts. Referrals stay out of it.
+  const bet = activeBet(ws, todayISO());
+  const arm = steerable(bet) && !referrer ? { bet, arm: nextArm(ws, bet) } : undefined;
+  const steer = arm ? betSteer(arm.bet, arm.arm, frames) : undefined;
   const { step, warnings } = await draftEmail(
     ctx,
     {
@@ -680,8 +693,9 @@ async function runCold(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account
       step: 1,
       sendOn: todayISO(),
       thread: "new",
-      frames: referrer ? ["referral", ...frames] : frames,
-      extra: referrer ? referralBlock(ws, referrer, person, a.referralQuote) : undefined,
+      frames: referrer ? ["referral", ...frames] : (steer?.frames ?? frames),
+      extra: referrer ? referralBlock(ws, referrer, person, a.referralQuote) : steer?.block,
+      bet: arm ? { id: arm.bet.id, arm: arm.arm } : undefined,
     },
     "cold",
   );
@@ -730,6 +744,9 @@ async function runAlternate(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, ac
   const usedEvidence = new Set([first, ...pkg.alternates].flatMap((s) => s.evidenceIds));
   const evidence = evidenceFor(ws, account, angle, usedEvidence);
   const sameAngle = used.has(angle.id);
+  // A different angle for a bet draft stays in the same arm, so swapping it in keeps the bet balanced.
+  const bet = activeBet(ws, todayISO());
+  const steer = first.bet && steerable(bet) && bet.id === first.bet.id ? betSteer(bet, first.bet.arm, allowedFrames(ws, person, 1)) : undefined;
   const { step } = await draftEmail(
     ctx,
     {
@@ -742,10 +759,16 @@ async function runAlternate(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, ac
       step: 1,
       sendOn: first.sendOn,
       thread: "new",
-      frames: allowedFrames(ws, person, 1),
-      extra: sameAngle
-        ? `<rewrite>Same angle, new draft: open a different way and use a different POV than before. Not a paraphrase.</rewrite>\n<previous_draft>\n${first.body}\n</previous_draft>`
-        : `<different_angle>This replaces a draft built on another angle. Don't reuse its opening or question.</different_angle>\n<previous_draft>\n${first.body}\n</previous_draft>`,
+      frames: steer?.frames ?? allowedFrames(ws, person, 1),
+      extra: [
+        sameAngle
+          ? `<rewrite>Same angle, new draft: open a different way and use a different POV than before. Not a paraphrase.</rewrite>\n<previous_draft>\n${first.body}\n</previous_draft>`
+          : `<different_angle>This replaces a draft built on another angle. Don't reuse its opening or question.</different_angle>\n<previous_draft>\n${first.body}\n</previous_draft>`,
+        steer?.block,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      bet: steer ? first.bet : undefined,
     },
     "cold",
   );

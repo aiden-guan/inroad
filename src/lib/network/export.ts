@@ -2,6 +2,7 @@ import "server-only";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type OutreachPackage, type Workspace } from "@/lib/domain/types";
 import { isSuppressed } from "@/lib/hub/records";
+import { touchTags } from "@/lib/learning/tags";
 import { capUsage } from "@/lib/quality/gates";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { toCsv } from "./csv";
@@ -183,6 +184,7 @@ export async function exportSequencer(packageIds: string[]): Promise<{ csv: stri
         }
         pkg.pushedTo = [...(pkg.pushedTo ?? []), { integrationId: "csv", at }];
         const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+        const firstStep = pkg.steps.find((s) => s.step === 1);
         ws.activities.push({
           id: newId("act"),
           at,
@@ -195,6 +197,7 @@ export async function exportSequencer(packageIds: string[]): Promise<{ csv: stri
           angleId: pkg.angleId,
           summary: `Exported ${pkg.steps.length > 1 ? `${pkg.steps.length} steps` : "a draft"} for ${person?.name ?? pkg.accountDomain} to a sequencer CSV`,
           source: "csv",
+          ...(firstStep ? touchTags(ws, pkg, firstStep, at) : {}),
         });
       }
       return { csv, fileName: `inroad-sequencer-${todayISO()}.csv`, rows: kept.length, skipped: pkgs.length - kept.length };

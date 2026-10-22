@@ -668,6 +668,33 @@ export interface DraftStep {
   credentialClaimId?: ID;
   /** Hidden critic verdict. Telemetry only; never shown to the founder. */
   critic?: DraftCritic;
+  /** The why-now signal type this step rests on (from its angle's evidence), stamped at draft time for the reviews. */
+  signalType?: SignalType;
+  /** The message-bet arm this draft was written for (cold first touches while a bet runs). */
+  bet?: BetArm;
+}
+
+/** One arm of a running message bet: the proposal id that started it, and which side this draft or send is on. */
+export interface BetArm {
+  id: ID;
+  arm: "control" | "variant";
+}
+
+/**
+ * What one message bet varies (SPEC §6 MessageBet.variable). Writing variables steer the draft; targeting
+ * variables (persona, signal, channel) are matched from the send's tags, since they're about who and why, not words.
+ */
+export type BetDimension = "angle" | "frame" | "subject_style" | "cta" | "pov" | "persona" | "signal" | "channel";
+
+/** How a sent touch was written, so the learning reviews compare real sends (SPEC §6 Activity.tags). */
+export interface TouchTags {
+  frame?: DraftFrame;
+  povId?: ID;
+  credentialClaimId?: ID;
+  persona?: PersonaRole;
+  /** Does the subject name the trigger (their news), the problem, or neither. */
+  subjectStyle?: "trigger" | "problem" | "other";
+  bet?: BetArm;
 }
 
 /** Blind pairwise critic (Haiku): would a busy buyer reply, versus a reference email that got replies? */
@@ -910,6 +937,8 @@ export interface Activity {
   /** Touches only: what the founder marked in "Check replies" (R/N/B/U). Unset = not checked yet. */
   outcome?: "replied" | "no_reply" | "bounced" | "not_sent";
   outcomeAt?: ISODateTime;
+  /** Touches: frame, POV, persona, subject style and message-bet arm, stamped when it was sent. */
+  tags?: TouchTags;
 }
 
 export type SkipReason = "not_relevant_now" | "wrong_person" | "weak_angle" | "already_handled" | "tone_off" | "other";
@@ -994,7 +1023,9 @@ export interface ReviewProposal {
   nurtureUntil?: ISODate;
   text?: string; // the POV / objection / phrase to add
   objectionCategory?: ObjectionCard["category"];
-  bet?: { variable: string; control: string; variant: string; why: string };
+  bet?: { variable: string; control: string; variant: string; why: string; dimension?: BetDimension; controlKey?: string; variantKey?: string };
+  /** A started message bet's verdict from a monthly review. Code keeps it "inconclusive" below 100 sends per arm. */
+  betReadout?: { verdict: "keep" | "drop" | "inconclusive"; notes: string; at: ISODateTime };
   /** A "note" that is the week's optional post draft (Today offers it the following week). */
   post?: boolean;
   status: "open" | "applied" | "dismissed";
