@@ -50,9 +50,13 @@ describe("toAgentError", () => {
 describe("droppableFeatures", () => {
   it("names the optional feature a rejection points at, and nothing for rejections compat mode can't fix", () => {
     const of = (message: string, status = 400) => droppableFeatures(apiError(status, "invalid_request_error", message));
-    expect(of("Unexpected value(s) `server-side-fallback-2026-07-01` for the `anthropic-beta` header.")).toEqual(["betas"]);
-    expect(of("fallbacks: Extra inputs are not permitted")).toEqual(["betas"]);
-    expect(of("thinking.block_binding: Extra inputs are not permitted")).toEqual(["betas"]);
+    // Each beta on its own: rejecting the fallback never takes the thinking binding with it.
+    expect(of("Unexpected value(s) `server-side-fallback-2026-07-01` for the `anthropic-beta` header.")).toEqual(["fallback"]);
+    expect(of("fallbacks: Extra inputs are not permitted")).toEqual(["fallback"]);
+    expect(of("Unexpected value(s) `thinking-binding-controls-2026-08-01` for the `anthropic-beta` header.")).toEqual(["binding"]);
+    expect(of("thinking.block_binding: Extra inputs are not permitted")).toEqual(["binding"]);
+    // A beta header the message doesn't name: both.
+    expect(of("anthropic-beta: invalid header value")).toEqual(["fallback", "binding"]);
     expect(of("tools.0.custom.strict: strict mode is not available for this tool schema")).toEqual(["strict"]);
     expect(of("tools.2.custom.input_schema: additionalProperties must be false")).toEqual(["strict"]);
     expect(of("Your credit balance is too low to access the Anthropic API.")).toEqual([]);

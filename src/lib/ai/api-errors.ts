@@ -60,17 +60,21 @@ export function toAgentError(err: InstanceType<typeof Anthropic.APIError>, tier:
 export type { CompatFeature };
 
 const POINTS_AT: Record<CompatFeature, RegExp> = {
-  betas: /anthropic-beta|\bbetas?\b|fallbacks?\b|block_binding|prefix_mismatch|thinking\.binding/i,
+  fallback: /server-side-fallback|\bfallbacks?\b/i,
+  binding: /thinking-binding|block_binding|prefix_mismatch|thinking\.binding/i,
   strict: /\bstrict\b|input_schema|additionalProperties|eager_input_streaming/i,
 };
 
 /**
- * Which optional features a 400 points at, so compat mode retries only what dropping a feature can fix.
- * Billing, size and every other rejection return [] and fail as they are.
+ * Which optional features a 400 points at, so compat mode retries only what dropping a feature can fix:
+ * a rejected fallback beta leaves the thinking binding on, and the other way round. A beta header the
+ * message doesn't name drops both. Billing, size and every other rejection return [] and fail as they are.
  */
 export function droppableFeatures(err: InstanceType<typeof Anthropic.APIError>): CompatFeature[] {
   if (!(err instanceof Anthropic.BadRequestError)) return [];
   const { message } = apiErrorParts(err);
   if (/credit balance|organization|prompt is too long|too many tokens/i.test(message)) return [];
-  return (Object.keys(POINTS_AT) as CompatFeature[]).filter((f) => POINTS_AT[f].test(message));
+  const named = (Object.keys(POINTS_AT) as CompatFeature[]).filter((f) => POINTS_AT[f].test(message));
+  if (!named.includes("fallback") && !named.includes("binding") && /anthropic-beta|\bbetas?\b/i.test(message)) return [...named, "fallback", "binding"];
+  return named;
 }

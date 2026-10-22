@@ -103,13 +103,25 @@ export interface UsageReport {
    * Runs this month in compatibility mode: the API rejected an optional feature and the run went without
    * it (no refusal fallbacks, or no strict output). Null when every run had everything.
    */
-  compat: { runs: number; features: ("betas" | "strict")[]; lastAt: string; reason: string } | null;
+  compat: { runs: number; features: CompatLeftOut[]; lastAt: string; reason: string } | null;
 }
 
+type CompatLeftOut = NonNullable<NonNullable<RunSummary["receipt"]>["compat"]>["features"][number];
+
 /** What compat mode left out, in the founder's words. */
-export const COMPAT_LABEL: Record<"betas" | "strict", string> = {
-  betas: "refusal fallbacks",
+export const COMPAT_LABEL: Record<CompatLeftOut, string> = {
+  fallback: "refusal fallbacks",
+  binding: "thinking-history binding",
   strict: "strict output checks",
+  betas: "refusal fallbacks and thinking-history binding",
+};
+
+/** What going without each one means for the founder. */
+export const COMPAT_EFFECT: Record<CompatLeftOut, string> = {
+  fallback: "a refused request won't be retried on another model",
+  binding: "an Ask follow-up after the playbook or the Web toggle changed may be turned down",
+  strict: "tool output isn't held to its schema by the API",
+  betas: "a refused request won't be retried on another model, and an Ask follow-up after a change may be turned down",
 };
 
 function monthOf(iso: string): string {

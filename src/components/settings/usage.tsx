@@ -14,7 +14,7 @@ import type { ModelTierName, RunStep, RunSummary, Workspace } from "@/lib/domain
 import { ease } from "@/lib/motion";
 import { productHealth } from "@/lib/quality/telemetry";
 import { Callout, Group, Row, SettingsSection, TextSetting } from "./parts";
-import { COMPAT_LABEL, cost, ROUTING, SEARCH_PRICE, TIER_LABEL, tokens, usageReport, workflowLabel, type UsageReport } from "./usage-model";
+import { COMPAT_EFFECT, COMPAT_LABEL, cost, ROUTING, SEARCH_PRICE, TIER_LABEL, tokens, usageReport, workflowLabel, type UsageReport } from "./usage-model";
 
 type Dispatch = (actions: Action | Action[]) => Promise<boolean>;
 
@@ -109,7 +109,7 @@ function CompatHealth({ report, now }: { report: UsageReport; now: number }) {
   return (
     <Callout tone="warning" title={`${plural(c.runs, "run")} this month went without ${missing}.`}>
       The Anthropic API turned down an optional feature, so I retried without it rather than stop. Results are still checked in code, but
-      {c.features.includes("betas") ? " a refused request won't be retried on another model" : " tool output isn't held to its schema by the API"}. This usually
+      {` ${c.features.map((f) => COMPAT_EFFECT[f]).join("; ")}`}. This usually
       means an Anthropic beta changed, and updating Inroad fixes it. Last seen {relativeTime(c.lastAt, now)}.
       {c.reason ? <span className="mt-1 block font-mono text-[11.5px] text-fg-3 [overflow-wrap:anywhere]">{c.reason.slice(0, 200)}</span> : null}
     </Callout>

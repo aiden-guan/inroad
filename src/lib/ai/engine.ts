@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getAnthropicClient } from "./client";
@@ -23,25 +24,41 @@ export { AgentError };
  *   and a submit that keeps breaking its caps gets at most two resubmissions
  */
 
-/** Optional request features. If the API rejects one we retry without it (compat mode). */
-const OPTIONAL_BETAS: Anthropic.Beta.AnthropicBeta[] = [
-  "server-side-fallback-2026-07-01",
-  "thinking-binding-controls-2026-08-01",
-];
+/** Optional request features, each with its own beta. If the API rejects one we retry without it (compat mode). */
+const FALLBACK_BETA: Anthropic.Beta.AnthropicBeta = "server-side-fallback-2026-07-01";
+const BINDING_BETA: Anthropic.Beta.AnthropicBeta = "thinking-binding-controls-2026-08-01";
+
+/** How long a rejection is remembered before a run tries the feature again (a beta may have been fixed). */
+export const COMPAT_RETRY_MS = 60 * 60_000;
 
 /**
- * Features the API rejected, remembered for the life of the process: every later run leaves them out
- * from its first request instead of sending a request that's bound to fail. Each run that ran without
- * one says so on its receipt (Settings → Usage shows a health warning).
+ * Features the API rejected, remembered for an hour and for the key that was rejected: later runs leave
+ * them out from their first request instead of sending a request that's bound to fail, a new key starts
+ * clean, and after the hour a run tries again. Each run that ran without one says so on its receipt
+ * (Settings → Usage shows a health warning).
  */
 const rejected = (() => {
-  const g = globalThis as unknown as { __inroadCompat?: Map<CompatFeature, { at: string; message: string }> };
+  const g = globalThis as unknown as { __inroadCompat?: Map<CompatFeature, { at: string; message: string; key: string }> };
   g.__inroadCompat ??= new Map();
   return g.__inroadCompat;
 })();
 
+/** Which credentials a rejection belongs to, without keeping them. */
+function keyPrint(client: Anthropic): string {
+  return createHash("sha256")
+    .update(String(client.apiKey ?? client.authToken ?? ""))
+    .digest("hex")
+    .slice(0, 12);
+}
+
+/** The rejections that still apply to this key: older than an hour, or another key's, are forgotten. */
+function stillRejected(key: string, now = Date.now()): Set<CompatFeature> {
+  for (const [f, v] of rejected) if (v.key !== key || now - Date.parse(v.at) >= COMPAT_RETRY_MS) rejected.delete(f);
+  return new Set(rejected.keys());
+}
+
 export function compatState(): { feature: CompatFeature; at: string; message: string }[] {
-  return [...rejected.entries()].map(([feature, v]) => ({ feature, ...v }));
+  return [...rejected.entries()].map(([feature, v]) => ({ feature, at: v.at, message: v.message }));
 }
 
 /** Tests only: forget rejected features. */
@@ -214,7 +231,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   let answerStart = 0;
   let result: T | undefined;
   let stopReason: string | null = null;
-  const dropped = new Set<CompatFeature>(rejected.keys());
+  const key = keyPrint(client);
+  const dropped = stillRejected(key);
   let jsonRetries = 0;
   let pauses = 0;
   let nudges = 0;
@@ -232,13 +250,16 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
 
-      const noBetas = dropped.has("betas");
+      // Each optional feature goes with its own beta, so one rejected never takes the other with it.
+      const fallback = supportsFallback && !dropped.has("fallback");
+      const binding = !dropped.has("binding");
+      const betas = [...(fallback ? [FALLBACK_BETA] : []), ...(binding ? [BINDING_BETA] : [])];
       const params: Anthropic.Beta.Messages.MessageCreateParams = {
         model,
         max_tokens: maxTokens,
-        thinking: noBetas
-          ? { type: "adaptive", display: "summarized" }
-          : { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } },
+        thinking: binding
+          ? { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } }
+          : { type: "adaptive", display: "summarized" },
         output_config: { effort: opts.effort ?? "medium" },
         system: systemBlocks,
         // Automatic caching: the breakpoint follows the last block each turn, so turn N reads what
@@ -248,11 +269,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         cache_control: opts.cacheTtl === "1h" && !hasShorterMarker(messages) ? marker : { type: "ephemeral" },
         tools: tools.length ? (dropped.has("strict") ? [...buildTools(false), ...tools.slice(appTools.length)] : tools) : undefined,
         messages,
-        ...(noBetas
-          ? {}
-          : supportsFallback
-            ? { betas: OPTIONAL_BETAS, fallbacks: "default" as const }
-            : { betas: OPTIONAL_BETAS.filter((b) => !b.startsWith("server-side-fallback")) }),
+        ...(betas.length ? { betas } : {}),
+        ...(fallback ? { fallbacks: "default" as const } : {}),
       };
 
       // Per-turn streaming state, keyed by content block index.
@@ -347,7 +365,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
           console.warn(`[agent] the API rejected ${fixable.join(" and ")}; retrying without (compat mode): ${message}`);
           for (const f of fixable) {
             dropped.add(f);
-            rejected.set(f, { at: new Date().toISOString(), message });
+            rejected.set(f, { at: new Date().toISOString(), message, key });
           }
           turn--;
           continue;
