@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { POST as startup } from "@/app/api/startup/route";
 import { updateConnections } from "@/lib/network/store";
+import { resetStarted } from "@/lib/server/startup";
 import { cached } from "@/lib/signals/cache";
 import { DIR_MODE, FILE_MODE, readDataFile, secureDataDir, writeDataFile } from "./data-file";
 import { DATA_DIR, writeSettings } from "./settings";
@@ -69,5 +71,18 @@ describe.runIf(posix)("owner-only data files", () => {
     // Nothing left to change the second time.
     expect(secureDataDir(dir).changed).toBe(0);
     expect(secureDataDir(path.join(DATA_DIR, "missing")).changed).toBe(0);
+  });
+
+  it("tightens the data folder once per server, when the launcher reports the server is up", async () => {
+    resetStarted();
+    const file = path.join(DATA_DIR, "hub.json");
+    fs.writeFileSync(file, "{}", { mode: 0o644 });
+    fs.chmodSync(file, 0o644);
+    expect((await startup()).status).toBe(200);
+    expect(modeOf(file)).toBe(FILE_MODE);
+    // Once per server: a second call doesn't walk the folder again.
+    fs.chmodSync(file, 0o644);
+    await startup();
+    expect(modeOf(file)).toBe(0o644);
   });
 });
