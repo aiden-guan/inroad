@@ -163,27 +163,30 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
     })
   ).value;
 
+  // The same people among the founder's LinkedIn connections, by email or profile URL (SPEC W2 step 5),
+  // recorded in the batch so undoing it takes those tags off too.
+  if (matched.length) {
+    for (const t of await tagMatchingConnections(matched)) batch.filled.push({ kind: "connection", id: t.id, field: "tag", value: t.tag });
+  }
   await mutateNetwork((n) => {
     n.imports.unshift(batch);
   });
-  // The same people among the founder's LinkedIn connections, by email or profile URL (SPEC W2 step 5).
-  if (matched.length) await tagMatchingConnections(matched);
   return batch;
 }
 
-/** Tags connections that are the same person as a signup, user or customer row. Returns how many changed. */
-export async function tagMatchingConnections(people: { email?: string; linkedin?: string; tag: RelationshipTag }[]): Promise<number> {
+/** Tags connections that are the same person as a signup, user or customer row. Returns the tags it added. */
+export async function tagMatchingConnections(people: { email?: string; linkedin?: string; tag: RelationshipTag }[]): Promise<{ id: string; tag: RelationshipTag }[]> {
   const byEmail = new Map(people.filter((p) => p.email).map((p) => [p.email!, p.tag]));
   const byUrl = new Map(people.filter((p) => p.linkedin).map((p) => [linkedinKey(p.linkedin), p.tag]));
   return updateConnections((rows) => {
-    let n = 0;
+    const added: { id: string; tag: RelationshipTag }[] = [];
     for (const r of rows) {
       const tag = (r.email && byEmail.get(r.email.toLowerCase())) || (r.url && byUrl.get(linkedinKey(r.url)));
       if (!tag || r.tags?.includes(tag)) continue;
       r.tags = [...(r.tags ?? []), tag];
-      n++;
+      added.push({ id: r.id, tag });
     }
-    return n;
+    return added;
   });
 }
 
@@ -248,6 +251,7 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
         removedAccounts++;
       }
       for (const f of batch.filled) {
+        if (f.kind === "connection") continue; // connections.json, below
         if (f.kind === "account") {
           const acc = ws.accounts[f.id];
           if (!acc) continue;
@@ -270,6 +274,19 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
       return { removedPeople, removedAccounts, kept };
     })
   ).value;
+
+  // Tags this import put on the founder's LinkedIn connections ("signed up", "customer").
+  const tagged = batch.filled.filter((f) => f.kind === "connection");
+  if (tagged.length) {
+    await updateConnections((rows) => {
+      for (const f of tagged) {
+        const r = rows.find((x) => x.id === f.id);
+        if (!r?.tags) continue;
+        r.tags = r.tags.filter((t) => t !== f.value);
+        if (!r.tags.length) delete r.tags;
+      }
+    });
+  }
 
   const undoneAt = nowISO();
   const updated = await mutateNetwork((n) => {
