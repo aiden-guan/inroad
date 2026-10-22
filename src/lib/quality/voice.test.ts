@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { VoiceCard } from "@/lib/domain/types";
+import { applyAction } from "@/lib/domain/actions";
 import { at, makeWorkspace } from "@/test/factories";
-import { editDistance, extractTraits, extractVoice, learnFromEdit, noteToneOff, traitLines } from "./voice";
+import { editDistance, extractTraits, extractVoice, learnFromEdit, noteToneOff, signOffOf, traitLines } from "./voice";
 
 const casual = [
   "Subject: your close\n\nHi Dana,\n\nSaw the posting for a billing analyst. We've built the reconciliation piece three times now. It's always the same script. Does yours run in Python or in the warehouse?",
@@ -53,6 +54,25 @@ describe("extractTraits", () => {
     expect(t.subjectStyle).toBe("lowercase");
   });
 
+  it("learns the sign-off they use, and doesn't read its dash as a habit or its name as a sentence", () => {
+    const signed = casual.map((text) => `${text}\n\n— Priya`);
+    const t = extractTraits({ samples: signed.map((text) => ({ text, kind: "email" })), edits: [], toneOff: [] });
+    const unsigned = extractTraits({ samples: casual.map((text) => ({ text, kind: "email" })), edits: [], toneOff: [] });
+    expect(t.signOff).toBe("— Priya");
+    expect(t.punctuationHabits).not.toContain("Uses em dashes");
+    expect(t.avgSentenceWords).toBe(unsigned.avgSentenceWords);
+    // One message isn't a habit.
+    expect(extractTraits({ samples: [{ text: signed[0], kind: "email" }], edits: [], toneOff: [] }).signOff).toBeUndefined();
+  });
+
+  it("knows a sign-off from a last sentence", () => {
+    expect(signOffOf("Dana, short note.\n\nThanks, Priya")).toBe("Thanks, Priya");
+    expect(signOffOf("Dana, short note.\n\n-- P")).toBe("-- P");
+    expect(signOffOf("Dana, short note.\n\nIs close still a spreadsheet?")).toBeUndefined();
+    expect(signOffOf("Dana, short note.\n\nWe should talk soon about the close")).toBeUndefined();
+    expect(signOffOf("— Priya")).toBeUndefined();
+  });
+
   it("leaves out what it can't tell", () => {
     expect(extractTraits({ samples: [], edits: [], toneOff: [] })).toEqual({ usesWords: [], avoidsWords: [], punctuationHabits: [] });
   });
@@ -71,6 +91,21 @@ describe("the card", () => {
     delete v.suggested;
     extractVoice(v, at(0));
     expect(v.suggested).toBeUndefined();
+  });
+
+  it("puts an accepted sign-off on the card, and doesn't suggest it again", () => {
+    const ws = makeWorkspace();
+    for (const text of casual) applyAction(ws, { type: "voice.addSample", text: `${text}\n\n— Priya`, kind: "email", at: at(0) });
+    expect(ws.voice?.suggested?.signOff).toBe("— Priya");
+    expect(traitLines(ws.voice?.suggested, "you")).toContain("You sign off with “— Priya”.");
+    const traits = { ...ws.voice!.suggested! } as Partial<NonNullable<VoiceCard["suggested"]>>;
+    delete traits.at;
+    delete traits.basis;
+    applyAction(ws, { type: "voice.setTraits", traits, at: at(0) });
+    expect(ws.voice?.signOff).toBe("— Priya");
+    expect(ws.voice?.traits?.signOff).toBeUndefined();
+    applyAction(ws, { type: "voice.extract", at: at(0) });
+    expect(ws.voice?.suggested).toBeUndefined();
   });
 
   it("keeps the last 20 edits and ignores sends that weren't edited", () => {

@@ -323,7 +323,10 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "voice.setTraits": {
       ws.voice ??= emptyVoice(action.at);
-      ws.voice.traits = action.traits;
+      // A learned sign-off is the card's sign-off, the one the composer appends; it isn't a trait drafts follow.
+      const { signOff, ...traits } = action.traits;
+      if (signOff) ws.voice.signOff = signOff.slice(0, 80);
+      ws.voice.traits = traits;
       delete ws.voice.suggested;
       ws.voice.updatedAt = action.at;
       return;

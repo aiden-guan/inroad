@@ -197,7 +197,7 @@ function LearnedTraits() {
                   variant="primary"
                   onClick={() => {
                     void dispatch({ type: "voice.setTraits", traits: withoutMeta(suggested), at: nowISO() });
-                    toast("Kept. Drafts follow these from now on.");
+                    toast(suggested.signOff ? `Kept. Drafts follow these from now on, signed “${suggested.signOff}”.` : "Kept. Drafts follow these from now on.");
                   }}
                 >
                   Use these
@@ -242,6 +242,9 @@ function LearnedTraits() {
         </Trait>
         <Trait label="Words you cut from drafts" wide>
           <TagList items={traits.avoidsWords ?? []} label="word you cut" placeholder="Add a word" onChange={(avoidsWords) => set({ avoidsWords })} />
+        </Trait>
+        <Trait label="Habits" wide>
+          <TagList items={traits.punctuationHabits ?? []} label="habit" placeholder="Add one, like “No exclamation marks”" onChange={(punctuationHabits) => set({ punctuationHabits })} />
         </Trait>
       </div>
 

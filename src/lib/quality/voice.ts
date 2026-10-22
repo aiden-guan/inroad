@@ -57,9 +57,28 @@ const GREETING = [
   { re: /^\s*[A-Z][a-z'-]+\s*,/, value: "first_name" as const },
 ];
 
+/**
+ * A sign-off on the message's last line: short, no sentence punctuation, and either a dash and a name ("— Priya"),
+ * or a closing word and a name ("Thanks, Priya"). A last line that's a sentence isn't one.
+ */
+const CLOSER = /^(best|thanks|thank you|cheers|regards|kind regards|warmly|talk soon|all the best)\b/i;
+export function signOffOf(text: string): string | undefined {
+  const lines = text.replace(/\r/g, "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const last = lines.at(-1);
+  if (!last || lines.length < 2 || /[.?!:;]$/.test(last) || words(last).length > 4 || last.length > 40) return undefined;
+  if (/^[—–-]{1,2}\s*\S/.test(last) || (CLOSER.test(last) && /,\s*\S/.test(last))) return last;
+  return undefined;
+}
+
 /** The message without a "Subject:" line, a greeting line or a sign-off, for counting sentences. */
-function bodyOf(text: string): { subject?: string; greeting?: VoiceTraits["greeting"]; body: string } {
+function bodyOf(text: string): { subject?: string; greeting?: VoiceTraits["greeting"]; body: string; signOff?: string } {
+  const signOff = signOffOf(text);
   let lines = text.replace(/\r/g, "").split("\n");
+  // The sign-off isn't a sentence, and its dash isn't a punctuation habit.
+  if (signOff) {
+    const i = lines.map((l) => l.trim()).lastIndexOf(signOff);
+    if (i !== -1) lines = lines.slice(0, i);
+  }
   let subject: string | undefined;
   if (/^\s*subject:/i.test(lines[0] ?? "")) {
     subject = lines[0].replace(/^\s*subject:\s*/i, "").trim();
@@ -70,7 +89,7 @@ function bodyOf(text: string): { subject?: string; greeting?: VoiceTraits["greet
   const greeting = GREETING.find((g) => g.re.test(firstLine))?.value ?? (firstLine.trim() ? "none" : undefined);
   // A greeting on its own line ("Hi Dana,") isn't a sentence; one that runs into the text ("Dana, your post…") is.
   if (greeting && greeting !== "none" && /,\s*$/.test(firstLine.trim())) lines = lines.slice(1);
-  return { subject, greeting, body: lines.join("\n") };
+  return { subject, greeting, body: lines.join("\n"), signOff };
 }
 
 function sentenceLengths(body: string): number[] {
@@ -117,8 +136,10 @@ const CONTRACTION = /\b\w+(n't|'re|'ll|'ve|'m|'d)\b|\b(it|that|there|here|what|w
 
 /** Traits from the founder's own text: samples first, then what they sent after editing a draft. */
 export function extractTraits(input: { samples: VoiceCard["samples"]; edits: NonNullable<VoiceCard["edits"]>; toneOff: string[] }): VoiceTraits {
-  const texts = [...input.samples.map((s) => s.text), ...input.edits.map((e) => e.after)].map((t) => t.replace(/’/g, "'"));
-  const parsed = texts.map(bodyOf);
+  const raw = [...input.samples.map((s) => s.text), ...input.edits.map((e) => e.after)].map((t) => t.replace(/’/g, "'"));
+  const parsed = raw.map(bodyOf);
+  // Everything below reads the founder's words: subject, greeting and body, without the sign-off line.
+  const texts = parsed.map((p) => [p.subject && `Subject: ${p.subject}`, p.body].filter(Boolean).join("\n\n"));
   const lengths = parsed.flatMap((p) => sentenceLengths(p.body));
   const subjects = [...parsed.map((p) => p.subject), ...input.edits.map((e) => e.subjectAfter ?? undefined)].filter((s): s is string => !!s);
   const emails = [...input.samples.filter((s) => s.kind === "email").map((s) => bodyOf(s.text)), ...input.edits.map((e) => bodyOf(e.after))];
@@ -148,6 +169,10 @@ export function extractTraits(input: { samples: VoiceCard["samples"]; edits: Non
     if (emails.length && endsOnQuestion * 2 >= emails.length) habits.push("Ends on a question");
   }
 
+  // The same sign-off on at least two of their own messages.
+  const signOffs = parsed.map((p) => p.signOff).filter((x): x is string => !!x);
+  const signOff = majority(signOffs);
+
   const traits: VoiceTraits = {
     avgSentenceWords: avg,
     contractions,
@@ -157,6 +182,7 @@ export function extractTraits(input: { samples: VoiceCard["samples"]; edits: Non
     avoidsWords: [...new Set([...removed, ...offWords])].slice(0, 10),
     formality: texts.length ? (formality as VoiceTraits["formality"]) : undefined,
     punctuationHabits: habits,
+    signOff: signOff && signOffs.filter((x) => x === signOff).length >= 2 ? signOff : undefined,
   };
   for (const k of Object.keys(traits) as (keyof VoiceTraits)[]) if (traits[k] === undefined) delete traits[k];
   return traits;
@@ -175,6 +201,8 @@ const same = (a: VoiceTraits | undefined, b: VoiceTraits | undefined) => JSON.st
 export function extractVoice(v: VoiceCard, at: string): void {
   if (!v.samples.length && !v.edits?.length) return;
   const traits = extractTraits({ samples: v.samples, edits: v.edits ?? [], toneOff: (v.toneOff ?? []).map((t) => t.text) });
+  // The sign-off lives on the card itself; one it already uses isn't news.
+  if (traits.signOff && traits.signOff === v.signOff.trim()) delete traits.signOff;
   v.editsSinceExtract = 0;
   v.samplesSinceExtract = 0;
   if (same(traits, v.traits)) {
@@ -230,5 +258,6 @@ export function traitLines(t: VoiceTraits | undefined, to: "they" | "you" = "the
     t.avoidsWords?.length && `Words ${to} cut from drafts (never use): ${t.avoidsWords.join(", ")}.`,
     t.formality !== undefined && `Formality ${t.formality} of 5.`,
     t.punctuationHabits?.length && `${t.punctuationHabits.join(". ")}.`,
+    t.signOff && `${you ? "You sign" : "Signs"} off with “${t.signOff}”.`,
   ].filter((x): x is string => typeof x === "string");
 }
