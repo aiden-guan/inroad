@@ -46,7 +46,9 @@ export async function addKnownUsers(input: { users: KnownUser[]; kind: KnownUser
       const out: AddKnownResult["added"] = [];
       for (const u of placed) {
         const account: Account = accountFor(ws, u) ?? ensureAccount(ws, { domain: u.domain, name: u.name }, { source: "manual", sourceDetail: "You named them as your users", at, tag }).account;
-        // A customer is never a prospect again, and the tag says how they know the product.
+        // A customer is never a prospect again, and the tag says how they know the product. A prospect
+        // already on file becomes a customer today, not on the day discovery found it.
+        if (account.status !== "customer") account.customerAt = at;
         account.status = "customer";
         account.watch = false;
         if (!(account.tags ?? []).includes(tag)) account.tags = [...(account.tags ?? []), tag];

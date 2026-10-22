@@ -232,7 +232,7 @@ export function customerRows(ws: Workspace): CustomerRow[] {
     ...won.map((d) => ({ key: d.id, domain: d.accountDomain, since: stageEnteredAt(d), deal: d })),
     ...Object.values(ws.accounts)
       .filter((a) => a.status === "customer" && !wonDomains.has(a.domain))
-      .map((a) => ({ key: a.domain, domain: a.domain, since: a.addedAt })),
+      .map((a) => ({ key: a.domain, domain: a.domain, since: a.customerAt ?? a.addedAt })),
   ].sort((a, b) => b.since.localeCompare(a.since));
 }
 

@@ -557,6 +557,8 @@ export interface Account {
   suggestedTitle?: string;
   /** Where discovery found it (YC profile, a competitor's customer page, a search result). */
   sourceUrl?: string;
+  /** When it became a customer without a won deal (the founder named it, or a customers list). A won deal's date wins. */
+  customerAt?: ISODateTime;
 }
 
 export interface ContactPath {
