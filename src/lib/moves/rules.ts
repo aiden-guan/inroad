@@ -26,6 +26,7 @@ import {
   stageMult,
   topSignal,
 } from "./util";
+import { CUSTOMER_REFERRAL, customerReferralMoves } from "./customer-referrals";
 
 /**
  * The moves engine. Deterministic rules over workspace state produce every card on Today:
@@ -58,6 +59,7 @@ const RULES = {
   intro_check_how: { base: 42, label: "Two weeks after an intro you made" },
   intro_thank: { base: 40, label: "A connector passed; thank them for checking" },
   intro_let_go: { base: 34, label: "Quiet after the one nudge" },
+  customer_referral: CUSTOMER_REFERRAL,
   review_friday: { base: 56, label: "Friday learning review" },
   single_threaded: { base: 55, label: "Qualified or later with one contact" },
   unpaid: { base: 55, label: "Unpaid pilot past 30 days" },
@@ -121,6 +123,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   deals(ctx);
   firstTouches(ctx);
   warmPaths(ctx);
+  ctx.out.push(...customerReferralMoves(ws, today));
   introFollowThrough(ctx);
   setup(ctx);
   events(ctx);

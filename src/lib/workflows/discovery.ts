@@ -553,7 +553,7 @@ const squash = (s: string) => normalizeCompanyName(s).replace(/\b(technologies|t
  * the YC directory, a hint the source gave (a job-board slug), then name.com and name.io, each kept
  * only when the homepage's own name matches. No match → null, never a guess.
  */
-async function resolveDomain(name: string, dir: YcCompany[], hints: string[] = []): Promise<{ domain: string; yc?: YcCompany; basics?: SiteBasics } | null> {
+export async function resolveDomain(name: string, dir: YcCompany[], hints: string[] = []): Promise<{ domain: string; yc?: YcCompany; basics?: SiteBasics } | null> {
   const y = ycByName(dir, name);
   if (y) return { domain: y.domain, yc: y };
   const stem = squash(name);

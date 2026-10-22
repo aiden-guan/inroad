@@ -3,6 +3,7 @@
 import { ArrowUpRight, Check, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode, type Ref } from "react";
+import { ReferralAsk } from "@/components/companies/list/referral-ask";
 import { DraftView } from "@/components/compose/composer";
 import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
@@ -314,6 +315,10 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
         </div>
       );
     }
+    case "customer_referral":
+      // The note is written in code; recording that it went closes the card.
+      if (!domain || !ws.accounts[domain]) break;
+      return <ReferralAsk ws={ws} domain={domain} onClose={onComplete} inline />;
     case "discover":
       return (
         <div className="space-y-3">

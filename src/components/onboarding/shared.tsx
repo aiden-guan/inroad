@@ -74,10 +74,10 @@ export function runSummary(ws: Workspace, id: string | undefined): RunSummary | 
   return id ? ws.runs.find((r) => r.id === id) : undefined;
 }
 
-/** The order discovery ranks in: fit × (1 + whyNow / 2), tier first. */
+/** The order discovery ranks in: fit × (1 + whyNow / 2), tier first. Customers (the users the founder named) are never prospects. */
 export function rankAccounts(accounts: Account[]): Account[] {
   const tier = { A: 0, B: 1, C: 2 } as const;
-  return [...accounts].sort(
+  return accounts.filter((a) => a.status !== "customer").sort(
     (a, b) => tier[a.tier] - tier[b.tier] || b.fitScore * (1 + b.whyNowScore / 2) - a.fitScore * (1 + a.whyNowScore / 2) || a.addedAt.localeCompare(b.addedAt),
   );
 }
