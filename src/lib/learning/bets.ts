@@ -1,4 +1,4 @@
-import { todayISO } from "@/lib/domain/ids";
+import { newId, todayISO } from "@/lib/domain/ids";
 import type { Activity, BetArm, BetDimension, DraftFrame, ID, ISODate, PersonaRole, ReviewProposal, SignalType, Workspace } from "@/lib/domain/types";
 
 /**
@@ -209,4 +209,23 @@ export function betVerdict(readout: BetReadout, suggested: "keep" | "drop" | "in
 export function readoutLine(r: BetReadout): string {
   const arm = (label: string, c: ArmCounts) => `${label} ${c.sent} sent · ${c.replies} ${c.replies === 1 ? "reply" : "replies"} · ${c.positive} positive`;
   return `${arm("Control", r.control)}. ${arm("Variant", r.variant)}.`;
+}
+
+/**
+ * A review's proposed message bet, with its dimension and the code values arms are matched or forced by. A
+ * who-or-why bet (persona, signal, channel) that names no values can't be measured, so it isn't proposed.
+ */
+export function betProposal(b: { dimension: BetDimension; controlKey: string | null; variantKey: string | null; variable: string; control: string; variant: string; why: string }): ReviewProposal | null {
+  const controlKey = betKey(b.dimension, b.controlKey);
+  const variantKey = betKey(b.dimension, b.variantKey);
+  if (TARGETING_DIMENSIONS.includes(b.dimension) && (!controlKey || !variantKey || controlKey === variantKey)) return null;
+  const clean = (s: string) => s.replace(/!/g, ".").trim();
+  return {
+    id: newId("prop"),
+    kind: "message_bet",
+    title: `Next month's bet: ${clean(b.variable)}`,
+    detail: clean(b.why),
+    bet: { variable: clean(b.variable), control: clean(b.control), variant: clean(b.variant), why: clean(b.why), dimension: b.dimension, controlKey, variantKey },
+    status: "open",
+  };
 }

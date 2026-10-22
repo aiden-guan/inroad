@@ -10,14 +10,15 @@ import { Markdown } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
 import { nowISO } from "@/lib/domain/ids";
-import type { Brief, FounderQuestion, SegmentBet } from "@/lib/domain/types";
+import type { Brief, FoundationVersion, FounderQuestion, SegmentBet } from "@/lib/domain/types";
 import { BET_MIN_PER_ARM, DIMENSION_LABELS, betReadout, readoutLine, startedBets } from "@/lib/learning/bets";
 import { spring } from "@/lib/motion";
 import { usePlaybook } from "./context";
+import { RefreshBet, useReviseAfterAnswer } from "./refresh";
 import { plural } from "./model";
-import { FieldLabel, Section, Sub } from "./ui";
+import { FieldLabel, Section, Sub, undoable } from "./ui";
 
-const REVIEW_LABELS: Record<Brief["kind"], string> = { monday: "Pipeline review", friday: "Learning review", daily: "Daily brief" };
+const REVIEW_LABELS: Record<Brief["kind"], string> = { monday: "Pipeline review", friday: "Learning review", daily: "Daily brief", monthly: "Monthly review", refresh: "Bet refresh" };
 const VERDICTS: Record<NonNullable<SegmentBet["verdict"]>, string> = { keep: "Kept", adjust: "Adjusted", switch: "Switched" };
 const AFFECTS: Record<FounderQuestion["affects"][number], string> = { icp: "ICP", positioning: "Positioning", pricing: "Pricing", channel_plan: "Channels" };
 
@@ -34,7 +35,8 @@ export function JournalSection() {
       title="Journal"
       kicker={
         <p className="font-mono text-[11.5px] text-fg-3">
-          Playbook v{f.version} · first written {shortDate(f.generatedAt)} · confidence {f.confidence}
+          Playbook v{f.version} · first written {shortDate(f.generatedAt)}
+          {f.revisedAt && ` · revised ${shortDate(f.revisedAt)}`} · confidence {f.confidence}
         </p>
       }
     >
@@ -42,6 +44,7 @@ export function JournalSection() {
       <Reviews />
       <Bets />
       <MessageBets />
+      <Versions />
     </Section>
   );
 }
@@ -78,12 +81,14 @@ function Questions() {
 }
 
 function OpenQuestion({ q }: { q: FounderQuestion }) {
-  const { dispatch } = usePlaybook();
+  const { ws, dispatch } = usePlaybook();
+  const revise = useReviseAfterAnswer();
   const [answer, setAnswer] = useState("");
-  const save = () => {
+  const save = async () => {
     if (!answer.trim()) return;
-    void dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() });
-    toast("Saved. Every draft and review uses it from now on.");
+    if (!(await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() }))) return;
+    revise(q.id);
+    toast(ws.sample ? "Saved. Every draft and review uses it from now on." : "Saved. I'm checking whether it changes the bet; any change waits for you under Who.");
   };
   return (
     <div className="rounded-lg bg-surface p-4 ring-1 ring-border sm:p-5">
@@ -99,14 +104,14 @@ function OpenQuestion({ q }: { q: FounderQuestion }) {
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
-            save();
+            void save();
           }
         }}
         placeholder="A sentence or two is plenty"
         className="mt-3 min-h-16 text-[14px] leading-[21px]"
       />
       <div className="mt-2 flex justify-end">
-        <Button size="sm" variant="primary" kbd="⌘↵" disabled={!answer.trim()} onClick={save}>
+        <Button size="sm" variant="primary" kbd="⌘↵" disabled={!answer.trim()} onClick={() => void save()}>
           Save answer
         </Button>
       </div>
@@ -118,15 +123,16 @@ function OpenQuestion({ q }: { q: FounderQuestion }) {
 
 function Reviews() {
   const { ws } = usePlaybook();
-  const reviews = Object.values(ws.briefs)
-    .filter((b) => b.review?.trim())
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 26);
-  // A Monday and a Friday review can share a date (each kind is its own record), so key by both.
-  const keyOf = (b: (typeof reviews)[number]) => `${b.date}:${b.reviewKind ?? b.kind}`;
+  // Each review is its own record (a Monday and a Friday review, or two refreshes, can share a date): key by the record.
+  const reviews = Object.entries(ws.briefs)
+    .filter(([, b]) => b.review?.trim())
+    .sort(([, a], [, b]) => b.date.localeCompare(a.date) || b.generatedAt.localeCompare(a.generatedAt))
+    .slice(0, 26)
+    .map(([key, b]) => ({ ...b, key }));
+  const keyOf = (b: (typeof reviews)[number]) => b.key;
   const [open, setOpen] = useState<string | null>(reviews[0] ? keyOf(reviews[0]) : null);
   return (
-    <Sub id="reviews" title="Weekly reviews" hint="The Monday pipeline review and the Friday learning review, kept here so the reasoning behind each change stays visible.">
+    <Sub id="reviews" title="Reviews" hint="The Monday pipeline review, the Friday learning review, the monthly review and every bet refresh, kept here so the reasoning behind each change stays visible.">
       {reviews.length === 0 ? (
         <p className="text-[13px] leading-5 text-fg-3">Your first pipeline review lands on Monday, and the first learning review on Friday afternoon.</p>
       ) : (
@@ -143,7 +149,7 @@ function Reviews() {
                   className="flex w-full items-baseline gap-3 py-3 text-left transition-colors duration-150 hover:text-fg"
                 >
                   <span className="min-w-0 flex-1 font-serif text-[17px] leading-6 text-fg">{longDay(r.date)}</span>
-                  <span className="text-[12.5px] text-fg-3">{REVIEW_LABELS[r.kind]}</span>
+                  <span className="text-[12.5px] text-fg-3">{REVIEW_LABELS[r.reviewKind ?? r.kind]}</span>
                   <ChevronDown className={cn("size-4 shrink-0 self-center text-fg-3 transition-transform duration-200", isOpen && "rotate-180")} aria-hidden />
                 </button>
                 <motion.div initial={false} animate={{ height: isOpen ? "auto" : 0, opacity: isOpen ? 1 : 0 }} transition={spring.smooth} className="overflow-hidden">
@@ -236,6 +242,55 @@ function MessageBets() {
           })}
         </ol>
       )}
+    </Sub>
+  );
+}
+
+/* ───────────────────────────── Versions ───────────────────────────── */
+
+const VERSION_SOURCES: Record<FoundationVersion["source"], string> = { refresh: "Bet refresh", monthly: "Monthly review", restore: "Restore", rebuild: "Rewritten from your site" };
+
+function Versions() {
+  const { ws, f, dispatch } = usePlaybook();
+  const history = [...(ws.foundationHistory ?? [])].reverse();
+  const restore = (version: number) => {
+    const current = f.version;
+    void dispatch({ type: "foundation.restore", version, at: nowISO() });
+    undoable(`Restored v${version} as v${current + 1}.`, () => void dispatch({ type: "foundation.restore", version: current, at: nowISO() }));
+  };
+  return (
+    <Sub
+      id="versions"
+      title="Versions"
+      hint="Each refresh you accept starts a new version, and the one it replaced is kept (the last 10), so a change you regret is one click back."
+      right={<span className="font-mono text-[12px] tnum text-fg-3">now v{f.version}</span>}
+    >
+      {history.length === 0 ? (
+        <p className="mb-4 text-[13px] text-fg-3">No earlier versions yet. The first refresh you accept keeps this one here.</p>
+      ) : (
+        <ol className="mb-5 divide-y divide-border border-y border-border">
+          {history.map((v) => (
+            <li key={`${v.version}-${v.at}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="font-mono text-[11.5px] text-fg-3">
+                  v{v.version} · replaced {shortDate(v.at)} · {VERSION_SOURCES[v.source]}
+                </p>
+                {v.changes.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 text-[13px] leading-5 text-fg-2">
+                    {v.changes.slice(0, 6).map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <Button size="xs" variant="secondary" onClick={() => restore(v.version)}>
+                Restore v{v.version}
+              </Button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <RefreshBet ws={ws} compact />
     </Sub>
   );
 }

@@ -21,6 +21,7 @@ import type {
   Provenance,
   Workspace,
 } from "@/lib/domain/types";
+import { keepVersion } from "@/lib/playbook/revision";
 import { runSteps, startRun } from "@/lib/runs/registry";
 import { gatherSignals, type CompanySignals } from "@/lib/signals";
 import { TTL, cached, invalidate } from "@/lib/signals/cache";
@@ -946,7 +947,11 @@ export default defineWorkflow({
         ws.onboarding.sections = { ...ws.onboarding.sections, snapshot: nowISO() };
         ws.onboarding.status = "drafting";
       }
-      if ((firstRun && !resume) || !ws.foundation) ws.foundation = skeleton(ws, ws.foundation);
+      if ((firstRun && !resume) || !ws.foundation) {
+        // Rewriting the bet from the site again: the version it replaces stays restorable.
+        if (ws.foundation) keepVersion(ws, { version: ws.foundation.version, at: nowISO(), changes: ["Rewritten from your site"], source: "rebuild", runId: ctx.runId });
+        ws.foundation = skeleton(ws, ws.foundation);
+      }
       else if (resume) {
         // Kept sections stay; the code-filled parts follow the stage this read found.
         ws.foundation.channelPlan = channelPlan(ws, c.stage);

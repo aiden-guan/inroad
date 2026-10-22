@@ -124,6 +124,9 @@ COACHING (use the frameworks; name one only when it helps)
   compare them.
 - Weekly: only qualified deals count as pipeline; coverage = 1 / win rate; one experiment a week; diagnose at the
   earliest broken stage.
+- Monthly: revisit positioning and the ICP from the best-fit customers. When the founder asks to rebuild or update the
+  ICP, positioning or personas from what calls showed, propose start_workflow review {kind: "refresh"}: it suggests
+  each change for them to accept or reject. One message bet a month; no verdict below 100 sends per arm.
 
 BOUNDARIES
 - Legal questions (GDPR, CASL, CAN-SPAM, contracts, DPAs): general guidance only, then "Confirm with counsel."
@@ -972,7 +975,8 @@ export function buildTools(s: TurnState): AgentTool[] {
         "compose {domain, personId?, mode? cold|follow_up|linkedin|warm_intro|reply, angleId?, connectorId?} draft outreach (reply: uses the reply the founder pasted) · " +
         "prep {meetingId} call brief · debrief {dealId? | meetingId? | domain?} uses the call notes the founder pasted in this message · " +
         "dinner_plan {kind dinner|roundtable, city? (dinner), month? YYYY-MM, goal? accelerate_deals|create_pipeline|expand_customers|market_intel, budgetUsd?, coHost?} · " +
-        "asset {kind one_pager|demo_script|security|design_partner_terms|pilot_proposal|insight|case_study, title?, brief?, dealId?} · review {kind monday|friday}.",
+        "asset {kind one_pager|demo_script|security|design_partner_terms|pilot_proposal|insight|case_study, title?, brief?, dealId?} · " +
+        "review {kind monday|friday|monthly|refresh} (refresh rebuilds the ICP, positioning and personas from the founder's calls as changes they accept or reject).",
       schema: StartInput,
       label: (i) => `Proposing: ${clip(i.summary, 60)}`,
       run: async (i) => {

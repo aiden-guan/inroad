@@ -4,9 +4,10 @@ import { defineTool } from "@/lib/ai/engine";
 import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
 import { addDays, newId, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type LossReason, type ReviewProposal, type Workspace } from "@/lib/domain/types";
-import { BET_MIN_PER_ARM, TARGETING_DIMENSIONS, betKey, readoutLine } from "@/lib/learning/bets";
+import { BET_MIN_PER_ARM, betProposal, readoutLine } from "@/lib/learning/bets";
 import { learningData, pct, pipelineData, type DealFact, type LearningData, type PipelineData } from "@/lib/moves/review-data";
 import { clip, first, plural, shortDay } from "@/lib/moves/util";
+import { runMonthly, runRefresh } from "./refresh";
 import { defineWorkflow } from "./types";
 
 /**
@@ -351,7 +352,7 @@ function learningProposals(ws: Workspace, data: LearningData, out: LearningOut |
       status: "open",
     });
   }
-  const bet = out?.messageBet ? messageBetProposal(out.messageBet) : null;
+  const bet = out?.messageBet ? betProposal(out.messageBet) : null;
   if (bet && !data.activeBet) proposals.push(bet);
   const post = out?.postDraft;
   const fromFounder = post?.sourceIds.some((id) => data.founderMaterial.some((f) => f.alias === id));
@@ -368,24 +369,6 @@ function learningProposals(ws: Workspace, data: LearningData, out: LearningOut |
     });
   }
   return proposals;
-}
-
-/**
- * A proposed message bet, with its dimension and the code values arms are matched or forced by. A who-or-why bet
- * (persona, signal, channel) that names no values can't be measured, so it isn't proposed.
- */
-export function messageBetProposal(b: NonNullable<LearningOut["messageBet"]>): ReviewProposal | null {
-  const controlKey = betKey(b.dimension, b.controlKey);
-  const variantKey = betKey(b.dimension, b.variantKey);
-  if (TARGETING_DIMENSIONS.includes(b.dimension) && (!controlKey || !variantKey || controlKey === variantKey)) return null;
-  return {
-    id: newId("prop"),
-    kind: "message_bet",
-    title: `Next month's bet: ${noBang(b.variable)}`,
-    detail: noBang(b.why),
-    bet: { variable: noBang(b.variable), control: noBang(b.control), variant: noBang(b.variant), why: noBang(b.why), dimension: b.dimension, controlKey, variantKey },
-    status: "open",
-  };
 }
 
 /* ───────────── workflow ───────────── */
@@ -408,17 +391,28 @@ function save(ws: Workspace, today: string, kind: "monday" | "friday", review: s
   ws.briefs[key] = { date: today, kind, greeting: "", matters: [], generatedAt: now.toISOString(), seen: [], review, reviewKind: kind, proposals: merged, reviewRunId: runId };
 }
 
+const TITLES = {
+  monday: "Monday pipeline review",
+  friday: "Friday learning review",
+  monthly: "Monthly review",
+  refresh: "Refreshing the bet from your calls",
+} as const;
+
 export default defineWorkflow({
   id: "review",
-  args: z.object({ kind: z.enum(["monday", "friday"]) }),
-  title: (a) => (a.kind === "monday" ? "Monday pipeline review" : "Friday learning review"),
-  // One ref per kind, so the Monday and Friday cards each follow only their own run.
+  // monthly: the month's bet readout, playbook refresh, pricing log and hiring readiness. refresh: the playbook part
+  // alone (Playbook, Ask, Today after 5 calls); with questionId, the light pass after a founder answer.
+  args: z.object({ kind: z.enum(["monday", "friday", "monthly", "refresh"]), questionId: z.string().max(60).optional() }),
+  title: (a) => (a.kind === "refresh" && a.questionId ? "Checking what your answer changes" : TITLES[a.kind]),
+  // One ref per kind, so each card follows only its own run.
   ref: (a) => ({ kind: "playbook", id: `review:${a.kind}` }),
   heavy: false,
   run: async (ctx) => {
     const now = new Date();
     const today = todayISO(now);
     const ws = ctx.read();
+    if (ctx.args.kind === "monthly") return runMonthly(ctx, now);
+    if (ctx.args.kind === "refresh") return runRefresh(ctx, now);
 
     if (ctx.args.kind === "monday") {
       ctx.emit({ type: "status", text: "Scoring every open deal" });

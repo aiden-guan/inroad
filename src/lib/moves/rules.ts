@@ -8,6 +8,8 @@ import { LIST_MAX, LIST_MIN, LIST_WAIT_DAYS, reachFor } from "@/lib/intros/list"
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { offeredResource } from "@/lib/quality/lint";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
+import { activeBet, startedBets } from "@/lib/learning/bets";
+import { REFRESH_AFTER_CALLS, refreshOffer } from "./monthly-data";
 import { awaitingOutcome, BOOKING_NUDGES, bookingLoops, searchDays } from "./replies";
 import { coldQuotaLeft, counters, introAsksTarget, type Counters } from "./scoreboard";
 import {
@@ -96,6 +98,8 @@ const RULES = {
   post: { base: 32, label: "Optional post from last Friday's best insight" },
   room: { base: 38, label: "Tracked companies cluster on a theme or a city: worth a room" },
   discover: { base: 28, label: "Fewer than 10 untouched A/B prospects" },
+  review_monthly: { base: 60, label: "Monthly review: the message bet, a playbook refresh, the pricing log" },
+  refresh_bet: { base: 42, label: "Five calls debriefed (or a deal won) since the bet was last revised" },
 } as const;
 
 type RuleKey = keyof typeof RULES;
@@ -168,6 +172,8 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   roomSuggestion(ctx);
   questions(ctx);
   reviews(ctx);
+  monthlyReview(ctx);
+  refreshBet(ctx);
   weeklyPost(ctx);
 
   // Other surfaces (inbound webhooks, agent API) create their own reply and prep cards. When one already
@@ -1619,6 +1625,48 @@ function reviews({ ws, now, today, weekStart, out }: Ctx) {
     why: replies ? `${plural(replies, "reply", "replies")} to read · ${plural(touches, "touch", "touches")} this week` : `${plural(touches, "touch", "touches")} this week · no replies yet`,
     minutes: 20,
     priority: RULES.review_friday.base,
+  });
+}
+
+/**
+ * The monthly review (W9, §5.2) on the first open of the month: the message-bet readout and the next bet, the bet
+ * refreshed from the month's calls as tracked suggestions, the pricing log and, near the thresholds, hiring
+ * readiness. Shown through the 14th, from the first full month after hiring.
+ */
+function monthlyReview({ ws, today, out }: Ctx) {
+  const day = Number(today.slice(8, 10));
+  const monthStart = `${today.slice(0, 8)}01`;
+  if (!ws.foundation || day > 14 || !ws.onboarding.hiredAt || localDate(ws.onboarding.hiredAt) >= monthStart) return;
+  const offer = refreshOffer(ws);
+  const running = activeBet(ws, today);
+  const ended = startedBets(ws).some((b) => b.endsOn < today && !b.readout);
+  out.push({
+    id: `mv_review_monthly_${today.slice(0, 7)}`,
+    kind: "review",
+    rule: "review_monthly",
+    title: "Monthly review",
+    why: `${plural(offer.calls, "call")} since the bet was last revised · ${ended ? "a message bet to read" : running ? `message bet runs to ${shortDay(running.endsOn)}` : "pick next month's message bet"}`,
+    minutes: 35,
+    priority: RULES.review_monthly.base - (day - 1) * 2,
+  });
+}
+
+/**
+ * Between monthly reviews: once five calls are debriefed (or a deal is won) since the bet was last revised, offer to
+ * rebuild it from them (W1c refresh). The id follows the last revision, so a skip holds until the next one.
+ */
+function refreshBet({ ws, out }: Ctx) {
+  const offer = refreshOffer(ws);
+  if (!offer.offered || out.some((c) => c.rule === "review_monthly")) return;
+  out.push({
+    id: `mv_refresh_bet_${offer.since ? localDate(offer.since) : "first"}`,
+    kind: "review",
+    rule: "refresh_bet",
+    title: offer.calls >= REFRESH_AFTER_CALLS ? `Rebuild the bet from your last ${offer.calls} calls` : "Rebuild the bet around the deal you won",
+    why: `Playbook v${ws.foundation!.version} is still the bet from ${offer.since ? shortDay(localDate(offer.since)) : "your site"} · each change is a suggestion you accept or reject`,
+    minutes: 10,
+    priority: RULES.refresh_bet.base + Math.min(8, offer.won * 4),
+    href: "/playbook#refresh",
   });
 }
 

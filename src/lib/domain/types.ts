@@ -263,6 +263,8 @@ export interface Foundation {
   founderQuestions: FounderQuestion[];
   confidence: Confidence;
   provenance?: Partial<Record<FoundationSection, Provenance>>;
+  /** When an accepted refresh change or a restore last changed the bet. */
+  revisedAt?: ISODateTime;
 }
 
 /** An approved "about us" fact. Outbound copy may only use approved claims. */
@@ -1013,7 +1015,7 @@ export interface Scoreboard {
 /** A one-click change proposed by a weekly review. The founder applies or dismisses it; nothing applies itself. */
 export interface ReviewProposal {
   id: ID;
-  kind: "close_lost" | "nurture" | "add_pov" | "add_objection" | "add_customer_words" | "add_anti_icp" | "add_banned_word" | "message_bet" | "note";
+  kind: "close_lost" | "nurture" | "add_pov" | "add_objection" | "add_customer_words" | "add_anti_icp" | "add_banned_word" | "message_bet" | "note" | "revise_foundation";
   title: string; // ≤12 words, "Nurture Northwind until Jan 12"
   detail: string; // the reason, ≤40 words
   /** Verbatim quotes or facts behind it. */
@@ -1028,13 +1030,58 @@ export interface ReviewProposal {
   betReadout?: { verdict: "keep" | "drop" | "inconclusive"; notes: string; at: ISODateTime };
   /** A "note" that is the week's optional post draft (Today offers it the following week). */
   post?: boolean;
+  /** revise_foundation: the one playbook change it makes, accepted or rejected by the founder. */
+  revision?: FoundationRevision;
   status: "open" | "applied" | "dismissed";
   decidedAt?: ISODateTime;
 }
 
+/** What a bet refresh may change. Code applies each one; the model never writes a path. */
+export type RevisionTarget =
+  | "positioning.category"
+  | "positioning.bestFit"
+  | "icp.sentence"
+  | "icp.segment"
+  | "icp.criterion"
+  | "icp.antiIcp"
+  | "persona.line"
+  | "persona.pain"
+  | "messaging.oneLiner"
+  | "messaging.customerWords";
+
+/** One tracked suggestion to the playbook (SPEC W1c refresh): before and after, applied only when accepted. */
+export interface FoundationRevision {
+  target: RevisionTarget;
+  op: "set" | "add" | "remove" | "validate";
+  /** Personas and criteria: which one, by id (indexes move when the founder edits). */
+  refId?: ID;
+  text?: string;
+  /** icp.antiIcp add: why it disqualifies. */
+  reason?: string;
+  /** icp.criterion add: the criterion's shape. */
+  criterion?: Pick<ICPCriterion, "kind" | "mustHave" | "detection" | "howToTest">;
+  section: "positioning" | "icp" | "personas" | "messaging";
+  /** What the playbook says now; applying is refused if it changed since. */
+  before: string;
+  after: string;
+}
+
+/** A playbook version a refresh replaced, kept so it can be restored (SPEC §6: the last 10). */
+export interface FoundationVersion {
+  version: number;
+  /** When it was replaced. */
+  at: ISODateTime;
+  /** What the next version changed, in words. */
+  changes: string[];
+  /** rebuild: the bet was written again from the site (a fresh first read). */
+  source: "refresh" | "monthly" | "restore" | "rebuild";
+  runId?: ID;
+  snapshot: Foundation;
+}
+
 export interface Brief {
   date: ISODate;
-  kind: "daily" | "monday" | "friday";
+  kind: "daily" | "monday" | "friday" | "monthly" | "refresh";
   greeting: string;
   matters: { text: string; url?: string; ref?: EntityRef; date?: ISODate; quote?: string }[]; // ≤3
   generatedAt: ISODateTime;
@@ -1047,7 +1094,7 @@ export interface Brief {
   llmRuns?: number;
   /** What Today started on its own today ("mtg:<id>:<brief at>", "acc:<domain>:<move id>"): capped per day, never twice (moves/ahead). */
   ahead?: string[];
-  reviewKind?: "monday" | "friday";
+  reviewKind?: "monday" | "friday" | "monthly" | "refresh";
   proposals?: ReviewProposal[];
   reviewRunId?: ID;
   /** Deals still listed on an open close-out at the day's last prepare (the next morning's greeting says so first). */
@@ -1391,6 +1438,8 @@ export interface Workspace {
   };
   company: CompanySnapshot | null;
   foundation: Foundation | null;
+  /** Versions a refresh or restore replaced, oldest first, at most 10. */
+  foundationHistory?: FoundationVersion[];
   claims: Claim[];
   objections: ObjectionCard[];
   povs: PovItem[];

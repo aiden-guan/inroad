@@ -74,6 +74,8 @@ export const SECTIONS = [
       { id: "questions", label: "Questions" },
       { id: "reviews", label: "Reviews" },
       { id: "bets", label: "Segment bets" },
+      { id: "message-bets", label: "Message bets" },
+      { id: "versions", label: "Versions" },
     ],
   },
 ] as const;

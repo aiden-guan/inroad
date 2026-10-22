@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "@/lib/domain/actions";
 import { NOW, at, makeAccount, makeActivity, makeDossier, makePackage, makePerson, makeSignal, makeStep, makeWorkspace } from "@/test/factories";
-import { messageBetProposal } from "@/lib/workflows/review";
+import { betProposal } from "@/lib/learning/bets";
 import { activeMessageBet, learningData } from "./review-data";
 
 /** The Friday breakdowns read what was actually sent: approving a draft is what tags the touch. */
@@ -62,11 +62,11 @@ describe("learningData conversions from real sends", () => {
   });
 });
 
-describe("messageBetProposal", () => {
+describe("betProposal", () => {
   const base = { variable: "Champion vs economic buyer", control: "Controllers", variant: "CFOs", why: "Two CFO replies this week!" };
 
   it("keeps the dimension and normalized keys", () => {
-    expect(messageBetProposal({ ...base, dimension: "persona", controlKey: "champion", variantKey: "Economic buyer" })?.bet).toEqual({
+    expect(betProposal({ ...base, dimension: "persona", controlKey: "champion", variantKey: "Economic buyer" })?.bet).toEqual({
       ...base,
       why: "Two CFO replies this week.",
       dimension: "persona",
@@ -76,9 +76,9 @@ describe("messageBetProposal", () => {
   });
 
   it("drops a who-or-why bet that names nothing code can match", () => {
-    expect(messageBetProposal({ ...base, dimension: "persona", controlKey: null, variantKey: null })).toBeNull();
-    expect(messageBetProposal({ ...base, dimension: "signal", controlKey: "funding", variantKey: "funding" })).toBeNull();
+    expect(betProposal({ ...base, dimension: "persona", controlKey: null, variantKey: null })).toBeNull();
+    expect(betProposal({ ...base, dimension: "signal", controlKey: "funding", variantKey: "funding" })).toBeNull();
     // Writing bets need no keys: the composer writes each arm.
-    expect(messageBetProposal({ ...base, dimension: "cta", controlKey: null, variantKey: null })?.bet?.dimension).toBe("cta");
+    expect(betProposal({ ...base, dimension: "cta", controlKey: null, variantKey: null })?.bet?.dimension).toBe("cta");
   });
 });

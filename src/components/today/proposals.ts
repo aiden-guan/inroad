@@ -1,6 +1,7 @@
 import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { ReviewProposal, Workspace } from "@/lib/domain/types";
+import { revisionStale } from "@/lib/playbook/revision";
 
 /**
  * Turns a review proposal into the founder actions that apply it. The review never applies anything
@@ -57,6 +58,12 @@ export function proposalActions(p: ReviewProposal, ws: Workspace, date: string):
     case "message_bet":
     case "note":
       return [mark];
+    case "revise_foundation": {
+      if (!p.revision || revisionStale(ws.foundation, p.revision)) return null;
+      // The refresh that proposed it: its changes join one version, so one restore undoes them together.
+      const from = Object.values(ws.briefs).find((b) => b.proposals?.some((x) => x.id === p.id));
+      return [{ type: "foundation.revise", revision: p.revision, source: from?.reviewKind === "monthly" ? "monthly" : "refresh", runId: from?.reviewRunId, at }, mark];
+    }
   }
 }
 
@@ -80,5 +87,7 @@ export function applyLabel(p: ReviewProposal): string {
       return "Start this bet";
     case "note":
       return "Got it";
+    case "revise_foundation":
+      return "Accept";
   }
 }

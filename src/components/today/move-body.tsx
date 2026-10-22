@@ -26,6 +26,7 @@ import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
 import { DealResolver } from "./deal-resolver";
 import { RunInline } from "./parts";
 import { ReviewBody } from "./review-panel";
+import { RefreshBet, useReviseAfterAnswer } from "@/components/playbook/refresh";
 
 /** Intro follow-through: the same panel as the Intros page, finishing the card when the founder records the move. */
 function IntroMoveBody({ move, ws, today, onComplete }: BodyProps) {
@@ -334,6 +335,10 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
     case "review_monday":
     case "review_friday":
       return <ReviewBody ws={ws} kind={rule === "review_monday" ? "monday" : "friday"} weekStart={props.weekStart} />;
+    case "review_monthly":
+      return <ReviewBody ws={ws} kind="monthly" weekStart={`${today.slice(0, 8)}01`} />;
+    case "refresh_bet":
+      return <RefreshBet ws={ws} onResult={props.onChanged} />;
     case "research": {
       const acc = domain ? ws.accounts[domain] : undefined;
       if (!acc) break;
@@ -842,9 +847,13 @@ function QuestionsBody({ ws, onComplete }: BodyProps) {
 
 function QuestionField({ q, onSaved }: { q: NonNullable<Workspace["foundation"]>["founderQuestions"][number]; onSaved: () => void }) {
   const { dispatch } = useWorkspace();
+  const revise = useReviseAfterAnswer();
   const [answer, setAnswer] = useState("");
   const save = async () => {
-    if (answer.trim() && (await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() }))) onSaved();
+    if (answer.trim() && (await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() }))) {
+      revise(q.id);
+      onSaved();
+    }
   };
   return (
     <div className="space-y-2">
@@ -875,9 +884,15 @@ function QuestionField({ q, onSaved }: { q: NonNullable<Workspace["foundation"]>
 
 function QuestionBody({ move, ws, onComplete }: BodyProps) {
   const { dispatch } = useWorkspace();
+  const revise = useReviseAfterAnswer();
   const [answer, setAnswer] = useState("");
   const q = ws.foundation?.founderQuestions.find((x) => move.ref?.kind === "playbook" && x.id === move.ref.id);
   if (!q) return <Lead>This question was answered or removed.</Lead>;
+  const save = async () => {
+    if (!(await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() }))) return;
+    revise(q.id);
+    onComplete();
+  };
   return (
     <div className="space-y-2.5">
       <p className="font-serif text-[17px] leading-[26px] text-fg">{q.question}</p>
@@ -890,18 +905,12 @@ function QuestionBody({ move, ws, onComplete }: BodyProps) {
         onKeyDown={async (e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && answer.trim()) {
             e.preventDefault();
-            if (await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() })) onComplete();
+            await save();
           }
         }}
       />
       {answer.trim() ? (
-        <Button
-          variant="primary"
-          kbd="⌘↵"
-          onClick={async () => {
-            if (await dispatch({ type: "foundation.answerQuestion", questionId: q.id, answer: answer.trim(), at: nowISO() })) onComplete();
-          }}
-        >
+        <Button variant="primary" kbd="⌘↵" onClick={() => void save()}>
           Save answer
         </Button>
       ) : (
