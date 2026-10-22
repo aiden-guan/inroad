@@ -14,8 +14,11 @@ import { localDate } from "@/lib/moves/util";
 function capKey(ws: Workspace, a: Activity): string | null {
   if (a.kind === "touch_sent" || a.kind === "pushed") {
     if (a.kind === "touch_sent" && (a.outcome === "not_sent" || a.channel === "linkedin")) return null;
-    if (!a.draftRef || a.draftRef.step !== 1 || ws.outreach[a.draftRef.packageId]?.mode !== "cold") return null;
-    return `pkg:${a.draftRef.packageId}`;
+    // A deleted person's touch keeps what it was (its draft is gone): it still used a slot.
+    const ref = a.draftRef ?? a.forgotten?.draft;
+    const mode = a.draftRef ? ws.outreach[a.draftRef.packageId]?.mode : a.forgotten?.draft?.mode;
+    if (!ref || ref.step !== 1 || mode !== "cold") return null;
+    return `pkg:${ref.packageId}`;
   }
   if (a.kind === "event_invited" && a.eventId && a.channel !== "linkedin") {
     const guests = Object.values(ws.events[a.eventId]?.guests ?? {});

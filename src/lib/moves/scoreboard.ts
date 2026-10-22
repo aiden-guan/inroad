@@ -25,9 +25,14 @@ export function introAsksTarget(ws: Workspace): number {
  */
 export function isColdFirstTouch(ws: Workspace, a: Activity): boolean {
   if (a.kind !== "touch_sent" || a.outcome === "not_sent") return false;
-  if (!a.draftRef || a.draftRef.step !== 1) return false;
+  // A deleted person's touch keeps what it was (its draft is gone).
+  if (!a.draftRef) return a.forgotten?.draft?.step === 1 && a.forgotten.draft.mode === "cold";
+  if (a.draftRef.step !== 1) return false;
   return ws.outreach[a.draftRef.packageId]?.mode === "cold";
 }
+
+/** Who an activity is about, for per-person counts: their id, or a deleted person's opaque one. */
+const whoOf = (a: Activity) => a.personId ?? a.forgotten?.who;
 
 export interface Counters {
   today: string;
@@ -51,9 +56,10 @@ export function counters(ws: Workspace, now: Date): Counters {
     const day = localDate(a.at);
     if (day < weekStart) continue;
     if (a.kind === "intro_requested") introAsksThisWeek++;
-    if (a.kind === "touch_sent" && a.accountDomain && a.personId && a.outcome !== "not_sent") {
+    const who = whoOf(a);
+    if (a.kind === "touch_sent" && a.accountDomain && who && a.outcome !== "not_sent") {
       const set = peopleThisWeek.get(a.accountDomain) ?? new Set<string>();
-      set.add(a.personId);
+      set.add(who);
       peopleThisWeek.set(a.accountDomain, set);
     }
   }
@@ -122,12 +128,13 @@ export function computeScoreboard(ws: Workspace, now: Date): Scoreboard {
   const since = addDays(c.today, -28);
   const touched = new Map<string, string>();
   for (const a of ws.activities) {
-    if (!isColdFirstTouch(ws, a) || !a.personId || localDate(a.at) < since) continue;
-    if (!touched.has(a.personId) || a.at < touched.get(a.personId)!) touched.set(a.personId, a.at);
+    const who = whoOf(a);
+    if (!isColdFirstTouch(ws, a) || !who || localDate(a.at) < since) continue;
+    if (!touched.has(who) || a.at < touched.get(who)!) touched.set(who, a.at);
   }
   let replied = 0;
-  for (const [personId, firstAt] of touched) {
-    if (ws.activities.some((a) => a.kind === "reply_received" && a.personId === personId && a.at > firstAt)) replied++;
+  for (const [who, firstAt] of touched) {
+    if (ws.activities.some((a) => a.kind === "reply_received" && whoOf(a) === who && a.at > firstAt)) replied++;
   }
   const n = touched.size;
 

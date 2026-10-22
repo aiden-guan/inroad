@@ -213,6 +213,7 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
 
   // 2. Their drafts, and the cards and intros that point at them or at those drafts.
   const pkgs = new Set(Object.values(ws.outreach).filter((p) => p.personId === id).map((p) => p.id));
+  const modes = new Map([...pkgs].map((p) => [p, ws.outreach[p].mode]));
   for (const p of pkgs) delete ws.outreach[p];
   for (const p of Object.values(ws.outreach)) {
     if (p.reply?.referral?.name && isThem(p.reply.referral.name, p.accountDomain)) delete p.reply.referral;
@@ -235,9 +236,12 @@ export function forgetPerson(ws: Workspace, id: ID, at: string, suppressionId: I
     m.evidenceIds = keep(m.evidenceIds);
   }
 
-  // 3. Their history stays as counts, without who it was or what was said.
+  // 3. Their history stays as counts, without who it was or what was said: one opaque id for them, and what
+  // each touch was (a cold first touch still uses its slot of the cap).
   for (const a of ws.activities) {
     if (a.personId !== id && !(a.draftRef && pkgs.has(a.draftRef.packageId))) continue;
+    const mode = a.draftRef ? modes.get(a.draftRef.packageId) : undefined;
+    a.forgotten = { who: suppressionId, ...(a.draftRef && mode ? { draft: { packageId: a.draftRef.packageId, step: a.draftRef.step, mode } } : {}) };
     delete a.personId;
     delete a.body;
     delete a.draftRef;

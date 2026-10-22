@@ -9,6 +9,8 @@ import type { AskTurn, Connection, Person, RunStep, Workspace } from "@/lib/doma
 import { receiveInbound } from "@/lib/hub/inbound";
 import { mutateHub, readHub } from "@/lib/hub/store";
 import { computeMoves, mergeMoves } from "@/lib/moves/rules";
+import { computeScoreboard, counters } from "@/lib/moves/scoreboard";
+import { capUsage } from "@/lib/quality/cap";
 import { readConnections, readNetwork, mutateNetwork, updateConnections } from "@/lib/network/store";
 import type { ImportBatch } from "@/lib/network/types";
 import { sampleWorkspace } from "@/lib/sample";
@@ -323,6 +325,25 @@ describe("POST /api/workspace/actions with person.forget", () => {
     expect(file).not.toContain("Okafor");
     expect(file).not.toContain(DANA);
     expect(Object.keys(readHub().refs)).toEqual([`hubspot:company:${DOMAIN.northwind}`]);
+  });
+});
+
+describe("their history still counts", () => {
+  it("keeps the cold cap, the per-company contact count and the scoreboard where they were", () => {
+    const ws = makeWorkspace();
+    ws.caps.firstTouchesPerDayMax = 1;
+    ws.accounts["eu.example"] = makeAccount("eu.example", { peopleIds: ["per_e"] });
+    ws.people.per_e = makePerson("per_e", "eu.example", { jurisdiction: "EU" });
+    ws.outreach.pkg_c = makePackage("pkg_c", "eu.example", { personId: "per_e", mode: "cold" });
+    const now = new Date();
+    applyAction(ws, { type: "outreach.approveStep", packageId: "pkg_c", step: 1, at: now.toISOString(), activityId: "act_1" });
+    const before = { cap: capUsage(ws), first: computeScoreboard(ws, now).firstTouches, people: counters(ws, now).peopleThisWeek.get("eu.example")?.size };
+    expect(before.cap).toMatchObject({ today: 1, remainingToday: 0 });
+
+    applyAction(ws, { type: "person.forget", id: "per_e", at: now.toISOString(), suppressionId: "sup_e" });
+    expect(ws.activities[0]).toMatchObject({ summary: "Details deleted at their request", forgotten: { who: "sup_e", draft: { packageId: "pkg_c", step: 1, mode: "cold" } } });
+    expect(ws.activities[0].personId).toBeUndefined();
+    expect({ cap: capUsage(ws), first: computeScoreboard(ws, now).firstTouches, people: counters(ws, now).peopleThisWeek.get("eu.example")?.size }).toEqual(before);
   });
 });
 

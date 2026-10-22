@@ -982,6 +982,12 @@ export interface Activity {
   editDistance?: number;
   /** Replies only: a yes the founder answered and then let go (no call, and no deal to close as lost). */
   loopClosedAt?: ISODateTime;
+  /**
+   * Set when "Delete their details" anonymised it: `who` is one opaque id per deleted person (in place of
+   * personId), `draft` what the touch was (the draft itself is gone), so the cold cap, the per-company
+   * contact cap and the scoreboard still add up.
+   */
+  forgotten?: { who: ID; draft?: { packageId: ID; step: number; mode: OutreachPackage["mode"] } };
 }
 
 export type SkipReason = "not_relevant_now" | "wrong_person" | "weak_angle" | "already_handled" | "tone_off" | "other";
