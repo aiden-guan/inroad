@@ -128,7 +128,16 @@ function Booking({ loop, move, ws, now, today, onComplete }: Pick<BodyProps, "mo
       if (!ok) return;
       onComplete();
       toast(`Closed ${loop.company} as lost: went dark.`);
-    } else onComplete();
+      return;
+    }
+    // No deal to close: the reply itself is marked, so neither Today nor Check replies chases it again.
+    const ok = await dispatch({ type: "activity.closeLoop", id: loop.reply.id, at: nowISO() });
+    if (!ok) return;
+    onComplete();
+    toast(`Let ${name} go. I won't bring this one back.`, {
+      duration: 10_000,
+      action: { label: "Undo", onClick: () => void dispatch([{ type: "activity.closeLoop", id: loop.reply.id, at: null }, { type: "move.reopen", id: move.id }]) },
+    });
   };
 
   const said = loop.intent === "positive" ? `said yes ${ago(loop.reply.at, new Date(now))}` : `asked for more ${ago(loop.reply.at, new Date(now))}`;

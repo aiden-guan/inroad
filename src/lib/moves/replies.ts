@@ -121,8 +121,9 @@ function intentOf(ws: Workspace, reply: Activity): ReplyIntent | undefined {
 
 /**
  * Interested prospects the founder answered whose call isn't booked: the loop stays open until a
- * meeting is on the deal's calendar (or one was held), the deal is parked, lost or won, or a dated
- * next step they agreed to covers it. Their latest reply decides: a later "not now" closes it.
+ * meeting is on the deal's calendar (or one was held), the deal is parked, lost or won, a dated
+ * next step they agreed to covers it, or the founder let it go. Their latest reply decides: a later
+ * "not now" closes it.
  */
 export function bookingLoops(ws: Workspace, now: Date): BookingLoop[] {
   const today = todayISO(now);
@@ -136,6 +137,7 @@ export function bookingLoops(ws: Workspace, now: Date): BookingLoop[] {
   for (const [personId, reply] of latest) {
     const intent = intentOf(ws, reply);
     if (intent !== "positive" && intent !== "info_request") continue;
+    if (reply.loopClosedAt) continue; // the founder let it go
     const person = ws.people[personId];
     if (!person || isSuppressed(ws, person)) continue;
     const touches = ws.activities.filter((a) => a.personId === personId && FOUNDER_TOUCH.has(a.kind) && a.at > reply.at && a.outcome !== "not_sent").sort((x, y) => x.at.localeCompare(y.at));

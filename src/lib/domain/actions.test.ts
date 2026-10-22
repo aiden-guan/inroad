@@ -683,6 +683,14 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.activities.find((a) => a.id === "act_033")?.outcome).toBe("no_reply");
   },
 
+  "activity.closeLoop": () => {
+    const s = apply(ws(), { type: "activity.closeLoop", id: "act_034", at: at(0) });
+    expect(s.activities.find((a) => a.id === "act_034")?.loopClosedAt).toBe(at(0));
+    apply(s, { type: "activity.closeLoop", id: "act_034", at: null });
+    expect(s.activities.find((a) => a.id === "act_034")).not.toHaveProperty("loopClosedAt");
+    expect(() => apply(s, { type: "activity.closeLoop", id: "act_missing", at: at(0) })).toThrow(ActionError);
+  },
+
   "brief.setProposal": () => {
     const s = ws();
     s.briefs["2026-10-19"] = {
