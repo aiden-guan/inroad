@@ -9,6 +9,7 @@ import { liveRunIds, stopRun } from "@/lib/runs/registry";
 import { writeFileAtomic } from "@/lib/store/data-file";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { keepSuppressions, snapshotBefore, type BackupBundle, type BackupEntry } from "@/lib/store/backup";
+import { readOptOuts, rememberOptOuts } from "@/lib/store/opt-outs";
 import { DATA_DIR } from "@/lib/store/settings";
 import { emptyWorkspace, holdsRealWork, migrateWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { sampleConnections, sampleRunSteps, sampleWorkspace } from "./index";
@@ -63,6 +64,7 @@ async function stopLiveRuns(timeoutMs = 15_000) {
 export async function loadSampleWorkspace(): Promise<Workspace> {
   await stopLiveRuns();
   snapshotBefore("before_sample");
+  rememberOptOuts(readWorkspace());
   const now = new Date();
   const ws = await replaceWorkspace(sampleWorkspace(now));
   for (const name of WORKSPACE_FILES) resetDataFile(name, name === "connections.json" ? sampleConnections(now) : null);
@@ -73,6 +75,7 @@ export async function loadSampleWorkspace(): Promise<Workspace> {
 export async function resetToEmptyWorkspace(): Promise<Workspace> {
   await stopLiveRuns();
   snapshotBefore("before_reset");
+  rememberOptOuts(readWorkspace());
   const ws = await replaceWorkspace(emptyWorkspace());
   for (const name of WORKSPACE_FILES) resetDataFile(name, null);
   await replaceRunSteps({});
@@ -85,14 +88,17 @@ export async function resetToEmptyWorkspace(): Promise<Workspace> {
  * it was made); hub.json, the sync bookkeeping, is only replaced when the bundle has it. An older
  * workspace-only export replaces workspace.json alone and leaves the rest as it is. Either way the
  * suppression list keeps everyone on it now (keepSuppressions), unless what's here now is the sample,
- * and anyone on it as requested_delete whom the backup still holds is deleted again (forgetRequested).
+ * and everyone who opted out before a reset or the sample replaced the real workspace (opt-outs.json);
+ * anyone on it as requested_delete whom the backup still holds is deleted again (forgetRequested).
  */
 export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Workspace; backup: BackupEntry | null; files: string[]; keptSuppressions: number; forgotten: number }> {
   await stopLiveRuns();
   const backup = snapshotBefore("before_restore");
   const current = readWorkspace();
+  rememberOptOuts(current);
   const restored = migrateWorkspace(bundle.files["workspace.json"]);
-  const { list, kept: keptSuppressions } = keepSuppressions(restored.suppression ?? [], current.sample ? [] : (current.suppression ?? []));
+  const since = [...readOptOuts().suppression, ...(current.sample ? [] : (current.suppression ?? []))];
+  const { list, kept: keptSuppressions } = keepSuppressions(restored.suppression ?? [], since);
   const next: Workspace = { ...restored, suppression: list };
   const forgotten = forgetRequested(next);
   const ws = await replaceWorkspace(next);
