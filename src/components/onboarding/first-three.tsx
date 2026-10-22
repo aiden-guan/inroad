@@ -166,6 +166,10 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       setBusy(false);
       return;
     }
+    // On a phone the offer card is long and its button at the bottom: the orb at the top is off screen, so
+    // its flight into the header wouldn't play (a shared transition needs both ends in view), and Today
+    // would open scrolled down. Back to the top first.
+    await scrollToTop();
     setLeaving(true);
     setTimeout(() => router.push(to), 180);
   };
@@ -376,4 +380,14 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       </AnimatePresence>
     </>
   );
+}
+
+/** Narrow screens only: scrolls to the top (smoothly, unless reduced motion) and resolves once it's there. */
+async function scrollToTop() {
+  if (window.scrollY === 0 || window.matchMedia("(min-width: 768px)").matches) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
+  const until = Date.now() + 800;
+  while (window.scrollY > 0 && Date.now() < until) await new Promise((r) => requestAnimationFrame(r));
+  if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "instant" });
 }

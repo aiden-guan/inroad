@@ -241,9 +241,10 @@ test("with reduced motion, holding to close as lost says to keep holding", async
   await expect(page.getByRole("button", { name: "Hold to close as lost" })).toBeVisible();
 });
 
-// Last: it starts a first run on a fresh workspace and leaves it reading.
-test("skipping the two questions while the site is read keeps the list drop", async ({ page, request }) => {
+// Last: a whole first run, on a phone, on a fresh workspace.
+test("on a phone: skipping the two questions keeps the list drop, and the orb flies to Today's header", async ({ page, request }) => {
   expect((await request.post("/api/workspace/reset")).ok()).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/welcome");
   await page.locator("#site").fill("acme.com");
   await page.locator("#note").fill("We reconcile usage data with invoices so finance teams close the month in hours.");
@@ -253,4 +254,25 @@ test("skipping the two questions while the site is read keeps the list drop", as
   await page.getByRole("button", { name: "Skip", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Two quick ones while I read/ })).toHaveCount(0);
   await expect(page.getByText("Got a list? Drop it here")).toBeVisible();
+
+  // The offer card is long on a phone and its button at the bottom, far below the orb at the top.
+  const cta = page.getByRole("button", { name: /^(Go to Today|Research these \d|Research this one)/ });
+  await expect(cta).toBeEnabled({ timeout: 180_000 });
+  await page.locator("#founder-name").fill("Priya");
+  await page.evaluate(() => {
+    const w = window as unknown as { __vt: string[] };
+    w.__vt = [];
+    const start = document.startViewTransition.bind(document);
+    document.startViewTransition = ((arg: Parameters<typeof start>[0]) => {
+      const t = start(arg);
+      void t.ready.then(() => w.__vt.push(...document.getAnimations().map((a) => (a.effect as KeyframeEffect | null)?.pseudoElement ?? "")), () => {});
+      return t;
+    }) as typeof document.startViewTransition;
+  });
+  await cta.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await cta.click();
+  await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb)")))).toBe(true);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
