@@ -15,6 +15,12 @@ export interface Settings {
    * Nominatim. Only the place text is sent, never a name or company. "off" keeps the map to known cities.
    */
   geocoder?: "osm" | "off";
+  /**
+   * Company marks. "letters" (the default) shows each company's first letter and sends nothing anywhere.
+   * "site" fetches each company's icon from its own website, server-side, and caches it (signals/icons.ts).
+   * Never a third-party favicon service, which would learn the whole target list.
+   */
+  companyIcons?: "letters" | "site";
 }
 
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");

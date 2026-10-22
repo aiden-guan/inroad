@@ -7,21 +7,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { Segmented, Skeleton } from "@/components/ui/misc";
+import { setCompanyIcons } from "@/lib/client/icons";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
-import type { Geocoder, NewsSource } from "./types";
+import type { CompanyIcons, Geocoder, NewsSource } from "./types";
 import { useThemePref, type ThemePref, type useSettingsStatus } from "./use-settings";
 
 type Settings = ReturnType<typeof useSettingsStatus>;
 
 export function GeneralSection({ settings }: { settings: Settings }) {
   return (
-    <SettingsSection id="general" title="General" description="The key I run on, how the app looks, and where news signals come from.">
+    <SettingsSection id="general" title="General" description="The key I run on, how the app looks, and what may leave this computer for news, places and icons.">
       <ApiKeyGroup settings={settings} />
       <Group title="Appearance">
         <ThemeRow />
       </Group>
       <NewsGroup settings={settings} />
       <PlacesGroup settings={settings} />
+      <IconsGroup settings={settings} />
     </SettingsSection>
   );
 }
@@ -270,6 +272,54 @@ function PlacesGroup({ settings }: { settings: Settings }) {
         <div className="space-y-3 px-4 py-3.5">
           <Skeleton className="h-4 w-48" />
           <Skeleton className="h-4 w-40" />
+        </div>
+      )}
+    </Group>
+  );
+}
+
+/* ───────────── Company icons ───────────── */
+
+function IconsGroup({ settings }: { settings: Settings }) {
+  const { status, save } = settings;
+  const [pending, setPending] = useState<CompanyIcons | null>(null);
+  const value = pending ?? status?.companyIcons ?? "letters";
+
+  const choose = async (next: CompanyIcons) => {
+    if (next === value) return;
+    setPending(next);
+    const problem = await save({ companyIcons: next });
+    setPending(null);
+    if (problem) toast.error(problem);
+    else setCompanyIcons(next);
+  };
+
+  return (
+    <Group id="icons" title="Company icons" hint="A favicon service would see every company on your list, so none is used. Tool logos on Integrations always load.">
+      {status ? (
+        <ChoiceList<CompanyIcons>
+          name="company-icons"
+          label="Company icons"
+          value={value}
+          onChange={(v) => void choose(v)}
+          options={[
+            {
+              value: "letters",
+              label: "First letters",
+              badge: <Badge tone="outline">Default</Badge>,
+              hint: "Each company shows its initial. Nothing is sent anywhere.",
+            },
+            {
+              value: "site",
+              label: "Each company's own icon",
+              hint: "Inroad asks each company's website for its icon once, the way research already reads it, and keeps it on this computer for a month.",
+            },
+          ]}
+        />
+      ) : (
+        <div className="space-y-3 px-4 py-3.5">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-52" />
         </div>
       )}
     </Group>
