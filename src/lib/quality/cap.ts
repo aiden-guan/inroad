@@ -1,5 +1,5 @@
 import { todayISO, weekOf } from "@/lib/domain/ids";
-import type { Activity, ISODate, Workspace } from "@/lib/domain/types";
+import type { Activity, Guest, ISODate, Workspace } from "@/lib/domain/types";
 import { localDate } from "@/lib/moves/util";
 
 /**
@@ -59,4 +59,15 @@ export function capUsage(ws: Workspace, today = todayISO()) {
     remainingWeek: Math.max(0, ws.caps.firstTouchesPerWeek - thisWeek),
     remainingToday: Math.max(0, Math.min(ws.caps.firstTouchesPerDayMax, ws.caps.firstTouchesPerWeek) - todayCount),
   };
+}
+
+/**
+ * Marking a guest with no warm path invited by email uses a cold-cap slot, the same as a first touch. When the
+ * week's (or the day's) slots are already gone, say which: the invite has gone, so the record stays true, but the
+ * next cold ones should wait.
+ */
+export function inviteOverCap(ws: Workspace, guest: Pick<Guest, "warmPath">, today = todayISO()): "week" | "day" | null {
+  if (guest.warmPath) return null;
+  const u = capUsage(ws, today);
+  return u.remainingWeek <= 0 ? "week" : u.remainingToday <= 0 ? "day" : null;
 }

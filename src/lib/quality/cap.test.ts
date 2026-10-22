@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Activity, GtmEvent, Guest, Workspace } from "@/lib/domain/types";
 import { coldQuotaLeft, computeScoreboard, counters } from "@/lib/moves/scoreboard";
 import { NOW, TODAY, at, makeActivity, makePackage, makeWorkspace } from "@/test/factories";
-import { capUsage, coldFirstTouches, countsAgainstCap } from "./cap";
+import { capUsage, coldFirstTouches, countsAgainstCap, inviteOverCap } from "./cap";
 
 const guest = (id: string, patch: Partial<Guest> = {}): Guest => ({ id, title: "CFO", accountDomain: `${id}.example`, role: "prospect", score: 1, personalLine: "", status: "invited", personId: `per_${id}`, ...patch });
 
@@ -69,5 +69,19 @@ describe("the cold cap counter", () => {
     expect([c.coldThisWeek, c.coldToday]).toEqual([3, 3]);
     expect(coldQuotaLeft(ws, c)).toBe(0);
     expect(computeScoreboard(ws, NOW).firstTouches).toEqual([3, 3]);
+  });
+});
+
+describe("cold invites past the cap", () => {
+  it("says when a cold invite goes over the week's or the day's cap, and never for a warm one", () => {
+    const ws = desk();
+    ws.caps = { ...ws.caps, firstTouchesPerWeek: 3, firstTouchesPerDayMax: 2 };
+    expect(inviteOverCap(ws, {}, TODAY)).toBeNull();
+    ws.activities.push(act("i1", { kind: "event_invited", eventId: "ev", personId: "per_g1", channel: "email" }));
+    ws.activities.push(act("s1", { kind: "touch_sent", draftRef: { packageId: "cold", step: 1 }, channel: "email" }));
+    expect(inviteOverCap(ws, {}, TODAY)).toBe("day");
+    ws.activities.push(act("s2", { kind: "touch_sent", draftRef: { packageId: "cold2", step: 1 }, channel: "email", at: at(-1) }));
+    expect(inviteOverCap(ws, {}, TODAY)).toBe("week");
+    expect(inviteOverCap(ws, { warmPath: "Ivy knows them" }, TODAY)).toBeNull();
   });
 });
