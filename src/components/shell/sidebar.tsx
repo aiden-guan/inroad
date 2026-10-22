@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useMemo, useSyncExternalStore } from "react";
 import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { AiBadge } from "@/components/ui/badge";
+import { AiBadge, Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover } from "@/components/ui/menu";
@@ -19,6 +19,7 @@ import { usd } from "@/lib/client/format";
 import { monthKey, todayISO } from "@/lib/domain/ids";
 import { yourMoves } from "@/lib/intros/rules";
 import { spring } from "@/lib/motion";
+import { SampleBanner } from "./sample-banner";
 
 const NAV = [
   { href: "/today", label: "Today", icon: Sunrise, key: "T" },
@@ -162,9 +163,16 @@ export function Sidebar() {
           <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[12px] text-fg-3">
             <Favicon domain={ws.company.domain} size={14} />
             <span className="truncate">{ws.company.name}</span>
+            {ws.sample && (
+              <Badge tone="warning" className="h-4 px-1 text-[10px]">
+                Sample
+              </Badge>
+            )}
           </span>
         )}
       </div>
+
+      <SampleBanner variant="sidebar" />
 
       <div className="px-2 pb-2">
         <AgentBlock />
