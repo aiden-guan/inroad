@@ -5,13 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getWorkspace } from "@/app/api/workspace/route";
 import { GET as exportRoute } from "@/app/api/workspace/export/route";
 import { POST as restoreRoute } from "@/app/api/workspace/restore/route";
+import { DELETE as leaveSampleRoute } from "@/app/api/workspace/sample/route";
 import { uploadBody } from "@/components/settings/backup-model";
 import type { Suppression } from "@/lib/domain/types";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
 import { forgetPerson } from "@/lib/people/forget";
 import { forgetInFiles } from "@/lib/people/forget-files";
 import { runSteps } from "@/lib/runs/registry";
-import { loadSampleWorkspace, resetToEmptyWorkspace, restoreWorkspace } from "@/lib/sample/store";
+import { leaveSampleWorkspace, loadSampleWorkspace, resetToEmptyWorkspace, restoreWorkspace } from "@/lib/sample/store";
 import { BODY_LIMIT_BYTES } from "@/lib/server/http";
 import { makeAccount, makeDeal, makePerson } from "@/test/factories";
 import {
@@ -180,6 +181,37 @@ describe("automatic snapshots", () => {
     // The sample is made up: leaving it saves nothing.
     await resetToEmptyWorkspace();
     expect(listBackups()).toHaveLength(2);
+  });
+
+  it("leaving the sample brings back the workspace it replaced, or an empty one on a first run", async () => {
+    await realWork("Beta");
+    vi.setSystemTime(new Date("2026-10-22T12:01:00.000Z"));
+    await loadSampleWorkspace();
+    expect(readWorkspace().sample).toBe(true);
+
+    // "Start with my company" in the sample: Backups is out of reach from /welcome, so the real work comes back here.
+    vi.setSystemTime(new Date("2026-10-22T12:05:00.000Z"));
+    const res = await leaveSampleRoute();
+    const body = (await res.json()) as { restored: boolean; workspace: { company?: { name: string }; sample?: boolean; onboarding: { status: string } } };
+    expect(body).toMatchObject({ restored: true, workspace: { company: { name: "Beta" }, onboarding: { status: "hired" } } });
+    expect(readWorkspace().sample).toBeFalsy();
+    expect(readConnections()).toHaveLength(1);
+    expect(getThread("thr_1")?.title).toBe("Who should I call?");
+    // The sample is made up: leaving it saves nothing.
+    expect(listBackups().map((b) => b.reason)).toEqual(["before_sample"]);
+
+    // A first run that started with the sample (after a reset): an empty workspace, not the work reset before it.
+    await resetToEmptyWorkspace();
+    vi.setSystemTime(new Date("2026-10-22T12:10:00.000Z"));
+    await loadSampleWorkspace();
+    vi.setSystemTime(new Date("2026-10-22T12:15:00.000Z"));
+    expect(await leaveSampleWorkspace()).toMatchObject({ restored: false });
+    expect(readWorkspace()).toMatchObject({ company: null, onboarding: { status: "new" } });
+
+    // Not in the sample: nothing changes.
+    await realWork("Gamma");
+    expect(await leaveSampleWorkspace()).toMatchObject({ restored: false });
+    expect(readWorkspace().company?.name).toBe("Gamma");
   });
 
   it("refuses to reset when it can't save the backup first", async () => {
