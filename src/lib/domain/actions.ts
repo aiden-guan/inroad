@@ -29,6 +29,7 @@ import { OPEN_STAGES } from "./types";
 import { debriefReferrals } from "@/lib/deals/referrals";
 import { closeDatePushed, newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
+import { touchTags } from "@/lib/learning/tags";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -583,6 +584,8 @@ export function applyAction(ws: Workspace, action: Action): void {
         summary: `${pkg.mode === "reply" ? "Replied" : step.step === 1 ? "First touch" : `Follow-up ${step.step - 1}`} to ${person?.name ?? pkg.accountDomain}`,
         body: step.body,
         source: "founder",
+        // Signal, frame, POV, persona, subject style and bet arm: what the learning reviews compare.
+        ...touchTags(ws, pkg, step, action.at),
       });
       const acc = ws.accounts[pkg.accountDomain];
       if (acc && acc.status === "new") acc.status = "tracked";

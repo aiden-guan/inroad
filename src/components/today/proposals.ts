@@ -77,8 +77,7 @@ export function applyLabel(p: ReviewProposal): string {
     case "add_banned_word":
       return "Ban the word";
     case "message_bet":
-      // Nothing tags drafts with an arm yet, so this records the bet rather than running a measured test.
-      return "Note this bet";
+      return "Start this bet";
     case "note":
       return "Got it";
   }

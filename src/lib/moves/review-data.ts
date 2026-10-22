@@ -1,6 +1,7 @@
 import { pilotWatch } from "@/lib/deals/rules";
 import { addDays, daysBetween, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Activity, type Deal, type LossReason, type ReviewProposal, type Stage, type Workspace } from "@/lib/domain/types";
+import { activeBet, betReadout, type BetReadout } from "@/lib/learning/bets";
 import { coldFirstTouches } from "@/lib/quality/cap";
 import { conversationsBetween, conversationsTarget, counters, goalWins, introAsksTarget, isColdFirstTouch, isQualified, sampleLabel } from "./scoreboard";
 import { clip, companyName, daysSince, first, isOpen, localDate } from "./util";
@@ -209,7 +210,7 @@ export interface ReplyFact {
 }
 
 export interface ConversionRow {
-  dimension: "angle" | "signal" | "persona" | "channel";
+  dimension: "angle" | "signal" | "persona" | "channel" | "frame" | "pov" | "subject_style";
   key: string;
   sent: number;
   replies: number;
@@ -218,7 +219,7 @@ export interface ConversionRow {
   label: "anecdote" | "directional" | "reliable";
 }
 
-export type ActiveBet = NonNullable<ReviewProposal["bet"]> & { startedOn: string };
+export type ActiveBet = NonNullable<ReviewProposal["bet"]> & { startedOn: string; id?: string; endsOn?: string; readout?: BetReadout };
 
 export interface LearningData {
   weekOf: string;
@@ -248,6 +249,27 @@ function angleName(ws: Workspace, domain: string | undefined, angleId: string | 
     if (hit) return hit.title;
   }
   return undefined;
+}
+
+const FRAME_LABELS: Record<string, string> = {
+  founder_card: "advice ask (founder card)",
+  "4t": "4T",
+  problem_prompter: "problem prompter",
+  mouse_trap: "mouse trap",
+  observation_problem_proof: "observation, problem, proof",
+  referral: "referral",
+  permission_to_close: "permission to close",
+};
+
+const SUBJECT_LABELS: Record<string, string> = { trigger: "subject names their trigger", problem: "subject names the problem", other: "subject names neither" };
+
+function povLabel(ws: Workspace, povId: string | undefined, credentialId: string | undefined): string {
+  if (povId) {
+    const pov = ws.povs.find((p) => p.id === povId);
+    return pov ? `POV: ${clip(pov.text, 60)}` : "a POV since removed";
+  }
+  if (credentialId) return "a credential, no POV";
+  return "no POV tagged";
 }
 
 function personaOf(ws: Workspace, personId: string | undefined): string {
@@ -311,6 +333,9 @@ export function learningData(ws: Workspace, now: Date): LearningData {
     bump("signal", touch.signalType ?? "no signal tagged", replied, positive, meeting);
     bump("persona", personaOf(ws, personId), replied, positive, meeting);
     bump("channel", touch.channel ?? "email", replied, positive, meeting);
+    bump("frame", FRAME_LABELS[touch.tags?.frame ?? ""] ?? touch.tags?.frame ?? "no frame tagged", replied, positive, meeting);
+    bump("pov", povLabel(ws, touch.tags?.povId, touch.tags?.credentialClaimId), replied, positive, meeting);
+    bump("subject_style", SUBJECT_LABELS[touch.tags?.subjectStyle ?? ""] ?? "no subject tagged", replied, positive, meeting);
   }
   const conversions = [...rows.values()].map((r) => ({ ...r, label: sampleLabel(r.sent) })).sort((a, b) => a.dimension.localeCompare(b.dimension) || b.sent - a.sent);
 
@@ -380,24 +405,25 @@ export function learningData(ws: Workspace, now: Date): LearningData {
 }
 
 /**
- * The message bet the founder started most recently. A bet runs through the end of the calendar month after
- * the one it started in, so a bet started on the 30th still gets a full month of sends.
+ * The message bet the founder started most recently, while it runs: through the end of the calendar month after the
+ * one it started in, so a bet started on the 30th still gets a full month of sends. Carries the per-arm counts so far.
  */
 export function activeMessageBet(ws: Workspace, today: string): ActiveBet | null {
-  const month = today.slice(0, 7);
-  const [y, m] = month.split("-").map(Number);
-  const prevMonth = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-  let best: { bet: NonNullable<ReviewProposal["bet"]>; at: string } | null = null;
-  for (const b of Object.values(ws.briefs)) {
-    for (const p of b.proposals ?? []) {
-      if (p.kind !== "message_bet" || p.status !== "applied" || !p.bet || !p.decidedAt) continue;
-      if (!best || p.decidedAt > best.at) best = { bet: p.bet, at: p.decidedAt };
-    }
-  }
-  if (!best) return null;
-  const startedOn = localDate(best.at);
-  const started = startedOn.slice(0, 7);
-  return started === month || started === prevMonth ? { ...best.bet, startedOn } : null;
+  const bet = activeBet(ws, today);
+  if (!bet) return null;
+  return {
+    variable: bet.variable,
+    control: bet.control,
+    variant: bet.variant,
+    why: bet.why,
+    dimension: bet.dimension,
+    controlKey: bet.controlKey,
+    variantKey: bet.variantKey,
+    startedOn: bet.startedOn,
+    id: bet.id,
+    endsOn: bet.endsOn,
+    readout: betReadout(ws, bet.id),
+  };
 }
 
 export function pct(v: number): string {

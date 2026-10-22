@@ -4,6 +4,7 @@ import { CONNECTORS, SEQUENCER_IDS, type SequencerId } from "@/lib/connectors/ca
 import type { Campaign, Result } from "@/lib/connectors/types";
 import { ActionError } from "@/lib/domain/actions";
 import { newId, nowISO } from "@/lib/domain/ids";
+import { touchTags } from "@/lib/learning/tags";
 import type { DraftStep, Workspace } from "@/lib/domain/types";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { isSuppressed } from "./records";
@@ -164,6 +165,7 @@ export async function pushDraft(input: PushInput): Promise<{ integrationId: Sequ
       angleId: pkg.angleId,
       summary: `Pushed ${step.step === 1 ? "first touch" : `step ${step.step}`} for ${person.name} to ${name}${campaignName ? ` · ${campaignName}` : ""}`,
       source: integrationId,
+      ...touchTags(w, pkg, step, at),
     });
     const st = w.integrations[integrationId];
     if (st) {

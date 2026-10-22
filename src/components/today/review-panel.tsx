@@ -7,7 +7,9 @@ import { AiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton, Markdown } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
-import { nowISO } from "@/lib/domain/ids";
+import { nowISO, todayISO } from "@/lib/domain/ids";
+import { DIMENSION_LABELS, TARGETING_DIMENSIONS, betEndsOn, inferDimension } from "@/lib/learning/bets";
+import { shortDay } from "@/lib/moves/util";
 import type { Brief, EntityRef, ReviewProposal, Workspace } from "@/lib/domain/types";
 import { applyLabel, proposalActions } from "./proposals";
 import { RunInline } from "./parts";
@@ -76,6 +78,15 @@ export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; 
   );
 }
 
+/** What starting a bet does, in one line. Writing bets alternate drafts; who-and-why bets sort the sends. */
+function betStartedToast(p: ReviewProposal): string {
+  const until = shortDay(betEndsOn(todayISO()));
+  const d = p.bet?.dimension ?? inferDimension(p.bet?.variable ?? "");
+  if (d && TARGETING_DIMENSIONS.includes(d)) return `Started. Until ${until}, every first touch to either group is tagged with its arm.`;
+  if (d) return `Started. Until ${until}, first-touch drafts alternate between control and variant, and each send is tagged.`;
+  return `Saved. I'll restate it in each Friday review until ${until}.`;
+}
+
 function ProposalRow({ ws, date, p }: { ws: Workspace; date: string; p: ReviewProposal }) {
   const { dispatch } = useWorkspace();
   const decided = p.status !== "open";
@@ -86,7 +97,7 @@ function ProposalRow({ ws, date, p }: { ws: Workspace; date: string; p: ReviewPr
       return;
     }
     const ok = await dispatch(actions);
-    if (ok) toast(p.kind === "message_bet" ? "Saved. I'll restate it in each Friday review until the end of next month." : "Applied.");
+    if (ok) toast(p.kind === "message_bet" ? betStartedToast(p) : "Applied.");
   };
   const dismiss = () => void dispatch({ type: "brief.setProposal", date, proposalId: p.id, status: "dismissed", at: nowISO() });
 
@@ -98,6 +109,7 @@ function ProposalRow({ ws, date, p }: { ws: Workspace; date: string; p: ReviewPr
           <p className="mt-0.5 text-[13px] leading-5 text-fg-2">{p.detail}</p>
           {p.bet && (
             <p className="mt-1.5 text-[13px] leading-5 text-fg-2">
+              {p.bet.dimension && <span className="text-fg-3">{DIMENSION_LABELS[p.bet.dimension]} · </span>}
               <span className="text-fg-3">Control:</span> {p.bet.control} <span className="text-fg-3">· Variant:</span> {p.bet.variant}
             </p>
           )}
