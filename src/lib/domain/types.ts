@@ -296,6 +296,28 @@ export interface VoiceCard {
   summary: string; // "Short sentences, contractions, signs off '— P', never uses 'leverage'"
   signOff: string;
   updatedAt: ISODateTime;
+  /** Traits the founder accepted (or edited). Drafts follow these; suggestions don't count until accepted. */
+  traits?: VoiceTraits;
+  /** What the last re-read found, waiting for the founder (SPEC §6: after every 3rd sample and every 20 edits). */
+  suggested?: VoiceTraits & { at: ISODateTime; basis: string };
+  /** The last 20 drafts the founder edited before sending: as drafted, as sent, and how far apart (0–1). */
+  edits?: { at: ISODateTime; before: string; after: string; subjectBefore: string | null; subjectAfter: string | null; distance: number }[];
+  editsSinceExtract?: number;
+  samplesSinceExtract?: number;
+  /** Drafts skipped as "tone off" (the last 10): examples of what not to write. */
+  toneOff?: { at: ISODateTime; text: string; moveId?: ID }[];
+}
+
+/** How the founder writes, read from their samples and edits in code (SPEC §6 VoiceCard). Unknown traits are left out. */
+export interface VoiceTraits {
+  avgSentenceWords?: number;
+  contractions?: boolean;
+  greeting?: "none" | "first_name" | "hi_first_name" | "hey_first_name";
+  subjectStyle?: "lowercase" | "sentence" | "title";
+  usesWords?: string[];
+  avoidsWords?: string[];
+  formality?: 1 | 2 | 3 | 4 | 5;
+  punctuationHabits?: string[];
 }
 
 export interface SenderIdentity {
@@ -670,6 +692,8 @@ export interface DraftStep {
   credentialClaimId?: ID;
   /** Hidden critic verdict. Telemetry only; never shown to the founder. */
   critic?: DraftCritic;
+  /** The text as drafted, kept on the first edit so the send can be compared to it (voice learning, edit distance). */
+  original?: { subject: string | null; body: string };
   /** The why-now signal type this step rests on (from its angle's evidence), stamped at draft time for the reviews. */
   signalType?: SignalType;
   /** The message-bet arm this draft was written for (cold first touches while a bet runs). */
@@ -941,6 +965,8 @@ export interface Activity {
   outcomeAt?: ISODateTime;
   /** Touches: frame, POV, persona, subject style and message-bet arm, stamped when it was sent. */
   tags?: TouchTags;
+  /** Touches from a draft: how much the founder changed it before sending, 0 (as drafted) to 1 (rewritten). */
+  editDistance?: number;
 }
 
 export type SkipReason = "not_relevant_now" | "wrong_person" | "weak_angle" | "already_handled" | "tone_off" | "other";

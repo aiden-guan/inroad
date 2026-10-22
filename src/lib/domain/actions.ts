@@ -24,6 +24,7 @@ import type {
   SkipReason,
   Stage,
   Suppression,
+  VoiceTraits,
   Workspace,
 } from "./types";
 import { addBusinessDays, addDays, todayISO } from "./ids";
@@ -33,6 +34,7 @@ import { closeDatePushed, newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 import { touchTags } from "@/lib/learning/tags";
 import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
+import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample, noteToneOff } from "@/lib/quality/voice";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -50,6 +52,13 @@ export type Action =
   | { type: "voice.addSample"; text: string; kind: "email" | "post"; at: string }
   | { type: "voice.update"; patch: { summary?: string; signOff?: string }; at: string }
   | { type: "voice.removeSample"; index: number; at: string }
+  /** The founder accepted (or edited) how they write: drafts follow these traits. Clears the suggestion. */
+  | { type: "voice.setTraits"; traits: VoiceTraits; at: string }
+  | { type: "voice.dismissSuggestion"; at: string }
+  /** Re-read the samples and edits now (code, no tokens) instead of waiting for the next 3rd sample or 20th edit. */
+  | { type: "voice.extract"; at: string }
+  /** A draft skipped as "tone off", kept as an example of what not to write. */
+  | { type: "voice.noteToneOff"; text: string; at: string; moveId?: ID }
   | { type: "company.correctChip"; key: string; text: string | null }
   | { type: "foundation.set"; path: (string | number)[]; value: unknown }
   | { type: "foundation.answerQuestion"; questionId: ID; answer: string; at: string }
@@ -305,8 +314,25 @@ export function applyAction(ws: Workspace, action: Action): void {
       ws.voice.samples.push({ text: action.text.slice(0, 4000), kind: action.kind });
       ws.voice.samples = ws.voice.samples.slice(-5);
       ws.voice.updatedAt = action.at;
+      learnFromSample(ws.voice, action.at);
       return;
     }
+    case "voice.setTraits": {
+      ws.voice ??= emptyVoice(action.at);
+      ws.voice.traits = action.traits;
+      delete ws.voice.suggested;
+      ws.voice.updatedAt = action.at;
+      return;
+    }
+    case "voice.dismissSuggestion":
+      if (ws.voice) delete ws.voice.suggested;
+      return;
+    case "voice.extract":
+      if (ws.voice) extractVoice(ws.voice, action.at);
+      return;
+    case "voice.noteToneOff":
+      noteToneOff(ws, action.text, action.at, action.moveId);
+      return;
     case "voice.update": {
       ws.voice ??= { samples: [], summary: "", signOff: "", updatedAt: action.at };
       if (action.patch.summary !== undefined) ws.voice.summary = action.patch.summary.slice(0, 600);
@@ -561,6 +587,8 @@ export function applyAction(ws: Workspace, action: Action): void {
         pkg.steps.find((s) => s.step === action.step),
         "Step",
       );
+      // The text as drafted, kept once, so the send can be compared with it.
+      step.original ??= { subject: step.subject, body: step.body };
       if (action.subject !== undefined) step.subject = action.subject;
       if (action.body !== undefined) step.body = action.body;
       step.edited = true;
@@ -573,6 +601,9 @@ export function applyAction(ws: Workspace, action: Action): void {
       if (!first) return;
       pkg.alternates[action.index] = { ...first };
       Object.assign(first, { subject: alt.subject, body: alt.body, frame: alt.frame, evidenceIds: alt.evidenceIds, lint: alt.lint });
+      // The text as drafted travels with the text, so edits are measured against the right draft.
+      if (alt.original) first.original = alt.original;
+      else delete first.original;
       return;
     }
     case "outreach.approveStep": {
@@ -586,6 +617,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       step.status = "sent";
       step.sentAt = action.at;
       const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+      const asDrafted = step.original ? `${step.original.subject ?? ""}\n${step.original.body}` : undefined;
+      const distance = asDrafted === undefined ? 0 : editDistance(asDrafted, `${step.subject ?? ""}\n${step.body}`);
       ws.activities.push({
         id: action.activityId,
         at: action.at,
@@ -601,7 +634,10 @@ export function applyAction(ws: Workspace, action: Action): void {
         source: "founder",
         // Signal, frame, POV, persona, subject style and bet arm: what the learning reviews compare.
         ...touchTags(ws, pkg, step, action.at),
+        editDistance: distance,
       });
+      // Every edit before sending is the founder showing how they write.
+      if (step.original) learnFromEdit(ws, { before: step.original.body, after: step.body, subjectBefore: step.original.subject, subjectAfter: step.subject, distance }, action.at);
       const acc = ws.accounts[pkg.accountDomain];
       if (acc && acc.status === "new") acc.status = "tracked";
       if (pkg.mode === "warm_intro") openIntroFromAsk(ws, pkg.id, action.at);
@@ -649,6 +685,12 @@ export function applyAction(ws: Workspace, action: Action): void {
       );
       step.status = "draft";
       delete step.sentAt;
+      // Not sent after all: the edit it recorded comes back out of the voice card.
+      const unsent = ws.activities.find((a) => a.id === action.activityId);
+      if (unsent && ws.voice?.edits?.some((e) => e.at === unsent.at)) {
+        ws.voice.edits = ws.voice.edits.filter((e) => e.at !== unsent.at);
+        ws.voice.editsSinceExtract = Math.max(0, (ws.voice.editsSinceExtract ?? 0) - 1);
+      }
       ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
       for (const move of Object.values(ws.moves)) {
         if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "open";
@@ -734,6 +776,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       move.status = "open";
       delete move.skipReason;
       delete move.snoozedUntil;
+      // An undone "tone off" skip takes its example back out of the voice card.
+      if (ws.voice?.toneOff) ws.voice.toneOff = ws.voice.toneOff.filter((t) => t.moveId !== action.id);
       return;
     }
     case "activity.markOutcome": {
