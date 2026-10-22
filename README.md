@@ -65,7 +65,8 @@ npm run eval:classify   # the reply reader against a hand-labeled bench: ≥95% 
 ```
 
 Both call the real API when a key is set (about $0.10 and $0.05) and fail when the gate fails; with no key they do
-nothing, and `EVAL_MOCK=1` runs them against the mock to check the plumbing. The bundled calibration emails model the
+nothing, and `EVAL_MOCK=1` runs them against the mock to check the plumbing. CI runs them against the mock on every push,
+and against the real model when the repository has an `ANTHROPIC_API_KEY` secret. The bundled calibration emails model the
 patterns but aren't real: put permissioned ones in `calibration.json` (and critic references in `references.json`) in
 the data folder to use them instead. Settings → Usage shows how drafting is going on your own work (critic pass rate,
 edit distance, flagged evidence, first-run timings), computed on your machine.
