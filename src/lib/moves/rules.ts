@@ -6,7 +6,7 @@ import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { awaitingOutcome, BOOKING_NUDGES, bookingLoops, searchDays } from "./replies";
-import { coldQuotaLeft, counters, INTRO_ASKS_PER_WEEK, type Counters } from "./scoreboard";
+import { coldQuotaLeft, counters, introAsksTarget, type Counters } from "./scoreboard";
 import {
   ago,
   ageShort,
@@ -882,7 +882,9 @@ const RELATIONSHIP: Record<string, string> = {
 
 function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
   const asks = c.introAsksThisWeek;
-  const quotaMet = asks >= INTRO_ASKS_PER_WEEK;
+  // The plan's number (Playbook → Plan), not a constant: raising intro asks there keeps these cards up.
+  const askTarget = introAsksTarget(ws);
+  const quotaMet = asks >= askTarget;
   const recentPkg = (domain: string) => Object.values(ws.outreach).some((p) => p.accountDomain === domain && daysSince(p.createdAt, today) <= 30) || !!openIntroFor(ws, domain);
   const prospects = Object.values(ws.accounts)
     // Any deal, open or closed, rules a company out: open ones have their own moves, and lost or nurture ones aren't intro targets.
@@ -918,7 +920,7 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
       kind: "intro_ask",
       rule: "warm_path",
       title: `Use your warm path into ${acc.name}`,
-      why: `${plural(acc.warmPathCount, "person", "people")} you know there${sig ? ` · ${clip(sig.headline, 50)}` : ""} · ${asks} of ${INTRO_ASKS_PER_WEEK} intro asks this week`,
+      why: `${plural(acc.warmPathCount, "person", "people")} you know there${sig ? ` · ${clip(sig.headline, 50)}` : ""} · ${asks} of ${askTarget} intro asks this week`,
       minutes: 4,
       priority: quotaMet ? 40 : RULES.warm_path.base + (acc.tier === "A" ? 2 : 0),
       // Name who the intro is for, so the ask isn't drafted blind.
@@ -941,7 +943,7 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
     kind: "intro_ask",
     rule: "connector",
     title: `Ask ${first(connector.name)} for an intro to ${target.name}`,
-    why: `${RELATIONSHIP[connector.relationship] ?? "Connector"} · ${asks} of ${INTRO_ASKS_PER_WEEK} intro asks this week`,
+    why: `${RELATIONSHIP[connector.relationship] ?? "Connector"} · ${asks} of ${askTarget} intro asks this week`,
     minutes: 4,
     priority: RULES.connector.base,
     ref: { kind: "account", id: target.domain },

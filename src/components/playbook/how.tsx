@@ -11,9 +11,10 @@ import { Num } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
-import { newId } from "@/lib/domain/ids";
+import { newId, nowISO } from "@/lib/domain/ids";
 import type { ObjectionCard } from "@/lib/domain/types";
 import { listItem, spring } from "@/lib/motion";
+import { conversationsTarget } from "@/lib/moves/scoreboard";
 import { AssetsBlock, DesignPartnerBlock } from "./assets";
 import { usePlaybook } from "./context";
 import {
@@ -92,6 +93,8 @@ function Plan() {
   const rounded = Math.round(m.projected);
   const onTrack = m.gap <= 0.05 || rounded >= m.target;
   const goal = (patch: Partial<typeof ws.goal>) => void dispatch({ type: "goal.update", patch });
+  // What Today's masthead actually aims for (the bet's channel plan until the founder picks a number here).
+  const todayTarget = conversationsTarget(ws);
 
   return (
     <Sub id="plan" title="Plan" hint="The goal is an output of what you can do each week, not a wish. Change an input and the number follows.">
@@ -181,7 +184,13 @@ function Plan() {
             {(m.levers.introAsksPerWeek || m.levers.byDate) && (
               <div className="mt-3 flex flex-wrap gap-2 font-sans">
                 {m.levers.introAsksPerWeek && (
-                  <Button size="sm" onClick={() => goal({ introAsksPerWeek: m.levers.introAsksPerWeek! })}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      goal({ introAsksPerWeek: m.levers.introAsksPerWeek! });
+                      toast(`Today now aims for ${m.levers.introAsksPerWeek} intro asks a week.`);
+                    }}
+                  >
                     Ask for {m.levers.introAsksPerWeek} intros a week
                   </Button>
                 )}
@@ -211,13 +220,13 @@ function Plan() {
           </p>
         )}
         <p>Cold email never goes above 20 a day. LinkedIn invites, intro asks and replies don&apos;t count against the cap.</p>
-        {ws.goal.conversationsPerWeek !== m.conversationsPerWeek && (
+        {todayTarget !== m.conversationsPerWeek && (
           <p className="flex flex-wrap items-center gap-x-2">
-            Today aims for {plural(ws.goal.conversationsPerWeek, "conversation")} a week; this plan supports about {m.conversationsPerWeek}.
+            Today aims for {plural(todayTarget, "conversation")} a week; this plan supports about {m.conversationsPerWeek}.
             <button
               type="button"
               onClick={() => {
-                goal({ conversationsPerWeek: m.conversationsPerWeek });
+                goal({ conversationsPerWeek: m.conversationsPerWeek, conversationsChosenAt: nowISO() });
                 toast(`Today now aims for ${plural(m.conversationsPerWeek, "conversation")} a week.`);
               }}
               className="text-fg-2 underline underline-offset-2 hover:text-fg"

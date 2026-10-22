@@ -1,6 +1,7 @@
 import { addDays, daysBetween, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Activity, type Deal, type LossReason, type ReviewProposal, type Stage, type Workspace } from "@/lib/domain/types";
-import { conversationsBetween, conversationsTarget, counters, goalWins, INTRO_ASKS_PER_WEEK, isColdFirstTouch, isQualified, sampleLabel } from "./scoreboard";
+import { coldFirstTouches } from "@/lib/quality/cap";
+import { conversationsBetween, conversationsTarget, counters, goalWins, introAsksTarget, isColdFirstTouch, isQualified, sampleLabel } from "./scoreboard";
 import { clip, companyName, daysSince, first, isOpen, localDate } from "./util";
 
 /**
@@ -174,10 +175,10 @@ export function pipelineData(ws: Workspace, now: Date): PipelineData {
     candidates: facts.filter((f) => (f.flags.includes("no_dated_next_step") || f.flags.some((x) => x.startsWith("next_step_overdue"))) && f.daysWithoutDatedStep >= 14),
     singleThreaded: facts.filter((f) => f.flags.includes("single_threaded")),
     overdue: facts.filter((f) => f.flags.some((x) => x.startsWith("next_step_overdue"))),
-    targets: { conversations: conversationsTarget(ws), coldFirstTouches: ws.caps.firstTouchesPerWeek, introAsks: INTRO_ASKS_PER_WEEK, eventActions },
+    targets: { conversations: conversationsTarget(ws), coldFirstTouches: ws.caps.firstTouchesPerWeek, introAsks: introAsksTarget(ws), eventActions },
     lastWeek: {
       conversations: conversationsBetween(ws, lastStart, new Date(`${start}T00:00:00`)),
-      coldFirstTouches: lastWeekActs.filter((a) => isColdFirstTouch(ws, a)).length,
+      coldFirstTouches: coldFirstTouches(ws, { from: lastStart, until: addDays(start, -1) }),
       introAsks: lastWeekActs.filter((a) => a.kind === "intro_requested").length,
       replies: replies.length,
       positiveReplies: replies.filter((a) => a.sentiment === "positive").length,
@@ -356,7 +357,7 @@ export function learningData(ws: Workspace, now: Date): LearningData {
     inputs: [
       { metric: "Conversations held", actual: conversationsBetween(ws, start, now), target: conversationsTarget(ws) },
       { metric: "Cold first touches", actual: c.coldThisWeek, target: ws.caps.firstTouchesPerWeek, note: "a ceiling, not a goal" },
-      { metric: "Intro asks", actual: c.introAsksThisWeek, target: INTRO_ASKS_PER_WEEK },
+      { metric: "Intro asks", actual: c.introAsksThisWeek, target: introAsksTarget(ws) },
       { metric: "Replies", actual: replyActs.length, target: null },
       { metric: "Positive replies", actual: replyActs.filter((a) => a.sentiment === "positive").length, target: null },
       { metric: "Paid pilots (to date)", actual: goalWins(ws), target: ws.goal.target, toDate: true },

@@ -322,6 +322,8 @@ export interface Goal {
   /** Plan inputs (Playbook → Plan). Intro asks and community conversations don't count against the cold cap. */
   introAsksPerWeek?: number; // 4
   communityPerWeek?: number; // 0
+  /** Set when the founder picked `conversationsPerWeek` in Playbook → Plan; Today's target then uses it over the bet's channel plan. */
+  conversationsChosenAt?: ISODateTime;
 }
 
 export interface Caps {
