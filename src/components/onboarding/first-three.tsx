@@ -19,6 +19,7 @@ import { ease, spring } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
 import { PendingRow } from "./reading-ledger";
 import { rankAccounts, runSummary } from "./shared";
+import { KnownUsers } from "./known-users";
 
 const AGREEMENT = [
   "I draft. You decide, and you send.",
@@ -211,6 +212,8 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
             </p>
           </div>
         )}
+
+        <KnownUsers ws={ws} />
 
         <ol className="mt-6 divide-y divide-border border-y border-border" aria-label="Companies to talk to first" aria-live="polite">
           <AnimatePresence initial={false}>
