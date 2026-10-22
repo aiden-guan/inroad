@@ -320,6 +320,8 @@ export interface VoiceTraits {
   avoidsWords?: string[];
   formality?: 1 | 2 | 3 | 4 | 5;
   punctuationHabits?: string[];
+  /** A suggestion only: the sign-off on 2+ of their messages. Accepting it sets VoiceCard.signOff. */
+  signOff?: string;
 }
 
 export interface SenderIdentity {
