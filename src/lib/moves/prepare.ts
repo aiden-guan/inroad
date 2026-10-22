@@ -164,6 +164,14 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
       console.warn("[today] draft not started ahead:", err instanceof Error ? err.message : err);
     }
   }
+  const network = getWorkflow("network");
+  if (ahead.screen && network) {
+    try {
+      aheadRunIds.push((await startRun(network, { reason: ahead.screen })).id);
+    } catch (err) {
+      console.warn("[today] network screen not started:", err instanceof Error ? err.message : err);
+    }
+  }
 
   const after = readWorkspace();
   if (firstOfDay && !briefRunId && after.briefs[today]) void emitHubEvent("brief.ready", { brief: briefData(after, today) });

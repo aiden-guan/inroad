@@ -5,8 +5,8 @@ import { isSuppressed, knowsDirectly } from "./util";
 
 /**
  * What Today prepares before the founder asks (SPEC §5.1, W7): the brief for every meeting in the next
- * 24 hours, and drafts for the follow-ups and first touches on the desk, so a card opens on finished
- * work instead of a 90-second wait. Pure; prepareToday claims the plan inside its write and starts the runs.
+ * 24 hours, drafts for the follow-ups and first touches on the desk (so a card opens on finished work
+ * instead of a 90-second wait), and the network screen once the bet it screens against exists. Pure; prepareToday claims the plan inside its write and starts the runs.
  * Never on the sample workspace or without a key (the caller checks), and capped per day.
  */
 
@@ -29,8 +29,25 @@ export interface AheadPlan {
   preps: ID[];
   /** Compose runs to start, with the card each one fills. */
   drafts: { moveId: ID; args: DraftArgs }[];
+  /** Screen the founder's network against the bet: imported while the bet was still being written, or the bet changed since. */
+  screen?: "import" | "rescreen";
   /** Claim keys for today's brief (`Brief.ahead`), so no prepare starts the same work twice. */
   keys: string[];
+}
+
+/**
+ * A LinkedIn import dropped in during onboarding lands before the ICP exists, so it can't be screened yet. Once
+ * the bet is written (or rewritten), screen it. Zero names to the model; company names and titles only.
+ */
+export function networkToScreen(ws: Workspace, now: Date): { reason: "import" | "rescreen"; key: string } | null {
+  const net = ws.network;
+  const f = ws.foundation;
+  if (!net || !f?.generatedAt || !f.icp?.criteria?.length) return null;
+  const stale = !net.screenedAt || net.screenedAt < net.importedAt || net.screenedAt < f.generatedAt;
+  if (!stale) return null;
+  const since = now.getTime() - RETRY_HOURS * 3_600_000;
+  if (ws.runs.some((r) => r.workflow === "network" && (r.status === "running" || r.status === "queued" || Date.parse(r.startedAt) >= since))) return null;
+  return { reason: net.screenedAt ? "rescreen" : "import", key: `net:${net.importedAt}:${f.generatedAt}` };
 }
 
 const prepKey = (ws: Workspace, id: ID) => `mtg:${id}:${ws.meetings[id]?.brief?.generatedAt ?? "none"}`;
@@ -126,5 +143,12 @@ export function planAhead(ws: Workspace, now: Date): AheadPlan {
   const drafts = draftsToStart(ws, now)
     .filter((d) => !claimed.has(draftKey(d)))
     .slice(0, Math.max(0, AHEAD_DRAFTS_PER_DAY - usedDrafts));
-  return { preps, drafts, keys: [...preps.map((id) => prepKey(ws, id)), ...drafts.map(draftKey)] };
+  const net = networkToScreen(ws, now);
+  const screen = net && !claimed.has(net.key) ? net : null;
+  return {
+    preps,
+    drafts,
+    ...(screen ? { screen: screen.reason } : {}),
+    keys: [...preps.map((id) => prepKey(ws, id)), ...drafts.map(draftKey), ...(screen ? [screen.key] : [])],
+  };
 }
