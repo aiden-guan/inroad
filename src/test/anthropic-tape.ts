@@ -7,7 +7,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { billedUsage } from "@/lib/ai/engine";
 import { MODEL_IDS, type ModelTier } from "@/lib/ai/models";
 // Plain JS, shared with the live smoke (scripts/live).
-import { exchangeKey, messageFromEvents, startTapeProxy } from "../../scripts/live/tape-proxy.mjs";
+import { exchangeKey, messageFromEvents, requestDrift, requestSummary, startTapeProxy } from "../../scripts/live/tape-proxy.mjs";
 import { startMock, type MockServer } from "./mock-anthropic";
 
 /**
@@ -33,7 +33,8 @@ declare module "vitest" {
 
 export interface TapeExchange {
   key: string;
-  request: { model: string; tools: string[]; messages: number; maxTokens: number; effort: string | null; cacheTtl: string | null; stream: boolean };
+  /** In replay, what the code sent this time (not what was recorded); `prefix` and `turns` are hashes (tape-proxy.mjs). */
+  request: { model: string; tools: string[]; messages: number; maxTokens: number; effort: string | null; cacheTtl: string | null; stream: boolean; prefix?: string; turns?: string[] };
   status: number;
   headers: Record<string, string>;
   events?: Record<string, unknown>[];
@@ -53,8 +54,12 @@ export interface Tape {
   name: string;
   mode: TapeMode;
   source: "mock" | "live";
-  /** Requests the tape had no answer for (replay only). A test should end with none. */
+  /**
+   * Requests the tape had no answer for, or answered although they differ from what it recorded (another
+   * cache TTL, max_tokens, effort, tool set or cached prefix): replay only. A test should end with none.
+   */
   misses: string[];
+  /** The exchanges of this run. In replay, each request is the one the code sent, answered from the tape. */
   exchanges: () => TapeExchange[];
   /** Brings exchanges() up to date with what was recorded so far (record and live modes). */
   refresh: () => Promise<void>;
@@ -93,6 +98,8 @@ function sse(events: Record<string, unknown>[]): string {
 async function replayServer(file: TapeFile) {
   const used = new Set<number>();
   const misses: string[] = [];
+  // What this run sent, each with the recorded answer it got: tests assert on the request side.
+  const served: TapeExchange[] = [];
   const server = http.createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
@@ -106,12 +113,17 @@ async function replayServer(file: TapeFile) {
     }
     used.add(i);
     const e = file.exchanges[i];
+    const sent = requestSummary(body) as TapeExchange["request"];
+    // Answered, but not the request the tape was made from: a test passing on it would be checking the file.
+    const drift = requestDrift(e.request, sent);
+    if (drift.length) misses.push(`${key}: ${drift.join("; ")}. Re-record it if the change is intended: npm run tapes:record`);
+    served.push({ ...e, request: sent });
     res.writeHead(e.status, { ...e.headers, "x-should-retry": "false" });
     res.end(e.events ? sse(e.events) : JSON.stringify(e.json));
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as { port: number };
-  return { url: `http://127.0.0.1:${port}`, misses, close: () => new Promise<void>((r) => server.close(() => r())) };
+  return { url: `http://127.0.0.1:${port}`, misses, served, close: () => new Promise<void>((r) => server.close(() => r())) };
 }
 
 function point(url: string) {
@@ -133,10 +145,10 @@ export async function useTape(name: string): Promise<Tape> {
       mode,
       source: tape.source,
       misses: server.misses,
-      exchanges: () => tape.exchanges,
+      exchanges: () => [...server.served],
       refresh: async () => {},
-      messages: () => finalMessages(tape.exchanges),
-      costUsd: () => tapeCost(tape.exchanges),
+      messages: () => finalMessages(server.served),
+      costUsd: () => tapeCost(server.served),
       close: server.close,
     };
   }
