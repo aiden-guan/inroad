@@ -45,8 +45,10 @@ export default defineConfig({
     { name: "desktop", testMatch: "first-run.spec.ts", use: { ...devices["Desktop Chrome"] } },
     // The narrowest phone the UI is built for, on the workspace the desktop run built.
     { name: "phone", testMatch: "phone.spec.ts", dependencies: ["desktop"], use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, hasTouch: true } },
+    // ⌘K commands on the same workspace: paste a reply and land on its draft.
+    { name: "palette", testMatch: "palette.spec.ts", dependencies: ["phone"], use: { ...devices["Desktop Chrome"] } },
     // Last: it swaps the workspace for the sample and back (through a backup).
-    { name: "sample", testMatch: "sample.spec.ts", dependencies: ["phone"], use: { ...devices["Desktop Chrome"] } },
+    { name: "sample", testMatch: "sample.spec.ts", dependencies: ["palette"], use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: [
     {

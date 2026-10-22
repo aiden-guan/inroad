@@ -47,11 +47,18 @@ export function PlaybookView() {
   const arrived = useRef(false);
   useEffect(() => {
     if (!ready || arrived.current) return;
-    arrived.current = true;
     const asset = params.get("asset") ?? hashAsset();
     const target = asset ? `asset-${asset}` : params.get("new") ? "assets" : window.location.hash.slice(1);
-    if (!target) return;
-    const frame = requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({ block: "start" }));
+    if (!target) {
+      arrived.current = true;
+      return;
+    }
+    // Marked done only once it ran: a cancelled frame (Strict Mode's second mount, arriving from ⌘K with the
+    // workspace already loaded) would otherwise leave the founder at the top of the page.
+    const frame = requestAnimationFrame(() => {
+      arrived.current = true;
+      document.getElementById(target)?.scrollIntoView({ block: "start" });
+    });
     return () => cancelAnimationFrame(frame);
   }, [ready, params]);
 

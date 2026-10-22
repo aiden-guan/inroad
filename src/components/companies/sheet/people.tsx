@@ -75,13 +75,19 @@ export function PeopleSection({ account, committee, topAngleId }: { account: Acc
   );
 }
 
-function PersonRow({ person, domain, angleId }: { person: Person; domain: string; angleId?: string }) {
-  const ev = useEvidence();
-  const paths = rankPaths(person.contactPaths).filter((p) => !p.bounced);
-  const top = paths[0];
+/** How to reach someone first, from their best contact path: the composer mode and the button's words. */
+export function composeModeFor(person: Person): { mode: "cold" | "linkedin" | "warm_intro"; label: string } {
+  const top = rankPaths(person.contactPaths).filter((p) => !p.bounced)[0];
   const direct = top?.kind === "warm_intro" && top.via === "connection";
   const mode = direct ? "linkedin" : top?.kind === "warm_intro" ? "warm_intro" : top?.kind === "linkedin" ? "linkedin" : "cold";
   const label = direct ? "Message on LinkedIn" : top?.kind === "warm_intro" ? "Ask for an intro" : top?.kind === "linkedin" ? "Draft a LinkedIn note" : "Write";
+  return { mode, label };
+}
+
+function PersonRow({ person, domain, angleId }: { person: Person; domain: string; angleId?: string }) {
+  const ev = useEvidence();
+  const paths = rankPaths(person.contactPaths).filter((p) => !p.bounced);
+  const { mode, label } = composeModeFor(person);
   const hasEmail = !!person.email || paths.some((p) => p.value.includes("@"));
   return (
     <li className="rounded-md bg-surface px-3 py-2.5 ring-1 ring-border">
