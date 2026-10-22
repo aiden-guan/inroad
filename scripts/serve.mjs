@@ -12,6 +12,8 @@
  *   anywhere but this computer.
  * - Preloads scripts/peer-guard.cjs, which stamps each request with its socket's real address. Without
  *   it the app can't tell this computer from a caller who claims to be it, so it refuses everything.
+ * - Once Next answers, asks it to run its startup work (POST /api/startup): tighten data-file permissions
+ *   and bring a named tunnel back, so hook and MCP URLs work again even if nobody opens the app.
  * - `--mock` points Anthropic and Firecrawl at the mock (`npm run mock:anthropic`, MOCK_PORT or 4010),
  *   keeps its data in .data-mock (GTM_DATA_DIR to change) and serves on 3100.
  *
@@ -63,8 +65,9 @@ if (mock) {
   env.GTM_DATA_DIR ||= ".data-mock";
 }
 
-// The app reads these: where it listens (the tunnel connects there) and that the guard is loaded.
+// The app reads these: where it listens and on which port (the tunnel connects there).
 env.INROAD_HOST = host;
+env.PORT = String(port);
 // Forward slashes: NODE_OPTIONS treats a backslash inside quotes as an escape, and Windows accepts both.
 const guard = path.join(here, "peer-guard.cjs").replace(/\\/g, "/");
 env.NODE_OPTIONS = [env.NODE_OPTIONS, `--require "${guard}"`].filter(Boolean).join(" ");
@@ -84,4 +87,20 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     if (!child.killed) child.kill(signal);
   });
 }
+/** The address to reach the server on from this machine. */
+const local = host === "0.0.0.0" || host === "" ? "127.0.0.1" : host === "::" ? "[::1]" : host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+
+// Startup work, as soon as the server answers (dev compiles on the first request, so allow a while).
+(async () => {
+  for (let i = 0; i < 240 && child.exitCode === null; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      const res = await fetch(`http://${local}:${port}/api/startup`, { method: "POST" });
+      if (res.ok || res.status === 403) return;
+    } catch {
+      // not listening yet
+    }
+  }
+})();
+
 child.on("exit", (code, signal) => process.exit(code ?? (signal ? 128 + ({ SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }[signal] ?? 0) : 0)));
