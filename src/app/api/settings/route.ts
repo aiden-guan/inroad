@@ -16,6 +16,7 @@ function status(): SettingsStatus {
     keyHint: saved ? `…${saved.slice(-4)}` : null,
     newsSource: settings.newsSource ?? "gdelt",
     geocoder: settings.geocoder ?? "osm",
+    companyIcons: settings.companyIcons ?? "letters",
     dataDir: path.resolve(DATA_DIR),
   };
 }
@@ -30,6 +31,7 @@ const Body = z.object({
   anthropicApiKey: z.string().max(400).nullable().optional(),
   newsSource: z.enum(["gdelt", "google_news", "off"]).optional(),
   geocoder: z.enum(["osm", "off"]).optional(),
+  companyIcons: z.enum(["letters", "site"]).optional(),
 });
 
 /** Saves local-only settings. The API key gets a cheap validity check with Anthropic first. */
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
 
     if (body.newsSource) writeSettings({ newsSource: body.newsSource });
     if (body.geocoder) writeSettings({ geocoder: body.geocoder });
+    if (body.companyIcons) writeSettings({ companyIcons: body.companyIcons });
 
     if (body.anthropicApiKey === null || body.anthropicApiKey === "") {
       writeSettings({ anthropicApiKey: undefined });

@@ -67,11 +67,17 @@ async function isPublicUrl(raw: string): Promise<boolean> {
   }
 }
 
-/** Plain HTTP fetch with a timeout and size cap. Returns null on any failure — signals are best-effort. */
-export async function fetchText(
-  url: string,
-  { timeoutMs = 10_000, maxBytes = 1_500_000, accept = "text/html,application/xhtml+xml" } = {},
-): Promise<{ url: string; status: number; body: string } | null> {
+interface Fetched {
+  url: string;
+  status: number;
+  contentType: string;
+  bytes: Buffer;
+  /** The body was longer than `maxBytes` and was cut there. */
+  truncated: boolean;
+}
+
+/** The guarded fetch behind fetchText and fetchBytes: public addresses only, on every hop, with a size cap. */
+async function fetchGuarded(url: string, { timeoutMs, maxBytes, accept }: { timeoutMs: number; maxBytes: number; accept: string }): Promise<Fetched | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -95,23 +101,42 @@ export async function fetchText(
     const reader = res.body.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;
+    let truncated = false;
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
       chunks.push(value);
       if (size > maxBytes) {
+        truncated = true;
         await reader.cancel();
         break;
       }
     }
-    const body = new TextDecoder().decode(Buffer.concat(chunks));
-    return { url: current, status: res.status, body };
+    return { url: current, status: res.status, contentType: res.headers.get("content-type") ?? "", bytes: Buffer.concat(chunks), truncated };
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Plain HTTP fetch with a timeout and size cap. Returns null on any failure — signals are best-effort. */
+export async function fetchText(
+  url: string,
+  { timeoutMs = 10_000, maxBytes = 1_500_000, accept = "text/html,application/xhtml+xml" } = {},
+): Promise<{ url: string; status: number; body: string } | null> {
+  const res = await fetchGuarded(url, { timeoutMs, maxBytes, accept });
+  return res && { url: res.url, status: res.status, body: new TextDecoder().decode(res.bytes) };
+}
+
+/** A small binary file (an icon), whole or not at all: anything over `maxBytes` is null, never a cut-off file. */
+export async function fetchBytes(
+  url: string,
+  { timeoutMs = 8_000, maxBytes = 200_000, accept = "image/*" } = {},
+): Promise<{ url: string; contentType: string; bytes: Buffer } | null> {
+  const res = await fetchGuarded(url, { timeoutMs, maxBytes, accept });
+  return res && !res.truncated ? { url: res.url, contentType: res.contentType, bytes: res.bytes } : null;
 }
 
 export async function fetchJSON<T>(url: string, timeoutMs = 10_000): Promise<T | null> {

@@ -2,6 +2,7 @@
  * What the hub knows about each tool, shared by the server (connectors, inbound parsing) and the
  * Integrations page. Plain data only. Paths and scopes come from docs/research/06-connector-apis.md.
  */
+import { CLIENTS } from "@/lib/api-keys/types";
 import type { HubEventType, IntegrationId, Stage } from "@/lib/domain/types";
 
 export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack" | "firecrawl";
@@ -330,6 +331,17 @@ export function inboundSourceName(source: string): string {
   const all = [...LEAD_SOURCES, ...Object.values(REPLY_SOURCES), ...BOOKING_SOURCES];
   return all.find((s) => s.id === source)?.name ?? (source === "generic" ? "Webhook" : source.charAt(0).toUpperCase() + source.slice(1));
 }
+
+/**
+ * The tools and agents Inroad connects to, whose marks the Integrations page shows. Their icons are
+ * always fetched (from their own sites, through /api/favicon): they say nothing about the founder's
+ * prospects, unlike a company's domain (see src/lib/signals/icons.ts).
+ */
+export const TOOL_DOMAINS: ReadonlySet<string> = new Set([
+  ...Object.values(CONNECTORS).map((c) => c.domain),
+  ...[...LEAD_SOURCES, ...Object.values(REPLY_SOURCES), ...BOOKING_SOURCES].flatMap((s) => (s.domain ? [s.domain] : [])),
+  ...CLIENTS.flatMap((c) => (c.domain ? [c.domain] : [])),
+]);
 
 /** Activity.source for things that arrived through a hook. */
 export function activitySourceFor(source: string): IntegrationId {

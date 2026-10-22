@@ -2,6 +2,7 @@
 
 export type NewsSource = "gdelt" | "google_news" | "off";
 export type Geocoder = "osm" | "off";
+export type CompanyIcons = "letters" | "site";
 
 /** GET/POST /api/settings. The key itself never leaves the server; only where it came from and its last 4. */
 export interface SettingsStatus {
@@ -11,6 +12,8 @@ export interface SettingsStatus {
   newsSource: NewsSource;
   /** Whether places outside the built-in city list are looked up on OpenStreetMap. */
   geocoder: Geocoder;
+  /** Company marks: first letters only (nothing sent), or each company's icon from its own site. */
+  companyIcons: CompanyIcons;
   /** Absolute path of the folder that holds workspace.json, settings.json and the caches. */
   dataDir: string;
 }
