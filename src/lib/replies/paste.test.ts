@@ -46,6 +46,20 @@ describe("logPastedReply", () => {
     expect(() => logPastedReply(ws, [{ ...lena, id: "c_x", matchedDomain: undefined }], { text: "Hi", target: { connectionId: "c_x" } }, NOW)).toThrow(PasteError);
   });
 
+  it("doesn't file someone who asked to have their details deleted, by address or as a connection", () => {
+    const ws = workspace();
+    ws.suppression.push({ id: "sup_ana", email: "ana@cinderpath.com", reason: "requested_delete", at: at(-2) });
+    const before = { people: Object.keys(ws.people).length, accounts: Object.keys(ws.accounts).length, activities: ws.activities.length };
+    const asNew = targetOf({ kind: "new", name: "Ana Ruiz", email: "ana@cinderpath.com", domain: "cinderpath.com", company: "Cinderpath", knownCompany: false, why: "domain" });
+    expect(() => logPastedReply(ws, [], { text: "Did you delete me?", target: asNew }, NOW)).toThrow("Ana asked you to delete their details, so I won't keep their reply.");
+    const ana: Connection = { id: "c_ana", firstName: "Ana", lastName: "Ruiz", url: "https://www.linkedin.com/in/ana", email: "Ana@cinderpath.com", company: "Cinderpath", position: "CFO", companyNorm: "cinderpath", matchedDomain: "cinderpath.com" };
+    expect(() => logPastedReply(ws, [ana], { text: "Did you delete me?", target: { connectionId: "c_ana" } }, NOW)).toThrow(PasteError);
+    expect({ people: Object.keys(ws.people).length, accounts: Object.keys(ws.accounts).length, activities: ws.activities.length }).toEqual(before);
+    // An unsubscribe alone doesn't stop the founder logging what they said.
+    ws.suppression[0].reason = "unsubscribe";
+    expect(logPastedReply(ws, [], { text: "Please stop.", target: asNew }, NOW).createdPerson).toBe(true);
+  });
+
   it("keeps a received time from the past, and refuses what it can't file", () => {
     const ws = workspace();
     const out = logPastedReply(ws, [], { text: "Yes", target: { personId: "per_dana" }, receivedAt: at(-1) }, NOW);
