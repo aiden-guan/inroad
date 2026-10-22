@@ -1,4 +1,5 @@
 import type { DraftFrame, LintCode, LintResult } from "@/lib/domain/types";
+import { aOrAn } from "@/lib/moves/util";
 import { convergence, sentences, stripGreeting, type RecentDraft } from "./similarity";
 
 /**
@@ -272,6 +273,15 @@ export function limitsFor(input: Pick<LintInput, "kind" | "frame" | "step" | "fi
   }
 }
 
+/** The resource a draft offers ("one-pager", "teardown"), lowercased, if a sentence offers one: what ASSET_MISSING checks. */
+export function offeredResource(body: string): string | null {
+  for (const s of sentences(body)) {
+    const plain = s.replace(/\bin terms of\b/gi, "");
+    if (RESOURCE.test(plain) && OFFER.test(plain)) return (plain.match(RESOURCE)?.[0] ?? "resource").toLowerCase();
+  }
+  return null;
+}
+
 export function lintDraft(input: LintInput): LintResult {
   const body = norm(input.body ?? "");
   const subject = input.subject === null ? null : norm(input.subject ?? "");
@@ -339,7 +349,6 @@ export function lintDraft(input: LintInput): LintResult {
   }
 
   // Asks
-  const sents = sentences(body);
   // A closing P.S. may carry a second, lower-stakes question ("If this isn't yours, who owns it?").
   const main = body.replace(/(^|\n)\s*p\.?\s?s\.?\s[^\n]*\s*$/i, "");
   const asks = sentences(main).filter((s) => s.endsWith("?") || ASK_CUE.test(s)).length;
@@ -390,14 +399,8 @@ export function lintDraft(input: LintInput): LintResult {
       }
     }
   }
-  for (const s of sents) {
-    const plain = s.replace(/\bin terms of\b/gi, "");
-    if (RESOURCE.test(plain) && OFFER.test(plain) && !input.assetId) {
-      const what = plain.match(RESOURCE)?.[0] ?? "a resource";
-      add("ASSET_MISSING", `Offers ${/^[aeiou]/i.test(what) ? "an" : "a"} ${what.toLowerCase()} but no asset is attached. Pick one or drop the offer.`);
-      break;
-    }
-  }
+  const offered = input.assetId ? null : offeredResource(body);
+  if (offered) add("ASSET_MISSING", `Offers ${aOrAn(offered)} ${offered} but no asset is attached. Pick one or drop the offer.`);
   if (input.requirePov && !input.povId && !input.credentialId) add("POV_MISSING", "No point of view. A cold note needs one of yours, or a credential.");
   if (input.spans?.length) {
     const bodyNorm = body.toLowerCase().replace(/\s+/g, " ");
