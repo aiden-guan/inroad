@@ -133,6 +133,18 @@ export function bestPerson(ws: Workspace, acc: Account): Person | undefined {
   return people.find((p) => p.role === "champion") ?? people.find((p) => p.role === "economic_buyer") ?? people[0];
 }
 
+/**
+ * Whether a cold or LinkedIn draft has something cited to stand on: a dossier angle or an outreach-usable signal
+ * backed by evidence that isn't flagged wrong and isn't low confidence (the composer's own test).
+ */
+export function hasDraftableAngle(ws: Workspace, acc: Account): boolean {
+  const usable = (id: string | undefined) => {
+    const ev = id ? ws.evidence[id] : undefined;
+    return !!ev && !ev.flaggedWrong && (ev.confidence === "high" || ev.confidence === "medium");
+  };
+  return (acc.dossier?.angles ?? []).some((a) => a.evidenceIds.some(usable)) || acc.signals.some((s) => s.usableInOutreach && usable(s.evidenceId));
+}
+
 /** Someone the founder knows first-hand (a LinkedIn connection): write to them directly, no intro and no cold template. */
 export function knowsDirectly(p: Person | undefined): boolean {
   return !!p && (p.source === "founder_network" || p.contactPaths.some((x) => x.kind === "linkedin" && x.via === "Your 1st-degree connection"));

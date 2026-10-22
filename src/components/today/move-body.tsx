@@ -771,15 +771,7 @@ function FirstThreeBody(props: BodyProps) {
   if (!acc.dossier) {
     return (
       <div className="space-y-3">
-        <Lead>
-          Who to talk to at {acc.name}, why now and the angle worth writing, every fact cited. The first draft follows on its own when the research lands.
-          {move.source && (
-            <>
-              {" "}
-              <SourceChip url={move.source.url} publishedAt={move.source.date} />
-            </>
-          )}
-        </Lead>
+        <Lead>Who to talk to at {acc.name}, why now and the angle worth writing, every fact cited. The first draft follows on its own when the research lands.</Lead>
         <RunInline workflow="dossier" args={{ domain }} runRef={{ kind: "account", id: domain }} label={`Research ${acc.name}`} onResult={props.onChanged} hint="About 2 minutes" />
       </div>
     );
@@ -857,7 +849,7 @@ function QuestionField({ q, onSaved }: { q: NonNullable<Workspace["foundation"]>
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
         placeholder="A sentence or two is plenty"
-        className="text-[14px] leading-[22px]"
+        className="min-h-16 text-[14px] leading-[22px]"
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
@@ -998,7 +990,7 @@ function PilotBody({ move, ws, today, onComplete, deal, rule }: BodyProps & { de
  * Warm before cold: who can introduce the founder (investors and advisors, with who each can reach) and, when
  * there's no import yet, the LinkedIn connections. Both are things only the founder can bring in.
  */
-function NetworkBody({ move, ws, onComplete, onChanged }: BodyProps) {
+function NetworkBody({ move, ws, onChanged }: BodyProps) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const withImport = ruleOf(move) === "network";
@@ -1054,11 +1046,6 @@ function NetworkBody({ move, ws, onComplete, onChanged }: BodyProps) {
           </li>
         )}
       </ol>
-      <Row>
-        <Button variant="ghost" onClick={onComplete}>
-          Done for now
-        </Button>
-      </Row>
       <ConnectorDialog
         open={adding}
         onOpenChange={(o) => {

@@ -13,7 +13,7 @@ import { TOP_MOVES, computeMoves, firstThreeDomains, mergeMoves, visibleMoves } 
  */
 function dayOne(dossiers = true, patch: Partial<Workspace> = {}): Workspace {
   const acc = (domain: string, tier: "A" | "B", signal: ReturnType<typeof makeSignal>, person: string) =>
-    makeAccount(domain, { tier, signals: [signal], peopleIds: [person], ...(dossiers ? { dossier: makeDossier({ generatedAt: at(0, "09:10"), recommendation: { move: "cold_email", personId: person, why: "A dated hire for the job you do" } }) } : {}) });
+    makeAccount(domain, { tier, signals: [{ ...signal, evidenceId: `ev_${domain}` }], peopleIds: [person], ...(dossiers ? { dossier: makeDossier({ generatedAt: at(0, "09:10"), recommendation: { move: "cold_email", personId: person, why: "A dated hire for the job you do" } }) } : {}) });
   const q = (id: string): FounderQuestion => ({ id, question: `Question ${id}?`, whyItMatters: "It changes the bet.", affects: ["icp"] });
   return makeWorkspace({
     founder: { name: "Priya Raman" },
@@ -28,6 +28,7 @@ function dayOne(dossiers = true, patch: Partial<Workspace> = {}): Workspace {
       per_bana: makePerson("per_bana", "beta.example", { name: "Bana Ito" }),
       per_gus: makePerson("per_gus", "gamma.example", { name: "Gus Park" }),
     },
+    evidence: Object.fromEntries(["alpha.example", "beta.example", "gamma.example"].map((d) => [`ev_${d}`, { id: `ev_${d}`, claim: "x", quote: "x", url: "https://jobs.example/1", host: "jobs.example", sourceType: "job_post" as const, retrievedAt: at(-1), confidence: "high" as const }])),
     foundation: { founderQuestions: [q("onb_last3"), q("q1"), q("q2"), q("q3"), q("q4"), q("q5")] } as unknown as Workspace["foundation"],
     ...patch,
   });
@@ -69,6 +70,11 @@ describe("the first three on day one", () => {
       { domain: "beta.example", personId: "per_bana", mode: "cold" },
       { domain: "gamma.example", personId: "per_gus", mode: "cold" },
     ]);
+    // Nothing cited to write from (the evidence was flagged wrong): no draft, and the card says why instead of promising one.
+    ws.evidence["ev_gamma.example"].flaggedWrong = { at: at(0) };
+    ws.moves = mergeMoves(ws.moves, computeMoves(ws, NOW), TODAY);
+    expect(draftsToStart(ws, NOW).map((d) => d.args.domain)).toEqual(["alpha.example", "beta.example"]);
+    expect(ws.moves["mv_first_gamma.example"].why).toBe("Hiring a founding finance engineer · 5d · A dated hire for the job you do");
   });
 
   it("keeps the card's id when the draft lands, and hands over once the first note goes", () => {

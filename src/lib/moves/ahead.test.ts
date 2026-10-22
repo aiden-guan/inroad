@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { MeetingBrief, RunSummary, Workspace } from "@/lib/domain/types";
+import type { Evidence, MeetingBrief, RunSummary, Workspace } from "@/lib/domain/types";
 import { NOW, TODAY, at, day, makeAccount, makeActivity, makeDeal, makeDossier, makeMeeting, makePackage, makePerson, makeSignal, makeStep, makeWorkspace } from "@/test/factories";
 import { AHEAD_DRAFTS_PER_DAY, AHEAD_PREPS_PER_DAY, draftsToStart, meetingsToPrep, networkToScreen, planAhead } from "./ahead";
 import { computeMoves, mergeMoves } from "./rules";
 
 const acme = "acme.example";
+const evidence = (id: string): Evidence => ({ id, claim: "Hiring", quote: "Hiring", url: "https://jobs.example/1", host: "jobs.example", sourceType: "job_post", retrievedAt: at(-3), confidence: "high" });
 const brief = (generatedAt: string) => ({ generatedAt, callType: "first_discovery" }) as MeetingBrief;
 const run = (workflow: RunSummary["workflow"], ref: RunSummary["ref"], startedAt: string, status: RunSummary["status"] = "done"): RunSummary => ({ id: `run_${startedAt}`, workflow, title: "", ref, startedAt, status });
 
@@ -52,8 +53,9 @@ describe("drafts prepared ahead", () => {
     const ws = makeWorkspace({
       accounts: {
         [acme]: makeAccount(acme, { peopleIds: ["per_ana"] }),
-        "beta.example": makeAccount("beta.example", { signals: [makeSignal("sig_b", { strength: 3 })], dossier: makeDossier(), peopleIds: ["per_bo"] }),
+        "beta.example": makeAccount("beta.example", { signals: [makeSignal("sig_b", { strength: 3, evidenceId: "ev_b" })], dossier: makeDossier(), peopleIds: ["per_bo"] }),
       },
+      evidence: { ev_b: evidence("ev_b") },
       people: { per_ana: makePerson("per_ana", acme, { name: "Ana Lima" }), per_bo: makePerson("per_bo", "beta.example", { name: "Bo Chen", role: "champion" }) },
       outreach: { pkg_a: makePackage("pkg_a", acme, { personId: "per_ana", createdAt: at(-5), steps: [makeStep(1, { status: "sent", sentAt: at(-4) })] }) },
     });
@@ -66,6 +68,12 @@ describe("drafts prepared ahead", () => {
       { moveId: "mv_followup_pkg_a_2", args: { domain: acme, personId: "per_ana", mode: "follow_up", packageId: "pkg_a" } },
       { moveId: "mv_signal_beta.example_sig_b", args: { domain: "beta.example", personId: "per_bo", mode: "cold" } },
     ]);
+  });
+
+  it("waits for something cited to write from", () => {
+    const ws = desk();
+    ws.evidence.ev_b.flaggedWrong = { at: at(-1) };
+    expect(draftsToStart(ws, NOW).map((d) => d.moveId)).toEqual(["mv_followup_pkg_a_2"]);
   });
 
   it("leaves alone a card that has its draft, a person the founder knows, and a company with a compose run in flight", () => {
