@@ -8,6 +8,8 @@ import { POST as restoreRoute } from "@/app/api/workspace/restore/route";
 import { uploadBody } from "@/components/settings/backup-model";
 import type { Suppression } from "@/lib/domain/types";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
+import { forgetPerson } from "@/lib/people/forget";
+import { forgetInFiles } from "@/lib/people/forget-files";
 import { runSteps } from "@/lib/runs/registry";
 import { loadSampleWorkspace, resetToEmptyWorkspace, restoreWorkspace } from "@/lib/sample/store";
 import { BODY_LIMIT_BYTES } from "@/lib/server/http";
@@ -361,6 +363,34 @@ describe("a restore keeps the suppression list", () => {
     ]);
     // Everything else is the backup's.
     expect(Object.keys(readWorkspace().people)).toEqual(["per_dana"]);
+  });
+
+  it("deletes again anyone the backup still holds who asked to be deleted since, in every file", async () => {
+    await realWork();
+    await updateConnections((rows) => void (rows[0].personId = "per_dana"));
+    await mutateNetwork((n) => {
+      const counts = { accountsCreated: 0, accountsUpdated: 0, peopleCreated: 1, peopleUpdated: 0 };
+      n.imports = [{ id: "imp_1", kind: "linkedin", fileName: "Connections.csv", importedAt: "2026-10-19T10:00:00.000Z", rows: 1, skipped: 0, counts, created: { accounts: [], people: ["per_dana"] }, filled: [], statusChanged: [] }];
+    });
+    await withThread("thr_dana", () => ({ title: "Dana's reply", context: { kind: "person", id: "per_dana" }, createdAt: "2026-10-20T11:00:00.000Z", updatedAt: "2026-10-20T11:00:00.000Z" }), () => undefined);
+    const before = snapshot("daily", at("2026-10-20T16:00:00.000Z"));
+    // "Delete their details" after the backup was made.
+    await mutateWorkspace((ws) => forgetPerson(ws, "per_dana", "2026-10-21T09:00:00.000Z", "sup_dana"));
+    await forgetInFiles({ person: makePerson("per_dana", "northwind.com"), company: "Northwind", runIds: [] });
+    expect(readConnections()).toEqual([]);
+
+    const res = await restoreRoute(new Request(`http://localhost:3000/api/workspace/restore?backup=${encodeURIComponent(before.name)}`, { method: "POST" }));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { restored: { forgotten: number } }).restored.forgotten).toBe(1);
+    const ws = readWorkspace();
+    expect(ws.people.per_dana).toBeUndefined();
+    expect(ws.accounts["northwind.com"].peopleIds).not.toContain("per_dana");
+    expect(ws.suppression.map((s) => [s.email, s.reason])).toEqual([["dana@northwind.com", "requested_delete"]]);
+    // The backup's connections, import history and Ask threads came back without her.
+    expect(readConnections()).toEqual([]);
+    expect(readNetwork().imports[0].created.people).toEqual([]);
+    expect(getThread("thr_dana")).toBeUndefined();
+    expect(getThread("thr_1")).toBeDefined();
   });
 
   it("keeps them through an older workspace-only export too, and never carries the sample's over", async () => {

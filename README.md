@@ -203,7 +203,8 @@ never in a backup or an export.
 - **Restore:** Settings → Data → Backups restores any automatic backup or a downloaded file, here or on another
   computer, after backing up what's there. A workspace JSON exported by an older version restores too. Your
   suppression list survives a restore: anyone who unsubscribed, bounced or asked to be deleted after the backup was
-  made stays suppressed.
+  made stays suppressed, and anyone who asked to have their details deleted is deleted again from what the backup
+  brings back.
 
 The automatic backups live in the data folder, so they don't survive deleting it: keep a downloaded backup somewhere
 else now and then.
