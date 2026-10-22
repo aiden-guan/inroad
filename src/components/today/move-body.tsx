@@ -149,7 +149,7 @@ function DraftOrCompose({
   const modes: OutreachPackage["mode"][] = compose.mode === "follow_up" ? ["follow_up", "cold"] : [compose.mode];
   const pkg = fromMove ?? findDraft(ws, { domain: compose.domain, personId: compose.personId, modes, after: move.createdAt });
   if (pkg) {
-    return <DraftView pkg={pkg} step={fromMove ? move.draft?.step : draftStepOf(pkg)} focused={focused} onApproved={onComplete} />;
+    return <DraftView pkg={pkg} step={fromMove ? move.draft?.step : draftStepOf(pkg)} focused={focused} onApproved={onComplete} moveId={move.id} />;
   }
   return (
     <div className="space-y-3">
