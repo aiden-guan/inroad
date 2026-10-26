@@ -10,16 +10,26 @@ import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Action } from "@/lib/domain/actions";
-import type { ICP, ICPCriterion, Persona, PersonaRole, SegmentBet } from "@/lib/domain/types";
+import { isConsumer } from "@/lib/consumer/market";
+import type { DetectionMethod, ICP, ICPCriterion, Persona, PersonaRole, SegmentBet } from "@/lib/domain/types";
 import { spring } from "@/lib/motion";
 import { usePlaybook } from "./context";
 import { RefreshSub } from "./refresh";
 import { BET_TOUCHES, DETECTION_LABELS, ROLE_LABELS, SIGNAL_LABELS, betProgress, hypothesisSentence, plural, provenance } from "./model";
 import { AddRow, Choice, Editable, FieldLabel, RemoveButton, ResearchCite, Section, Stamp, StringList, Sub, TagList, undoable } from "./ui";
 
-const KIND_LABELS: Record<ICPCriterion["kind"], string> = { firmographic: "Firmographic", technographic: "Technographic", situational: "Situational" };
+const KIND_LABELS: Record<ICPCriterion["kind"], string> = {
+  firmographic: "Firmographic",
+  technographic: "Technographic",
+  situational: "Situational",
+  demographic: "Demographic",
+  behavioral: "Behavioral",
+};
 const STATUS_LABELS: Record<ICPCriterion["status"], string> = { hypothesis: "Hypothesis", validated: "Validated" };
 const ROLE_ORDER: PersonaRole[] = ["champion", "economic_buyer", "technical_approver", "user", "blocker"];
+const CONSUMER_ROLE_ORDER: PersonaRole[] = ["user", "early_adopter", "payer", "influencer"];
+const CONSUMER_KIND_LABELS: Record<"behavioral" | "situational" | "demographic", string> = { behavioral: "Behavioral", situational: "Situational", demographic: "Demographic" };
+const CONSUMER_DETECTION: DetectionMethod[] = ["community", "social", "app_reviews", "search_trends", "survey", "site", "press", "founder_knowledge"];
 
 export function WhoSection() {
   const { ws } = usePlaybook();
@@ -41,7 +51,9 @@ function SegmentBetBlock() {
   const { ws, p, set, dispatch } = usePlaybook();
   const icp = p.icp;
   const h = icp.hypothesis;
-  const progress = betProgress(ws, icp.segmentLockedAt);
+  const consumer = isConsumer(ws);
+  // Consumer bets are judged on their users' retention, not on cold touches.
+  const progress = consumer ? null : betProgress(ws, icp.segmentLockedAt);
 
   const setSlot = (key: keyof ICP["hypothesis"], value: string) => {
     const next = { ...h, [key]: value };
@@ -96,12 +108,20 @@ function SegmentBetBlock() {
   };
 
   return (
-    <Sub id="icp" title="Segment bet" hint="One segment at a time. A bet is judged after 25 cold first touches, on positive replies and meetings, not on rates.">
+    <Sub
+      id="icp"
+      title={consumer ? "Audience bet" : "Segment bet"}
+      hint={
+        consumer
+          ? "One audience at a time, specific enough to find in one place. It's judged on behavior: whether its users reach the first win and come back in week 4."
+          : "One segment at a time. A bet is judged after 25 cold first touches, on positive replies and meetings, not on rates."
+      }
+    >
       <Editable
         value={h.sentence}
-        label="the segment bet sentence"
+        label={consumer ? "the audience bet sentence" : "the segment bet sentence"}
         multiline
-        placeholder="Who you sell to, what they struggle with, and what changes."
+        placeholder={consumer ? "Who it's for, the moment they need it, and what changes." : "Who you sell to, what they struggle with, and what changes."}
         onSave={(v) => set(["icp", "hypothesis", "sentence"], v)}
         className="font-serif text-[21px] leading-[31px] tracking-[-0.005em] text-fg [font-variation-settings:'opsz'_24]"
       />
@@ -109,11 +129,11 @@ function SegmentBetBlock() {
       <dl className="mt-6 grid gap-x-8 gap-y-4 sm:grid-cols-2">
         {(
           [
-            ["companyGroup", "Companies"],
-            ["role", "Who struggles"],
+            ["companyGroup", consumer ? "Audience" : "Companies"],
+            ["role", consumer ? "In the moment" : "Who struggles"],
             ["obstacle", "With what"],
             ["cause", "Because"],
-            ["improvement", "We deliver"],
+            ["improvement", consumer ? "What changes" : "We deliver"],
           ] as const
         ).map(([key, label]) => (
           <div key={key} className={cn(key === "improvement" && "sm:col-span-1")}>
@@ -125,7 +145,7 @@ function SegmentBetBlock() {
             </dd>
           </div>
         ))}
-        <div>
+        <div className={cn(consumer && "hidden")}>
           <dt>
             <FieldLabel>Company size</FieldLabel>
           </dt>
@@ -147,20 +167,24 @@ function SegmentBetBlock() {
 
         {progress ? (
           <BetProgress lockedAt={icp.segmentLockedAt!} progress={progress} onVerdict={(v) => void dispatch(closeBet(v))} />
+        ) : consumer && icp.segmentLockedAt ? (
+          <p className="mt-4 border-t border-border pt-4 text-[13px] leading-5 text-fg-2">
+            Locked {shortDate(icp.segmentLockedAt)}. Judge it on how many of this audience&apos;s users reach the first win and come back in week 4. The numbers live under How we grow.
+          </p>
         ) : (
           <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-[46ch] text-[13px] leading-5 text-fg-2">
               Not locked yet. Until it is, every reply is an anecdote about a moving target.
             </p>
             <Button variant="primary" size="sm" onClick={lock} disabled={!icp.primarySegment}>
-              Lock this bet for the next {BET_TOUCHES} touches
+              {consumer ? "Lock this bet" : `Lock this bet for the next ${BET_TOUCHES} touches`}
             </Button>
           </div>
         )}
 
         <div className="mt-5 border-t border-border pt-4">
           <FieldLabel>Test slices</FieldLabel>
-          <p className="mb-2 text-[12.5px] leading-[18px] text-fg-3">Up to two, each compared after 25 touches of its own.</p>
+          <p className="mb-2 text-[12.5px] leading-[18px] text-fg-3">{consumer ? "Up to two, each judged on its own users' week-4 retention." : "Up to two, each compared after 25 touches of its own."}</p>
           <StringList items={icp.testSlices} max={2} label="test slice" addLabel="Add a test slice" onChange={(v) => set(["icp", "testSlices"], v)} />
         </div>
       </div>
@@ -226,7 +250,11 @@ function BetProgress({
 /* ───────────────────────────── Criteria ───────────────────────────── */
 
 function Criteria() {
-  const { p, set } = usePlaybook();
+  const { ws, p, set } = usePlaybook();
+  const consumer = isConsumer(ws);
+  // Consumer audiences use their own kinds and detection methods; the cast keeps Choice's key type (it lists only these).
+  const kindOptions = (consumer ? CONSUMER_KIND_LABELS : KIND_LABELS) as Record<ICPCriterion["kind"], string>;
+  const detectionOptions = (consumer ? Object.fromEntries(CONSUMER_DETECTION.map((d) => [d, DETECTION_LABELS[d]])) : DETECTION_LABELS) as Record<DetectionMethod, string>;
   const criteria = p.icp.criteria;
   const save = (next: ICPCriterion[]) => set(["icp", "criteria"], next);
   const patch = (id: string, change: Partial<ICPCriterion>) => save(criteria.map((c) => (c.id === id ? { ...c, ...change } : c)));
@@ -235,7 +263,11 @@ function Criteria() {
     <Sub
       id="criteria"
       title="Criteria"
-      hint="Each one should be visible from the outside, for free, and say how to detect it. A criterion is validated once 3 customers or design partners share it."
+      hint={
+        consumer
+          ? "Each one should show up in public or by asking users, and say how to detect it. What people do and the moment they're in predict use better than demographics. Validated once 3 engaged users share it."
+          : "Each one should be visible from the outside, for free, and say how to detect it. A criterion is validated once 3 customers or design partners share it."
+      }
     >
       {criteria.length === 0 && <p className="mb-2 text-[13px] text-fg-3">No criteria yet.</p>}
       <ul className="divide-y divide-border border-y border-border">
@@ -256,9 +288,9 @@ function Criteria() {
             <div className="min-w-0 flex-1">
               <Editable value={c.text} label="criterion" onSave={(v) => patch(c.id, { text: v })} className="text-[14px] leading-[21px]" />
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-fg-3">
-                <Choice label="Kind" value={c.kind} options={KIND_LABELS} onChange={(v) => patch(c.id, { kind: v })} />
+                <Choice label="Kind" value={c.kind} options={kindOptions} onChange={(v) => patch(c.id, { kind: v })} />
                 <span>detect via</span>
-                <Choice label="Detection" value={c.detection} options={DETECTION_LABELS} onChange={(v) => patch(c.id, { detection: v })} />
+                <Choice label="Detection" value={c.detection} options={detectionOptions} onChange={(v) => patch(c.id, { detection: v })} />
                 <Choice
                   label="Status"
                   value={c.status}
@@ -322,11 +354,20 @@ function Criteria() {
 /* ───────────────────────────── Anti-ICP ───────────────────────────── */
 
 function NotAFit() {
-  const { p, set } = usePlaybook();
+  const { ws, p, set } = usePlaybook();
   const items = p.icp.antiIcp;
   const save = (next: typeof items) => set(["icp", "antiIcp"], next);
+  const consumer = isConsumer(ws);
   return (
-    <Sub id="anti-icp" title="Not a fit" hint="Disqualifying early is a good outcome. If nobody owns the problem or spends money or time on it today, it's not a deal.">
+    <Sub
+      id="anti-icp"
+      title={consumer ? "Not for" : "Not a fit"}
+      hint={
+        consumer
+          ? "Saying who it isn't for keeps the first users dense. People who need it rarely, or are happy with a free habit, rarely come back."
+          : "Disqualifying early is a good outcome. If nobody owns the problem or spends money or time on it today, it's not a deal."
+      }
+    >
       <ul className="space-y-3">
         {items.map((a, i) => (
           <li key={`${i}-${a.text.slice(0, 10)}`} className="group/row flex items-start gap-3">
@@ -359,27 +400,33 @@ function NotAFit() {
 /* ───────────────────────────── Personas ───────────────────────────── */
 
 function Personas() {
-  const { p, set } = usePlaybook();
-  const personas = [...p.personas].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
-  const missing = ROLE_ORDER.filter((r) => r !== "blocker" && !p.personas.some((x) => x.role === r));
+  const { ws, p, set } = usePlaybook();
+  const consumer = isConsumer(ws);
+  const order = consumer ? CONSUMER_ROLE_ORDER : ROLE_ORDER;
+  const personas = [...p.personas].sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role));
+  const missing = order.filter((r) => r !== "blocker" && !p.personas.some((x) => x.role === r));
   const add = (role: PersonaRole) =>
     set(["personas"], [...p.personas, { id: newId("per"), role, titles: [], kpis: [], pains: [], triggers: [], objections: [], wateringHoles: [], line: "" } satisfies Persona]);
   return (
     <Sub
       id="personas"
-      title="Personas"
+      title={consumer ? "Segments" : "Personas"}
       hint={
-        <>
-          Lead with the champion and multi-thread up once you&apos;re talking. C-level executives reply to cold email about 30% less often.
-          <ResearchCite url="https://www.gong.io/blog/do-execs-really-reply-to-cold-email-here-s-what-the-data-says" quote="C-level executives are 30.2% less likely to reply to cold email." />
-        </>
+        consumer ? (
+          "Lead with the people who use it. The places each segment gathers seed your list of creators and communities."
+        ) : (
+          <>
+            Lead with the champion and multi-thread up once you&apos;re talking. C-level executives reply to cold email about 30% less often.
+            <ResearchCite url="https://www.gong.io/blog/do-execs-really-reply-to-cold-email-here-s-what-the-data-says" quote="C-level executives are 30.2% less likely to reply to cold email." />
+          </>
+        )
       }
       right={
         missing.length > 0 && (
           <Menu
             trigger={
               <Button size="sm" variant="ghost" icon={<Plus className="size-3.5" />}>
-                Add persona
+                {consumer ? "Add segment" : "Add persona"}
               </Button>
             }
           >
@@ -392,7 +439,7 @@ function Personas() {
         )
       }
     >
-      {personas.length === 0 && <p className="text-[13px] text-fg-3">No personas yet.</p>}
+      {personas.length === 0 && <p className="text-[13px] text-fg-3">{consumer ? "No segments yet." : "No personas yet."}</p>}
       <div className="space-y-4">
         {personas.map((persona) => (
           <PersonaCard key={persona.id} persona={persona} index={p.personas.findIndex((x) => x.id === persona.id)} />
@@ -406,6 +453,7 @@ function PersonaCard({ persona, index }: { persona: Persona; index: number }) {
   const { ws, p, set } = usePlaybook();
   const [open, setOpen] = useState(false);
   const prov = provenance(ws, { role: persona.role });
+  const consumer = isConsumer(ws);
   const path = ["personas", index] as const;
   const field = (key: keyof Persona, value: unknown) => set([...path, key], value);
   const remove = () => {
@@ -419,7 +467,7 @@ function PersonaCard({ persona, index }: { persona: Persona; index: number }) {
         <div className="min-w-0">
           <p className="text-[12px] font-medium text-fg-3">{ROLE_LABELS[persona.role]}</p>
           <div className="mt-1.5">
-            <TagList items={persona.titles} label="title" placeholder="Add a title" onChange={(v) => field("titles", v)} />
+            <TagList items={persona.titles} label={consumer ? "how they describe themselves" : "title"} placeholder={consumer ? "How they describe themselves" : "Add a title"} onChange={(v) => field("titles", v)} />
           </div>
         </div>
         <RemoveButton label={`Remove ${ROLE_LABELS[persona.role]}`} onClick={remove} className="group-hover/card:opacity-100" />
@@ -443,7 +491,7 @@ function PersonaCard({ persona, index }: { persona: Persona; index: number }) {
           onClick={() => setOpen((o) => !o)}
           className="inline-flex h-7 items-center gap-1 rounded-xs px-1.5 text-[12.5px] text-fg-3 transition-colors hover:bg-bg-subtle hover:text-fg"
         >
-          {open ? "Less" : "Pains, KPIs, objections"}
+          {open ? "Less" : consumer ? "Pains, jobs, objections" : "Pains, KPIs, objections"}
           <ChevronDown className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")} />
         </button>
       </div>
@@ -451,8 +499,8 @@ function PersonaCard({ persona, index }: { persona: Persona; index: number }) {
         {open && (
           <div className="mt-4 grid gap-x-8 gap-y-5 border-t border-border pt-4 sm:grid-cols-2">
             <div>
-              <FieldLabel className="mb-1.5">Measured on</FieldLabel>
-              <TagList items={persona.kpis} label="KPI" onChange={(v) => field("kpis", v)} />
+              <FieldLabel className="mb-1.5">{consumer ? "Jobs they want done" : "Measured on"}</FieldLabel>
+              <TagList items={persona.kpis} label={consumer ? "job" : "KPI"} onChange={(v) => field("kpis", v)} />
             </div>
             <div>
               <FieldLabel>Pains</FieldLabel>

@@ -18,6 +18,7 @@ import { conversationsTarget } from "@/lib/moves/scoreboard";
 import { AssetsBlock, ContentBlock, DesignPartnerBlock } from "./assets";
 import { usePlaybook } from "./context";
 import {
+  B2B_STRUCTURES,
   BAND_LABELS,
   MOTION_LABELS,
   OBJECTION_CATEGORIES,
@@ -264,7 +265,13 @@ const MOTION_DRAFT: Partial<Record<string, { kind: AssetKind; label: string }>> 
   launches: { kind: "launch", label: "Draft a Show HN post" },
 };
 
-function Channels() {
+const isB2BStructure = (s: string): s is (typeof B2B_STRUCTURES)[number] => (B2B_STRUCTURES as readonly string[]).includes(s);
+
+/**
+ * The ranked channels. Consumer plans mark the first `active` as "Now": no startup in the first-1,000-users research
+ * succeeded with more than three, so the rest wait.
+ */
+export function Channels({ hint, active }: { hint?: string; active?: number } = {}) {
   const { p, set, setComposer } = usePlaybook();
   const startDraft = (kind: AssetKind) => {
     setComposer({ kind });
@@ -273,7 +280,7 @@ function Channels() {
   const plan = p.channelPlan;
   const motions = plan ? [...plan.motions].map((m, i) => ({ m, i })).sort((a, b) => a.m.rank - b.m.rank) : [];
   return (
-    <Sub id="motions" title="Channels" hint="Ranked for you, in trust order: warm before cold, rooms before launches.">
+    <Sub id="motions" title="Channels" hint={hint ?? "Ranked for you, in trust order: warm before cold, rooms before launches."}>
       {plan ? (
         <ol className="space-y-5">
           {motions.map(({ m, i }, k) => (
@@ -281,7 +288,12 @@ function Channels() {
               <span className="pt-0.5 font-mono text-[13px] tnum text-fg-3">{k + 1}</span>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                  <span className="text-[14.5px] font-semibold">{MOTION_LABELS[m.motion] ?? m.motion}</span>
+                  <span className="text-[14.5px] font-semibold">
+                    {MOTION_LABELS[m.motion] ?? m.motion}
+                    {active !== undefined && (
+                      <span className={cn("ml-2 align-[1px] font-mono text-[11px] font-normal", k < active ? "text-fg-2" : "text-fg-4")}>{k < active ? "now" : "later"}</span>
+                    )}
+                  </span>
                   <Editable inline value={m.weeklyTarget} label="weekly target" onSave={(v) => set(["channelPlan", "motions", i, "weeklyTarget"], v)} className="font-mono text-[12.5px] text-fg-2" />
                 </div>
                 <Editable value={m.why} label="why this channel" multiline onSave={(v) => set(["channelPlan", "motions", i, "why"], v)} className="mt-0.5 text-[13.5px] leading-5 text-fg-2" />
@@ -341,7 +353,7 @@ function Commercial() {
         <span>Default structure</span>
         <Choice
           label="Default structure"
-          value={c.structure}
+          value={isB2BStructure(c.structure) ? c.structure : "paid_pilot"}
           options={{ paid_pilot: STRUCTURE_LABELS.paid_pilot.label, paid_design_partner: STRUCTURE_LABELS.paid_design_partner.label, annual_with_opt_out: STRUCTURE_LABELS.annual_with_opt_out.label }}
           onChange={(v) => set(["commercial", "structure"], v)}
         />
@@ -441,11 +453,13 @@ function Commercial() {
 
 /* ───────────────────────────── Objections ───────────────────────────── */
 
-function Objections() {
+export function Objections() {
   const { ws, dispatch } = usePlaybook();
   const [openId, setOpenId] = useState<string | null>(null);
   const list = [...ws.objections].sort((a, b) => Number(a.approved) - Number(b.approved) || b.timesHeard - a.timesHeard);
   const drafts = list.filter((o) => !o.approved).length;
+  const consumer = ws.company?.market === "consumer";
+  const starterCount = starterObjections(ws, () => "").length;
 
   const seed = () => {
     const starters = starterObjections(ws, () => newId("obj"));
@@ -457,14 +471,20 @@ function Objections() {
     <Sub
       id="objections"
       title="Objections"
-      hint="Acknowledge, ask what's underneath, answer with evidence, confirm, then move to a next step. Approved answers are what I use in call prep and replies."
+      hint={
+        consumer
+          ? "Why people don't sign up, don't pay or stop coming back. Acknowledge it, ask what's underneath, answer with evidence. Approved answers are what I use in creator notes, briefs and answers to your questions."
+          : "Acknowledge, ask what's underneath, answer with evidence, confirm, then move to a next step. Approved answers are what I use in call prep and replies."
+      }
       right={drafts > 0 && <span className="font-mono text-[12px] tnum text-fg-3">{drafts} to review</span>}
     >
       {list.length === 0 && (
         <div className="mb-3 flex flex-col gap-3 rounded-lg bg-surface p-4 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-[48ch] text-[13.5px] leading-5 text-fg-2">Nothing logged yet. I&apos;ll add objections from your debriefs, or start from the nine early-stage founders hear most.</p>
+          <p className="max-w-[48ch] text-[13.5px] leading-5 text-fg-2">{consumer
+              ? `Nothing logged yet. I'll add what users tell you, or start from ${starterCount} common reasons people give for not signing up or not paying.`
+              : `Nothing logged yet. I'll add objections from your debriefs, or start from the ${starterCount} early-stage founders hear most.`}</p>
           <Button size="sm" onClick={seed}>
-            Start with 9 common ones
+            Start with {starterCount} common ones
           </Button>
         </div>
       )}

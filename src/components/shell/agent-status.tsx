@@ -6,6 +6,7 @@ import { useActiveRuns, useRuns, type RunState } from "@/components/providers/ru
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Orb, type OrbState } from "@/components/ui/orb";
 import { Receipt } from "@/components/ui/work-log";
+import { partnerNext } from "@/lib/consumer/partners";
 import { todayISO } from "@/lib/domain/ids";
 import { yourMoves } from "@/lib/intros/rules";
 import { todayCounts } from "@/lib/moves/nav-counts";
@@ -33,13 +34,17 @@ export function useAgentStatus(): AgentStatus {
   return { state: active.length ? "working" : ready ? "needs" : "idle", ticks, line, active, ready, later };
 }
 
-/** Badge counts for the nav: the same numbers Today and Intros show. */
+/** Badge counts for the nav: the same numbers Today, Intros and Creators show. */
 export function useNavCounts(): Record<string, number | undefined> {
   const { ws } = useWorkspace();
   return useMemo(() => {
     if (!ws) return {};
     const today = todayISO();
-    return { "/today": todayCounts(ws.moves, today).ready || undefined, "/intros": yourMoves(ws, today).length || undefined };
+    return {
+      "/today": todayCounts(ws.moves, today).ready || undefined,
+      "/intros": yourMoves(ws, today).length || undefined,
+      "/partners": Object.values(ws.partners ?? {}).filter((p) => partnerNext(p, today).action).length || undefined,
+    };
   }, [ws]);
 }
 

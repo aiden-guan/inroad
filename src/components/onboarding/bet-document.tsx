@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { SourceChip } from "@/components/ui/source";
 import { cn } from "@/lib/client/cn";
+import { isConsumer } from "@/lib/consumer/market";
 import type { Foundation, FoundationSection, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 
@@ -17,6 +18,20 @@ export const SECTIONS: { key: FoundationSection; title: string }[] = [
   { key: "messaging", title: "Messaging" },
   { key: "questions", title: "Questions for you" },
 ];
+
+/** The same bet for a company that sells to people: audience and segments, plus how it grows. */
+export const CONSUMER_SECTIONS: { key: FoundationSection; title: string }[] = [
+  { key: "positioning", title: "Positioning" },
+  { key: "icp", title: "Audience" },
+  { key: "personas", title: "Segments and where they gather" },
+  { key: "messaging", title: "Messaging and hooks" },
+  { key: "growth", title: "How it grows" },
+  { key: "questions", title: "Questions for you" },
+];
+
+export function betSections(ws: Workspace) {
+  return isConsumer(ws) ? CONSUMER_SECTIONS : SECTIONS;
+}
 
 const STYLE = { head_to_head: "Head-to-head", big_fish_small_pond: "Big fish, small pond", new_game: "New game" } as const;
 const ALT = { competitor: "Competitor", status_quo: "Status quo", in_house: "Build in-house", hire: "Hire someone" } as const;
@@ -30,8 +45,22 @@ const DETECT = {
   dns: "DNS",
   hn: "Hacker News",
   founder_knowledge: "only you know",
+  app_reviews: "app reviews",
+  community: "communities",
+  social: "social posts",
+  search_trends: "search trends",
+  survey: "ask your users",
 } as const;
-const ROLE = { economic_buyer: "Economic buyer", champion: "Champion", technical_approver: "Technical approver", user: "User", blocker: "Blocker" } as const;
+const ROLE = {
+  economic_buyer: "Economic buyer",
+  champion: "Champion",
+  technical_approver: "Technical approver",
+  user: "User",
+  blocker: "Blocker",
+  early_adopter: "Early adopter",
+  payer: "Payer",
+  influencer: "Influencer",
+} as const;
 export const SIGNAL: Record<string, string> = {
   champion_job_change: "Champion changed jobs",
   first_hire: "First hire in the function",
@@ -47,6 +76,10 @@ export const SIGNAL: Record<string, string> = {
   filing: "Filing",
   hiring: "Hiring",
   sensitive: "Sensitive",
+  life_event: "Life event",
+  seasonal: "Seasonal moment",
+  trend: "Trend",
+  competitor_gap: "An alternative let users down",
 };
 
 function Sub({ children }: { children: ReactNode }) {
@@ -230,9 +263,65 @@ function Personas({ f }: { f: Foundation }) {
           <p className="text-[14px] font-medium leading-5 text-fg">{p.titles.slice(0, 3).join(" · ")}</p>
           {p.line && <p className="mt-1 text-pretty font-serif text-[16px] leading-[24px] text-fg-2">{p.line}</p>}
           {p.pains.length > 0 && <p className="mt-1 text-pretty text-[12.5px] leading-[18px] text-fg-3">Pains: {p.pains.slice(0, 3).join(" · ")}</p>}
+          {p.wateringHoles.length > 0 && (
+            <p className="mt-1 text-pretty text-[12.5px] leading-[18px] text-fg-3">
+              Gathers at:{" "}
+              {p.wateringHoles.slice(0, 4).map((h, i) => (
+                <span key={`${h.name}-${i}`}>
+                  {i > 0 && " · "}
+                  {h.url ? (
+                    <a href={h.url} target="_blank" rel="noreferrer" className="underline decoration-fg-4 underline-offset-2 hover:text-fg-2">
+                      {h.name}
+                    </a>
+                  ) : (
+                    h.name
+                  )}
+                </span>
+              ))}
+            </p>
+          )}
         </li>
       ))}
     </ul>
+  );
+}
+
+function Growth({ f }: { f: Foundation }) {
+  const g = f.growth;
+  if (!g) return null;
+  return (
+    <div className="space-y-3">
+      <div>
+        <Sub>North star</Sub>
+        <p className="prose-agent text-pretty">{g.northStar.metric}</p>
+        <p className="mt-0.5 text-[12.5px] text-fg-3">{g.northStar.why}</p>
+      </div>
+      <div>
+        <Sub>First win</Sub>
+        <p className="text-pretty text-[13.5px] leading-5 text-fg">
+          {g.activation.event} <span className="font-mono text-[11.5px] text-fg-3">within {g.activation.withinDays} days</span>
+        </p>
+      </div>
+      <div>
+        <Sub>The bar it has to clear</Sub>
+        <p className="text-pretty text-[13.5px] leading-5 text-fg">
+          {g.retention.metric === "m3_repeat" ? "Repeat purchase within 90 days" : "Week-4 retention"} of {g.retention.target}% or more
+        </p>
+        <p className="mt-0.5 text-[12px] leading-[17px] text-fg-3">{g.retention.source}</p>
+      </div>
+      {g.firstHundred.length > 0 && (
+        <div>
+          <Sub>Where the first 100 come from</Sub>
+          <ul className="space-y-1">
+            {g.firstHundred.map((line) => (
+              <li key={line} className="text-pretty text-[13.5px] leading-5 text-fg-2">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -252,6 +341,18 @@ function Messaging({ f, ws }: { f: Foundation; ws: Workspace }) {
             {m.themes.map((t, i) => (
               <li key={i} className="text-pretty text-[13.5px] leading-5 text-fg">
                 {t.headline} <span className="text-fg-3">vs {t.vsAlternative}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(m.hooks?.length ?? 0) > 0 && (
+        <div>
+          <Sub>First lines to test</Sub>
+          <ul className="space-y-1">
+            {m.hooks!.map((h) => (
+              <li key={h} className="text-pretty text-[13.5px] leading-5 text-fg">
+                {h}
               </li>
             ))}
           </ul>
@@ -307,6 +408,8 @@ function SectionBody({ k, f, ws }: { k: FoundationSection; f: Foundation; ws: Wo
       return <Messaging f={f} ws={ws} />;
     case "questions":
       return <Questions f={f} />;
+    case "growth":
+      return <Growth f={f} />;
   }
 }
 
@@ -322,6 +425,8 @@ function hasContent(k: FoundationSection, f: Foundation) {
       return !!f.messaging.oneLiner;
     case "questions":
       return f.founderQuestions.some((q) => !q.id.startsWith("onb_"));
+    case "growth":
+      return !!f.growth;
   }
 }
 
@@ -334,11 +439,12 @@ export function BetDocument({ ws, live }: { ws: Workspace; live: boolean }) {
   if (!f) return null;
   const landed = ws.onboarding.sections ?? {};
   const done = (k: FoundationSection) => (ws.onboarding.status === "hired" || !live ? hasContent(k, f) : !!landed[k] && hasContent(k, f));
-  const writing = live ? SECTIONS.find((s) => !done(s.key))?.key : undefined;
+  const sections = betSections(ws);
+  const writing = live ? sections.find((s) => !done(s.key))?.key : undefined;
 
   return (
     <div className="divide-y divide-border rounded-lg bg-surface shadow-sm ring-1 ring-border">
-      {SECTIONS.map(({ key, title }) => {
+      {sections.map(({ key, title }) => {
         const isDone = done(key);
         const isWriting = writing === key;
         if (!live && !isDone) return null;

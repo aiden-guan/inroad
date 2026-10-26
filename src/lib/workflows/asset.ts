@@ -2,9 +2,13 @@ import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
 import { AgentError } from "@/lib/ai/errors";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
+import { APP_STORE, CREATOR_RATES, REFERRALS } from "@/lib/consumer/benchmarks";
+import { consumerChecks } from "@/lib/consumer/compliance";
+import { growthDefaults } from "@/lib/consumer/plan";
+import { INTERVIEW_QUESTIONS, PARTNER_KIND_LABELS } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
-import type { Asset, Deal, Workspace } from "@/lib/domain/types";
+import type { Asset, Deal, Partner, Workspace } from "@/lib/domain/types";
 import {
   ASSET_KINDS,
   BAND_LABELS,
@@ -32,7 +36,24 @@ import { defineWorkflow } from "./types";
  * placeholders become gaps, numbers without a source get flagged. Nothing is approved here.
  */
 
-const KINDS = ["one_pager", "demo_script", "security", "design_partner_terms", "pilot_proposal", "insight", "case_study", "other", "post", "community_answer", "launch"] as const;
+const KINDS = [
+  "one_pager",
+  "demo_script",
+  "security",
+  "design_partner_terms",
+  "pilot_proposal",
+  "insight",
+  "case_study",
+  "other",
+  "post",
+  "community_answer",
+  "launch",
+  "creator_brief",
+  "launch_plan",
+  "referral_program",
+  "interview_guide",
+] as const;
+const CONSUMER_ASSETS = new Set<string>(["creator_brief", "launch_plan", "referral_program", "interview_guide"]);
 const DISCLAIMER = "_Draft. Not legal advice. Have counsel review before signing._";
 
 const ASSET_RULES = `ASSET RULES
@@ -119,6 +140,38 @@ launch (≤350 words): a Show HN post. H1 is the title: "Show HN: {name} – {wh
   works in 3–5 plain sentences, including the tradeoffs; what isn't done yet; how to try it without talking to anyone
   ([[link where people can try it]] if none is given); one line asking for honest feedback. Never ask for upvotes.
 
+CONSUMER KINDS (for a company that sells to people; facts about a creator come ONLY from the PARTNER block)
+creator_brief (≤450 words): H1 "Brief for {name}". "Why you": their audience fit, from the PARTNER block only. "The
+  product in one line". "What we'd love": format, platform, number of posts and length, from the founder's note or the
+  offer, else gaps. "Hooks to try": 3–6 optional first lines from the playbook's hooks and customer words; say they can
+  write their own. "Key points": 3–5 outcomes in users' words, approved claims only. "Please don't": no claims we can't
+  prove (cures, treats, guaranteed, clinically proven, earnings), no fake urgency, don't call it free if it renews.
+  "Disclosure (required)": "#ad" or "Ad" at the start of the caption, said and shown in videos, plus the platform's
+  paid-partnership label; "#sp", "#collab" or a bio line don't count; we check the post before it counts. "Your honest
+  take": say what you actually think; no script. "What you get": the offer from the PARTNER block (fee, commission or
+  product), when we pay, usage rights (organic posting only unless agreed; paid usage or whitelisting priced
+  separately), else gaps. "Timeline" and "How we count results" (their unique code or link; we share the numbers back).
+launch_plan (≤600 words): one dated launch. Goal: one number from the growth model. "Who hears first": the waitlist,
+  current users, the communities and creators in the context (with "check each community's rules"). A table Date | Task |
+  Owner counting back from launch day (dates as gaps when none given): creators get the product 2–3 weeks ahead (posts
+  carry #ad); for apps, the App Store featuring nomination at least ${APP_STORE.featuringLeadWeeks} weeks ahead in App
+  Store Connect; a press pitch 1–2 weeks ahead to reporters who covered the alternatives; on Product Hunt, ask people to
+  try it and share honest feedback, never ask outright for upvotes. Launch day hour by hour. The week after: thank
+  everyone, answer every comment, log the numbers, talk to 5 of the new users.
+referral_program (≤450 words): who gets what (double-sided by default, in the product's own currency where possible:
+  credit, free months, storage); the qualifying action (the friend activates, not just signs up); when the ask appears
+  (right after the first win, never at signup); a yearly cap per user; abuse limits (no self-referral, one reward per
+  person or payment method); contacts: the user picks each person, never "select all", and sees the message before it's
+  sent; NEVER reward reviews or ratings. "How we'll know": share of new users from referrals (where programs work, about
+  ${REFERRALS.shareWhereItWorksLow.value}–${REFERRALS.shareWhereItWorksHigh.value}%; expect fewer than ${REFERRALS.referrersShare.value}% of users to
+  refer). Reward amounts and dates are gaps unless the founder gave them.
+interview_guide (≤450 words): goal; who (new users in their first week, active users, people who stopped); how to invite
+  (15 minutes, a short note; a thank-you gift is optional and never depends on what they say); questions about past
+  behavior, never "would you use / would you pay"; start from: ${INTERVIEW_QUESTIONS.map((q) => `"${q}"`).join(" ")}
+  After each call: their words, the moment before they looked, what they used before, the first win. Once 40+ users are
+  active: the Sean Ellis question ("How would you feel if you could no longer use it?" very / somewhat / not
+  disappointed), asked only of people who used it at least twice in the last two weeks.
+
 OUTPUT: call submit_asset once. title ≤80 characters. claimIds and povIds only use ids from the context. gaps lists
 every [[placeholder]] in the body (up to 8, each ≤80 characters).`;
 
@@ -142,6 +195,8 @@ const args = z.object({
   title: z.string().max(120).optional(),
   brief: z.string().max(2000).optional(),
   dealId: z.string().optional(),
+  /** creator_brief: the creator it's for. */
+  partnerId: z.string().max(80).optional(),
   /** Client-generated id for the new asset, so the UI can follow this run and open the result. */
   assetId: z.string().max(40).optional(),
   /** Founder content: one debriefed call, or one insight memo, to build the draft from first. */
@@ -210,14 +265,59 @@ function insightBlock(ws: Workspace): string {
   return lines.join("\n");
 }
 
+function partnerBlock(p: Partner): string {
+  const offer = p.offer
+    ? `${p.offer.type}${p.offer.amountUsd ? `, $${p.offer.amountUsd}` : ""}${p.offer.commissionPct ? `, ${p.offer.commissionPct}% commission` : ""}${p.offer.terms ? `, ${clip(p.offer.terms, 200)}` : ""}`
+    : "not set (gap)";
+  return [
+    "<partner>",
+    `${PARTNER_KIND_LABELS[p.kind]}: ${p.name}${p.handle ? ` (${p.handle})` : ""}${p.platform ? ` on ${p.platform}` : ""}`,
+    p.audience ? `Audience: ${p.audience}` : "",
+    `Fit: ${p.fit}`,
+    p.notes ? `Founder's notes: ${clip(p.notes, 400)}` : "",
+    `Offer: ${offer}`,
+    p.trackingCode ? `Code or link: ${p.trackingCode}` : "Code or link: not set (gap)",
+    "</partner>",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** What a consumer document may draw on: the growth model, segments, hooks and the creator list. */
+function consumerBlock(ws: Workspace, a: Args): string[] {
+  const f = ws.foundation!;
+  const g = growthDefaults(ws);
+  const out = [
+    "",
+    "<growth>",
+    `North star: ${g.northStar.metric}`,
+    `Activation: ${g.activation.event} within ${g.activation.withinDays} days`,
+    `Primary loop: ${g.primaryLoop.kind} — ${g.primaryLoop.how}`,
+    `Pricing: ${f.commercial.structure} — ${clip(f.commercial.terms, 300)}`,
+    `Creator deal references (vendor data, Collabstr 2025): about $${CREATOR_RATES.instagramPerDeal.value} per Instagram deal, $${CREATOR_RATES.tiktokPerDeal.value} per TikTok deal.`,
+    "</growth>",
+  ];
+  if (f.messaging.hooks?.length) out.push("", `Hooks: ${f.messaging.hooks.map((h) => `"${h}"`).join(" ")}`);
+  if (f.messaging.customerWords.length) out.push(`Customer words: ${f.messaging.customerWords.map((w) => `"${w.phrase}"`).join(", ")}`);
+  const partner = a.partnerId ? ws.partners?.[a.partnerId] : undefined;
+  if (partner) out.push("", partnerBlock(partner));
+  else if (a.kind === "launch_plan") {
+    const list = Object.values(ws.partners ?? {}).filter((p) => p.stage !== "passed").slice(0, 12);
+    if (list.length) out.push("", "Creators and communities on the list:", ...list.map((p) => `- ${p.name} (${p.kind}, ${p.stage})`));
+  }
+  return out;
+}
+
 function taskMessage(ws: Workspace, a: Args, deal: Deal | undefined): string {
   const meta = ASSET_KINDS[a.kind];
   const f = parts(ws.foundation!);
   const { band, assumed } = priceBand(ws);
+  const consumerKind = CONSUMER_ASSETS.has(a.kind);
   const out = [taskHeader(), "", `Write ${meta.noun} (kind: ${a.kind}).`];
   if (a.title) out.push(`Working title: ${clip(a.title, 120)}`);
   if (a.brief) out.push(`Founder's note: ${clip(a.brief, 1500)}`);
-  out.push("", "<numbers>", `Buyer size: ${BAND_LABELS[band]} employees${assumed ? " (assumed)" : ""}.`, computedNumbers(ws), "</numbers>");
+  if (consumerKind) out.push(...consumerBlock(ws, a));
+  else out.push("", "<numbers>", `Buyer size: ${BAND_LABELS[band]} employees${assumed ? " (assumed)" : ""}.`, computedNumbers(ws), "</numbers>");
 
   const sender = ws.sender;
   out.push("", `Founder: ${ws.founder.name || "unknown"}, ${ws.founder.title || sender?.title || "Founder"}${sender?.email || ws.founder.email ? ` · ${sender?.email || ws.founder.email}` : ""}`);
@@ -323,7 +423,7 @@ export default defineWorkflow({
 
     const run = await ctx.agent<Submit>({
       tier: "operator",
-      system: [EMBER_CORE, ASSET_RULES, companyContext(ws)],
+      system: [coreFor(ws), ASSET_RULES, companyContext(ws)],
       messages: [{ role: "user", content: taskMessage(ws, a, deal) }],
       tools: [submitAsset],
       effort: "medium",
@@ -341,7 +441,15 @@ export default defineWorkflow({
     const sourced = isContentKind(a.kind) ? `${sourcedText(latest, a.dealId)}\n${founderMaterialBlock(latest, a)}` : sourcedText(latest, a.dealId);
     const unsourced = unsourcedNumbers(body, sourced);
     const notes = contentNotes(latest, a.kind, body);
-    const gaps = dedupe([...placeholders(body), ...out.gaps.filter((g) => !/^\s*$/.test(g)), ...unsourced.map((n) => `Check “${n}”: no approved source`), ...notes]).slice(0, 12);
+    // Consumer documents also go through the marketing rules (disclosure in briefs, no review rewards, no claims).
+    const rules = CONSUMER_ASSETS.has(a.kind) ? consumerChecks({ text: body, sponsored: a.kind === "creator_brief", where: a.kind === "creator_brief" ? "brief" : "message" }) : [];
+    const gaps = dedupe([
+      ...rules.filter((v) => v.severity === "error").map((v) => `Fix: ${clip(v.detail, 140)}`),
+      ...placeholders(body),
+      ...out.gaps.filter((g) => !/^\s*$/.test(g)),
+      ...unsourced.map((n) => `Check “${n}”: no approved source`),
+      ...notes,
+    ]).slice(0, 12);
     const claimIds = out.claimIds.filter((id) => latest.claims.some((c) => c.id === id && c.approved));
     const povIds = out.povIds.filter((id) => latest.povs.some((p) => p.id === id));
     ctx.emit({ type: "action", text: gaps.length ? `Left ${gaps.length === 1 ? "1 gap" : `${gaps.length} gaps`} for you to fill` : "Checked every number against your sources" });
@@ -367,6 +475,7 @@ export default defineWorkflow({
         approved: false,
         url: existing?.url,
         dealId: a.dealId,
+        partnerId: a.kind === "creator_brief" ? a.partnerId : undefined,
         gaps,
         claimIds,
         povIds,
@@ -381,6 +490,8 @@ export default defineWorkflow({
       // The company sheet reads the deal's copy; the Playbook keeps the editable asset.
       const deal = a.kind === "pilot_proposal" && a.dealId ? w.deals[a.dealId] : undefined;
       if (deal) deal.proposal = { body, generatedAt: at };
+      const partner = a.kind === "creator_brief" && a.partnerId ? w.partners?.[a.partnerId] : undefined;
+      if (partner) partner.briefAssetId = id;
     });
     return { assetId: id, title, gaps: gaps.length };
   },

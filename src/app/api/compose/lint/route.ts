@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { lintStep } from "@/lib/quality/context";
 import { preflight } from "@/lib/quality/gates";
-import { lintDraft } from "@/lib/quality/lint";
+import { CONSUMER_KINDS, lintDraft } from "@/lib/quality/lint";
 import { errorResponse, readJSON } from "@/lib/server/http";
 import { readWorkspace } from "@/lib/store/workspace";
 
 const FRAMES = ["founder_card", "4t", "problem_prompter", "mouse_trap", "observation_problem_proof", "referral", "permission_to_close", "reply", "intro", "recap", "invite"] as const;
-const KINDS = ["email", "linkedin_note", "linkedin_dm", "recap", "invite", "intro_wrapper", "intro_forwardable", "post"] as const;
+const KINDS = ["email", "linkedin_note", "linkedin_dm", "recap", "invite", "intro_wrapper", "intro_forwardable", "post", ...CONSUMER_KINDS] as const;
 
 const Body = z.union([
   // Lint a draft already in the workspace, optionally with edits (same check the editor shows).
@@ -27,6 +27,10 @@ const Body = z.union([
     allowWords: z.array(z.string().max(80)).max(100).optional(),
     sourcedText: z.string().max(20_000).optional(),
     assetId: z.string().optional(),
+    /** Consumer marketing rules (disclosure, reviews, health/earnings/green claims); on for every consumer kind. */
+    consumer: z.boolean().optional(),
+    /** Paid, gifted or affiliate content: requires a clear disclosure. */
+    sponsored: z.boolean().optional(),
   }),
 ]);
 

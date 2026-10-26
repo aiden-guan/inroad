@@ -26,6 +26,7 @@ import { footerPromisesDeletion, jurisdictionFor } from "@/lib/quality/gates";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
+import { CONSUMER_RULES, ConsumerMoveBody } from "./consumer-moves";
 import { DealResolver } from "./deal-resolver";
 import { NetworkCompaniesBody } from "./network-companies";
 import { KnownUsersBody } from "@/components/onboarding/known-users";
@@ -197,6 +198,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
   const rule = ruleOf(move);
   const person = move.ref?.kind === "person" ? ws.people[move.ref.id] : undefined;
   const domain = person?.accountDomain ?? (move.ref?.kind === "account" ? move.ref.id : undefined);
+
+  if (CONSUMER_RULES.has(rule)) return <ConsumerMoveBody rule={rule} {...props} />;
 
   switch (rule) {
     case "reply":

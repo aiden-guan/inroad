@@ -19,7 +19,7 @@ import { OPEN_STAGES, STAGE_LABELS, type Asset, type Deal } from "@/lib/domain/t
 import { ease, listItem, spring } from "@/lib/motion";
 import { QuestionFinder } from "./content";
 import { usePlaybook, type ComposerState } from "./context";
-import { ASSET_KINDS, CONTENT_KINDS, CREATABLE_KINDS, assetGate, checkAsset, contentRunTitle, debriefCount, isContentKind, plural, postSources, type AssetKind } from "./model";
+import { ASSET_KINDS, CONTENT_KINDS, assetGate, checkAsset, contentRunTitle, creatableKinds, debriefCount, isContentKind, plural, postSources, type AssetKind } from "./model";
 import { SIERRA_URL, designPartnerKit, templateFor } from "./templates";
 import { DraftLabel, ResearchCite, Sub, undoable } from "./ui";
 
@@ -41,8 +41,12 @@ export function AssetsBlock() {
   return (
     <Sub
       id="assets"
-      title="Assets"
-      hint="What your emails can offer instead of a meeting. A CTA that offers a one-pager, a demo or terms must point at an approved asset here."
+      title={ws.company?.market === "consumer" ? "Documents" : "Assets"}
+      hint={
+        ws.company?.market === "consumer"
+          ? "What you hand to creators, partners and your own launch. Every creator brief carries the disclosure rule, and I check each draft against the consumer marketing rules."
+          : "What your emails can offer instead of a meeting. A CTA that offers a one-pager, a demo or terms must point at an approved asset here."
+      }
       right={
         <Menu
           trigger={
@@ -52,7 +56,7 @@ export function AssetsBlock() {
           }
         >
           <MenuLabel>New asset</MenuLabel>
-          {CREATABLE_KINDS.map((k) => (
+          {creatableKinds(ws).map((k) => (
             <MenuItem key={k} onSelect={() => setComposer({ kind: k })}>
               {ASSET_KINDS[k].label}
             </MenuItem>
@@ -63,7 +67,7 @@ export function AssetsBlock() {
       <AnimatePresence initial={false}>
         {composer && (
           <motion.div
-            key={`${composer.kind}-${composer.dealId ?? ""}`}
+            key={`${composer.kind}-${composer.dealId ?? ""}-${composer.partnerId ?? ""}`}
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: ease.out } }}
             exit={{ opacity: 0, transition: { duration: 0.12 } }}
@@ -85,14 +89,29 @@ export function AssetsBlock() {
       {assets.length === 0 && drafting.length === 0 && !composer ? (
         <div className="rounded-lg bg-surface p-5 ring-1 ring-border">
           <p className="font-serif text-[17px] leading-[26px] text-fg">Nothing to offer yet.</p>
-          <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-fg-2">
-            Founders who offer something useful get replies without asking for a meeting. Start with a one-pager; it&apos;s built from this playbook and only uses claims you approved.
-          </p>
-          <div className="mt-4">
-            <Button size="sm" variant="primary" onClick={() => setComposer({ kind: "one_pager" })}>
-              Make a one-pager
-            </Button>
-          </div>
+          {ws.company?.market === "consumer" ? (
+            <>
+              <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-fg-2">
+                Creators who agree need a brief: what to show, what not to claim, and the #ad rule. Start with one; it&apos;s built from this playbook and only uses claims you approved.
+              </p>
+              <div className="mt-4">
+                <Button size="sm" variant="primary" onClick={() => setComposer({ kind: "creator_brief" })}>
+                  Write a creator brief
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-fg-2">
+                Founders who offer something useful get replies without asking for a meeting. Start with a one-pager; it&apos;s built from this playbook and only uses claims you approved.
+              </p>
+              <div className="mt-4">
+                <Button size="sm" variant="primary" onClick={() => setComposer({ kind: "one_pager" })}>
+                  Make a one-pager
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         assets.length > 0 && (
@@ -262,13 +281,19 @@ const BRIEF_PLACEHOLDER: Partial<Record<AssetKind, string>> = {
 
 function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () => void }) {
   const { ws, dispatch, draftAsset, setOpenAsset, today } = usePlaybook();
-  const { kind, dealId: initialDealId } = composer;
+  const { kind, dealId: initialDealId, partnerId: initialPartnerId } = composer;
   const deals = openDeals(ws.deals);
   const meta = ASSET_KINDS[kind];
   const needsDeal = kind === "pilot_proposal";
   const content = isContentKind(kind);
   const question = kind === "community_answer";
   const [dealId, setDealId] = useState<string | undefined>(initialDealId && ws.deals[initialDealId] ? initialDealId : needsDeal ? deals[0]?.id : undefined);
+  const forCreator = kind === "creator_brief";
+  const creators = Object.values(ws.partners ?? {}).filter((p) => p.kind === "creator" && p.stage !== "passed" && p.stage !== "done");
+  const [partnerId, setPartnerId] = useState<string | undefined>(
+    forCreator ? (initialPartnerId && ws.partners?.[initialPartnerId] ? initialPartnerId : (creators.find((p) => p.stage === "agreed") ?? creators[0])?.id) : undefined,
+  );
+  const partner = partnerId ? ws.partners?.[partnerId] : undefined;
   const [brief, setBrief] = useState(composer.brief ?? "");
   const [from, setFrom] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -277,10 +302,10 @@ function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () 
   const sources = kind === "post" ? postSources(ws) : [];
 
   const fromTemplate = () => {
-    const t = templateFor(kind, ws, { deal, calls: debriefCount(ws) });
+    const t = templateFor(kind, ws, { deal, calls: debriefCount(ws), partner });
     const at = nowISO();
-    const asset: Asset = { id: newId("ast"), kind, title: t.title, body: t.body, createdAt: at, updatedAt: at, approved: false, dealId, gaps: [], origin: "template" };
-    void dispatch({ type: "asset.upsert", asset });
+    const asset: Asset = { id: newId("ast"), kind, title: t.title, body: t.body, createdAt: at, updatedAt: at, approved: false, dealId, partnerId: forCreator ? partnerId : undefined, gaps: [], origin: "template" };
+    void dispatch(partner && forCreator ? [{ type: "asset.upsert", asset }, { type: "partner.update", id: partner.id, patch: { briefAssetId: asset.id }, at }] : { type: "asset.upsert", asset });
     setOpenAsset(asset.id);
     onClose();
   };
@@ -291,6 +316,7 @@ function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () 
     const ok = await draftAsset({
       kind,
       dealId,
+      partnerId: forCreator ? partnerId : undefined,
       brief: brief.trim() || undefined,
       assetId: newId("ast"),
       meetingId: source?.kind === "call" ? source.id : undefined,
@@ -370,6 +396,39 @@ function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () 
         </div>
       )}
 
+      {forCreator && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-[12px] font-medium text-fg-2">For which creator?</p>
+          {creators.length ? (
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Creator">
+              {creators.slice(0, 10).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={partnerId === p.id}
+                  onClick={() => setPartnerId(p.id)}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 text-[13px] ring-1 ring-inset transition-colors duration-150",
+                    partnerId === p.id ? "bg-fg text-bg ring-fg" : "text-fg-2 ring-border hover:bg-bg-subtle hover:text-fg",
+                  )}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[13px] text-fg-3">
+              No creators on your list yet. You can still write a general brief, or{" "}
+              <Link href="/partners" className="text-fg-2 underline underline-offset-2 hover:text-fg">
+                add a creator
+              </Link>{" "}
+              first.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mt-4">
         <label htmlFor="asset-brief" className="mb-1.5 block text-[12px] font-medium text-fg-2">
           {question ? "The question you're answering" : "Anything I should know?"} {!question && <span className="font-normal text-fg-3">Optional</span>}
@@ -378,7 +437,7 @@ function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () 
           id="asset-brief"
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
-          placeholder={BRIEF_PLACEHOLDER[kind] ?? (needsDeal ? "e.g. They want to start with one region's data." : "e.g. For CFOs who weren't on the first call.")}
+          placeholder={BRIEF_PLACEHOLDER[kind] ?? (needsDeal ? "e.g. They want to start with one region's data." : forCreator ? "e.g. One 45-second video, $300, paid within 7 days of posting." : ws.company?.market === "consumer" ? "e.g. Launching on March 4, mostly to our waitlist." : "e.g. For CFOs who weren't on the first call.")}
           className={cn("text-[13.5px]", question ? "min-h-24" : "min-h-16")}
           maxLength={2000}
         />

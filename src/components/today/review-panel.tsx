@@ -23,12 +23,14 @@ const ABOUT = {
     "I'll read every reply from this week, tally inputs against targets with sample sizes, quote the objections, and propose up to 3 playbook edits and one message bet for next month. About a minute for me, then a few for you to decide.",
   monthly:
     "I'll see how this month's message bet did, suggest updates to your bet from the calls since you last changed it (each one yours to accept or reject), check which prices you quoted were accepted, and, once you're close, whether it's time to hire. About two minutes for me, then about half an hour for you to decide.",
+  growth:
+    "I'll read last week's numbers against your retention bar, find the leakiest stage, check your creators and user conversations, and propose one experiment sized for your traffic. About a minute.",
 } as const;
 
 export type ReviewKind = keyof typeof ABOUT;
 
-const LABELS: Record<ReviewKind | "refresh", string> = { monday: "pipeline review", friday: "learning review", monthly: "monthly review", refresh: "bet refresh" };
-const RUN_LABELS: Record<ReviewKind, string> = { monday: "Run the pipeline review", friday: "Run the learning review", monthly: "Run the monthly review" };
+const LABELS: Record<ReviewKind | "refresh", string> = { monday: "pipeline review", friday: "learning review", growth: "growth review", monthly: "monthly review", refresh: "bet refresh" };
+const RUN_LABELS: Record<ReviewKind, string> = { monday: "Run the pipeline review", friday: "Run the learning review", growth: "Run the growth review", monthly: "Run the monthly review" };
 
 /** The review workflow's run ref: one per kind, so each card shows only its own work log. */
 const reviewRef = (kind: ReviewKind): EntityRef => ({ kind: "playbook", id: `review:${kind}` });

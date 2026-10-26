@@ -55,6 +55,11 @@ export function proposalActions(p: ReviewProposal, ws: Workspace, date: string):
       if (!f || !p.text) return null;
       return [{ type: "foundation.set", path: ["messaging", "bannedWords"], value: [...new Set([...f.messaging.bannedWords, p.text])] }, mark];
     }
+    case "experiment": {
+      const e = p.experiment;
+      if (!e) return null;
+      return [{ type: "experiment.upsert", experiment: { id: newId("exp"), ...e, status: "idea", proposalId: p.id, createdAt: at, updatedAt: at } }, mark];
+    }
     case "message_bet":
     case "note":
       return [mark];
@@ -89,5 +94,7 @@ export function applyLabel(p: ReviewProposal): string {
       return "Got it";
     case "revise_foundation":
       return "Accept";
+    case "experiment":
+      return "Add to experiments";
   }
 }

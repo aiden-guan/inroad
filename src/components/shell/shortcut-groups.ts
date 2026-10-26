@@ -19,6 +19,7 @@ export function shortcutGroups(mac: boolean): ShortcutGroup[] {
         [[mod, "K"], "Ask, or jump to a company, page or action"],
         [["?"], "These shortcuts"],
         [["G", "T"], "Today"],
+        [["G", "R"], "Creators and communities"],
         [["G", "C"], "Companies"],
         [["G", "N"], "Intros"],
         [["G", "E"], "Events"],

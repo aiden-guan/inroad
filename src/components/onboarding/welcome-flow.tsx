@@ -15,7 +15,9 @@ import { useBillingUrl } from "@/lib/client/ai-provider";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
+import { isConsumer } from "@/lib/consumer/market";
 import { FirstThree } from "./first-three";
+import { FirstUsers } from "./first-users";
 import { InlineQuestions, WhoBuysPrompt } from "./inline-questions";
 import { KeyBlock, useKeyForm } from "./key-block";
 import { LearnedChips } from "./learned-chips";
@@ -291,7 +293,7 @@ export function WelcomeFlow() {
     if (r) setPending({ runId: r.id, args });
     return !!r;
   };
-  const retry = () => void begin({ url: o?.url ?? pending?.args.url, note: o?.note ?? pending?.args.note });
+  const retry = () => void begin({ url: o?.url ?? pending?.args.url, note: o?.note ?? pending?.args.note, market: o?.market ?? pending?.args.market });
   const startOver = () => {
     setPending(null);
     void dispatch({ type: "onboarding.update", patch: { status: "new", error: undefined } });
@@ -336,7 +338,7 @@ export function WelcomeFlow() {
               <AnimatePresence mode="wait" initial={false}>
                 {phase === "offer" ? (
                   <motion.div key="offer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
-                    <FirstThree ws={ws} onLeave={() => setLeaving(true)} />
+                    {isConsumer(ws) ? <FirstUsers ws={ws} onLeave={() => setLeaving(true)} /> : <FirstThree ws={ws} onLeave={() => setLeaving(true)} />}
                   </motion.div>
                 ) : (
                   <WorkingColumn

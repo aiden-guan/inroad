@@ -10,16 +10,23 @@ import { Orb } from "@/components/ui/orb";
 import { cn } from "@/lib/client/cn";
 import { spring } from "@/lib/motion";
 import { usePlaybook } from "./context";
+import { GrowSection } from "./grow";
 import { HowSection } from "./how";
 import { JournalSection } from "./journal";
-import { SECTIONS, nextAction, playbookMarkdown, type SectionId } from "./model";
+import { CONSUMER_SECTIONS, SECTIONS, nextAction, playbookMarkdown, sectionsFor, type NavSection, type SectionId } from "./model";
 import { VoiceSection } from "./voice";
 import { WhySection } from "./why";
 import { WhoSection } from "./who";
 
-/** Every anchor in document order: each section followed by its subsections. */
-const ALL_IDS: string[] = SECTIONS.flatMap((s) => [s.id, ...s.children.map((c) => c.id)]);
-const SECTION_OF = new Map<string, SectionId>(SECTIONS.flatMap((s) => [[s.id, s.id] as const, ...s.children.map((c) => [c.id, s.id] as const)]));
+/** Every anchor in document order (each section followed by its subsections), and which section each belongs to. */
+function anchors(sections: readonly NavSection[]) {
+  const ids: string[] = sections.flatMap((s) => [s.id, ...s.children.map((c) => c.id)]);
+  const of = new Map<string, SectionId>(sections.flatMap((s) => [[s.id, s.id] as const, ...s.children.map((c) => [c.id, s.id] as const)]));
+  return { ids, of };
+}
+const B2B_ANCHORS = anchors(SECTIONS);
+const CONSUMER_ANCHORS = anchors(CONSUMER_SECTIONS);
+const anchorsFor = (consumer: boolean) => (consumer ? CONSUMER_ANCHORS : B2B_ANCHORS);
 
 /** The deepest anchor crossing the top third of the viewport. */
 function useScrollSpy(ids: string[]): string | null {
@@ -73,12 +80,14 @@ function CountPill({ n }: { n: number }) {
 }
 
 function SubNav({ activeId }: { activeId: string | null }) {
+  const { ws } = usePlaybook();
   const counts = useCounts();
-  const section = (activeId && SECTION_OF.get(activeId)) || "who";
+  const sections = sectionsFor(ws);
+  const section = (activeId && anchorsFor(ws.company?.market === "consumer").of.get(activeId)) || "who";
   return (
     <nav aria-label="Playbook sections" className="sticky top-8 pt-1">
       <ol className="space-y-0.5">
-        {SECTIONS.map((s) => {
+        {sections.map((s) => {
           const active = s.id === section;
           return (
             <li key={s.id}>
@@ -128,12 +137,14 @@ function SubNav({ activeId }: { activeId: string | null }) {
 }
 
 function MobileNav({ activeId }: { activeId: string | null }) {
+  const { ws } = usePlaybook();
   const counts = useCounts();
-  const section = (activeId && SECTION_OF.get(activeId)) || "who";
+  const sections = sectionsFor(ws);
+  const section = (activeId && anchorsFor(ws.company?.market === "consumer").of.get(activeId)) || "who";
   return (
     <nav aria-label="Playbook sections" className="sticky top-12 z-30 -mx-6 mb-8 border-b border-border bg-bg/90 px-6 backdrop-blur md:top-0 md:-mx-10 md:px-10 @min-[1000px]/page:hidden">
       <ol className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto px-1 py-2">
-        {SECTIONS.map((s) => {
+        {sections.map((s) => {
           const active = s.id === section;
           return (
             <li key={s.id} className="shrink-0">
@@ -222,8 +233,10 @@ function NextActionCard() {
 
 export function PlaybookDocument() {
   const { ws, openAsk } = usePlaybook();
-  const activeId = useScrollSpy(ALL_IDS);
-  const section = (activeId && SECTION_OF.get(activeId)) || "who";
+  const consumer = ws.company?.market === "consumer";
+  const { ids, of } = anchorsFor(consumer);
+  const activeId = useScrollSpy(ids);
+  const section = (activeId && of.get(activeId)) || "who";
   const company = ws.company?.name ?? "you";
   return (
     <div className="@container/page">
@@ -260,7 +273,7 @@ export function PlaybookDocument() {
           <div>
             <WhoSection />
             <WhySection />
-            <HowSection />
+            {consumer ? <GrowSection /> : <HowSection />}
             <VoiceSection />
             <JournalSection />
           </div>

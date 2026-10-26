@@ -3,12 +3,16 @@
 import { ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useRuns } from "@/components/providers/runs-provider";
+import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { Segmented, Skeleton } from "@/components/ui/misc";
 import { setCompanyIcons } from "@/lib/client/icons";
 import { AiProviderGroup } from "./ai-provider";
+import { CONSUMER_MODEL_LABELS, MARKET_LABELS } from "@/lib/consumer/market";
+import type { ConsumerModel, Market } from "@/lib/domain/types";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
 import type { CompanyIcons, Geocoder, NewsSource } from "./types";
 import { useThemePref, type ThemePref, type useSettingsStatus } from "./use-settings";
@@ -17,8 +21,9 @@ type Settings = ReturnType<typeof useSettingsStatus>;
 
 export function GeneralSection({ settings }: { settings: Settings }) {
   return (
-    <SettingsSection id="general" title="General" description="The AI I run on, how the app looks, and what may leave this computer for news, places, icons and public records.">
+    <SettingsSection id="general" title="General" description="The AI I run on, who you sell to, how the app looks, and what may leave this computer for news, places, icons and public records.">
       <AiProviderGroup settings={settings} />
+      <MarketGroup />
       <Group title="Appearance">
         <ThemeRow />
       </Group>
@@ -27,6 +32,68 @@ export function GeneralSection({ settings }: { settings: Settings }) {
       <IconsGroup settings={settings} />
       <PublicDataGroup settings={settings} />
     </SettingsSection>
+  );
+}
+
+/* ───────────── Who you sell to ───────────── */
+
+/** Businesses or consumers: which playbook, moves and drafting rules apply. Switching keeps everything; the playbook is rewritten on request. */
+function MarketGroup() {
+  const { ws, dispatch } = useWorkspace();
+  const { start } = useRuns();
+  const [changed, setChanged] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!ws?.company) return null;
+  const market: Market = ws.company.market ?? "b2b";
+  const model: ConsumerModel = ws.company.consumerModel ?? "app";
+  const set = async (next: Market, nextModel?: ConsumerModel) => {
+    if (await dispatch({ type: "company.setMarket", market: next, consumerModel: nextModel })) setChanged(true);
+  };
+  const rewrite = async () => {
+    setBusy(true);
+    const run = await start("foundation", { url: ws.company?.domain || undefined, note: ws.company?.founderNote, mode: "refresh", market, consumerModel: market === "consumer" ? model : undefined });
+    setBusy(false);
+    if (run) {
+      setChanged(false);
+      toast("Rewriting your playbook. Everything you approved stays.");
+    }
+  };
+  return (
+    <Group
+      id="market"
+      title="Who you sell to"
+      hint="This sets the playbook I write, the moves on Today and the rules your drafts follow."
+      right={
+        changed && ws.foundation ? (
+          <Button size="sm" variant="agent" loading={busy} onClick={() => void rewrite()}>
+            Rewrite my playbook for this
+          </Button>
+        ) : undefined
+      }
+    >
+      <ChoiceList<Market>
+        name="market"
+        label="Who you sell to"
+        value={market}
+        onChange={(v) => void set(v, v === "consumer" ? model : undefined)}
+        options={[
+          { value: "b2b", label: MARKET_LABELS.b2b, hint: "Founder-led sales: accounts, warm intros, signal-based outreach, deals and pilots." },
+          { value: "consumer", label: MARKET_LABELS.consumer, hint: "Growth: retention first, creators and communities, weekly numbers, experiments." },
+        ]}
+      />
+      {market === "consumer" && (
+        <div className="border-t border-border">
+          <p className="bg-bg-subtle/60 px-4 py-2 text-[12px] font-medium text-fg-2">What kind of consumer company</p>
+          <ChoiceList<ConsumerModel>
+            name="consumer-model"
+            label="What kind of consumer company"
+            value={model}
+            onChange={(v) => void set("consumer", v)}
+            options={(Object.keys(CONSUMER_MODEL_LABELS) as ConsumerModel[]).map((k) => ({ value: k, label: CONSUMER_MODEL_LABELS[k].label, hint: CONSUMER_MODEL_LABELS[k].hint }))}
+          />
+        </div>
+      )}
+    </Group>
   );
 }
 

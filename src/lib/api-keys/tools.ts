@@ -10,8 +10,8 @@ import { readWorkspace } from "@/lib/store/workspace";
 import { scoreAccount, scoringContext } from "./scoring";
 import { logCall, recordBudget, type ApiKey } from "./store";
 import { ACCESS, type Scope } from "./types";
-import { accountView, icpView, nextActionsView, playbookView, searchView } from "./views";
-import { ToolError, addAccounts, completeAction, logActivity, submitDraft } from "./writes";
+import { accountView, growthView, icpView, nextActionsView, playbookView, searchView } from "./views";
+import { ToolError, addAccounts, addPartners, completeAction, logActivity, logGrowthWeek, submitDraft } from "./writes";
 
 /**
  * The tools other agents call, defined once and served twice: over MCP at /api/mcp and as
@@ -369,6 +369,72 @@ export const TOOLS: ToolDef[] = [
       };
     },
   }),
+  // Consumer companies (appended, so earlier tools keep their place).
+  tool({
+    name: "get_growth",
+    title: "Get growth numbers",
+    description: "Consumer companies: weekly numbers, what they say (computed in code, no AI), whether paid acquisition is on hold, and the creator and community list.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/growth" },
+    schema: z.object({}),
+    run: (_a, ctx) => ({ data: growthView(readWorkspace(), ctx.base), summary: "Read the growth numbers" }),
+  }),
+  tool({
+    name: "log_growth_week",
+    title: "Log a week of numbers",
+    description: "Send one week's consumer numbers from analytics or billing (PostHog, Amplitude, RevenueCat, Shopify). Merges onto the week; the founder's own entries win.",
+    scope: "write_records",
+    readOnly: false,
+    idempotent: true,
+    rest: { method: "POST", path: "/growth" },
+    schema: z.object({
+      week_of: z.string().max(10).optional().describe("Any date in the week, YYYY-MM-DD; default this week"),
+      signups: z.number().int().min(0).max(100_000_000).optional().describe("New users, or first-time buyers for DTC. Required the first time a week is sent."),
+      activated: z.number().int().min(0).max(100_000_000).optional().describe("Of those signups, how many reached the activation event"),
+      active: z.number().int().min(0).max(1_000_000_000).optional().describe("Distinct users active that week"),
+      retained_pct: z.number().min(0).max(100).optional().describe("Percent of the cohort from 4 weeks earlier active that week (90-day repeat for DTC)"),
+      paying: z.number().int().min(0).max(1_000_000_000).optional(),
+      new_paying: z.number().int().min(0).max(100_000_000).optional(),
+      churned_paying: z.number().int().min(0).max(100_000_000).optional(),
+      revenue_usd: z.number().min(0).max(10_000_000_000).optional(),
+      spend_usd: z.number().min(0).max(10_000_000_000).optional().describe("Paid acquisition spend"),
+      referred: z.number().int().min(0).max(100_000_000).optional().describe("Signups from invites or referral links"),
+      top_channel: z.string().max(60).optional(),
+      source_tool: z.string().trim().min(1).max(40).describe("e.g. posthog, revenuecat, shopify"),
+    }),
+    run: (a, ctx) => logGrowthWeek(ctx.key, a, ctx.via),
+  }),
+  tool({
+    name: "add_partners",
+    title: "Add creators and communities",
+    description: "Consumer companies: add up to 50 creators, communities, newsletters or podcasts (from a creator tool or your own search) to the founder's shortlist. Never contacts anyone.",
+    scope: "write_records",
+    readOnly: false,
+    idempotent: true,
+    rest: { method: "POST", path: "/partners" },
+    schema: z.object({
+      source: z.string().trim().min(1).max(40).describe("Where these came from, e.g. modash, upfluence"),
+      partners: z
+        .array(
+          z.object({
+            kind: z.enum(["creator", "community", "newsletter", "podcast", "press", "brand"]),
+            name: z.string().trim().min(1).max(80),
+            platform: z.enum(["tiktok", "instagram", "youtube", "x", "reddit", "discord", "facebook", "substack", "podcast", "web", "other"]).optional(),
+            handle: z.string().max(60).optional(),
+            url: z.string().max(400).optional(),
+            audience: z.string().max(80).optional().describe("Who follows them, in words"),
+            followers: z.number().int().min(0).max(10_000_000_000).optional(),
+            engagement_rate: z.number().min(0).max(1).optional().describe("0–1, as your tool computes it"),
+            fit: z.string().trim().min(5).max(160).describe("Why their audience is the founder's"),
+          }),
+        )
+        .min(1)
+        .max(50),
+    }),
+    run: (a, ctx) => addPartners(ctx.key, a),
+  }),
 ];
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
@@ -398,6 +464,7 @@ function issues(err: z.ZodError): string {
 }
 
 function recordsWanted(name: string, input: Record<string, unknown>): number {
+  if (name === "add_partners") return ((input.partners as unknown[] | undefined) ?? []).length;
   if (name !== "add_accounts") return 1;
   const accounts = (input.accounts as { people?: unknown[] }[] | undefined) ?? [];
   return accounts.reduce((n, a) => n + 1 + (a.people?.length ?? 0), 0);
