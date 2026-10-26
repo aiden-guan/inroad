@@ -13,6 +13,8 @@ export interface SettingsStatus {
   geocoder: Geocoder;
   /** Absolute path of the folder that holds workspace.json, settings.json and the caches. */
   dataDir: string;
+  /** OpenAI, used only to paint the picture layer of Studio graphics. Same rules: the key never leaves the server. */
+  openai: { hasKey: boolean; keySource: "settings" | "env" | null; keyHint: string | null; imageModel: string };
 }
 
 export type CheckStatus = "pass" | "warn" | "fail";

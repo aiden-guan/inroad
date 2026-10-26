@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Intake questions and founder material (the old way, a moment, a number with its source, users' words, the demo, what it can't do yet, beliefs); copy may only state specifics from material, approved claims or the playbook.
 - MCP and REST tools `get_copy_guide` and `check_copy` (read scope) so outside agents write to the same bar.
 - Research: `docs/research/10-marketing-copy.md`.
+- **Studio graphics** (workflow `visual`): Claude (Opus) designs 1–3 graphics per option as SVG around its checked words. Code sanitizes the SVG to an allowlist and checks it: only approved words, WCAG contrast, platform safe zones, type size, likely overflow, and text share for Meta ads. resvg renders the PNG locally, Claude (Sonnet) reviews the render by vision, and failing designs get one revision. Six sizes: LinkedIn/X 1.91:1, feed 4:5, square, story 9:16, link preview and the Product Hunt gallery.
+- Picture layers: a real screenshot the founder uploads (shown whole), or a photo or illustration painted by OpenAI GPT Image (`gpt-image-2.5-sunburst` by default) on the founder's own key. Without a key, Claude writes a ChatGPT-ready prompt instead. Image prompts are checked for words, painted UI, fake customers and AI-art clichés; painted graphics are marked as AI imagery.
+- Settings: optional OpenAI key and image model. Brand colors in Studio's profile. Image library in the Studio aside. PNG and SVG downloads. Graphics are marked when their option's words change.
+- MCP and REST: `get_copy_guide` returns a `visual` block (sizes, safe zones, layouts, rules, image-prompt rules), and new `check_graphic` (read scope, `POST /api/v1/copy/graphic`) runs the same SVG checks for outside agents.
 
 ---
 

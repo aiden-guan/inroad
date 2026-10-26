@@ -16,6 +16,8 @@ delete process.env.ANTHROPIC_API_KEY;
 delete process.env.ANTHROPIC_AUTH_TOKEN;
 delete process.env.ANTHROPIC_PROFILE;
 process.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:9";
+delete process.env.OPENAI_API_KEY;
+process.env.OPENAI_BASE_URL = "http://127.0.0.1:9/v1";
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = (input, init) => {

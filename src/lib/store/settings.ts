@@ -15,6 +15,10 @@ export interface Settings {
    * Nominatim. Only the place text is sent, never a name or company. "off" keeps the map to known cities.
    */
   geocoder?: "osm" | "off";
+  /** The founder's own OpenAI key, used only to paint image layers for Studio visuals. */
+  openaiApiKey?: string;
+  /** Which GPT Image model paints them. */
+  imageModel?: string;
 }
 
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");

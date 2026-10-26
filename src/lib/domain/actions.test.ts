@@ -30,6 +30,30 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** The sample plus one graphic (on the hero's first option) and the image it was made with. */
+function withVisual(): Workspace {
+  const w = ws();
+  const optionId = w.studio.pieces[PIECE.hero].options[0].id;
+  w.studio.images.img_test000001 = { id: "img_test000001", source: "upload", file: "img_test000001.png", mime: "image/png", width: 800, height: 600, alt: "", createdAt: at(0) };
+  w.studio.visuals.vis_test000001 = {
+    id: "vis_test000001",
+    pieceId: PIECE.hero,
+    optionId,
+    layout: "screenshot",
+    preset: "og",
+    width: 1200,
+    height: 630,
+    svgFile: "vis_test000001.svg",
+    pngFile: "vis_test000001.png",
+    imageId: "img_test000001",
+    why: "",
+    checks: [],
+    aiImagery: false,
+    createdAt: at(0),
+  };
+  return w;
+}
+
 const cases: Record<Action["type"], () => void> = {
   "founder.update": () => {
     const s = apply(ws(), { type: "founder.update", patch: { availability: "Tue–Thu 10–4 PT" } });
@@ -206,6 +230,9 @@ const cases: Record<Action["type"], () => void> = {
     // Lint follows the edit, so "Ready" can't go stale.
     expect(option.lint.passed).toBe(true);
     expect(edited.lint.passed).toBe(false);
+    // Graphics that set the old words are marked.
+    const withGraphic = apply(withVisual(), { type: "studio.option.edit", pieceId: PIECE.hero, optionId: option.id, parts: { cta: "Try it" } });
+    expect(withGraphic.studio.visuals.vis_test000001.stale).toBe(true);
   },
 
   "studio.option.keep": () => {
@@ -215,8 +242,27 @@ const cases: Record<Action["type"], () => void> = {
   },
 
   "studio.piece.remove": () => {
-    const s = apply(ws(), { type: "studio.piece.remove", id: PIECE.hero });
+    const s = apply(withVisual(), { type: "studio.piece.remove", id: PIECE.hero });
     expect(s.studio.pieces[PIECE.hero]).toBeUndefined();
+    expect(s.studio.visuals.vis_test000001).toBeUndefined();
+  },
+
+  "studio.visual.keep": () => {
+    const s = apply(withVisual(), { type: "studio.visual.keep", id: "vis_test000001", kept: true });
+    expect(s.studio.visuals.vis_test000001.kept).toBe(true);
+    expect(() => apply(s, { type: "studio.visual.keep", id: "vis_missing", kept: true })).toThrow(ActionError);
+  },
+
+  "studio.visual.remove": () => {
+    const s = apply(withVisual(), { type: "studio.visual.remove", id: "vis_test000001" });
+    expect(s.studio.visuals).toEqual({});
+  },
+
+  "studio.image.remove": () => {
+    const s = apply(withVisual(), { type: "studio.image.remove", id: "img_test000001" });
+    expect(s.studio.images).toEqual({});
+    // The rendered graphic stays.
+    expect(s.studio.visuals.vis_test000001.pngFile).toBe("vis_test000001.png");
   },
 
   "connector.upsert": () => {

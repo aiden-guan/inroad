@@ -19,7 +19,7 @@ export function emptyWorkspace(): Workspace {
     objections: [],
     povs: [],
     assets: [],
-    studio: { profile: null, material: [], pieces: {} },
+    studio: { profile: null, material: [], pieces: {}, images: {}, visuals: {} },
     voice: null,
     sender: null,
     goal: {

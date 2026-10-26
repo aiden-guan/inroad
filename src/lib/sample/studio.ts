@@ -108,5 +108,7 @@ export function studio(c: Clock): StudioState {
         ],
       },
     },
+    images: {},
+    visuals: {},
   };
 }

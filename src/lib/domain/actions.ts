@@ -65,6 +65,11 @@ export type Action =
   | { type: "studio.option.edit"; pieceId: ID; optionId: ID; parts: Record<string, string> }
   | { type: "studio.option.keep"; pieceId: ID; optionId: ID; kept: boolean }
   | { type: "studio.piece.remove"; id: ID }
+  | { type: "studio.visual.keep"; id: ID; kept: boolean }
+  /** Removes a graphic's record; the server sweeps its files (src/lib/studio/files.ts). */
+  | { type: "studio.visual.remove"; id: ID }
+  /** Removes an image from the library; graphics already rendered with it keep their PNG. */
+  | { type: "studio.image.remove"; id: ID }
   | { type: "connector.upsert"; connector: Connector }
   | { type: "connector.remove"; id: ID }
   /** Something the founder did for a connector: it balances the ledger against asks. */
@@ -352,6 +357,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       option.parts = { ...option.parts, ...action.parts };
       option.edited = true;
       option.lint = lintOption(ws, piece, option);
+      // Graphics set the old words; mark them so the founder remakes them before posting.
+      for (const v of Object.values(ws.studio.visuals)) if (v.optionId === option.id) v.stale = true;
       return;
     }
     case "studio.option.keep": {
@@ -365,6 +372,16 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "studio.piece.remove":
       delete ws.studio.pieces[action.id];
+      for (const v of Object.values(ws.studio.visuals)) if (v.pieceId === action.id) delete ws.studio.visuals[v.id];
+      return;
+    case "studio.visual.keep":
+      need(ws.studio.visuals[action.id], "Graphic").kept = action.kept;
+      return;
+    case "studio.visual.remove":
+      delete ws.studio.visuals[action.id];
+      return;
+    case "studio.image.remove":
+      delete ws.studio.images[action.id];
       return;
     case "connector.upsert":
       upsertBy(ws.connectors, action.connector);

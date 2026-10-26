@@ -65,6 +65,7 @@ export function ProfileCard({ ws }: { ws: Workspace }) {
           onBlur={(e) => e.target.value.trim() !== (profile?.productName ?? "") && update({ productName: e.target.value.trim() })}
         />
       </div>
+      <BrandColors colors={profile?.colors ?? []} onChange={(colors) => update({ colors })} />
       <div className="mt-3">
         <Label htmlFor="studio-never" hint="On top of the house list">
           Never say
@@ -94,6 +95,52 @@ export function ProfileCard({ ws }: { ws: Workspace }) {
         </div>
       </div>
     </section>
+  );
+}
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** Brand colors for graphics, background first. Hex only, so the design checks can measure contrast. */
+function BrandColors({ colors, onChange }: { colors: string[]; onChange: (colors: string[]) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="mt-3">
+      <Label htmlFor="studio-colors" hint="For graphics, background first">
+        Brand colors
+      </Label>
+      <div className="flex items-center gap-2">
+        {colors.length > 0 && (
+          <span className="flex shrink-0 -space-x-1" aria-hidden>
+            {colors.map((c) => (
+              <span key={c} className="size-4 rounded-full ring-2 ring-surface" style={{ background: c }} />
+            ))}
+          </span>
+        )}
+        <Input
+          id="studio-colors"
+          key={`colors-${colors.join(",")}`}
+          defaultValue={colors.join(", ")}
+          placeholder="#14120F, #F4F1EA, #2F5BEA"
+          aria-invalid={!!error}
+          className="h-7 font-mono text-[12px]"
+          onBlur={(e) => {
+            const list = e.target.value
+              .split(/[\s,]+/)
+              .map((x) => x.trim())
+              .filter(Boolean)
+              .map((x) => (x.startsWith("#") ? x : `#${x}`));
+            const bad = list.find((x) => !HEX.test(x));
+            if (bad) {
+              setError(`${bad} isn't a 6-digit hex color.`);
+              return;
+            }
+            setError(null);
+            if (list.join(",") !== colors.join(",")) onChange(list.slice(0, 5).map((x) => x.toUpperCase()));
+          }}
+        />
+      </div>
+      {error && <p className="mt-1 text-[11.5px] text-danger">{error}</p>}
+    </div>
   );
 }
 

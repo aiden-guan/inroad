@@ -3,6 +3,8 @@ import { AUDIENCES, FORMATS, OCCASIONS, type Limit } from "./formats";
 import { STUDIO_TELLS_FOR_PROMPT, lintStudio } from "./lint";
 import { movesFor } from "./moves";
 import { audienceFor, competitorsFor, formatBlocked, neverSayFor, receiptsFor, sourcedText, studioAllowWords } from "./receipts";
+import { checkDesign, sanitizeSvg } from "./svg";
+import { DEFAULT_PALETTE, IMAGE_PROMPT_RULES, LAYOUTS, VISUAL_FORMATS, presetById, presetsFor } from "./visuals";
 
 /**
  * Studio for outside agents (MCP `get_copy_guide` and `check_copy`, REST /api/v1/copy/*). The calling
@@ -62,7 +64,49 @@ export function copyGuide(ws: Workspace, args: { format: StudioFormatId; occasio
       "Run check_copy on every option before showing it. Fix every error.",
     ],
     blocked: formatBlocked(ws, spec.id),
+    visual: visualGuide(ws, spec.id),
     approval: "Inroad never publishes. The founder reviews and posts everything themselves.",
+  };
+}
+
+/** How to make the graphic for a format, for agents that design their own (then run check_graphic). Null for text-only formats. */
+function visualGuide(ws: Workspace, format: StudioFormatId) {
+  const presets = presetsFor(format);
+  if (!presets.length) return null;
+  return {
+    sizes: presets.map((p) => ({ id: p.id, label: p.label, width: p.w, height: p.h, safe_zone: p.safe ?? null, note: p.note, source: p.source ?? null })),
+    layouts: Object.entries(LAYOUTS).map(([id, l]) => ({ id, label: l.label, how: l.blurb, needs_image: l.needsImage ?? null })),
+    brand_colors: ws.studio.profile?.colors?.length ? ws.studio.profile.colors : DEFAULT_PALETTE,
+    rules: [
+      "Every word on the graphic comes from the checked copy or a receipt, verbatim (split into lines at word boundaries). Neutral labels allowed: Before, After, Today, New, Now, Source, Old way, New way, With, Without, vs, Introducing, Launching, Coming soon, Out now.",
+      "No invented numbers, charts, logos, reviews, star ratings or product UI. The product's UI only appears as a real screenshot the founder supplied.",
+      "Text contrast at least 4.5:1 (3:1 for large text), nothing smaller than width/54 px, text inside the safe zone. In Meta ads, text under about 20% of the image.",
+      "As SVG: exact width/height/viewBox; rect, circle, path, text, tspan, gradients and clipPath only; no <image>, <style>, <script>, CSS classes or external URLs. Mark where a picture goes with <rect data-slot=\"image\" …/>.",
+      "Run check_graphic on the SVG with the copy it carries. Fix every error.",
+    ],
+    image_prompt_rules: IMAGE_PROMPT_RULES,
+    disclosure: "If a picture layer is AI-generated, say so when posting: Meta and TikTok ask for disclosure of realistic AI imagery.",
+  };
+}
+
+/** Sanitizes and checks a graphic (SVG) the way Studio checks its own designs: words, contrast, safe zones, type size. */
+export function checkGraphic(ws: Workspace, args: { format: StudioFormatId; preset?: string; svg: string; parts: Record<string, string> }) {
+  const allowed = VISUAL_FORMATS[args.format] ?? [];
+  const preset = presetById(args.preset && allowed.includes(args.preset) ? args.preset : (allowed[0] ?? "linkedin"));
+  const receipts = receiptsFor(ws);
+  const productName = ws.studio.profile?.productName || ws.company?.name || "";
+  const words = Object.values(args.parts).map((t) => t.trim()).filter(Boolean);
+  const approved = [...words, ...receipts.filter((r) => r.fact).map((r) => r.text), ...receipts.flatMap((r) => (r.source ? [r.source] : [])), ...(productName ? [productName] : [])];
+  const s = sanitizeSvg(args.svg, preset);
+  const checks = checkDesign(s, { preset, approved, headline: words[0] ?? "", ad: args.format === "meta_ad" });
+  return {
+    passed: !checks.some((c) => c.severity === "error"),
+    size: { preset: preset.id, width: preset.w, height: preset.h },
+    errors: checks.filter((c) => c.severity === "error").map((c) => ({ code: c.code, detail: c.detail })),
+    warnings: checks.filter((c) => c.severity === "warn").map((c) => ({ code: c.code, detail: c.detail })),
+    image_slot: s.slot,
+    removed: s.removed,
+    note: "Code checks estimate positions from the SVG's own numbers. Render it and look before posting.",
   };
 }
 
