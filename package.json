@@ -19,7 +19,11 @@
     "e2e": "playwright test",
     "mock:anthropic": "node scripts/mock-anthropic.mjs",
     "eval:critic": "vitest run --config vitest.eval.config.mts scripts/eval-critic.ts",
-    "eval:classify": "vitest run --config vitest.eval.config.mts scripts/eval-classify.ts"
+    "eval:classify": "vitest run --config vitest.eval.config.mts scripts/eval-classify.ts",
+    "desktop:server": "node scripts/desktop/build-server.mjs",
+    "desktop:dev": "electron desktop/app",
+    "desktop:test": "playwright test -c desktop/playwright.config.ts",
+    "desktop:dist": "electron-builder --config desktop/electron-builder.yml --mac --publish never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
@@ -52,6 +56,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",

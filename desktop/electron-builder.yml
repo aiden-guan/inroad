@@ -1,0 +1,52 @@
+# Inroad for Mac. Build the server first (npm run desktop:server -- --platform darwin --arch arm64), then
+# `npm run desktop:dist -- --arm64`. Signing and notarizing happen when the signing environment is set (see
+# README, "The Mac app"); without it the app is signed ad hoc, which runs after the first-open steps there.
+appId: app.inroad.desktop
+productName: Inroad
+copyright: Copyright © 2026 Inroad
+directories:
+  app: desktop/app
+  output: desktop/dist
+  buildResources: desktop/build
+# The shell is three files and has no dependencies: none of the web app's node_modules belong in it.
+files:
+  - main.cjs
+  - loading.html
+  - package.json
+  - "!**/node_modules/**"
+npmRebuild: false
+# The server runs from real files (it loads a native module), so it sits beside the app archive, not inside it.
+# .next is named outright (extra resources skip dot folders otherwise); node_modules, which they always skip,
+# is copied in by after-pack.cjs.
+extraResources:
+  - from: desktop/dist-server
+    to: server
+    filter:
+      - "**/*"
+      - ".next/**/*"
+afterPack: desktop/after-pack.cjs
+asar: true
+mac:
+  category: public.app-category.business
+  target:
+    - dmg
+    - zip
+  icon: desktop/build/icon.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: desktop/build/entitlements.mac.plist
+  entitlementsInherit: desktop/build/entitlements.mac.plist
+  darkModeSupport: true
+  minimumSystemVersion: "12.0"
+  artifactName: Inroad-${version}-mac-${arch}.${ext}
+dmg:
+  title: Inroad ${version}
+  artifactName: Inroad-${version}-${arch}.${ext}
+  contents:
+    - x: 140
+      y: 190
+    - x: 400
+      y: 190
+      type: link
+      path: /Applications
+publish: null
