@@ -1,5 +1,23 @@
 import { addDays } from "@/lib/domain/ids";
-import type { Account, Activity, Deal, Dossier, DraftStep, LintResult, Meeting, Move, OutreachPackage, Person, Signal, Workspace } from "@/lib/domain/types";
+import type {
+  Account,
+  Activity,
+  CompanySnapshot,
+  ConsumerModel,
+  Deal,
+  Dossier,
+  DraftStep,
+  Foundation,
+  GrowthWeek,
+  LintResult,
+  Meeting,
+  Move,
+  OutreachPackage,
+  Partner,
+  Person,
+  Signal,
+  Workspace,
+} from "@/lib/domain/types";
 import { emptyWorkspace } from "@/lib/store/workspace";
 
 /**
@@ -167,6 +185,97 @@ export function makeDossier(patch: Partial<Dossier> = {}): Dossier {
     risks: [],
     unknowns: [],
     recommendation: { move: "cold_email", why: "Fresh hiring signal" },
+    ...patch,
+  };
+}
+
+/* ───────────────────────────── Consumer ───────────────────────────── */
+
+export function makeCompany(patch: Partial<CompanySnapshot> = {}): CompanySnapshot {
+  return {
+    name: "Pacely",
+    domain: "pacely.example",
+    plainOneLiner: "A running coach app for beginners.",
+    whoItsFor: "New runners training for a first 5K",
+    howYouCharge: { model: "flat", isPublic: true, summary: "Free trial, then $9.99 a month" },
+    proof: [],
+    alternatives: [{ name: "Doing nothing", kind: "status_quo" }],
+    stage: "early_revenue",
+    messagingIssues: [],
+    coverage: "good",
+    chips: [],
+    ...patch,
+  };
+}
+
+/** The smallest playbook the consumer code reads: one segment with a watering hole, empty everything else. */
+export function makeFoundation(patch: Partial<Foundation> = {}): Foundation {
+  return {
+    version: 1,
+    generatedAt: at(-20),
+    positioning: { alternatives: [], differentiators: [], valueThemes: [], bestFit: [], category: { name: "Running app", style: "head_to_head", why: "" } },
+    icp: {
+      hypothesis: { companyGroup: "New runners", role: "Someone training for a first 5K", obstacle: "quitting in week 3", cause: "plans are too hard", improvement: "a plan they finish", sentence: "New runners quit in week 3 because plans are too hard." },
+      primarySegment: "First-5K runners",
+      testSlices: [],
+      criteria: [],
+      antiIcp: [],
+      triggers: [],
+    },
+    personas: [
+      {
+        id: "per_runner",
+        role: "user",
+        titles: ["new runners"],
+        kpis: [],
+        pains: [],
+        triggers: [],
+        objections: [],
+        wateringHoles: [{ name: "r/C25K", kind: "community" }],
+        line: "Talk about finishing, not speed.",
+      },
+    ],
+    messaging: { oneLiner: "Pacely is the running app for first-5K runners.", themes: [], byPersona: [], bySignal: [], customerWords: [], bannedWords: [] },
+    channelPlan: { funnel: { qualifiedNeeded: 0, discoveryCallsNeeded: 0, coldContactsNeeded: 0, perWeek: { conversations: 5, firstTouches: 5, introAsks: 0, meetings: 0 } }, motions: [] },
+    commercial: { structure: "free_trial", terms: "", priceAnchor: "", discountRule: "" },
+    competitors: [],
+    founderQuestions: [],
+    confidence: "low",
+    ...patch,
+  };
+}
+
+/** A hired consumer workspace (an app with a subscription by default). */
+export function consumerWorkspace(patch: Partial<Workspace> = {}, model: ConsumerModel = "app"): Workspace {
+  const base = makeWorkspace();
+  return {
+    ...base,
+    onboarding: { status: "hired" },
+    founder: { name: "Maya Chen" },
+    company: makeCompany({ market: "consumer", consumerModel: model, marketSource: "founder" }),
+    foundation: makeFoundation(),
+    goal: { ...base.goal, metric: model === "dtc" ? "paying" : "active_users", target: 100, targetLabel: model === "dtc" ? "customers" : "weekly active users", userTalksPerWeek: 5 },
+    ...patch,
+  };
+}
+
+export function makeWeek(weekOf: string, patch: Partial<GrowthWeek> = {}): GrowthWeek {
+  return { weekOf, signups: 50, source: "founder", loggedAt: at(0), ...patch };
+}
+
+export function makePartner(id: string, patch: Partial<Partner> = {}): Partner {
+  return {
+    id,
+    kind: "creator",
+    name: `${id.replace(/^ptn_/, "")} runs`,
+    platform: "tiktok",
+    handle: `@${id.replace(/^ptn_/, "")}`,
+    fit: "Beginner runners, weekly training videos",
+    source: "founder",
+    stage: "shortlist",
+    stageHistory: [{ stage: "shortlist", at: at(-10) }],
+    createdAt: at(-10),
+    updatedAt: at(-10),
     ...patch,
   };
 }

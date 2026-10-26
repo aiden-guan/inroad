@@ -18,9 +18,9 @@ import { AgentPanel, useAgentStatus, useNavCounts } from "./agent-status";
 import { CommandPalette } from "./command-palette";
 import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
-import { AgentLine, GoalLine, NAV, SECONDARY, Sidebar } from "./sidebar";
+import { AgentLine, GoalLine, SECONDARY, Sidebar, navFor } from "./sidebar";
 
-const GO: Record<string, string> = { t: "/today", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
+const GO: Record<string, string> = { t: "/today", r: "/partners", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -53,6 +53,7 @@ function useGoKeys() {
 /** Reads the pathname, so it renders under Suspense (dynamic routes can't resolve it while prerendering). */
 function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
+  const { ws } = useWorkspace();
   const counts = useNavCounts();
   // Any navigation closes the menu (G then T, the palette), not only a tap on one of its links.
   const [openedOn] = useState(pathname);
@@ -61,7 +62,7 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   }, [pathname, openedOn, onNavigate]);
   return (
     <nav id="mobile-nav" aria-label="Pages" className="grid grid-cols-2 gap-1 p-2">
-      {[...NAV, ...SECONDARY].map((n) => {
+      {[...navFor(ws), ...SECONDARY].map((n) => {
         const active = pathname.startsWith(n.href);
         const count = counts[n.href];
         return (

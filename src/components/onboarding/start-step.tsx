@@ -8,7 +8,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { FieldError, Label, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
-import type { Workspace } from "@/lib/domain/types";
+import type { Market, Workspace } from "@/lib/domain/types";
 import { listItem } from "@/lib/motion";
 import { shouldMoveFocus, startFocus, wantId } from "./focus";
 import { KeyBlock, useKeyForm, type KeyStatus } from "./key-block";
@@ -17,9 +17,55 @@ import { domainOf } from "./shared";
 export interface StartArgs {
   url?: string;
   note?: string;
+  /** "Who buys from you?" Unset lets the site decide. */
+  market?: Market;
 }
 
-const NOTE_PLACEHOLDER = "e.g. We sell to heads of platform at Series B fintechs. Two design partners, no paid customers yet.";
+const NOTE_PLACEHOLDER: Record<Market | "auto", string> = {
+  auto: "e.g. We sell to heads of platform at Series B fintechs. Two design partners, no paid customers yet.",
+  b2b: "e.g. We sell to heads of platform at Series B fintechs. Two design partners, no paid customers yet.",
+  consumer: "e.g. A sleep app for new parents. 400 beta users, most from one subreddit, no paid plan yet.",
+};
+
+const SUBTITLE: Record<Market | "auto", string> = {
+  auto: "Paste your website. In about two minutes, I’ll show you who to talk to first, and why now.",
+  b2b: "Paste your website. In about two minutes, I’ll show you the first three companies worth talking to, and why now.",
+  consumer: "Paste your website. In about two minutes, I’ll show you where your first users already gather, and how to reach them.",
+};
+
+const MARKET_OPTIONS: { value: Market | "auto"; label: string }[] = [
+  { value: "auto", label: "Read my site" },
+  { value: "b2b", label: "Businesses" },
+  { value: "consumer", label: "Consumers" },
+];
+
+/** "Who buys from you?" Buttons, not a Segmented control: inside the form they must never submit it. */
+function MarketPick({ value, onChange }: { value: Market | "auto"; onChange: (v: Market | "auto") => void }) {
+  return (
+    <div className="mt-5">
+      <p id="market-label" className="mb-1.5 text-[13px] font-medium text-fg">
+        Who buys from you?
+      </p>
+      <div role="radiogroup" aria-labelledby="market-label" className="inline-flex h-8 items-center gap-0.5 rounded-md bg-bg-subtle p-0.5 ring-1 ring-border">
+        {MARKET_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={value === o.value}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              "inline-flex h-7 items-center rounded-[6px] px-3 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+              value === o.value ? "bg-surface text-fg shadow-xs" : "text-fg-3 hover:text-fg-2",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** Step 0: one column, one field, one action. The key block appears only when there's no key. */
 export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (args: StartArgs) => Promise<boolean>; starting: boolean }) {
@@ -30,6 +76,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
   const [mode, setMode] = useState<"site" | "describe">(o.site === "none" && !o.url && o.note ? "describe" : "site");
   const [url, setUrl] = useState(o.url ?? "");
   const [note, setNote] = useState(o.note ?? "");
+  const [market, setMarket] = useState<Market | "auto">(o.market ?? "auto");
   const [error, setError] = useState<string | null>(null);
   const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null);
   const [sampleBusy, setSampleBusy] = useState(false);
@@ -78,7 +125,8 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
       }
       setKeyStatus({ hasKey: true, keyHint: null });
     }
-    await onStart(mode === "site" ? { url: domain!, note: note.trim() || undefined } : { note: note.trim() });
+    const pick = market === "auto" ? undefined : market;
+    await onStart(mode === "site" ? { url: domain!, note: note.trim() || undefined, market: pick } : { note: note.trim(), market: pick });
   };
 
   const submitOnEnter = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -131,7 +179,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
           Let&rsquo;s find your first customers.
         </motion.h1>
         <motion.p variants={listItem} custom={1} className="mt-3 text-pretty text-[15px] leading-[23px] text-fg-2">
-          Paste your website. In about two minutes, I&rsquo;ll show you the first three companies worth talking to, and why now.
+          {SUBTITLE[market]}
         </motion.p>
 
         <motion.form variants={listItem} custom={2} onSubmit={submit} className="mt-8" noValidate>
@@ -180,7 +228,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   onKeyDown={submitOnEnter}
-                  placeholder={NOTE_PLACEHOLDER}
+                  placeholder={NOTE_PLACEHOLDER[market]}
                   maxLength={2000}
                   className="min-h-[72px] text-[16px] leading-6 sm:text-[14px] sm:leading-[21px]"
                 />
@@ -207,6 +255,8 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
               </div>
             </>
           )}
+
+          <MarketPick value={market} onChange={setMarket} />
 
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Button type="submit" variant="agent" size="lg" kbd="↵" loading={starting || keyForm.saving}>

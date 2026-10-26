@@ -87,6 +87,10 @@ const snapshotPlaybook = {
     const proofQuote = proofPage && (proofPage.body.split(/(?<=[.!?])\s+|\n+/).find((s) => /\d+%|\d+x|customers|trusted by/i.test(s) && wordCount(s) >= 4) ?? null);
     const buyer = buyerOf(all || founder);
     const who = (all.match(/\bfor ([^.,\n]{6,80})/i)?.[1] ?? `${buyer.fn} teams at growing companies`).trim();
+    // Who buys: the founder's pick when there is one, else the code's read of the pages (<market_hints>).
+    const pick = /Who buys \(founder's pick, final\): (consumers|businesses)(?: \((\w+)\))?/.exec(ctx.firstText);
+    const read = /Code read: (b2b|consumer) \(\w+\)(?:, looks like (\w+))?/.exec(ctx.firstText);
+    const market = pick ? (pick[1] === "consumers" ? "consumer" : "b2b") : (read?.[1] ?? "b2b");
     return {
       blocks: [
         call("submit_snapshot", {
@@ -99,6 +103,8 @@ const snapshotPlaybook = {
           stage: /customers|case stud|trusted by/i.test(all) ? "early_revenue" : /waitlist|coming soon/i.test(all) ? "pre_launch" : "design_partners",
           messagingIssues: [],
           coverage: /The site is thin/.test(ctx.firstText) || pages.length < 3 ? "thin" : "good",
+          market,
+          consumerModel: market === "consumer" ? (pick?.[2] ?? read?.[2] ?? "app") : null,
         }),
       ],
     };

@@ -1,3 +1,8 @@
+import { PMF_SURVEY, REFERRALS } from "@/lib/consumer/benchmarks";
+import { STAGE_LABELS as FUNNEL_LABELS, hasLoggedLastWeek, lastWeekOf, readGrowth } from "@/lib/consumer/growth";
+import { isConsumer } from "@/lib/consumer/market";
+import { PARTNER_KIND_LABELS, PLATFORM_LABELS, openPartners, partnerNext, type PartnerAction } from "@/lib/consumer/partners";
+import { CREATOR_ASKS_PER_WEEK, USER_TALKS_PER_WEEK } from "@/lib/consumer/plan";
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Asset, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type SignalType, type Workspace } from "@/lib/domain/types";
 import { referralLeads } from "@/lib/deals/referrals";
@@ -109,6 +114,24 @@ const RULES = {
   review_monthly: { base: 60, label: "Monthly review: the message bet, a playbook refresh, the pricing log" },
   refresh_bet: { base: 42, label: "Five calls debriefed (or a deal won) since the bet was last revised" },
   bad_examples: { base: 28, label: "Day 3: paste a few AI-written sales emails so drafts stay away from them" },
+  // Consumer companies.
+  paid_hold: { base: 86, label: "Paid spend logged while week-4 retention is under the bar" },
+  partner_reply: { base: 90, label: "A creator or community answered" },
+  partner_disclosure: { base: 75, label: "A paid or gifted post is live and its #ad isn't confirmed" },
+  partner_brief: { base: 70, label: "A creator agreed and has no brief yet" },
+  growth_log: { base: 64, label: "Last week's numbers aren't logged" },
+  review_growth: { base: 62, label: "Monday growth review" },
+  growth_focus: { base: 59, label: "The leakiest funnel stage this week" },
+  user_talks: { base: 57, label: "User conversations this week below target" },
+  partner_follow_up: { base: 57, label: "A week since the note, no answer, no follow-up yet" },
+  experiment_readout: { base: 54, label: "An experiment's end date passed" },
+  partner_send: { base: 52, label: "A note to a creator or community is drafted" },
+  partner_draft: { base: 50, label: "A shortlisted creator or community has no note yet" },
+  referral_ask: { base: 46, label: "Retention holds and few new users come from friends" },
+  partner_results: { base: 45, label: "Live for a week with no results logged" },
+  pmf_survey: { base: 38, label: "Enough active users to read the 40% survey" },
+  partner_let_go: { base: 34, label: "Quiet two weeks after the follow-up" },
+  partner_find: { base: 28, label: "Fewer than 5 creators or communities on the shortlist" },
 } as const;
 
 type RuleKey = keyof typeof RULES;
@@ -186,6 +209,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   refreshBet(ctx);
   badExamples(ctx);
   weeklyPost(ctx);
+  if (isConsumer(ws)) consumerMoves(ctx);
 
   // Other surfaces (inbound webhooks, agent API) create their own reply and prep cards. When one already
   // covers the same reply or meeting, in any status, don't add a second card for it.
@@ -1387,7 +1411,8 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
     });
   }
 
-  if (ws.onboarding.status === "hired") {
+  // Consumer companies reach users through creators and communities, not a LinkedIn network of buyers.
+  if (ws.onboarding.status === "hired" && !isConsumer(ws)) {
     // Warm before cold: who already knows the founder, and who their investors and advisors can reach. Without
     // either, intros never start (the connector card needs a connector), so this ranks above cold touches; while
     // the first three are on the desk it sits second, as on arrival (SPEC §3.2 step 4).
@@ -1479,7 +1504,7 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
   }
 
   // Weekly discovery top-up: keep at least 10 untouched A/B prospects ready.
-  if (accounts.length) {
+  if (accounts.length && !isConsumer(ws)) {
     const touched = new Set(Object.values(ws.outreach).map((p) => p.accountDomain));
     const untouched = accounts.filter((a) => (a.tier === "A" || a.tier === "B") && (a.status === "new" || a.status === "tracked") && !touched.has(a.domain) && !a.dealId).length;
     if (untouched < 10) {
@@ -1830,6 +1855,200 @@ function weeklyPost({ ws, weekStart, out }: Ctx) {
   });
 }
 
+/* ───────────────────────────── consumer rules ───────────────────────────── */
+
+const PARTNER_RULE: Record<PartnerAction, RuleKey> = {
+  draft: "partner_draft",
+  send: "partner_send",
+  follow_up: "partner_follow_up",
+  reply: "partner_reply",
+  brief: "partner_brief",
+  go_live: "partner_send",
+  check_disclosure: "partner_disclosure",
+  log_results: "partner_results",
+  let_go: "partner_let_go",
+};
+
+const PARTNER_TITLE: Record<PartnerAction, (name: string) => string> = {
+  draft: (n) => `Draft a note to ${n}`,
+  send: (n) => `Send your note to ${n}`,
+  follow_up: (n) => `Follow up with ${n}`,
+  reply: (n) => `${n} answered: agree the terms`,
+  brief: (n) => `Send ${n} the brief`,
+  go_live: (n) => `Mark ${n}'s post live`,
+  check_disclosure: (n) => `Check ${n}'s post says #ad`,
+  log_results: (n) => `Log what ${n}'s post brought`,
+  let_go: (n) => `Let ${n} go`,
+};
+
+/** Actions whose status line only repeats the title: the subtitle says who they are instead. */
+const PARTNER_TITLE_SAYS_IT = new Set<PartnerAction>(["draft", "send", "follow_up", "check_disclosure"]);
+
+const PARTNER_MINUTES: Record<PartnerAction, number> = { draft: 2, send: 2, follow_up: 2, reply: 10, brief: 5, go_live: 1, check_disclosure: 2, log_results: 2, let_go: 1 };
+
+/**
+ * Consumer moves: the weekly numbers and what they say (retention before acquisition), user conversations, the
+ * creator and community list (one note, one follow-up a week later, then let go), experiments and the growth review.
+ */
+function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
+  if (ws.onboarding.status !== "hired" || !ws.foundation) return;
+  const dow = (now.getDay() + 6) % 7; // 0 = Monday
+  const g = readGrowth(ws, today);
+  const thisWeek = ws.activities.filter((a) => localDate(a.at) >= weekStart);
+
+  if (!hasLoggedLastWeek(ws, today)) {
+    out.push({
+      id: `mv_growth_log_${weekStart}`,
+      kind: "growth",
+      rule: "growth_log",
+      title: "Log last week's numbers",
+      why: `Week of ${shortDay(lastWeekOf(today))} · signups, first wins, who came back · 2 minutes`,
+      minutes: 2,
+      priority: RULES.growth_log.base + (dow === 0 ? 6 : 0),
+      href: "/playbook#numbers",
+    });
+  }
+
+  const hold = g.verdicts.find((v) => v.id === "paid_before_retention");
+  if (hold) {
+    out.push({
+      id: `mv_paid_hold_${weekStart}`,
+      kind: "growth",
+      rule: "paid_hold",
+      title: clip(hold.title, 90),
+      why: "Every point of retention first makes each dollar of paid worth more",
+      minutes: 2,
+      priority: RULES.paid_hold.base,
+      href: "/playbook#numbers",
+    });
+  }
+
+  const focus = g.verdicts.find((v) => v.severity === "warn" && v.stage === g.focus);
+  if (focus && g.latest) {
+    out.push({
+      id: `mv_growth_focus_${weekStart}`,
+      kind: "growth",
+      rule: "growth_focus",
+      title: `This week: ${FUNNEL_LABELS[g.focus].toLowerCase()}`,
+      why: clip(focus.title, 110),
+      minutes: 15,
+      priority: RULES.growth_focus.base,
+      href: "/playbook#numbers",
+    });
+  }
+
+  if (g.latest || openPartners(ws).length || thisWeek.some((a) => a.kind === "user_conversation")) {
+    out.push({
+      id: `mv_review_growth_${weekStart}`,
+      kind: "review",
+      rule: "review_growth",
+      title: "Monday growth review",
+      why: g.latest ? `Focus: ${FUNNEL_LABELS[g.focus].toLowerCase()} · ${plural(g.weeks.length, "week")} of numbers` : "Creators, user conversations and what to test next",
+      minutes: 20,
+      priority: RULES.review_growth.base - dow * 6,
+    });
+  }
+
+  const talksTarget = ws.goal.userTalksPerWeek ?? USER_TALKS_PER_WEEK;
+  const talks = thisWeek.filter((a) => a.kind === "user_conversation").length;
+  if (talks < talksTarget) {
+    out.push({
+      id: `mv_user_talks_${weekStart}`,
+      kind: "user_talk",
+      rule: "user_talks",
+      title: talks ? `Talk to ${plural(talksTarget - talks, "more user")} this week` : `Talk to ${plural(talksTarget, "user")} this week`,
+      why: `${talks} of ${talksTarget} so far · new, active and churned users · 15 minutes each`,
+      minutes: 15,
+      // Before retention holds, talking to users is the job; later in the week it matters more.
+      priority: RULES.user_talks.base + (g.retentionHolds ? 0 : 6) + Math.min(6, dow * 2),
+    });
+  }
+
+  // One note per partner, capped per week like cold email: relationships, not volume.
+  const sentThisWeek = thisWeek.filter((a) => a.kind === "partner_contacted").length;
+  let newNotesLeft = Math.max(0, CREATOR_ASKS_PER_WEEK - sentThisWeek);
+  const ranked = openPartners(ws).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const p of ranked) {
+    const next = partnerNext(p, today);
+    if (!next.action || next.action === "go_live") continue;
+    if (next.action === "draft" || next.action === "send") {
+      if (newNotesLeft <= 0) continue;
+      newNotesLeft--;
+    }
+    const overdue = next.dueOn && next.dueOn < today ? daysBetween(next.dueOn, today) : 0;
+    out.push({
+      id: `mv_partner_${next.action}_${p.id}`,
+      kind: "partner",
+      rule: PARTNER_RULE[next.action],
+      title: PARTNER_TITLE[next.action](p.name),
+      why: clip(
+        [PARTNER_TITLE_SAYS_IT.has(next.action) ? [PARTNER_KIND_LABELS[p.kind], p.platform && PLATFORM_LABELS[p.platform]].filter(Boolean).join(" · ") : next.line, p.fit].filter(Boolean).join(" · "),
+        120,
+      ),
+      minutes: PARTNER_MINUTES[next.action],
+      priority: RULES[PARTNER_RULE[next.action]].base + overdueBoost(overdue),
+      overdueDays: overdue || undefined,
+      ref: { kind: "playbook", id: `partner:${p.id}` },
+      subjectIds: [p.id],
+      href: `/partners?p=${encodeURIComponent(p.id)}`,
+      source: p.sourceUrl ? { url: p.sourceUrl } : undefined,
+    });
+  }
+  const shortlisted = Object.values(ws.partners ?? {}).filter((p) => p.stage === "shortlist").length;
+  if (shortlisted < 5) {
+    out.push({
+      id: `mv_partner_find_${weekStart}`,
+      kind: "partner",
+      rule: "partner_find",
+      title: "Find creators and communities your users follow",
+      why: `${plural(shortlisted, "on the shortlist", "on the shortlist")} · audience fit beats size`,
+      minutes: 2,
+      priority: RULES.partner_find.base + (Object.keys(ws.partners ?? {}).length ? 0 : 14),
+    });
+  }
+
+  for (const e of Object.values(ws.experiments ?? {})) {
+    if (e.status !== "running" || !e.endsOn || e.endsOn > today) continue;
+    out.push({
+      id: `mv_experiment_${e.id}`,
+      kind: "experiment",
+      rule: "experiment_readout",
+      title: `Read out: ${clip(e.hypothesis, 70)}`,
+      why: `Ended ${shortDay(e.endsOn)} · ${e.metric}`,
+      minutes: 10,
+      priority: RULES.experiment_readout.base + overdueBoost(daysBetween(e.endsOn, today)),
+      subjectIds: [e.id],
+      href: "/playbook#experiments",
+    });
+  }
+
+  if (g.retentionHolds && (g.referredShare === undefined || g.referredShare < REFERRALS.shareWhereItWorksLow.value)) {
+    out.push({
+      id: `mv_referral_${weekStart}`,
+      kind: "growth",
+      rule: "referral_ask",
+      title: "Ask 10 of your most active users for one invite",
+      why: `${g.model.retention.metric === "m3_repeat" ? "Repeat purchase" : "Week-4 retention"} ${g.retention}% clears the bar · ${g.referredShare === undefined ? "referrals not logged yet" : `${Math.round(g.referredShare)}% came from a friend`}`,
+      minutes: 10,
+      priority: RULES.referral_ask.base,
+    });
+  }
+
+  const lastSurvey = ws.pmfSurveys?.at(-1);
+  if ((g.latest?.active ?? 0) >= PMF_SURVEY.minAnswers.value && (!lastSurvey || daysBetween(lastSurvey.on, today) > 60)) {
+    out.push({
+      id: `mv_pmf_${monthKey(now)}`,
+      kind: "growth",
+      rule: "pmf_survey",
+      title: "Ask active users the 40% question",
+      why: `${g.latest?.active} active users · "How would you feel if you could no longer use it?"`,
+      minutes: 10,
+      priority: RULES.pmf_survey.base,
+      href: "/playbook#numbers",
+    });
+  }
+}
+
 /** Kind → display order for "Later", grouped. */
 export const KIND_ORDER: MoveKind[] = [
   "reply",
@@ -1850,5 +2069,9 @@ export const KIND_ORDER: MoveKind[] = [
   "setup",
   "import",
   "post",
+  "growth",
+  "user_talk",
+  "partner",
+  "experiment",
 ];
 

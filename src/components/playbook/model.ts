@@ -22,6 +22,7 @@ import type {
   ValueTheme,
   Workspace,
 } from "@/lib/domain/types";
+import { consumerChannelPlan, growthDefaults } from "@/lib/consumer/plan";
 import { introAsksTarget, isColdFirstTouch } from "@/lib/moves/scoreboard";
 
 /* ───────────────────────────── Navigation ───────────────────────────── */
@@ -85,6 +86,45 @@ export const SECTIONS = [
 export type SectionId = (typeof SECTIONS)[number]["id"];
 export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
 
+export interface NavSection {
+  id: SectionId;
+  label: string;
+  children: readonly { id: string; label: string }[];
+}
+
+/** The same five sections for a consumer company, with the growth model in place of the sales plan. */
+export const CONSUMER_SECTIONS: readonly NavSection[] = [
+  {
+    id: "who",
+    label: "Who",
+    children: [
+      { id: "icp", label: "Audience bet" },
+      { id: "criteria", label: "Criteria" },
+      { id: "anti-icp", label: "Not for" },
+      { id: "personas", label: "Segments" },
+    ],
+  },
+  SECTIONS[1],
+  {
+    id: "how",
+    label: "How we grow",
+    children: [
+      { id: "plan", label: "Plan" },
+      { id: "numbers", label: "Numbers" },
+      { id: "motions", label: "Channels" },
+      { id: "commercial", label: "Pricing" },
+      { id: "experiments", label: "Experiments" },
+      { id: "assets", label: "Documents" },
+    ],
+  },
+  SECTIONS[3],
+  SECTIONS[4],
+];
+
+export function sectionsFor(ws: Pick<Workspace, "company">): readonly NavSection[] {
+  return ws.company?.market === "consumer" ? CONSUMER_SECTIONS : SECTIONS;
+}
+
 /* ───────────────────────────── Labels ───────────────────────────── */
 
 export const ROLE_LABELS: Record<PersonaRole, string> = {
@@ -93,6 +133,9 @@ export const ROLE_LABELS: Record<PersonaRole, string> = {
   technical_approver: "Technical approver",
   user: "User",
   blocker: "Blocker",
+  early_adopter: "Early adopter",
+  payer: "Payer",
+  influencer: "Influencer",
 };
 
 export const MOTION_LABELS: Record<Motion, string> = {
@@ -104,6 +147,19 @@ export const MOTION_LABELS: Record<Motion, string> = {
   exec_dinners: "Roundtables and dinners",
   design_partner_program: "Design-partner program",
   launches: "Launches",
+  hand_recruiting: "Recruit first users by hand",
+  user_conversations: "Talk to users every week",
+  short_video: "Short-form video",
+  creators: "Creators",
+  referral_loop: "Referrals and invites",
+  waitlist: "Waitlist",
+  app_store: "App Store and Google Play",
+  seo: "Search",
+  paid_social: "Paid social tests",
+  press: "Press",
+  ambassadors: "Ambassadors and superfans",
+  supply_seeding: "Seed the supply side",
+  pop_ups: "Pop-ups and sampling",
 };
 
 export const SIGNAL_LABELS: Record<SignalType, string> = {
@@ -121,6 +177,10 @@ export const SIGNAL_LABELS: Record<SignalType, string> = {
   filing: "Filing",
   hiring: "Hiring",
   sensitive: "Sensitive",
+  life_event: "Life event",
+  seasonal: "Seasonal moment",
+  trend: "Trend",
+  competitor_gap: "An alternative let users down",
 };
 
 export const DETECTION_LABELS: Record<DetectionMethod, string> = {
@@ -133,6 +193,11 @@ export const DETECTION_LABELS: Record<DetectionMethod, string> = {
   dns: "DNS",
   hn: "Hacker News",
   founder_knowledge: "you",
+  app_reviews: "app reviews",
+  community: "communities",
+  social: "social posts",
+  search_trends: "search trends",
+  survey: "asking users",
 };
 
 export const CATEGORY_STYLES: Record<Positioning["category"]["style"], { label: string; hint: string }> = {
@@ -165,7 +230,15 @@ export const STRUCTURE_LABELS: Record<CommercialDefault["structure"], { label: s
   paid_pilot: { label: "Paid pilot", hint: "The product works; the buyer needs proof on their data." },
   paid_design_partner: { label: "Paid design partner", hint: "Pre-launch or v0. 10–20% upfront, 2–6 months." },
   annual_with_opt_out: { label: "Annual with opt-out", hint: "Once you have 2+ references. 30- or 60-day opt-out." },
+  free_trial: { label: "Free trial, then paid", hint: "Value shows up in days. The paywall comes early; the trial is short." },
+  freemium: { label: "Free tier, paid upgrade", hint: "The free tier spreads the product; the paid tier holds what power users need." },
+  direct_purchase: { label: "Direct purchase", hint: "One price, paid at checkout. Repeat purchases carry the economics." },
+  take_rate: { label: "Take rate", hint: "A cut of each transaction, charged where the value lands." },
 };
+
+/** Structures a business deal can use; the rest are consumer pricing (Playbook shows one set or the other). */
+export const B2B_STRUCTURES = ["paid_pilot", "paid_design_partner", "annual_with_opt_out"] as const;
+export const CONSUMER_STRUCTURES = ["free_trial", "freemium", "direct_purchase", "take_rate"] as const;
 
 export type AssetKind = Asset["kind"];
 
@@ -178,6 +251,10 @@ export const ASSET_KINDS: Record<AssetKind, { label: string; noun: string; descr
   pilot_proposal: { label: "Pilot proposal", noun: "a pilot proposal", description: "One page and an order form, built from a deal's qualification card." },
   insight: { label: "Insight memo", noun: "an insight memo", description: "What you learned from 10+ calls, anonymized. Good to offer instead of a meeting." },
   case_study: { label: "Case study", noun: "a case study", description: "Built only from approved customer claims." },
+  creator_brief: { label: "Creator brief", noun: "a creator brief", description: "What to make, what to say and never say, the disclosure, and how results are counted." },
+  launch_plan: { label: "Launch plan", noun: "a launch plan", description: "One dated launch: who hears first, launch day hour by hour, and the week after." },
+  referral_program: { label: "Referral program", noun: "a referral program", description: "Who gets what, when the ask appears, and the limits that stop abuse." },
+  interview_guide: { label: "User interview guide", noun: "a user interview guide", description: "Questions about what users did, not what they say they'd do." },
   other: { label: "Document", noun: "a document", description: "Anything else you send buyers." },
   post: { label: "Post", noun: "a post", description: "One story and one insight from your calls, in your words. One a week at most; you post it yourself." },
   community_answer: { label: "Community answer", noun: "an answer", description: "A useful answer to a question your buyer asked in public. No pitch; you post it yourself." },
@@ -264,6 +341,11 @@ export function assetGate(ws: Workspace, a: { kind: AssetKind; dealId?: string; 
 
 /** Kinds the founder can create from the New menu, in the order a founder usually needs them. */
 export const CREATABLE_KINDS: AssetKind[] = ["one_pager", "pilot_proposal", "demo_script", "security", "design_partner_terms", "insight", "case_study"];
+export const CONSUMER_CREATABLE_KINDS: AssetKind[] = ["creator_brief", "launch_plan", "referral_program", "interview_guide", "one_pager"];
+
+export function creatableKinds(ws: Pick<Workspace, "company">): AssetKind[] {
+  return ws.company?.market === "consumer" ? CONSUMER_CREATABLE_KINDS : CREATABLE_KINDS;
+}
 
 export const BAND_LABELS: Record<NonNullable<ICP["employeeBand"]>, string> = {
   lt50: "Under 50",
@@ -572,6 +654,13 @@ export function nextAction(ws: Workspace): NextAction | null {
   if (open.length) return { text: `${open.length === 1 ? "One answer" : `${open.length} answers`} from you would change this bet more than anything I can read.`, cta: open.length === 1 ? "Answer it" : "Answer them", anchor: "questions" };
   const draftClaims = ws.claims.filter((c) => !c.approved);
   if (draftClaims.length) return { text: `${plural(draftClaims.length, "claim")} about ${ws.company?.name ?? "you"} ${draftClaims.length === 1 ? "is" : "are"} waiting. Until you approve them, I write outreach without them.`, cta: "Review claims", anchor: "claims" };
+  if (ws.company?.market === "consumer") {
+    // Consumer: the numbers come first; a bet without them is a guess about a guess.
+    if (!ws.growthLog?.length) return { text: "Log last week's signups, first wins and who came back. Every recommendation here gets sharper with one week of numbers.", cta: "Log the numbers", anchor: "numbers" };
+    if (!p.icp.segmentLockedAt && p.icp.primarySegment) return { text: "Bet on one audience, specific enough to find in one place, so the numbers tell you something.", cta: "Lock the bet", anchor: "icp" };
+    if (!ws.assets.some((a) => a.kind === "creator_brief")) return { text: "Write the creator brief once, disclosure included, before anyone posts.", cta: "Write a brief", anchor: "assets" };
+    return null;
+  }
   const progress = betProgress(ws, p.icp.segmentLockedAt);
   if (progress?.due) return { text: `Your segment bet reached ${BET_TOUCHES} touches. Time to decide: keep it, adjust it or switch.`, cta: "Decide", anchor: "icp" };
   if (!p.icp.segmentLockedAt && p.icp.primarySegment) return { text: "Bet on one segment for the next 25 touches, so the replies tell you something.", cta: "Lock the bet", anchor: "icp" };
@@ -768,23 +857,24 @@ export function playbookMarkdown(ws: Workspace, today: string): string {
     return rows.length ? rows : ["_None yet._"];
   };
 
-  out.push("## Who we sell to", "", `**Segment bet:** ${p.icp.hypothesis.sentence || p.icp.primarySegment}`, "");
+  const consumer = ws.company?.market === "consumer";
+  out.push(consumer ? "## Who it's for" : "## Who we sell to", "", `**${consumer ? "Audience bet" : "Segment bet"}:** ${p.icp.hypothesis.sentence || p.icp.primarySegment}`, "");
   if (p.icp.primarySegment) out.push(`Primary segment: ${p.icp.primarySegment}${p.icp.segmentLockedAt ? ` (locked ${p.icp.segmentLockedAt.slice(0, 10)})` : ""}`);
   if (p.icp.testSlices.length) out.push(`Test slices: ${p.icp.testSlices.join("; ")}`);
   if (p.icp.employeeBand) out.push(`Company size: ${BAND_LABELS[p.icp.employeeBand]} employees`);
   out.push("", "### Criteria", ...li(p.icp.criteria.map((c) => `${c.mustHave ? "**Must:** " : ""}${c.text} _(${c.status}; detect via ${DETECTION_LABELS[c.detection] ?? c.detection})_`)));
-  out.push("", "### Not a fit", ...li(p.icp.antiIcp.map((a) => `${a.text}: ${a.reason}`)));
+  out.push("", consumer ? "### Not for" : "### Not a fit", ...li(p.icp.antiIcp.map((a) => `${a.text}: ${a.reason}`)));
   if (p.icp.triggers.length) out.push("", "### Why-now signals", ...li(p.icp.triggers.map((t) => `${SIGNAL_LABELS[t.type] ?? t.type} (within ${t.windowDays} days): ${t.implication}`)));
-  out.push("", "### Personas");
+  out.push("", consumer ? "### Segments" : "### Personas");
   if (!p.personas.length) out.push("_None yet._");
   for (const persona of p.personas) {
-    out.push("", `#### ${ROLE_LABELS[persona.role]}: ${persona.titles.join(", ")}`, ...li([persona.line && `How to talk to them: ${persona.line}`, persona.kpis.length ? `Measured on: ${persona.kpis.join("; ")}` : "", persona.pains.length ? `Pains: ${persona.pains.join("; ")}` : "", persona.objections.length ? `Objections: ${persona.objections.join("; ")}` : "", persona.wateringHoles.length ? `Where they are: ${persona.wateringHoles.map((w) => w.name).join(", ")}` : ""]));
+    out.push("", `#### ${ROLE_LABELS[persona.role]}: ${persona.titles.join(", ")}`, ...li([persona.line && `How to talk to them: ${persona.line}`, persona.kpis.length ? `${consumer ? "Jobs they want done" : "Measured on"}: ${persona.kpis.join("; ")}` : "", persona.pains.length ? `Pains: ${persona.pains.join("; ")}` : "", persona.objections.length ? `Objections: ${persona.objections.join("; ")}` : "", persona.wateringHoles.length ? `Where they are: ${persona.wateringHoles.map((w) => w.name).join(", ")}` : ""]));
   }
 
   out.push("", "## Why us", "");
   if (p.messaging.oneLiner) out.push(`**One-liner:** ${p.messaging.oneLiner}`, "");
   if (p.positioning.category.name) out.push(`**Category:** ${p.positioning.category.name} (${CATEGORY_STYLES[p.positioning.category.style]?.label ?? p.positioning.category.style}). ${p.positioning.category.why}`, "");
-  out.push("### What buyers do without us", ...li(p.positioning.alternatives.map((a) => `${a.name} (${ALT_KIND_LABELS[a.kind]}): ${a.whyChosenToday}`)));
+  out.push(consumer ? "### What people do without us" : "### What buyers do without us", ...li(p.positioning.alternatives.map((a) => `${a.name} (${ALT_KIND_LABELS[a.kind]}): ${a.whyChosenToday}`)));
   out.push("", "### Differentiators", ...li(p.positioning.differentiators.map((d) => `${d.capability}, vs ${d.vsAlternative} _(${d.status})_`)));
   out.push("", "### Value themes", ...li(p.positioning.valueThemes.map((t) => `**${t.theme}:** ${t.outcome}${themeNeedsProof(ws, t) ? " _(needs proof; never claimed in outreach)_" : ""}`)));
   const claims = ws.claims.filter((c) => c.approved);
@@ -794,16 +884,38 @@ export function playbookMarkdown(ws: Workspace, today: string): string {
     for (const c of p.competitors) out.push("", `#### ${c.name}`, ...li([`We win when: ${c.whenWeWin}`, `We lose when: ${c.whenWeLose}`, c.landmineQuestions.length ? `Ask: ${c.landmineQuestions.join(" / ")}` : ""]));
   }
 
-  const plan = planMath(ws, today);
-  out.push(
-    "",
-    "## How we sell",
-    "",
-    "### Plan",
-    `At ${plan.cold.perWeek} cold emails and ${plan.intro.perWeek} intro asks a week, about ${plan.meetingsPerWeek.toFixed(1)} meetings a week. By ${plan.byDate}: about ${Math.round(plan.projected)} of ${plan.target} ${plan.targetLabel}.`,
-  );
+  if (consumer) {
+    const g = growthDefaults(ws);
+    const math = consumerChannelPlan(ws, { today }).funnel.consumer!;
+    out.push(
+      "",
+      "## How we grow",
+      "",
+      "### Plan",
+      `${ws.goal.target} ${ws.goal.targetLabel} by ${ws.goal.byDate} takes about ${math.signupsNeeded} signups (${math.signupsPerWeek} a week) at a ${math.retentionTarget}% retention bar.`,
+      "",
+      "### Growth model",
+      ...li([
+        `North star: ${g.northStar.metric}`,
+        `First win: ${g.activation.event}, within ${g.activation.withinDays} days (${g.activation.status})`,
+        `Retention bar: ${g.retention.metric === "m3_repeat" ? "repeat purchase within 90 days" : "week-4 retention"} ≥ ${g.retention.target}% (strong ≥ ${g.retention.good}%). ${g.retention.source}`,
+        `Loop to build once it holds: ${g.primaryLoop.how}`,
+        ...g.firstHundred.map((x) => `First 100: ${x}`),
+      ]),
+    );
+    if (p.messaging.hooks?.length) out.push("", "### Hooks to test", ...li(p.messaging.hooks));
+  } else {
+    const plan = planMath(ws, today);
+    out.push(
+      "",
+      "## How we sell",
+      "",
+      "### Plan",
+      `At ${plan.cold.perWeek} cold emails and ${plan.intro.perWeek} intro asks a week, about ${plan.meetingsPerWeek.toFixed(1)} meetings a week. By ${plan.byDate}: about ${Math.round(plan.projected)} of ${plan.target} ${plan.targetLabel}.`,
+    );
+  }
   if (p.channelPlan) out.push("", "### Channels, in order", ...p.channelPlan.motions.slice().sort((a, b) => a.rank - b.rank).map((m) => `${m.rank}. **${MOTION_LABELS[m.motion] ?? m.motion}** (${m.weeklyTarget}): ${m.why}`));
-  out.push("", "### Pricing and terms", ...li([STRUCTURE_LABELS[p.commercial.structure].label, p.commercial.terms, p.commercial.priceAnchor, p.commercial.discountRule, `Pilot length: ${pilotDays(p.commercial)} days`]));
+  out.push("", consumer ? "### Pricing" : "### Pricing and terms", ...li([STRUCTURE_LABELS[p.commercial.structure].label, p.commercial.terms, p.commercial.priceAnchor, p.commercial.discountRule, consumer ? "" : `Pilot length: ${pilotDays(p.commercial)} days`]));
   const objections = ws.objections.filter((o) => o.approved);
   if (objections.length) {
     out.push("", "### Objections");

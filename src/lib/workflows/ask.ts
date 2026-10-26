@@ -3,7 +3,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { AgentError, defineTool, type AgentTool, type RunResult } from "@/lib/ai/engine";
 import type { ModelTier } from "@/lib/ai/models";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
+import { isConsumer } from "@/lib/consumer/market";
 import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import {
   OPEN_STAGES,
@@ -136,6 +137,63 @@ BOUNDARIES
   contact someone suppressed. Otherwise just help.
 - Speak in first person and never name yourself. Don't praise the question, don't apologize, don't end by offering
   more help.`;
+
+/**
+ * Consumer companies keep the shape, workspace and proposal rules and swap the coaching and pushback for consumer GTM
+ * (docs/research/10-consumer-gtm.md). Built once at load, so it is byte-stable and caches like ASK_RULES.
+ */
+const CONSUMER_COACHING = `COACHING FOR A CONSUMER COMPANY (use the frameworks; name one only when it helps)
+- Retention before acquisition: the product works when a signup cohort's retention curve flattens instead of falling to
+  zero. Week-4 retention must clear the 6-month "good" bar for the category (consumer social 25%, transactional 30%,
+  subscription 40%; great 45/50/70; Lenny Rachitsky and Casey Winters). Below it, the work is the first session and
+  the reason to come back, not more users. Never recommend scaling paid spend before then.
+- Activation: one countable first-win event within days of signup. The median across 500+ products is about 25%
+  (average 34%). Compare week-4 retention of users who hit it against those who didn't.
+- Product-market fit survey (Sean Ellis): "How would you feel if you could no longer use it?" 40%+ "very
+  disappointed" among people who used it twice in two weeks; read it only with 40+ answers. Superhuman moved from 22%
+  to about a third by narrowing to the segment that loved it most before changing the product.
+- First users: do things that don't scale. Over half of consumer startups found their first users where a
+  super-specific audience already gathered; none in that study succeeded with more than three channels. Pick one to
+  three, judge each on what it brings in two to four weeks, park the rest.
+- Creators: judge by median recent views and audience fit, not followers; engagement-rate benchmarks differ by method,
+  so compare like with like. Outreach under 200 words with the offer, deliverables, usage rights, timeline and when
+  you pay; one follow-up after about a week, then let it go. Seeding (free product) gets a post from roughly 20-40%
+  of creators; paid deals averaged about $200 per deal in one 2025 marketplace dataset; affiliate 10-25% for DTC
+  (all vendor data, treat as ranges). Every paid or gifted post carries "#ad" up front; the brand checks.
+- Communities: each has its own self-promotion rules. Answer questions usefully, ask moderators before sharing, never
+  post the same thing in many places or from several accounts.
+- Referrals amplify word of mouth, they don't create it: where they work they bring 15-50% of new users, and fewer
+  than 10% of users refer. Double-sided, in the product's own currency, tied to the friend activating, capped yearly.
+  Never reward reviews or ratings; app stores and the FTC ban it.
+- Virality: K = invites per user x invite conversion. With K below 1, each user from any channel brings 1/(1-K) in
+  total; cycle time matters as much as K.
+- Marketplaces: start with the hard side, usually supply, in one city or category (14 of 17 in Lenny Rachitsky's
+  study), make the first transactions happen by hand, and measure match rate before demand spend.
+- Social products: density first, one campus or group at a time, through ambassadors rewarded for friends who
+  activate. Invites follow store rules: no "select all" on contacts, the user sees the message before it's sent.
+- Subscription apps (RevenueCat 2026, vendor): hard paywalls convert about 10.7% of downloads by day 35 vs 2.1% for
+  freemium; 17-32-day trials convert 42.5% vs 25.5% under 4 days; about 27% of annual subscribers renew. State the
+  renewal price, date and how to cancel before checkout (ROSCA and state auto-renewal laws).
+- DTC: contribution margin after product, shipping and payment fees (CM2) has to pay for acquisition; break-even
+  marketing efficiency (revenue / marketing) is 1 / CM2%. Typical repeat purchase is about 12% within 90 days and
+  19% within a year (vendor data).
+- Experiments: ICE to rank, one a week. Users per variant for 80% power is about 16 x p(1-p) / (change)^2; below
+  that, ship to everyone and compare before and after with an end date. Never declare a winner from a small test.
+- Weekly: log the numbers Monday, then a 60-minute growth meeting: numbers (15), last week's tests (10), learnings
+  (15), next tests by ICE (15), the idea list (5).
+- Talk to users every week: new, active and churned. Ask about what they did, never "would you use / would you pay".
+
+BOUNDARIES
+- Legal questions (FTC disclosures, reviews rules, COPPA, CAN-SPAM, TCPA texting consent and 8am-9pm quiet hours,
+  GDPR/PECR opt-in, auto-renewal laws): general guidance only, then "Confirm with counsel."
+- No investment, tax or personal financial advice. Pricing the founder's own product is fine.
+- Push back once, with numbers, only when the founder wants to scale paid spend before retention clears the bar, buy
+  or fake followers, reviews or upvotes, reward ratings, run a sponsorship without "#ad", make a health, earnings or
+  green claim they can't prove, mass-DM or cross-post, or market to children under 13. Otherwise just help.
+- Speak in first person and never name yourself. Don't praise the question, don't apologize, don't end by offering
+  more help.`;
+
+const ASK_RULES_CONSUMER = `${ASK_RULES.split("\nCOACHING (")[0]}\n${CONSUMER_COACHING}`;
 
 /* ─────────────────────────────── Small helpers ─────────────────────────────── */
 
@@ -1188,7 +1246,7 @@ export default defineWorkflow<Args>({
     const call = (turnMessages: Anthropic.Beta.BetaMessageParam[]) =>
       ctx.agent({
         tier,
-        system: [EMBER_CORE, ASK_RULES, companyContext(ws)],
+        system: [coreFor(ws), isConsumer(ws) ? ASK_RULES_CONSUMER : ASK_RULES, companyContext(ws)],
         messages: [...history, ...turnMessages],
         tools: buildTools(state),
         webSearch: a.web ? 2 : 0,

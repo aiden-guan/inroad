@@ -35,6 +35,17 @@ Inroad also operates as an **agentic coordination hub**: connect external system
 
 It runs on the AI provider you choose — Anthropic Claude (what it was built and tuned on), OpenAI, Google Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, a local Ollama model, or any OpenAI-compatible API — in a browser or as a [Mac app](#the-mac-app).
 
+### Consumer companies
+
+Inroad also runs a consumer mode for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. It picks the mode from your site (store links, a cart, two-sided signup), and you can change it in onboarding or Settings. In consumer mode:
+
+- **Retention comes before acquisition.** You log last week's numbers, and code checks week-4 retention against the bar for your category (DTC uses 90-day repeat purchase). Inroad tells you to hold paid spend until retention clears the bar. Activation, the Sean Ellis 40% survey, the quick ratio, CAC and payback are all computed in code.
+- **Creators and communities replace accounts.** The agent keeps only creators and communities whose links appeared in its own search results, and it never stores follower counts it reports. Each one gets one note and one follow-up a week later; if they stay quiet, Inroad suggests letting them go. Briefs must tell creators to disclose, and Inroad asks you to confirm that each paid or gifted post carries `#ad`.
+- **A weekly growth rhythm.** You talk to five users a week, run one ICE-ranked experiment sized with Lehr's rule, and get a Monday growth review.
+- **Consumer marketing rules in the linter.** It covers FTC endorsement disclosure, the 16 CFR 465 fake-review rule, app-store rating rules, health and earnings claims, "free" terms and false urgency.
+
+The sources, figures and their limits are in [`docs/research/10-consumer-gtm.md`](docs/research/10-consumer-gtm.md).
+
 ---
 
 ## Core Capabilities
@@ -354,7 +365,7 @@ npm run lint
 ```
 
 ### Test Suite Highlights
-- **Coverage**: 937 tests across 95 files (about 16 seconds in one measured run).
+- **Coverage**: 1,009 tests across 100 files (about 17 seconds in one measured run).
 - **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
 - **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
 - **Workflow Replays**: The main workflows (the first run with the discovery it starts, Find companies, research, drafts
@@ -570,6 +581,7 @@ inroad/
 │   │   └── map/                 # Interactive geospatial prospect clustering
 │   ├── lib/                     # Core business logic and infrastructure
 │   │   ├── ai/                  # Agent engine, providers (Anthropic, OpenAI-compatible), prompts, SSE streaming
+│   │   ├── consumer/            # Consumer mode: market read, benchmarks, growth math, creator rules, compliance
 │   │   ├── api-keys/            # MCP server implementation, REST auth, tools
 │   │   ├── connectors/          # Firecrawl, Apollo, and FullEnrich clients
 │   │   ├── domain/              # Workspace entities, actions, and reducer

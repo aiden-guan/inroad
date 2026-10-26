@@ -1,7 +1,9 @@
 import "server-only";
 import { applyAction } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
-import type { Activity, ActivityKind, DraftStep, OutreachPackage, Person, SkipReason, Workspace } from "@/lib/domain/types";
+import { normalizeHandle, partnerKey } from "@/lib/consumer/partners";
+import { weekOf } from "@/lib/domain/ids";
+import type { Activity, ActivityKind, DraftStep, GrowthWeek, OutreachPackage, Partner, PartnerKind, PartnerPlatform, Person, SkipReason, Workspace } from "@/lib/domain/types";
 import { accountData, activityData, emitHubEvent, personData } from "@/lib/hub";
 import { askedToBeDeleted, companyDomainOf, ensureAccount, ensurePerson, findPerson, isFreeMail, isSuppressed, normalizeDomain, normalizeEmail } from "@/lib/hub/records";
 import { mergeMoves, computeMoves } from "@/lib/moves/rules";
@@ -458,4 +460,125 @@ export async function completeAction(key: ApiKey, args: { action_id: string; out
     })
   ).value;
   return { data: { status: "recorded", action_id: args.action_id, outcome: args.outcome }, summary: `Marked "${clip(res.title, 60)}" ${args.outcome.replace("_", " ")}`, records: 1 };
+}
+
+/* ───────────── log_growth_week ───────────── */
+
+export interface GrowthWeekIn {
+  week_of?: string;
+  signups?: number;
+  activated?: number;
+  active?: number;
+  retained_pct?: number;
+  paying?: number;
+  new_paying?: number;
+  churned_paying?: number;
+  revenue_usd?: number;
+  spend_usd?: number;
+  referred?: number;
+  top_channel?: string;
+  source_tool: string;
+}
+
+/**
+ * One week of numbers from a tool (PostHog, RevenueCat, Shopify through Zapier or n8n). Fields merge onto the week
+ * already logged, so two tools can each send their part. The founder's own numbers are never overwritten.
+ */
+export async function logGrowthWeek(key: ApiKey, args: GrowthWeekIn, via: "mcp" | "rest") {
+  const week = weekOf(args.week_of && /^\d{4}-\d{2}-\d{2}$/.test(args.week_of) ? args.week_of : todayISO());
+  if (week > weekOf(todayISO())) throw new ToolError("week_of is in the future.");
+  const fields: [keyof GrowthWeekIn, keyof GrowthWeek][] = [
+    ["signups", "signups"],
+    ["activated", "activated"],
+    ["active", "active"],
+    ["retained_pct", "retainedPct"],
+    ["paying", "paying"],
+    ["new_paying", "newPaying"],
+    ["churned_paying", "churnedPaying"],
+    ["revenue_usd", "revenueUsd"],
+    ["spend_usd", "spendUsd"],
+    ["referred", "referred"],
+  ];
+  const sent = fields.filter(([k]) => typeof args[k] === "number");
+  if (!sent.length && !args.top_channel) throw new ToolError("Send at least one number.");
+  const kept: string[] = [];
+  await mutateWorkspace((ws) => {
+    const prior = ws.growthLog?.find((w) => w.weekOf === week);
+    if (!prior && typeof args.signups !== "number") throw new ToolError("The first numbers for a week need signups.");
+    const next: GrowthWeek = prior ? { ...prior } : { weekOf: week, signups: args.signups!, source: via === "mcp" ? "mcp" : "webhook_in", loggedAt: nowISO() };
+    for (const [k, field] of sent) {
+      // A value the founder typed in wins over a tool's.
+      if (prior?.source === "founder" && prior[field] !== undefined) {
+        kept.push(String(k));
+        continue;
+      }
+      const v = Math.max(0, args[k] as number);
+      (next as unknown as Record<string, number>)[field] = field === "retainedPct" ? Math.min(100, v) : v;
+    }
+    if (args.top_channel && !(prior?.source === "founder" && prior.topChannel)) next.topChannel = clip(args.top_channel, 60);
+    next.loggedAt = nowISO();
+    applyAction(ws, { type: "growth.log", week: next });
+  });
+  return {
+    data: { status: "logged", week_of: week, kept_founder_values: kept },
+    summary: `Logged numbers for the week of ${week} from ${sourceLabel(key, args.source_tool)}${kept.length ? ` (kept the founder's ${kept.join(", ")})` : ""}`,
+  };
+}
+
+/* ───────────── add_partners ───────────── */
+
+export interface PartnerIn {
+  kind: PartnerKind;
+  name: string;
+  platform?: PartnerPlatform;
+  handle?: string;
+  url?: string;
+  audience?: string;
+  followers?: number;
+  engagement_rate?: number;
+  fit: string;
+}
+
+/** Creators and communities from a creator tool or another agent. Upserts that only fill empty fields; stage stays the founder's. */
+export async function addPartners(key: ApiKey, args: { source: string; partners: PartnerIn[] }) {
+  const via = sourceLabel(key, args.source);
+  let added = 0;
+  let updated = 0;
+  await mutateWorkspace((ws) => {
+    ws.partners ??= {};
+    const byKey = new Map(Object.values(ws.partners).map((p) => [partnerKey(p), p]));
+    for (const raw of args.partners) {
+      const candidate = { name: clip(raw.name, 80)!, handle: raw.handle ? normalizeHandle(raw.handle) : undefined, url: clip(raw.url, 400), platform: raw.platform };
+      const existing = byKey.get(partnerKey(candidate));
+      const at = nowISO();
+      if (existing) {
+        existing.audience ??= clip(raw.audience, 80);
+        existing.followers ??= raw.followers;
+        existing.engagementRate ??= raw.engagement_rate;
+        existing.url ??= candidate.url;
+        existing.updatedAt = at;
+        updated++;
+        continue;
+      }
+      const p: Partner = {
+        id: newId("ptn"),
+        kind: raw.kind,
+        ...candidate,
+        audience: clip(raw.audience, 80),
+        followers: raw.followers,
+        engagementRate: raw.engagement_rate,
+        fit: clip(raw.fit, 160) ?? "",
+        source: "integration",
+        notes: `Added by ${via}`,
+        stage: "shortlist",
+        stageHistory: [{ stage: "shortlist", at }],
+        createdAt: at,
+        updatedAt: at,
+      };
+      ws.partners[p.id] = p;
+      byKey.set(partnerKey(p), p);
+      added++;
+    }
+  });
+  return { data: { added, updated }, summary: `${plural(added, "creator or community", "creators and communities")} added${updated ? `, ${updated} updated` : ""} from ${via}`, records: added + updated };
 }

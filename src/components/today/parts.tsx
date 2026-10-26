@@ -6,17 +6,21 @@ import {
   CalendarX,
   ClipboardList,
   FileUp,
+  FlaskConical,
   Forward,
   Handshake,
   Inbox,
   ListChecks,
+  Megaphone,
   MessageCircleQuestion,
+  MessagesSquare,
   NotebookPen,
   PenLine,
   Radio,
   Reply,
   Search,
   Settings2,
+  TrendingUp,
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +51,10 @@ const ICONS: Record<MoveKind, LucideIcon> = {
   setup: Settings2,
   import: FileUp,
   research: Search,
+  growth: TrendingUp,
+  partner: Megaphone,
+  user_talk: MessagesSquare,
+  experiment: FlaskConical,
 };
 
 export const KIND_LABELS: Record<MoveKind, string> = {
@@ -68,6 +76,10 @@ export const KIND_LABELS: Record<MoveKind, string> = {
   setup: "Setup",
   import: "Imports",
   research: "Research",
+  growth: "Growth",
+  partner: "Creators and communities",
+  user_talk: "User conversations",
+  experiment: "Experiments",
 };
 
 export function KindIcon({ kind, className }: { kind: MoveKind; className?: string }) {

@@ -2,20 +2,26 @@ import "server-only";
 import { parse } from "node-html-parser";
 import { z } from "zod";
 import { AgentError, defineTool } from "@/lib/ai/engine";
-import { EMBER_CORE, taskHeader } from "@/lib/ai/prompts/core";
-import { BANNED_WORDS, CHIP_LABELS, FOUNDATION_RULES, SNAPSHOT_RULES } from "@/lib/ai/prompts/foundation";
+import { coreFor, taskHeader } from "@/lib/ai/prompts/core";
+import { BANNED_WORDS, CHIP_LABELS, CONSUMER_FOUNDATION_RULES, FOUNDATION_RULES, SNAPSHOT_RULES } from "@/lib/ai/prompts/foundation";
+import { readMarket, type MarketRead } from "@/lib/consumer/market";
+import { consumerChannelPlan, consumerCommercial, consumerGoal, growthDefaults } from "@/lib/consumer/plan";
 import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type {
   ChannelPlan,
   CommercialDefault,
   CompanySnapshot,
   Competitor,
+  ConsumerModel,
   Evidence,
   FounderQuestion,
   Foundation,
   FoundationSection,
   ICP,
+  GrowthModel,
   LearningChip,
+  Market,
+  Motion,
   OnboardingLedgerRow,
   Persona,
   Provenance,
@@ -29,6 +35,7 @@ import { fetchText, toDomain } from "@/lib/signals/http";
 import { siteDigestToText, type PageDigest, type SiteDigest } from "@/lib/signals/website";
 import { ycByDomain, ycDirectory, type YcCompany } from "@/lib/signals/yc";
 import discovery from "./discovery";
+import partners from "./partners";
 import { defineWorkflow } from "./types";
 
 /**
@@ -51,6 +58,9 @@ const Args = z.object({
   founderName: z.string().max(80).optional(),
   /** "refresh" rebuilds the bet without touching the first-run state. */
   mode: z.enum(["onboarding", "refresh"]).optional(),
+  /** The founder's "Who buys from you?" pick. Unset = the site decides (code read, then the snapshot). */
+  market: z.enum(["b2b", "consumer"]).optional(),
+  consumerModel: z.enum(["app", "dtc", "marketplace", "social", "prosumer"]).optional(),
 });
 
 const MAX_SUBPAGES = 4; // + home. Matches gatherSignals' default so its site cache key is shared.
@@ -73,6 +83,11 @@ const SIGNAL_TYPES = [
 const DETECTION = ["job_posts", "form_d", "press", "site", "yc_directory", "github", "dns", "hn", "founder_knowledge"] as const;
 const REQUIRED: FoundationSection[] = ["positioning", "icp", "personas", "messaging"];
 const BET_SECTIONS = ["positioning", "icp", "personas", "messaging", "questions"] as const;
+/** Consumer bets add the growth model (not required: code has a default for every model). */
+const CONSUMER_BET_SECTIONS = [...BET_SECTIONS, "growth"] as const;
+const CONSUMER_MODELS = ["app", "dtc", "marketplace", "social", "prosumer"] as const;
+const CONSUMER_SIGNAL_TYPES = ["life_event", "seasonal", "trend", "competitor_gap", "community_request", "public_pain", "launch", "persona_post"] as const;
+const CONSUMER_DETECTION = ["community", "social", "app_reviews", "search_trends", "survey", "site", "press", "founder_knowledge"] as const;
 
 /* ───────────────────────────── Reading the site (code, zero tokens) ───────────────────────────── */
 
@@ -132,7 +147,7 @@ async function timed(url: string) {
  * Reads the home page and up to 4 key pages, reporting each one the moment it lands. We crawl here rather than in
  * gatherSignals so the ledger shows real pages with real durations; the digest is written to gatherSignals' cache.
  */
-async function readSite(domain: string, onPage: (page: PageRead) => Promise<void>): Promise<{ site: SiteDigest; spa: boolean } | null> {
+async function readSite(domain: string, onPage: (page: PageRead) => Promise<void>): Promise<{ site: SiteDigest; spa: boolean; market: MarketRead } | null> {
   let home = await timed(`https://${domain}`);
   if (!home.res) home = await timed(`https://www.${domain}`);
   if (!home.res) return null;
@@ -177,8 +192,10 @@ async function readSite(domain: string, onPage: (page: PageRead) => Promise<void
   const spa =
     homePage.text.length < 600 && /<div[^>]+id=["'](root|app|__next)["']|data-reactroot|ng-version|__NUXT__|<noscript>[^<]{0,200}javascript/i.test(home.res.body);
 
+  const pages = [homePage, ...ok.map((p) => p.page)];
   return {
     spa,
+    market: readMarket(allHtml, pages.map((p) => [p.title, p.description, p.headings.join(" "), p.text].join(" ")).join("\n")),
     site: {
       domain,
       name: ogName || titleName || domain,
@@ -264,6 +281,8 @@ function founderLines(ws: Workspace): string[] {
   const o = ws.onboarding;
   const a = o.answers ?? {};
   const lines: string[] = [];
+  const pick = ws.company?.marketSource === "founder" ? ws.company.market : o.market;
+  if (pick) lines.push(`Who buys (founder's pick, final): ${pick === "consumer" ? "consumers" : "businesses"}${pick === "consumer" && ws.company?.marketSource === "founder" && ws.company.consumerModel ? ` (${ws.company.consumerModel})` : ""}`);
   if (o.note) lines.push(`Founder's note: ${o.note}`);
   if (a.who) lines.push(`Who buys (founder): ${a.who}`);
   if (a.last3) lines.push(`Last 3 users or design partners: ${a.last3}`);
@@ -321,6 +340,17 @@ function namedCustomers(text: string | undefined) {
 
 /* ───────────────────────────── Code-filled sections ───────────────────────────── */
 
+type B2BMotion = Extract<Motion, "warm_network" | "signal_cold" | "investor_intros" | "communities" | "founder_content" | "exec_dinners" | "design_partner_program" | "launches">;
+
+/** The code-filled parts for this workspace's market: the channel plan and the commercial default. */
+function planFor(ws: Workspace, stage: CompanySnapshot["stage"]): ChannelPlan {
+  return ws.company?.market === "consumer" ? consumerChannelPlan(ws) : channelPlan(ws, stage);
+}
+
+function commercialFor(ws: Workspace, band: ICP["employeeBand"], prev?: CommercialDefault): CommercialDefault {
+  return ws.company?.market === "consumer" ? consumerCommercial(ws.company) : commercialDefault(ws.company, band, prev);
+}
+
 /** The goal is an output of capacity: meetings needed ÷ what the cold cap yields = the intro asks to plan for. */
 function channelPlan(ws: Workspace, stage: CompanySnapshot["stage"]): ChannelPlan {
   const { goal, caps } = ws;
@@ -337,7 +367,7 @@ function channelPlan(ws: Workspace, stage: CompanySnapshot["stage"]): ChannelPla
       : undefined;
 
   const early = stage === "pre_launch" || stage === "design_partners";
-  const all: Record<ChannelPlan["motions"][number]["motion"], Omit<ChannelPlan["motions"][number], "rank" | "motion">> = {
+  const all: Record<B2BMotion, Omit<ChannelPlan["motions"][number], "rank" | "motion">> = {
     design_partner_program: {
       why: "Before the product is proven, paid design partners buy you references and a real launch date.",
       weeklyTarget: "2 design-partner conversations",
@@ -379,7 +409,7 @@ function channelPlan(ws: Workspace, stage: CompanySnapshot["stage"]): ChannelPla
       firstActions: ["Line up 5 users to comment honestly on launch day"],
     },
   };
-  const order: ChannelPlan["motions"][number]["motion"][] = early
+  const order: B2BMotion[] = early
     ? ["design_partner_program", "warm_network", "investor_intros", "communities", "signal_cold", "founder_content", "exec_dinners"]
     : ["warm_network", "investor_intros", "signal_cold", "communities", "founder_content", "exec_dinners", "launches"];
 
@@ -464,8 +494,8 @@ function skeleton(ws: Workspace, prev: Foundation | null): Foundation {
     },
     personas: [],
     messaging: { oneLiner: "", themes: [], byPersona: [], bySignal: [], customerWords: [], bannedWords: [] },
-    channelPlan: channelPlan(ws, ws.company?.stage ?? "unknown"),
-    commercial: commercialDefault(ws.company, prev?.icp.employeeBand, prev?.commercial),
+    channelPlan: planFor(ws, ws.company?.stage ?? "unknown"),
+    commercial: commercialFor(ws, prev?.icp.employeeBand, prev?.commercial),
     competitors: [],
     founderQuestions: (prev?.founderQuestions ?? []).filter((q) => q.answer && !q.id.startsWith("onb_")),
     confidence: "low",
@@ -534,6 +564,8 @@ const SnapshotInput = z.object({
     .array(z.object({ issue: z.string().max(140), quote: z.string().max(200).describe("Exact site words"), fix: z.string().max(160).describe("≤20 words") }))
     .max(3),
   coverage: z.enum(["good", "thin"]),
+  market: z.enum(["b2b", "consumer"]).describe("Who buys: consumer when people buy for themselves or their family"),
+  consumerModel: z.enum(CONSUMER_MODELS).nullable().describe("Consumer only, else null"),
 });
 type SnapshotInput = z.infer<typeof SnapshotInput>;
 
@@ -646,6 +678,78 @@ const SectionInput = z.object({
 });
 type SectionInput = z.infer<typeof SectionInput>;
 
+/* Consumer bet: the same sections with consumer enums, plus the growth model. */
+const ConsumerIcpIn = z.object({
+  hypothesis: z.object({
+    companyGroup: z.string().max(100).describe("The audience group, e.g. first-time parents"),
+    role: z.string().max(80).describe("The person in the moment"),
+    obstacle: z.string().max(140),
+    cause: z.string().max(140),
+    improvement: z.string().max(140).describe("What they'd notice within a week"),
+    sentence: z.string().max(360).describe("≤45 words"),
+  }),
+  primarySegment: z.string().max(100),
+  testSlices: z.array(z.string().max(100)).max(2),
+  criteria: z
+    .array(
+      z.object({
+        text: z.string().max(140),
+        kind: z.enum(["behavioral", "situational", "demographic"]),
+        mustHave: z.boolean(),
+        detection: z.enum(CONSUMER_DETECTION),
+        status: z.enum(["validated", "hypothesis"]),
+        howToTest: z.string().max(160).nullish(),
+      }),
+    )
+    .min(1)
+    .max(8),
+  antiIcp: z.array(z.object({ text: z.string().max(120), reason: z.string().max(160) })).max(8),
+  triggers: z.array(z.object({ type: z.enum(CONSUMER_SIGNAL_TYPES), windowDays: z.number().int().min(7).max(365), implication: z.string().max(180) })).max(5),
+  confirmIf: z.string().max(200),
+  killIf: z.string().max(200),
+});
+
+const ConsumerPersonaIn = PersonaIn.extend({
+  role: z.enum(["user", "early_adopter", "payer", "influencer"]),
+  titles: z.array(z.string().max(60)).min(1).max(6).describe("How the segment describes itself"),
+  kpis: z.array(z.string().max(100)).max(4).describe("Jobs they want done, in their words"),
+  wateringHoles: z
+    .array(z.object({ name: z.string().max(80).describe("Specific: r/beyondthebump, not Reddit"), kind: z.enum(["community", "forum", "creator", "social", "newsletter", "podcast"]), url: z.string().max(300).nullish() }))
+    .max(5),
+});
+
+const ConsumerMessagingIn = MessagingIn.extend({
+  bySignal: z.array(z.object({ signal: z.enum(CONSUMER_SIGNAL_TYPES), implication: z.string().max(200) })).max(6),
+  hooks: z.array(z.string().max(90).describe("≤12 words")).max(8),
+});
+
+const GrowthIn = z.object({
+  northStar: z.object({ metric: z.string().max(80), why: z.string().max(160).describe("≤20 words") }),
+  activation: z.object({ event: z.string().max(100), withinDays: z.number().int().min(1).max(30), howToTest: z.string().max(160).describe("≤20 words") }),
+  cadence: z.enum(["daily", "weekly", "monthly", "occasional"]),
+  primaryLoop: z.object({ kind: z.enum(["word_of_mouth", "viral", "content", "creator", "community", "marketplace", "paid"]), how: z.string().max(220).describe("≤30 words") }),
+  firstHundred: z.array(z.string().max(120)).max(3),
+});
+
+const ConsumerSectionInput = z.object({
+  positioning: PositioningIn.nullish(),
+  icp: ConsumerIcpIn.nullish(),
+  personas: z.array(ConsumerPersonaIn).min(1).max(4).nullish(),
+  messaging: ConsumerMessagingIn.nullish(),
+  growth: GrowthIn.nullish(),
+  questions: z.array(QuestionIn).max(5).nullish(),
+});
+
+/** Either bet's input, as the save code reads it. */
+type AnySection = {
+  positioning?: z.infer<typeof PositioningIn> | null;
+  icp?: (z.infer<typeof IcpIn> | (z.infer<typeof ConsumerIcpIn> & { employeeBand?: undefined })) | null;
+  personas?: (z.infer<typeof PersonaIn> | z.infer<typeof ConsumerPersonaIn>)[] | null;
+  messaging?: (z.infer<typeof MessagingIn> & { hooks?: string[] }) | z.infer<typeof ConsumerMessagingIn> | null;
+  growth?: z.infer<typeof GrowthIn> | null;
+  questions?: z.infer<typeof QuestionIn>[] | null;
+};
+
 const FinishInput = z.object({
   confidence: z.enum(["high", "medium", "low"]),
   note: z.string().max(240).nullable().describe("One line on the weakest part of this bet, or null"),
@@ -664,6 +768,13 @@ const DEFAULT_ANTI_ICP = [
   },
   { re: /complian|soc ?2|hipaa|gdpr|fedramp|security review/i, text: "Compliance gates we can't pass yet", reason: "A certification we don't have stalls the deal for months." },
   { re: /acv|deal size|\$2k|self-serve|too small/i, text: "Deal size under about $2K a year", reason: "That's a self-serve motion; founder-led sales can't pay for itself there." },
+];
+
+/** Consumer bets always say who it isn't for: rare needs, happy free habits, and children without consent (COPPA). */
+const DEFAULT_ANTI_AUDIENCE = [
+  { re: /rare|rarely|often|frequen|once a year|habit/i, text: "Needs it too rarely to form a habit", reason: "Retention needs the need to come back; a once-a-year need is a different, harder business." },
+  { re: /happy|satisfied|free (app|habit|alternative)|good enough/i, text: "Happy with a free habit they already have", reason: "Switching costs attention. People who aren't frustrated don't switch." },
+  { re: /under 13|children|kids|coppa|minor/i, text: "Children under 13, unless it's built for them", reason: "Collecting a child's data needs verifiable parental consent (COPPA, amended 2025)." },
 ];
 
 /* ───────────────────────────── The workflow ───────────────────────────── */
@@ -712,6 +823,7 @@ export default defineWorkflow({
           url: args.url,
           domain: domain ?? undefined,
           note: note || undefined,
+          market: args.market ?? ws.onboarding.market,
           site: domain ? "reading" : "none",
           pagesRead: 0,
           ledger: [],
@@ -737,9 +849,14 @@ export default defineWorkflow({
           chips: prev?.chips ?? [],
           founderNote: note || undefined,
           emailProvider: prev?.emailProvider,
+          market: args.market ?? prev?.market,
+          consumerModel: args.market === "consumer" ? (args.consumerModel ?? prev?.consumerModel) : args.market ? undefined : prev?.consumerModel,
+          marketSource: args.market ? "founder" : prev?.marketSource,
+          marketHints: prev?.marketHints,
         };
-      } else if (note) {
-        ws.company.founderNote = note;
+      } else {
+        if (note) ws.company.founderNote = note;
+        if (args.market) Object.assign(ws.company, { market: args.market, consumerModel: args.market === "consumer" ? (args.consumerModel ?? ws.company.consumerModel) : undefined, marketSource: "founder" });
       }
     });
 
@@ -886,6 +1003,7 @@ export default defineWorkflow({
       siteState === "spa" || siteState === "thin"
         ? `The site is thin (${readable} readable page${readable === 1 ? "" : "s"}). Set coverage "thin" and lean on the founder's words.`
         : "",
+      read ? `<market_hints>\nCode read: ${read.market.market} (${read.market.confidence})${read.market.model ? `, looks like ${read.market.model}` : ""}. Seen: ${read.market.hints.join(", ") || "nothing decisive"}.\n</market_hints>` : "",
       "Share the chips the pages support, then call submit_snapshot.",
     ]
       .filter(Boolean)
@@ -899,7 +1017,7 @@ export default defineWorkflow({
         tier: "fast",
         effort: "low",
         maxTokens: 8000,
-        system: [EMBER_CORE, SNAPSHOT_RULES],
+        system: [coreFor(ctx.read()), SNAPSHOT_RULES],
         messages: [{ role: "user", content: snapshotMessage }],
         tools: [shareLearning, submitSnapshot],
         requireTerminal: true,
@@ -943,6 +1061,14 @@ export default defineWorkflow({
         tech: sigs.signals?.enrichment.tech.length ? sigs.signals.enrichment.tech : c.tech,
         emailProvider: sigs.signals?.dns?.emailProvider ?? c.emailProvider,
       } satisfies Partial<CompanySnapshot>);
+      // Who buys: the founder's pick, else the snapshot's read of the pages, else the code read. Decides the bet's rules.
+      const founderPick = c.marketSource === "founder" ? c.market : undefined;
+      const market: Market = founderPick ?? snap?.market ?? read?.market.market ?? c.market ?? "b2b";
+      const model: ConsumerModel | undefined =
+        market === "consumer" ? ((founderPick ? c.consumerModel : undefined) ?? snap?.consumerModel ?? read?.market.model ?? c.consumerModel ?? "app") : undefined;
+      Object.assign(c, { market, consumerModel: model, marketSource: founderPick ? "founder" : "site", marketHints: read?.market.hints ?? c.marketHints });
+      if (market === "consumer" && firstRun && (!ws.goal.metric || ws.goal.metric === "deals")) Object.assign(ws.goal, consumerGoal(model ?? "app"));
+      if (market === "b2b" && firstRun && ws.goal.metric && ws.goal.metric !== "deals") Object.assign(ws.goal, { metric: "deals", target: 5, targetLabel: "paid pilots or design partners" });
       if (firstRun) {
         ws.onboarding.sections = { ...ws.onboarding.sections, snapshot: nowISO() };
         ws.onboarding.status = "drafting";
@@ -954,14 +1080,16 @@ export default defineWorkflow({
       }
       else if (resume) {
         // Kept sections stay; the code-filled parts follow the stage this read found.
-        ws.foundation.channelPlan = channelPlan(ws, c.stage);
-        ws.foundation.commercial = commercialDefault(c, ws.foundation.icp.employeeBand, ws.foundation.commercial);
+        ws.foundation.channelPlan = planFor(ws, c.stage);
+        ws.foundation.commercial = commercialFor(ws, ws.foundation.icp.employeeBand, ws.foundation.commercial);
       }
     });
 
     /* 4 · The bet (strategist, once) */
     ctx.emit({ type: "status", text: "Drafting your first bet" });
-    const saved = new Set<FoundationSection>(resume ? BET_SECTIONS.filter((k) => ctx.read().onboarding.sections?.[k]) : []);
+    const consumer = ctx.read().company?.market === "consumer";
+    const betSections: readonly FoundationSection[] = consumer ? CONSUMER_BET_SECTIONS : BET_SECTIONS;
+    const saved = new Set<FoundationSection>(resume ? betSections.filter((k) => ctx.read().onboarding.sections?.[k]) : []);
     let deliveredInput = founderLines(ctx.read()).join("\n");
 
     const evidenceBlock = () => {
@@ -978,9 +1106,12 @@ export default defineWorkflow({
       // criterion (and is capped at 300 chars), so the first run sends none.
       const seeds = seedDomains(ws.onboarding.answers?.last3, domain);
       try {
-        const run = await startRun(discovery, { count: 3, source: "onboarding", seedDomains: seeds.length ? seeds : undefined });
+        // Consumer: who to talk to first is where the audience gathers (creators, communities), found once segments land.
+        const run = consumer
+          ? await startRun(partners, { mode: "find", count: 6, source: "onboarding" })
+          : await startRun(discovery, { count: 3, source: "onboarding", seedDomains: seeds.length ? seeds : undefined });
         await ctx.mutate((w) => void (w.onboarding.discoveryRunId = run.id));
-        ctx.emit({ type: "action", text: "Started finding companies" });
+        ctx.emit({ type: "action", text: consumer ? "Started finding creators and communities" : "Started finding companies" });
       } catch (err) {
         console.warn("[foundation] couldn't start discovery:", err);
       }
@@ -988,11 +1119,12 @@ export default defineWorkflow({
 
     const submitSection = defineTool({
       name: "submit_section",
-      description:
-        "Save one or more finished sections of the bet. The founder sees each the moment it's saved. Order: positioning alone; then icp + personas; then messaging + questions (with finish_bet in the same turn). Sections you leave out stay as they are.",
-      schema: SectionInput,
-      label: (i) => `Wrote ${(["positioning", "icp", "personas", "messaging", "questions"] as const).filter((k) => i[k]).join(" + ")}`,
-      run: async (input) => {
+      description: consumer
+        ? "Save one or more finished sections of the bet. The founder sees each the moment it's saved. Order: positioning alone; then icp (the audience bet) + personas (segments); then messaging + growth + questions (with finish_bet in the same turn). Sections you leave out stay as they are."
+        : "Save one or more finished sections of the bet. The founder sees each the moment it's saved. Order: positioning alone; then icp + personas; then messaging + questions (with finish_bet in the same turn). Sections you leave out stay as they are.",
+      schema: (consumer ? ConsumerSectionInput : SectionInput) as z.ZodType<AnySection>,
+      label: (i: AnySection) => `Wrote ${betSections.filter((k) => i[k as keyof AnySection]).join(" + ")}`,
+      run: async (input: AnySection) => {
         const ws = ctx.read();
         const f = ws.foundation;
         if (!f) throw new Error("The workspace has no playbook yet.");
@@ -1050,13 +1182,14 @@ export default defineWorkflow({
             const i = input.icp;
             const canValidate = namedCustomers(w.onboarding.answers?.last3) >= 3;
             const anti = [...i.antiIcp];
-            for (const d of DEFAULT_ANTI_ICP) if (!i.antiIcp.some((a) => d.re.test(`${a.text} ${a.reason}`))) anti.push({ text: d.text, reason: d.reason });
+            for (const d of consumer ? DEFAULT_ANTI_AUDIENCE : DEFAULT_ANTI_ICP) if (!i.antiIcp.some((a) => d.re.test(`${a.text} ${a.reason}`))) anti.push({ text: d.text, reason: d.reason });
+            const band = "employeeBand" in i ? i.employeeBand : undefined;
             fd.icp = {
               ...fd.icp,
               hypothesis: i.hypothesis,
               primarySegment: i.primarySegment,
               testSlices: i.testSlices,
-              employeeBand: i.employeeBand,
+              employeeBand: band,
               criteria: i.criteria.map((c) => {
                 const validated = c.status === "validated" && canValidate;
                 return {
@@ -1066,7 +1199,7 @@ export default defineWorkflow({
                   mustHave: c.mustHave,
                   detection: c.detection,
                   status: validated ? "validated" : "hypothesis",
-                  howToTest: validated ? undefined : (c.howToTest ?? "Check it on the next 25 touches and 5 calls."),
+                  howToTest: validated ? undefined : (c.howToTest ?? (consumer ? "Check it against your first 20 users and their week-4 retention." : "Check it on the next 25 touches and 5 calls.")),
                 };
               }),
               antiIcp: anti,
@@ -1074,7 +1207,7 @@ export default defineWorkflow({
               confirmIf: i.confirmIf,
               killIf: i.killIf,
             };
-            fd.commercial = commercialDefault(w.company, i.employeeBand, fd.commercial);
+            fd.commercial = commercialFor(w, band, fd.commercial);
             keys.push("icp");
           }
           if (input.personas) {
@@ -1108,8 +1241,23 @@ export default defineWorkflow({
               bySignal: m.bySignal,
               customerWords: m.customerWords,
               bannedWords: [...new Set([...m.bannedWords, ...BANNED_WORDS])],
+              hooks: "hooks" in m && m.hooks?.length ? m.hooks : undefined,
             };
             keys.push("messaging");
+          }
+          if (input.growth && consumer) {
+            const g = input.growth;
+            const base = growthDefaults(w);
+            const growth: GrowthModel = {
+              ...base,
+              northStar: g.northStar,
+              activation: { event: g.activation.event, withinDays: g.activation.withinDays, status: "hypothesis", howToTest: g.activation.howToTest },
+              cadence: g.cadence,
+              primaryLoop: g.primaryLoop,
+              firstHundred: g.firstHundred.length ? g.firstHundred : base.firstHundred,
+            };
+            fd.growth = growth;
+            keys.push("growth");
           }
           if (input.questions) {
             const keep = fd.founderQuestions.filter((q) => q.answer || q.id.startsWith("onb_"));
@@ -1127,12 +1275,13 @@ export default defineWorkflow({
           }
         });
         for (const k of keys) saved.add(k);
-        if (keys.includes("icp")) await startDiscovery();
+        // Consumer discovery searches where the segments gather, so it waits for them.
+        if (keys.includes(consumer ? "personas" : "icp")) await startDiscovery();
 
         const lines = founderLines(ctx.read()).join("\n");
         const fresh = lines !== deliveredInput ? lines : "";
         deliveredInput = lines;
-        const left = (["positioning", "icp", "personas", "messaging", "questions"] as const).filter((k) => !saved.has(k));
+        const left = betSections.filter((k) => !saved.has(k));
         return [
           `Saved: ${keys.join(", ")}.`,
           fresh ? `NEW FOUNDER INPUT (authoritative; apply it to what's left):\n${fresh}` : "",
@@ -1161,12 +1310,14 @@ export default defineWorkflow({
       founderBlock(ws0),
       `<free_signals>\n${digest}${yc ? `\n\n## YC directory\n${yc.name} · ${yc.batch} · ${yc.teamSize ?? "?"} people · ${yc.industry} · ${yc.oneLiner}` : ""}\n</free_signals>`,
       siteState !== "ok"
-        ? `Coverage: the site was ${siteState === "none" ? "unavailable" : "thin"}. Confidence stays low, and your first founder question asks who buys and why.`
+        ? `Coverage: the site was ${siteState === "none" ? "unavailable" : "thin"}. Confidence stays low, and your first founder question asks ${consumer ? "who uses it and when" : "who buys and why"}.`
         : "",
       saved.size && ws0.foundation ? savedSectionsText(ws0.foundation, saved) : "",
       saved.size
-        ? `Already saved: ${[...saved].join(", ")}. Send only: ${BET_SECTIONS.filter((k) => !saved.has(k)).join(", ")} with submit_section, then finish_bet.`
-        : "Write the first bet now: competitor searches first (at most 3), then submit_section with positioning; then icp + personas; then messaging + questions together with finish_bet.",
+        ? `Already saved: ${[...saved].join(", ")}. Send only: ${betSections.filter((k) => !saved.has(k)).join(", ")} with submit_section, then finish_bet.`
+        : consumer
+          ? "This company sells to consumers. Write the first bet now: competitor searches first (at most 3), then submit_section with positioning; then icp (the audience bet) + personas (segments); then messaging + growth + questions together with finish_bet."
+          : "Write the first bet now: competitor searches first (at most 3), then submit_section with positioning; then icp + personas; then messaging + questions together with finish_bet.",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -1176,13 +1327,13 @@ export default defineWorkflow({
       effort: "high" as const,
       // Competitor searches only feed positioning; a resumed bet that already has it doesn't search again.
       webSearch: saved.has("positioning") ? 0 : 3,
-      system: [EMBER_CORE, FOUNDATION_RULES],
+      system: [coreFor(ws0), consumer ? CONSUMER_FOUNDATION_RULES : FOUNDATION_RULES],
       tools: [finishBet, submitSection],
       requireTerminal: true,
       // Sections are saved as they arrive; a missing finish_bet falls through to the continuation below.
       optionalResult: true,
     };
-    if (resume && saved.has("icp")) await startDiscovery(); // no-op when the stopped run already started it
+    if (resume && saved.has(consumer ? "personas" : "icp")) await startDiscovery(); // no-op when the stopped run already started it
 
     let missing = REQUIRED.filter((k) => !saved.has(k));
     let betMessages: unknown[] = [];
@@ -1258,8 +1409,8 @@ export default defineWorkflow({
         const s = stageFromText(corrected("stage"));
         if (s && s !== c.stage) {
           c.stage = s;
-          f.channelPlan = channelPlan(ws, s);
-          f.commercial = commercialDefault(c, f.icp.employeeBand, f.commercial);
+          f.channelPlan = planFor(ws, s);
+          f.commercial = commercialFor(ws, f.icp.employeeBand, f.commercial);
         }
         // Proof the founder marked wrong after the snapshot was written.
         const wrongProof = rejectedProof(ws);
@@ -1286,6 +1437,7 @@ function savedSectionsText(f: Foundation, saved: Set<FoundationSection>): string
   if (saved.has("icp") && f.icp.hypothesis.sentence) lines.push(`ICP bet: ${f.icp.hypothesis.sentence}`);
   if (saved.has("personas")) lines.push("Personas (1-based, for messaging.byPersona):", ...f.personas.map((p, i) => `${i + 1}. ${p.role} · ${p.titles[0] ?? ""}`));
   if (saved.has("messaging") && f.messaging.oneLiner) lines.push(`One-liner: ${f.messaging.oneLiner}`);
+  if (saved.has("growth") && f.growth) lines.push(`North star: ${f.growth.northStar.metric}. Activation: ${f.growth.activation.event}.`);
   return `<saved_sections>\n${lines.join("\n")}\n</saved_sections>`;
 }
 
@@ -1297,6 +1449,7 @@ function snapshotText(c: CompanySnapshot | null): string {
     `Who it's for: ${c.whoItsFor || "unknown"}`,
     `Pricing: ${c.howYouCharge.model}${c.howYouCharge.isPublic ? " (public)" : ""}${c.howYouCharge.summary ? ` — ${c.howYouCharge.summary}` : ""}`,
     `Stage: ${c.stage}. Coverage: ${c.coverage}.`,
+    c.market ? `Market: ${c.market === "consumer" ? `consumers${c.consumerModel ? ` (${c.consumerModel})` : ""}` : "businesses"}${c.marketSource === "founder" ? ", the founder's pick" : ""}${c.marketHints?.length ? `. Seen on the site: ${c.marketHints.join(", ")}` : ""}.` : "",
     c.proof.length ? `Proof on the site: ${c.proof.map((p) => `${p.text}${p.evidenceId ? ` [${p.evidenceId}]` : ""}`).join("; ")}` : "Proof on the site: none found.",
     c.alternatives.length ? `Alternatives the site implies: ${c.alternatives.map((a) => `${a.name} (${a.kind})`).join(", ")}` : "",
     c.messagingIssues.length ? `Messaging issues: ${c.messagingIssues.map((m) => `${m.issue} ("${m.quote}")`).join("; ")}` : "",

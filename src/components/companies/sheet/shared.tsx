@@ -152,6 +152,9 @@ export const ROLE_LABEL: Record<PersonaRole, string> = {
   technical_approver: "Technical approver",
   user: "User",
   blocker: "Blocker",
+  early_adopter: "Early adopter",
+  payer: "Payer",
+  influencer: "Influencer",
 };
 
 /** Text that will go out under the founder's name: Inter, a 1px blue-pencil rule, labeled Draft. */
