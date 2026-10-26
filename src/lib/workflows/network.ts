@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
 import { AgentError } from "@/lib/ai/errors";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Connection, Evidence, NetworkCompany, PersonaRole, Signal, Workspace } from "@/lib/domain/types";
 import { ensureAccount } from "@/lib/hub/records";
@@ -125,7 +125,7 @@ ${batch.map((g, i) => card(g, i + 1)).join("\n")}`;
         maxTokens: 6000,
         requireTerminal: true,
         cacheTtl: "1h",
-        system: [EMBER_CORE, NETWORK_RULES, companyContext(ws)],
+        system: [coreFor(ws), NETWORK_RULES, companyContext(ws)],
         messages: [{ role: "user", content }],
         tools: [screenTool],
       });

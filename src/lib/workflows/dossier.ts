@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
 import { AgentError } from "@/lib/ai/errors";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { firstAttemptOnly, Ledger, cleanDate, hostOf, normUrl, readConnections, seenWebUrls, staleAfter, type LedgerSource } from "@/lib/deals/ledger";
 import { jurisdictionOf, rankPaths } from "@/lib/deals/rules";
 import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
@@ -506,7 +506,7 @@ export default defineWorkflow({
     const res = await ctx.agent<DossierSubmit>({
       tier: "operator",
       effort: "medium",
-      system: [EMBER_CORE, DOSSIER_RULES, companyContext(ws0)],
+      system: [coreFor(ws0), DOSSIER_RULES, companyContext(ws0)],
       messages: [{ role: "user", content: message }],
       tools: [recordEvidence, submit],
       webSearch,

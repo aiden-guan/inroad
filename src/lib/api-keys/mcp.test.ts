@@ -141,7 +141,7 @@ describe("tools", () => {
 
   it("lists only the tools a key's scopes allow, in a fixed order", async () => {
     // New tools are appended, never inserted, so callers' prompt caches over the earlier ones keep hitting.
-    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros"];
+    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth"];
     expect(await names(tokens.read)).toEqual(read);
     expect(await names(tokens.records)).toEqual([
       "get_icp",
@@ -155,6 +155,9 @@ describe("tools", () => {
       "get_account",
       "find_warm_paths",
       "list_intros",
+      "get_growth",
+      "log_growth_week",
+      "add_partners",
     ]);
     expect(await names(tokens.drafts)).toEqual([
       "get_icp",
@@ -169,6 +172,9 @@ describe("tools", () => {
       "get_account",
       "find_warm_paths",
       "list_intros",
+      "get_growth",
+      "log_growth_week",
+      "add_partners",
     ]);
   });
 
@@ -236,5 +242,40 @@ describe("tools", () => {
     // And the new company is searchable.
     const found = await call("search_records", { domain: "acmebilling.io" });
     expect(found.result?.structuredContent).toMatchObject({ exists: true });
+  });
+});
+
+describe("consumer tools", () => {
+  it("merges weekly numbers from tools without overwriting the founder's", async () => {
+    // The founder typed signups for this week; a billing tool then sends its part.
+    const week = "2026-10-12";
+    const ws = readWorkspace();
+    ws.growthLog = [{ weekOf: week, signups: 120, source: "founder", loggedAt: "2026-10-19T17:00:00.000Z" }];
+    await replaceWorkspace(ws);
+
+    const r = await call("log_growth_week", { week_of: "2026-10-14", signups: 999, paying: 42, revenue_usd: 410, source_tool: "revenuecat" }, tokens.records);
+    expect(r.result?.isError).toBe(false);
+    expect(r.result?.structuredContent).toMatchObject({ status: "logged", week_of: week, kept_founder_values: ["signups"] });
+    expect(readWorkspace().growthLog?.find((w) => w.weekOf === week)).toMatchObject({ signups: 120, paying: 42, revenueUsd: 410 });
+
+    const first = await call("log_growth_week", { week_of: "2026-10-05", paying: 3, source_tool: "posthog" }, tokens.records);
+    expect(first.result).toMatchObject({ isError: true, content: [{ text: "The first numbers for a week need signups." }] });
+
+    const read = await call("get_growth", {});
+    expect(read.result?.structuredContent).toMatchObject({ ready: true, weeks: [{ week_of: week, signups: 120, paying: 42 }] });
+  });
+
+  it("adds creators to the shortlist and dedupes them by handle", async () => {
+    const partners = [{ kind: "creator", name: "Maya Runs", platform: "tiktok", handle: "maya.runs", followers: 18200, fit: "Beginner runners, weekly training vlogs" }];
+    const r = await call("add_partners", { source: "modash", partners }, tokens.records);
+    expect(r.result?.structuredContent).toEqual({ added: 1, updated: 0 });
+    const again = await call("add_partners", { source: "modash", partners: [{ ...partners[0], handle: "@Maya.Runs" }] }, tokens.records);
+    expect(again.result?.structuredContent).toEqual({ added: 0, updated: 1 });
+    const added = Object.values(readWorkspace().partners ?? {});
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ handle: "@maya.runs", followers: 18200, stage: "shortlist", source: "integration" });
+    // A read-only key can't write.
+    const denied = await call("add_partners", { source: "modash", partners });
+    expect(denied.result?.isError).toBe(true);
   });
 });

@@ -16,7 +16,11 @@
     "maxTokens": 8000,
     "effort": "low",
     "cacheTtl": "5m",
-    "stream": true
+    "stream": true,
+    "prefix": "bf9bce636543dbe0",
+    "turns": [
+     "cd50458dacaf0c6a"
+    ]
    },
    "status": 200,
    "headers": {
@@ -36,10 +40,10 @@
       "stop_sequence": null,
       "usage": {
        "input_tokens": 0,
-       "cache_creation_input_tokens": 2689,
+       "cache_creation_input_tokens": 3119,
        "cache_read_input_tokens": 0,
        "cache_creation": {
-        "ephemeral_5m_input_tokens": 2689,
+        "ephemeral_5m_input_tokens": 3119,
         "ephemeral_1h_input_tokens": 0
        },
        "output_tokens": 1
@@ -148,13 +152,13 @@
      },
      "usage": {
       "input_tokens": 0,
-      "cache_creation_input_tokens": 2689,
+      "cache_creation_input_tokens": 3119,
       "cache_read_input_tokens": 0,
       "cache_creation": {
-       "ephemeral_5m_input_tokens": 2689,
+       "ephemeral_5m_input_tokens": 3119,
        "ephemeral_1h_input_tokens": 0
       },
-      "output_tokens": 233,
+      "output_tokens": 236,
       "server_tool_use": null
      }
     },
@@ -176,7 +180,13 @@
     "maxTokens": 8000,
     "effort": "low",
     "cacheTtl": "5m",
-    "stream": true
+    "stream": true,
+    "prefix": "bf9bce636543dbe0",
+    "turns": [
+     "cd50458dacaf0c6a",
+     "f82a21d9fb1622ac",
+     "b137d910b9e58f11"
+    ]
    },
    "status": 200,
    "headers": {
@@ -197,7 +207,7 @@
       "usage": {
        "input_tokens": 0,
        "cache_creation_input_tokens": 220,
-       "cache_read_input_tokens": 2689,
+       "cache_read_input_tokens": 3119,
        "cache_creation": {
         "ephemeral_5m_input_tokens": 220,
         "ephemeral_1h_input_tokens": 0
@@ -250,7 +260,7 @@
      "index": 1,
      "delta": {
       "type": "input_json_delta",
-      "partial_json": "{\"name\":\"Acme\",\"plainOneLiner\":\"Acme turns metered usage into accurate invoices, so finance closes the month in hours.\",\"whoItsFor\":\"API companies\",\"howYouCharge\":{\"model\":\"usage\",\"isPublic\":true,\"summary\":\"Plans start at $500 a month, billed on usage.\"},\"proof\":[],\"alternatives\":[{\"name\":\"Spreadsheets and manual work\",\"kind\":\"status_quo\"}],\"stage\":\"design_partners\",\"messagingIssues\":[],\"coverage\":\"thin\"}"
+      "partial_json": "{\"name\":\"Acme\",\"plainOneLiner\":\"Acme turns metered usage into accurate invoices, so finance closes the month in hours.\",\"whoItsFor\":\"API companies\",\"howYouCharge\":{\"model\":\"usage\",\"isPublic\":true,\"summary\":\"Plans start at $500 a month, billed on usage.\"},\"proof\":[],\"alternatives\":[{\"name\":\"Spreadsheets and manual work\",\"kind\":\"status_quo\"}],\"stage\":\"design_partners\",\"messagingIssues\":[],\"coverage\":\"thin\",\"market\":\"b2b\",\"consumerModel\":null}"
      }
     },
     {
@@ -267,12 +277,12 @@
      "usage": {
       "input_tokens": 0,
       "cache_creation_input_tokens": 220,
-      "cache_read_input_tokens": 2689,
+      "cache_read_input_tokens": 3119,
       "cache_creation": {
        "ephemeral_5m_input_tokens": 220,
        "ephemeral_1h_input_tokens": 0
       },
-      "output_tokens": 211,
+      "output_tokens": 222,
       "server_tool_use": null
      }
     },
@@ -295,7 +305,11 @@
     "maxTokens": 32000,
     "effort": "high",
     "cacheTtl": "5m",
-    "stream": true
+    "stream": true,
+    "prefix": "9b33e6f22159cc4d",
+    "turns": [
+     "813d2711814987bb"
+    ]
    },
    "status": 200,
    "headers": {
@@ -315,10 +329,10 @@
       "stop_sequence": null,
       "usage": {
        "input_tokens": 0,
-       "cache_creation_input_tokens": 5435,
+       "cache_creation_input_tokens": 5452,
        "cache_read_input_tokens": 0,
        "cache_creation": {
-        "ephemeral_5m_input_tokens": 5435,
+        "ephemeral_5m_input_tokens": 5452,
         "ephemeral_1h_input_tokens": 0
        },
        "output_tokens": 1
@@ -483,10 +497,10 @@
      },
      "usage": {
       "input_tokens": 0,
-      "cache_creation_input_tokens": 5435,
+      "cache_creation_input_tokens": 5452,
       "cache_read_input_tokens": 0,
       "cache_creation": {
-       "ephemeral_5m_input_tokens": 5435,
+       "ephemeral_5m_input_tokens": 5452,
        "ephemeral_1h_input_tokens": 0
       },
       "output_tokens": 967,
@@ -515,7 +529,13 @@
     "maxTokens": 32000,
     "effort": "high",
     "cacheTtl": "5m",
-    "stream": true
+    "stream": true,
+    "prefix": "9b33e6f22159cc4d",
+    "turns": [
+     "813d2711814987bb",
+     "1afb3e58760f7329",
+     "daa4180f8c10e77c"
+    ]
    },
    "status": 200,
    "headers": {
@@ -536,7 +556,7 @@
       "usage": {
        "input_tokens": 0,
        "cache_creation_input_tokens": 629,
-       "cache_read_input_tokens": 5435,
+       "cache_read_input_tokens": 5452,
        "cache_creation": {
         "ephemeral_5m_input_tokens": 629,
         "ephemeral_1h_input_tokens": 0
@@ -606,7 +626,7 @@
      "usage": {
       "input_tokens": 0,
       "cache_creation_input_tokens": 629,
-      "cache_read_input_tokens": 5435,
+      "cache_read_input_tokens": 5452,
       "cache_creation": {
        "ephemeral_5m_input_tokens": 629,
        "ephemeral_1h_input_tokens": 0
@@ -632,7 +652,11 @@
     "maxTokens": 8000,
     "effort": "low",
     "cacheTtl": "1h",
-    "stream": true
+    "stream": true,
+    "prefix": "c84a6afb3b7e7f29",
+    "turns": [
+     "a21b5799c5279b99"
+    ]
    },
    "status": 200,
    "headers": {
@@ -751,7 +775,15 @@
     "maxTokens": 32000,
     "effort": "high",
     "cacheTtl": "5m",
-    "stream": true
+    "stream": true,
+    "prefix": "9b33e6f22159cc4d",
+    "turns": [
+     "813d2711814987bb",
+     "1afb3e58760f7329",
+     "daa4180f8c10e77c",
+     "0b8a4ad597327bb7",
+     "f162530eeb52141f"
+    ]
    },
    "status": 200,
    "headers": {
@@ -772,7 +804,7 @@
       "usage": {
        "input_tokens": 0,
        "cache_creation_input_tokens": 557,
-       "cache_read_input_tokens": 6064,
+       "cache_read_input_tokens": 6081,
        "cache_creation": {
         "ephemeral_5m_input_tokens": 557,
         "ephemeral_1h_input_tokens": 0
@@ -864,7 +896,7 @@
      "usage": {
       "input_tokens": 0,
       "cache_creation_input_tokens": 557,
-      "cache_read_input_tokens": 6064,
+      "cache_read_input_tokens": 6081,
       "cache_creation": {
        "ephemeral_5m_input_tokens": 557,
        "ephemeral_1h_input_tokens": 0

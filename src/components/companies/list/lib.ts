@@ -64,6 +64,10 @@ export const SIGNAL_LABEL: Record<SignalType, string> = {
   public_pain: "Public pain",
   filing: "Filing",
   sensitive: "Context only",
+  life_event: "Life event",
+  seasonal: "Seasonal moment",
+  trend: "Trend",
+  competitor_gap: "Alternative let users down",
 };
 
 // Mirrors the server's freshness windows (src/lib/workflows/enrich.ts).
@@ -82,6 +86,10 @@ const WINDOW: Record<SignalType, number> = {
   filing: 90,
   hiring: 45,
   sensitive: 90,
+  life_event: 60,
+  seasonal: 45,
+  trend: 30,
+  competitor_gap: 60,
 };
 
 export function signalDecay(s: Pick<Signal, "type" | "date">, today: string): number {
