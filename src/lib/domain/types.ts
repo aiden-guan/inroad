@@ -14,7 +14,7 @@ export type ISODateTime = string;
 
 export type Confidence = "high" | "medium" | "low";
 export type Jurisdiction = "US" | "EU" | "UK" | "CA" | "other" | "unknown";
-export type EntityKind = "account" | "person" | "deal" | "meeting" | "event" | "guest" | "evidence" | "claim" | "objection" | "playbook" | "draft";
+export type EntityKind = "account" | "person" | "deal" | "meeting" | "event" | "guest" | "evidence" | "claim" | "objection" | "playbook" | "draft" | "studio";
 export interface EntityRef {
   kind: EntityKind;
   id: string;
@@ -1592,7 +1592,9 @@ export type WorkflowId =
   | "enrich"
   | "asset"
   | "network"
-  | "partners";
+  | "partners"
+  | "studio"
+  | "visual";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -1648,6 +1650,227 @@ export interface UsageMonth {
   freeSignals: number; // signal lookups done in code (zero tokens)
   /** Firecrawl credits spent on people data (adding a person, finding an email). Searching is free. */
   dataCredits?: number;
+}
+
+/* ─────────────────────────────── Studio (marketing and launch copy) ─────────────────────────────── */
+
+/**
+ * Who reads the copy. It changes the reader the critic plays, which moves fit and which formats
+ * come first. Founders of every kind use Studio, so this never assumes B2B.
+ */
+export type StudioAudience = "b2b" | "b2c" | "prosumer" | "developer";
+
+/** A container: a channel or surface with fixed parts and limits (see src/lib/studio/formats.ts). */
+export type StudioFormatId =
+  | "one_liner"
+  | "homepage_hero"
+  | "billboard"
+  | "linkedin_post"
+  | "x_post"
+  | "community_post"
+  | "show_hn"
+  | "product_hunt"
+  | "email_announcement"
+  | "meta_ad"
+  | "linkedin_ad"
+  | "search_ad"
+  | "image"
+  | "short_video"
+  | "creator_brief"
+  | "app_store"
+  | "waitlist_page"
+  | "comparison_page"
+  | "changelog"
+  | "customer_story";
+
+/** Why the founder is writing now. The same format reads differently for a launch and a lesson. */
+export type StudioOccasion = "evergreen" | "launch" | "feature" | "funding" | "milestone" | "customer_win" | "lesson" | "data_drop" | "hiring" | "event";
+
+/**
+ * Raw material only the founder has: the moments, numbers and words copy is built from. Copy may
+ * only state specifics that trace to this, an approved claim or the playbook. Never invented.
+ */
+export interface StudioMaterial {
+  id: ID;
+  /** enemy: the old way the product replaces. limit: what it can't do yet (honest scope builds trust). */
+  kind: "story" | "number" | "quote" | "demo" | "fact" | "belief" | "enemy" | "limit";
+  text: string;
+  /** Where a number or quote comes from, and when. Public claims need it (FTC/ASA substantiation). */
+  source?: string;
+  /** A user's words: may they be named, or only quoted without a name? */
+  permission?: "public" | "anonymized_only";
+  createdAt: ISODateTime;
+  uses: number;
+}
+
+export type StudioLintCode =
+  | "OVER_LIMIT"
+  | "UNDER_MIN"
+  | "PART_MISSING"
+  | "PLACEHOLDER"
+  | "AI_TELL"
+  | "HYPE_WORD"
+  | "AI_VOCAB"
+  | "NEGATIVE_PARALLEL"
+  | "TRIPLET"
+  | "RHETORICAL_OPENER"
+  | "ANNOUNCE_OPENER"
+  | "BROETRY"
+  | "MONOTONE"
+  | "EM_DASH"
+  | "EXCLAMATION"
+  | "EMOJI"
+  | "HASHTAGS"
+  | "ALL_CAPS"
+  | "VAGUE"
+  | "NUMBER_UNSOURCED"
+  | "SUPERLATIVE_UNSOURCED"
+  | "COMPETITOR_CLAIM"
+  | "FAKE_URGENCY"
+  | "NEVER_SAY"
+  | "PLATFORM_RULE"
+  | "VISUAL_CLICHE"
+  | "FK_GRADE"
+  | "SAME_SHAPE";
+
+export interface StudioLint {
+  passed: boolean;
+  /** `part` is the format part the issue is in ("headline"), or null for the whole option. */
+  violations: { code: StudioLintCode; part: string | null; detail: string; severity: "error" | "warn" }[];
+  stats: { words: number; grade: number; concrete: number; vague: number };
+}
+
+/** Hidden critic verdict (Haiku, blind, reading as the audience). Telemetry and ordering only. */
+export interface StudioCritic {
+  rank: number;
+  of: number;
+  stop: boolean;
+  act: boolean;
+  soundsAi: boolean;
+  giveaway: string;
+  swappable: boolean;
+  fatal: string[];
+  rewrite: string;
+  at: ISODateTime;
+}
+
+/** One candidate. Parts are keyed by the format's part keys ("headline", "subhead"…). */
+export interface StudioOption {
+  id: ID;
+  /** The move it was written with (src/lib/studio/moves.ts). */
+  moveId: string;
+  parts: Record<string, string>;
+  /** Receipts its specifics rest on: approved claims, material, POVs, customer words. */
+  receiptIds: ID[];
+  /** The writer's one line on why it should work. Shown to the founder. */
+  why: string;
+  lint: StudioLint;
+  edited?: boolean;
+  kept?: boolean;
+  critic?: StudioCritic;
+  /** The last image prompt Claude wrote for this option, to paste into ChatGPT or reuse. */
+  imagePrompt?: { text: string; preset: string; at: ISODateTime };
+}
+
+export interface StudioPiece {
+  id: ID;
+  format: StudioFormatId;
+  occasion: StudioOccasion;
+  audience: StudioAudience;
+  brief: string;
+  title: string;
+  /** Best first: lint-clean options before ones with issues, then the reader's ranking. */
+  options: StudioOption[];
+  /** Facts the founder must supply ([[like this]] in the copy). Never filled in by the agent. */
+  gaps: string[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  runId?: ID;
+}
+
+export interface StudioProfile {
+  audience: StudioAudience;
+  /** One line on who reads the copy. The critic plays this person. */
+  reader: string;
+  /** The product's name as copy should write it. */
+  productName: string;
+  /** Words the founder never wants in copy, on top of the house list. */
+  neverSay: string[];
+  /** Brand colors for graphics, hex, most used first. Empty → Studio's neutral ink-and-paper palette. */
+  colors?: string[];
+}
+
+/**
+ * An image layer: a real screenshot or photo the founder uploaded, or one OpenAI's GPT Image model
+ * painted from a prompt Claude wrote. Files live in `.data/studio/`, never in the workspace JSON.
+ */
+export interface StudioImage {
+  id: ID;
+  source: "upload" | "openai";
+  file: string;
+  mime: "image/png" | "image/jpeg";
+  width: number;
+  height: number;
+  alt: string;
+  /** Generated images only. A generated image is never presented as the product's UI or a real customer. */
+  generated?: { prompt: string; model: string; size: string; quality: string };
+  createdAt: ISODateTime;
+}
+
+/** Claude's layouts for a graphic (src/lib/studio/visuals.ts). */
+export type VisualLayout = "statement" | "stat" | "quote" | "before_after" | "screenshot" | "photo" | "announcement";
+
+export type VisualCheckCode =
+  | "TEXT_NOT_APPROVED"
+  | "TEXT_MISSING"
+  | "LOW_CONTRAST"
+  | "SAFE_ZONE"
+  | "SMALL_TYPE"
+  | "TEXT_HEAVY"
+  | "SIZE_MISMATCH"
+  | "UNSAFE_REMOVED"
+  | "OVERFLOW"
+  | "NO_IMAGE_SLOT"
+  | "RENDER_FAILED"
+  | "REVIEW";
+
+/**
+ * A finished graphic: Claude's sanitized SVG design, optionally over an image layer, rendered to
+ * PNG on the server. Every word on it comes from the option's linted text.
+ */
+export interface StudioVisual {
+  id: ID;
+  pieceId: ID;
+  optionId: ID;
+  layout: VisualLayout;
+  /** Preset id and pixel size ("linkedin" → 1200×627). */
+  preset: string;
+  width: number;
+  height: number;
+  svgFile: string;
+  pngFile: string | null;
+  imageId?: ID;
+  /** Where the image layer sits, in canvas pixels. */
+  slot?: { x: number; y: number; w: number; h: number };
+  why: string;
+  checks: { code: VisualCheckCode; detail: string; severity: "error" | "warn" }[];
+  /** Claude's look at the actual render: 1–10 (7 = would post) and what it would change. */
+  review?: { score: number; issues: string[]; fix: string };
+  /** Uses a generated image layer: platforms ask advertisers to disclose realistic AI imagery. */
+  aiImagery: boolean;
+  kept?: boolean;
+  /** The option's words were edited after this graphic was made. */
+  stale?: boolean;
+  createdAt: ISODateTime;
+  runId?: ID;
+}
+
+export interface StudioState {
+  profile: StudioProfile | null;
+  material: StudioMaterial[];
+  pieces: Record<ID, StudioPiece>;
+  images: Record<ID, StudioImage>;
+  visuals: Record<ID, StudioVisual>;
 }
 
 /* ─────────────────────────────── Workspace ─────────────────────────────── */
@@ -1758,6 +1981,8 @@ export interface Workspace {
   objections: ObjectionCard[];
   povs: PovItem[];
   assets: Asset[];
+  /** Marketing and launch copy: the founder's raw material and every piece written from it. */
+  studio: StudioState;
   /** Summary of the last LinkedIn connections import (rows live in connections.json). */
   network?: {
     importedAt: ISODateTime;

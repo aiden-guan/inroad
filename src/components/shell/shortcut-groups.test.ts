@@ -3,7 +3,7 @@ import { shortcutGroups } from "./shortcut-groups";
 
 describe("shortcutGroups", () => {
   it("covers every place with its own keys, Companies and Check replies included", () => {
-    expect(shortcutGroups(true).map((g) => g.title)).toEqual(["Everywhere", "Today", "A draft", "Check replies", "Companies", "Events"]);
+    expect(shortcutGroups(true).map((g) => g.title)).toEqual(["Everywhere", "Today", "A draft", "Check replies", "Companies", "Events", "Studio"]);
     const keys = (title: string) => shortcutGroups(true).find((g) => g.title === title)!.rows.map(([k]) => k.join(" "));
     expect(keys("Check replies")).toEqual(expect.arrayContaining(["R", "N", "B", "U"]));
     expect(keys("Companies")).toEqual(expect.arrayContaining(["J", "K", "Enter", "T", "X"]));

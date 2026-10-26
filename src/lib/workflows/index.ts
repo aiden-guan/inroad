@@ -15,6 +15,8 @@ import enrich from "./enrich";
 import asset from "./asset";
 import network from "./network";
 import partners from "./partners";
+import studio from "./studio";
+import visual from "./visual";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
@@ -32,6 +34,8 @@ export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
   asset: asset,
   network: network,
   partners: partners,
+  studio: studio,
+  visual: visual,
 };
 
 export function getWorkflow(id: string): WorkflowDef<unknown> | undefined {

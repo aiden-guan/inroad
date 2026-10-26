@@ -1,12 +1,14 @@
 import "server-only";
 import { z } from "zod";
 import { ActionError } from "@/lib/domain/actions";
-import type { SignalType } from "@/lib/domain/types";
+import type { SignalType, StudioFormatId, StudioOccasion } from "@/lib/domain/types";
 import { todayISO } from "@/lib/domain/ids";
 import { normalizeDomain } from "@/lib/hub/records";
 import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules";
 import { readConnections } from "@/lib/network/store";
 import { readWorkspace } from "@/lib/store/workspace";
+import { FORMAT_IDS, FORMATS, OCCASIONS } from "@/lib/studio/formats";
+import { checkCopy, checkGraphic, copyGuide } from "@/lib/studio/guide";
 import { scoreAccount, scoringContext } from "./scoring";
 import { logCall, recordBudget, type ApiKey } from "./store";
 import { ACCESS, type Scope } from "./types";
@@ -434,6 +436,60 @@ export const TOOLS: ToolDef[] = [
         .max(50),
     }),
     run: (a, ctx) => addPartners(ctx.key, a),
+  }),
+  // Studio: the same format specs, moves, receipts and lint the in-app copy writer uses.
+  tool({
+    name: "get_copy_guide",
+    title: "Get the copy guide",
+    description:
+      "How to write one marketing format (launch post, ad, homepage hero, Show HN, store listing…) for this founder: its parts and real platform limits, moves that fit with sourced examples, the founder's receipts (the only specifics allowed) and what fails. Read before writing marketing copy.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/copy/guide" },
+    schema: z.object({
+      format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]).describe(`One of: ${FORMAT_IDS.join(", ")}`),
+      occasion: z.enum(Object.keys(OCCASIONS) as [StudioOccasion, ...StudioOccasion[]]).optional().describe("Why now: launch, feature, funding, milestone, customer_win, lesson, data_drop, hiring, event or evergreen"),
+    }),
+    run: (a) => ({ data: copyGuide(readWorkspace(), a), summary: `Read the copy guide for ${FORMATS[a.format].label}` }),
+  }),
+  tool({
+    name: "check_copy",
+    title: "Check copy",
+    description:
+      "Lint marketing copy for one format, in code: platform limits, AI tells, numbers and superlatives without a receipt, never-say words. Returns errors to fix. Run on every draft.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "POST", path: "/copy/check" },
+    schema: z.object({
+      format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]),
+      parts: z.record(z.string().max(40), z.string().max(6000)).describe("The copy by part key, from get_copy_guide (e.g. {\"headline\": \"…\", \"subhead\": \"…\"})"),
+    }),
+    run: (a) => {
+      const data = checkCopy(readWorkspace(), a);
+      return { data, summary: data.passed ? `Checked ${FORMATS[a.format].label}: ready` : `Checked ${FORMATS[a.format].label}: ${plural(data.errors.length, "issue")}` };
+    },
+  }),
+  tool({
+    name: "check_graphic",
+    title: "Check a graphic",
+    description:
+      "Check an SVG graphic for one format the way Inroad checks its own: every word must come from the copy or the founder's receipts, plus contrast, safe zones, type size and text share. Returns errors to fix. get_copy_guide's visual block has the sizes and rules.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "POST", path: "/copy/graphic" },
+    schema: z.object({
+      format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]),
+      preset: z.string().max(30).optional().describe("A size id from get_copy_guide's visual.sizes (e.g. linkedin, portrait, story)"),
+      svg: z.string().max(60000).describe("The complete SVG document"),
+      parts: z.record(z.string().max(40), z.string().max(6000)).describe("The checked copy the graphic carries, by part key"),
+    }),
+    run: (a) => {
+      const data = checkGraphic(readWorkspace(), a);
+      return { data, summary: data.passed ? `Checked a ${FORMATS[a.format].label} graphic: ready` : `Checked a ${FORMATS[a.format].label} graphic: ${plural(data.errors.length, "issue")}` };
+    },
   }),
 ];
 

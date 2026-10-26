@@ -1,5 +1,6 @@
 import type { Brief, Connection, RunStep, Workspace } from "@/lib/domain/types";
 import { lintStep } from "@/lib/quality/context";
+import { lintOption } from "@/lib/studio/receipts";
 import { accountEvidence, accounts, GRACE_BACK_IN_DAYS, people } from "./accounts";
 import { makeClock, timeLabel, upcomingToday, type Clock } from "./clock";
 import {
@@ -25,6 +26,7 @@ import { DEAL, DOMAIN, MEETING, RUN } from "./ids";
 import { activities, outreach } from "./outreach";
 import { deals, meetings } from "./pipeline";
 import { runs, runSteps, usage } from "./runs";
+import { studio } from "./studio";
 
 /**
  * Ledgerline: a fictional seed-stage startup that reconciles usage-billing data with invoices for finance
@@ -38,8 +40,11 @@ export function sampleWorkspace(now = new Date()): Workspace {
   return withLint(assemble(now));
 }
 
-/** Lints every draft exactly as the composer does, against the finished workspace. */
+/** Lints every draft exactly as the composer (and Studio) does, against the finished workspace. */
 function withLint(ws: Workspace): Workspace {
+  for (const piece of Object.values(ws.studio.pieces)) {
+    for (const option of piece.options) option.lint = lintOption(ws, piece, option);
+  }
   for (const pkg of Object.values(ws.outreach)) {
     for (const step of pkg.steps) {
       try {
@@ -75,6 +80,7 @@ function assemble(now: Date): Workspace {
     objections: objections(c),
     povs: povList,
     assets: assets(c),
+    studio: studio(c),
     network: networkSummary(c, connections(c)),
     voice: voice(c),
     sender: sender(c),
