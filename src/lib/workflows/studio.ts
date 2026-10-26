@@ -395,6 +395,11 @@ function titleFor(spec: FormatSpec, brief: string): string {
   return b ? `${spec.label}: ${b}` : spec.label;
 }
 
+/** "One-liners" → "one-liners", but brand names keep their capitals ("LinkedIn post", "Show HN"). */
+function labelInSentence(label: string): string {
+  return /^(LinkedIn|X |Show HN|Product Hunt|Google|Facebook|App Store)/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+}
+
 /* ─────────────────────────────── Run ─────────────────────────────── */
 
 export async function runStudio(ctx: WorkflowContext<StudioArgs>) {
@@ -425,7 +430,7 @@ export async function runStudio(ctx: WorkflowContext<StudioArgs>) {
   ctx.emit({ type: "status", text: "Gathering your receipts" });
   ctx.emit({
     type: "action",
-    text: `${receipts.length === 1 ? "1 receipt" : `${receipts.length} receipts`} · ${plan.moves.filter((m) => !m.missing).length} moves fit ${spec.label.toLowerCase()}`,
+    text: `${receipts.length === 1 ? "1 receipt" : `${receipts.length} receipts`} · ${plan.moves.filter((m) => !m.missing).length} moves fit ${labelInSentence(spec.label)}`,
   });
 
   ctx.emit({ type: "status", text: `Writing ${spec.options} options` });
@@ -518,9 +523,8 @@ export default defineWorkflow({
   id: "studio",
   args: Args,
   title: (a, ws) => {
-    const spec = FORMATS[a.format];
-    const existing = a.pieceId ? ws.studio.pieces[a.pieceId] : undefined;
-    return existing ? `Writing more ${spec.label.toLowerCase()} options` : `Writing ${spec.label.toLowerCase()}`;
+    const noun = labelInSentence(FORMATS[a.format].label);
+    return a.pieceId && ws.studio.pieces[a.pieceId] ? `Writing more ${noun} options` : `Writing ${noun} options`;
   },
   ref: (a) => (a.pieceId ? { kind: "studio", id: a.pieceId } : undefined),
   heavy: false,

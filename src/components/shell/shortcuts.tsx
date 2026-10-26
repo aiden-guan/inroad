@@ -15,6 +15,7 @@ const GROUPS: { title: string; rows: [keys: string[], what: string][] }[] = [
       [["G", "N"], "Intros"],
       [["G", "E"], "Events"],
       [["G", "P"], "Playbook"],
+      [["G", "M"], "Studio (marketing copy)"],
       [["G", "I"], "Integrations"],
       [["G", "S"], "Settings"],
     ],
@@ -43,6 +44,10 @@ const GROUPS: { title: string; rows: [keys: string[], what: string][] }[] = [
   {
     title: "Events",
     rows: [[["N"], "Plan an event"]],
+  },
+  {
+    title: "Studio",
+    rows: [[["N"], "New piece"]],
   },
 ];
 

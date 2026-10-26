@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Building2, CalendarHeart, Command, Handshake, Moon, NotebookPen, Plug, Settings, Sun, Sunrise } from "lucide-react";
+import { Building2, CalendarHeart, Command, Handshake, Moon, NotebookPen, PenTool, Plug, Settings, Sun, Sunrise } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useSyncExternalStore } from "react";
@@ -26,6 +26,7 @@ const NAV = [
   { href: "/intros", label: "Intros", icon: Handshake, key: "N" },
   { href: "/events", label: "Events", icon: CalendarHeart, key: "E" },
   { href: "/playbook", label: "Playbook", icon: NotebookPen, key: "P" },
+  { href: "/studio", label: "Studio", icon: PenTool, key: "M" },
 ] as const;
 
 const SECONDARY = [

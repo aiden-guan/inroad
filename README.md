@@ -30,6 +30,8 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 **You do the selling.** Inroad never sends an email, posts a message, or modifies deal stages autonomously. Every outbound artifact is presented as a draft for founder review and one-click approval.
 
+**Studio writes the marketing.** Launch posts, homepage heroes, ads, image text, short-video scripts, Show HN and Product Hunt launches, store listings and comparison pages, for founders of any kind of company (B2B, consumer, prosumer, developer tools). It writes from the founder's own material, gives several options built on different moves from campaigns that worked (Wispr Flow, Ramp, Supabase, Linear), and checks every option in code for AI tells, unsourced numbers and platform limits before a blind reader ranks them. The research behind it is in [`docs/research/10-marketing-copy.md`](docs/research/10-marketing-copy.md).
+
 Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
 ---
@@ -43,6 +45,10 @@ Inroad also operates as an **agentic coordination hub**: connect external system
 | Deterministic Signal Radar | Multi-Agent Coordination Hub |
 | :--- | :--- |
 | **Free, Code-First Research Layer**<br/>Monitors job boards (Greenhouse, Lever, Ashby, Workable), tech stack indicators, news, and Hacker News via plain HTTP before any LLM inference occurs. | **Native Model Context Protocol (MCP)**<br/>Exposes workspace state, playbook positioning, and warm paths to external coding agents and tools via standard MCP tools and REST webhooks. |
+
+| Studio: Marketing Copy That Sounds Human | Copy Tools for Outside Agents |
+| :--- | :--- |
+| **Receipts, Moves, Lint, a Blind Reader**<br/>20 formats with real platform limits (each with its source and how it was verified). Every specific must trace to the founder's material or an approved claim. Deterministic lint for AI tells (Wikipedia's signs, Kobak et al. excess vocabulary, density scoring), "up to" vs "on average" drift and unproven superlatives. | **`get_copy_guide` and `check_copy`**<br/>Claude Code, Cursor or n8n get the same format specs, moves and receipts over MCP and REST, and lint their own drafts at zero token cost to Inroad. |
 
 | Event & Executive Dinner Planning | Sourced Deal Dossiers |
 | :--- | :--- |
@@ -245,7 +251,7 @@ npm run lint
 ```
 
 ### Test Suite Highlights
-- **Coverage**: 17 test suites, 365 tests passing in <2 seconds.
+- **Coverage**: 20 test files, 430 tests passing in about 3 seconds.
 - **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
 - **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
 
@@ -265,7 +271,8 @@ inroad/
 │   │   ├── companies/           # Account dossiers, stage tracking, warm paths
 │   │   ├── events/              # Executive dinner and roundtable planning
 │   │   ├── intros/              # Relationship ledger and warm intro board
-│   │   └── playbook/            # Founder ICP, messaging bets, and objections
+│   │   ├── playbook/            # Founder ICP, messaging bets, and objections
+│   │   └── studio/              # Marketing and launch copy from the founder's material
 │   ├── components/              # React UI components organized by domain surface
 │   │   ├── today/               # Daily 5-move queue and scoreboard
 │   │   ├── shell/               # Navigation, command palette, and run feeds
@@ -279,7 +286,8 @@ inroad/
 │   │   ├── moves/               # Daily action generation and priority scoreboard
 │   │   ├── quality/             # Content safety gates, draft linters, sequences
 │   │   ├── signals/             # SSRF-guarded HTTP client, job board and news parsers
-│   │   └── store/               # Atomic local-first JSON database (FileDB)
+│   │   ├── store/               # Atomic local-first JSON database (FileDB)
+│   │   └── studio/              # Copy formats, moves, receipts, intake and marketing lint
 │   └── test/                    # Test fixtures, mock servers, and test setup
 ├── .env.example                 # Documented environment variable template
 ├── package.json                 # Dependency definitions and lifecycle scripts
@@ -294,6 +302,7 @@ inroad/
 - **Model Support**: Optimized for Anthropic Claude 3.5 / 5.5 model family. Local Ollama/OpenAI routing is not currently supported in the core agent engine.
 - **Single Fixed Workstation**: Data resides in `.data/` on the local machine; cross-device multi-tenant cloud synchronization requires an external database adapter.
 - **Email Dispatch Boundary**: Inroad deliberately omits automated SMTP/IMAP senders. All outreach requires manual founder approval to prevent automated spam penalties.
+- **Studio research limits**: most campaign quotes and platform limits were read through search excerpts of the cited pages (direct fetches were blocked when the research ran), so each limit records how it was verified. B2B research beyond Ramp and the B2B effectiveness literature (95:5, Binet & Field) are not yet verified and are left out. No campaign line has controlled evidence linking it to conversion; Studio tells founders to test options against paid conversions.
 
 ---
 

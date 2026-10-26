@@ -3,6 +3,7 @@ import { sampleWorkspace } from "@/lib/sample";
 import { CLAIM } from "@/lib/sample/ids";
 import { NOW, makeWorkspace } from "@/test/factories";
 import { FORMAT_IDS, FORMATS, formatsFor } from "./formats";
+import { openQuestions } from "./intake";
 import { MOVES, movesFor } from "./moves";
 import { formatBlocked, lintOption, receiptsFor, sourcedText } from "./receipts";
 
@@ -73,6 +74,16 @@ describe("moves", () => {
       expect(m.backfires.length, m.id).toBeGreaterThan(10);
       for (const e of m.examples) expect(e.source, `${m.id}: ${e.text}`).toMatch(/^https:\/\//);
     }
+  });
+});
+
+describe("intake", () => {
+  it("asks only what the founder hasn't told us yet", () => {
+    const fresh = openQuestions(makeWorkspace()).map((q) => q.kind);
+    expect(fresh[0]).toBe("enemy");
+    expect(fresh).toContain("limit");
+    // The sample has a story, a demo, a belief, POVs, a metric claim and customer words.
+    expect(openQuestions(sample).map((q) => q.kind)).toEqual(["enemy", "limit"]);
   });
 });
 

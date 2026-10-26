@@ -14,7 +14,7 @@ import { CommandPalette } from "./command-palette";
 import { ShortcutsDialog } from "./shortcuts";
 import { NAV, SECONDARY, Sidebar } from "./sidebar";
 
-const GO: Record<string, string> = { t: "/today", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
+const GO: Record<string, string> = { t: "/today", c: "/companies", n: "/intros", e: "/events", p: "/playbook", m: "/studio", i: "/integrations", s: "/settings" };
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
