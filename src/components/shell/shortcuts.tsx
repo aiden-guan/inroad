@@ -3,57 +3,18 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
-
-const GROUPS: { title: string; rows: [keys: string[], what: string][] }[] = [
-  {
-    title: "Everywhere",
-    rows: [
-      [["⌘", "K"], "Ask, or jump to a company, page or action"],
-      [["?"], "These shortcuts"],
-      [["G", "T"], "Today"],
-      [["G", "C"], "Companies"],
-      [["G", "N"], "Intros"],
-      [["G", "E"], "Events"],
-      [["G", "P"], "Playbook"],
-      [["G", "I"], "Integrations"],
-      [["G", "S"], "Settings"],
-    ],
-  },
-  {
-    title: "Today",
-    rows: [
-      [["J"], "Next move"],
-      [["K"], "Previous move"],
-      [["Enter"], "Open it"],
-      [["A"], "Done"],
-      [["X"], "Skip"],
-      [["S"], "Tomorrow"],
-      [["Esc"], "Close"],
-    ],
-  },
-  {
-    title: "A draft",
-    rows: [
-      [["A"], "Mark as sent"],
-      [["E"], "Edit the text"],
-      [["]"], "A different angle"],
-      [["["], "Back to the previous one"],
-    ],
-  },
-  {
-    title: "Events",
-    rows: [[["N"], "Plan an event"]],
-  },
-];
+import { useIsMac } from "@/lib/client/platform";
+import { shortcutGroups } from "./shortcut-groups";
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
   return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 }
 
-/** "?" anywhere (outside a text field) shows every keyboard shortcut, grouped by where it works. */
+/** "?" anywhere (outside a text field) shows every keyboard shortcut, grouped by where it works, in this computer's keys. */
 export function ShortcutsDialog() {
   const [open, setOpen] = useState(false);
+  const groups = shortcutGroups(useIsMac());
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(e.target)) {
@@ -70,9 +31,9 @@ export function ShortcutsDialog() {
     };
   }, []);
   return (
-    <Dialog open={open} onOpenChange={setOpen} title="Keyboard shortcuts" className="max-w-[640px]">
-      <div className="grid gap-x-8 gap-y-5 px-5 pb-5 pt-3 sm:grid-cols-2">
-        {GROUPS.map((g) => (
+    <Dialog open={open} onOpenChange={setOpen} title="Keyboard shortcuts" className="max-w-[640px] lg:max-w-[900px]">
+      <div className="grid max-h-[min(640px,76vh)] gap-x-8 gap-y-5 overflow-y-auto px-5 pb-5 pt-3 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map((g) => (
           <section key={g.title}>
             <h3 className="mb-1.5 text-[11.5px] font-medium text-fg-3">{g.title}</h3>
             <dl className="space-y-1">

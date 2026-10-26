@@ -1,0 +1,4 @@
+[
+  { "login": "jo-acme", "id": 501, "html_url": "https://github.com/jo-acme", "type": "User" },
+  { "login": "sam-acme", "id": 502, "html_url": "https://github.com/sam-acme", "type": "User" }
+]

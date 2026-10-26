@@ -2,20 +2,33 @@
   "name": "inroad",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/serve.mjs dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/serve.mjs start",
     "lint": "eslint",
-    "dev:mock": "ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=mock FIRECRAWL_API_URL=http://localhost:4010 GTM_DATA_DIR=.data-mock next dev -p 3100",
+    "dev:mock": "node scripts/serve.mjs dev --mock",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "mock": "node scripts/mock-anthropic.mjs",
-    "mock:anthropic": "node scripts/mock-anthropic.mjs"
+    "tapes:record": "node scripts/live/record-tapes.mjs",
+    "smoke:live": "node scripts/live/smoke.mjs",
+    "e2e": "playwright test",
+    "mock:anthropic": "node scripts/mock-anthropic.mjs",
+    "eval:critic": "vitest run --config vitest.eval.config.mts scripts/eval-critic.ts",
+    "eval:classify": "vitest run --config vitest.eval.config.mts scripts/eval-classify.ts",
+    "desktop:server": "node scripts/desktop/build-server.mjs",
+    "desktop:dev": "electron desktop/app",
+    "desktop:test": "playwright test -c desktop/playwright.config.ts",
+    "desktop:dist": "electron-builder --config desktop/electron-builder.yml --mac --publish never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@napi-rs/keyring": "2.1.0",
     "@number-flow/react": "^0.6.2",
     "@radix-ui/react-dialog": "^1.3.1",
     "@radix-ui/react-dropdown-menu": "^2.2.1",
@@ -39,10 +52,13 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",

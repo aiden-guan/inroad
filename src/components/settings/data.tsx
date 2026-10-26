@@ -1,22 +1,22 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, Download, FileSpreadsheet, HardDrive } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { CopyButton, Skeleton } from "@/components/ui/misc";
 import type { Workspace } from "@/lib/domain/types";
-import { ease } from "@/lib/motion";
-import { Group, Row, SettingsSection } from "./parts";
+import { useLeaveSample } from "@/components/shell/sample-banner";
+import { BackupsGroup } from "./backups";
+import { Expand, Group, Row, SettingsSection } from "./parts";
 
 /* ───────────── Files ───────────── */
 
-function download(name: string, body: string, type: string) {
-  const url = URL.createObjectURL(new Blob([body], { type }));
+function download(name: string, body: string | Blob, type: string) {
+  const url = URL.createObjectURL(typeof body === "string" ? new Blob([body], { type }) : body);
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
@@ -54,10 +54,36 @@ const EXPORTS = {
 
 /* ───────────── Section ───────────── */
 
-export function DataSection({ ws, refresh, dataDir, today }: { ws: Workspace; refresh: () => Promise<void>; dataDir: string | null; today: string }) {
+/** The whole workspace as one backup file (GET /api/workspace/export), named by the server. */
+async function downloadBackup(today: string) {
+  try {
+    const res = await fetch("/api/workspace/export", { cache: "no-store" });
+    if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "The backup didn't download. Try again.");
+    const name = res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? `inroad-backup-${today}.json`;
+    download(name, await res.blob(), "application/json");
+    toast("Backup downloaded. Restore it from Backups below, here or on another computer.");
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : "The backup didn't download. Try again.");
+  }
+}
+
+export function DataSection({
+  ws,
+  refresh,
+  dataDir,
+  dataDirInApp = false,
+  today,
+}: {
+  ws: Workspace;
+  refresh: () => Promise<void>;
+  dataDir: string | null;
+  dataDirInApp?: boolean;
+  today: string;
+}) {
   const counts = { companies: Object.keys(ws.accounts).length, people: Object.keys(ws.people).length, deals: Object.keys(ws.deals).length };
+  const [downloading, setDownloading] = useState(false);
   return (
-    <SettingsSection id="data" title="Data" description="Your workspace is a set of files on this computer. Take it with you, try the sample, or start over.">
+    <SettingsSection id="data" title="Data" description="Your workspace is a set of files on this computer. Take it with you, restore a backup, try the sample, or start over.">
       <Group>
         <Row
           align="start"
@@ -67,34 +93,47 @@ export function DataSection({ ws, refresh, dataDir, today }: { ws: Workspace; re
               Data stays on this machine
             </span>
           }
-          hint="Only two things leave it: calls to Anthropic with the context a task needs, and free public lookups that carry company names and domains. Connected tools get only what you push to them."
+          hint="What leaves it: calls to your AI provider with the context a task needs (none with Ollama), and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in General). Connected tools get only what you push to them."
         />
-        <div className="flex items-center gap-2 px-4 py-3">
-          {dataDir ? (
-            <>
-              {/* RTL + an isolated LTR run keeps the end of a long path visible (the folder name matters most). */}
-              <code className="min-w-0 flex-1 truncate rounded-xs bg-sunken px-2 py-1 text-left font-mono text-[12px] text-fg-2 ring-1 ring-inset ring-border [direction:rtl]" title={dataDir}>
-                <bdi>{dataDir}</bdi>
-              </code>
-              <CopyButton text={dataDir} label="Copy path" />
-            </>
-          ) : (
-            <Skeleton className="h-6 w-full" />
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            {dataDir ? (
+              <>
+                {/* RTL + an isolated LTR run keeps the end of a long path visible (the folder name matters most). */}
+                <code className="min-w-0 flex-1 truncate rounded-xs bg-sunken px-2 py-1 text-left font-mono text-[12px] text-fg-2 ring-1 ring-inset ring-border [direction:rtl]" title={dataDir}>
+                  <bdi>{dataDir}</bdi>
+                </code>
+                <CopyButton text={dataDir} label="Copy path" />
+              </>
+            ) : (
+              <Skeleton className="h-6 w-full" />
+            )}
+          </div>
+          {dataDirInApp && (
+            <p className="mt-2 text-[12px] leading-[17px] text-fg-3 text-pretty">
+              <span className="font-medium text-warning">This is inside Inroad&apos;s own folder,</span> so deleting or re-cloning Inroad deletes your data
+              with it. To keep it safe, start Inroad with <span className="font-mono text-[11.5px] text-fg-2">GTM_DATA_DIR</span> set to a folder of its
+              own; the README shows how.
+            </p>
           )}
         </div>
       </Group>
 
       <Group title="Export">
-        <Row label="Workspace" hint="Everything as one JSON file: playbook, companies, people, deals, drafts and run receipts. API keys and connector secrets are never included.">
+        <Row
+          label="Everything"
+          hint="One backup file with every part of your workspace: playbook, companies, people, deals, drafts, Ask threads, LinkedIn connections, imports and run history. API keys and connector secrets are never in it."
+        >
           <div className="flex sm:justify-end">
             <Button
               icon={<Download className="size-3.5" />}
+              loading={downloading}
               onClick={() => {
-                download(`inroad-workspace-${today}.json`, JSON.stringify(ws, null, 2), "application/json");
-                toast("Workspace downloaded.");
+                setDownloading(true);
+                void downloadBackup(today).finally(() => setDownloading(false));
               }}
             >
-              Download .json
+              Download backup
             </Button>
           </div>
         </Row>
@@ -117,6 +156,8 @@ export function DataSection({ ws, refresh, dataDir, today }: { ws: Workspace; re
         </Row>
       </Group>
 
+      <BackupsGroup refresh={refresh} version={ws.createdAt} />
+
       <WorkspaceActions ws={ws} refresh={refresh} />
     </SettingsSection>
   );
@@ -126,24 +167,6 @@ export function DataSection({ ws, refresh, dataDir, today }: { ws: Workspace; re
 
 function holdsRealWork(ws: Workspace) {
   return !ws.sample && (ws.onboarding.status !== "new" || ws.company !== null || Object.keys(ws.accounts).length > 0);
-}
-
-function Expand({ open, children }: { open: boolean; children: ReactNode }) {
-  return (
-    <AnimatePresence initial={false}>
-      {open && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: "auto", opacity: 1 }}
-          exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
-          transition={{ duration: 0.22, ease: ease.out }}
-          className="overflow-hidden"
-        >
-          {children}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
 }
 
 function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promise<void> }) {
@@ -180,11 +203,18 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
   };
 
   const real = holdsRealWork(ws);
+  const { leave, busy: leaving } = useLeaveSample();
 
   return (
     <Group title="Start over">
       {ws.sample ? (
-        <Row label="You're exploring the sample workspace" hint="Ledgerline is made up. Reset below to start on your own company." />
+        <Row label="You're exploring the sample workspace" hint={`${ws.company?.name ?? "This company"} and everyone in it are made up. Nothing here is yours, so leaving takes one click.`}>
+          <div className="flex sm:justify-end">
+            <Button variant="primary" loading={leaving} onClick={() => void leave()}>
+              Start with my company
+            </Button>
+          </div>
+        </Row>
       ) : (
         <div>
           <Row label="Load the sample workspace" hint="See Inroad after a month of work: a playbook, deals in flight, drafts and receipts.">
@@ -201,7 +231,7 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
           <Expand open={confirm === "sample"}>
             <div className="flex flex-col gap-3 bg-warning-subtle/60 px-4 py-3 sm:flex-row sm:items-center">
               <p className="min-w-0 flex-1 text-[12.5px] leading-[18px] text-fg text-pretty">
-                The sample replaces everything in your workspace. Your API key and connected tools stay. Download the JSON above first if you want a copy.
+                The sample replaces everything in your workspace. I&apos;ll save a backup of it first, so you can restore it from Backups above. Your API key and connected tools stay.
               </p>
               <div className="flex shrink-0 gap-1.5">
                 <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>
@@ -216,61 +246,63 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
         </div>
       )}
 
-      <div>
-        <Row label="Reset workspace" hint="Deletes your playbook, companies, deals, drafts and history on this machine. Your API key and connected tools stay.">
-          <div className="flex sm:justify-end">
-            <Button
-              variant="danger"
-              className="ring-1 ring-inset ring-danger/30"
-              aria-expanded={confirm === "reset"}
-              onClick={() => {
-                setConfirm(confirm === "reset" ? null : "reset");
-                setTyped("");
+      {!ws.sample && (
+        <div>
+          <Row label="Reset workspace" hint="Clears your playbook, companies, deals, drafts and history on this machine, after saving a backup. Your API key and connected tools stay.">
+            <div className="flex sm:justify-end">
+              <Button
+                variant="danger"
+                className="ring-1 ring-inset ring-danger/30"
+                aria-expanded={confirm === "reset"}
+                onClick={() => {
+                  setConfirm(confirm === "reset" ? null : "reset");
+                  setTyped("");
+                }}
+              >
+                Reset…
+              </Button>
+            </div>
+          </Row>
+          <Expand open={confirm === "reset"}>
+            <form
+              className="flex flex-col gap-2 bg-danger-subtle/60 px-4 py-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (typed.trim().toLowerCase() === "reset") void call("reset");
               }}
             >
-              Reset…
-            </Button>
-          </div>
-        </Row>
-        <Expand open={confirm === "reset"}>
-          <form
-            className="flex flex-col gap-2 bg-danger-subtle/60 px-4 py-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (typed.trim().toLowerCase() === "reset") void call("reset");
-            }}
-          >
-            <label htmlFor="reset-confirm" className="text-[12.5px] leading-[18px] text-fg">
-              This can&apos;t be undone. Type <span className="font-mono font-medium">reset</span> to confirm.
-            </label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="reset-confirm"
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setConfirm(null);
-                  }
-                }}
-                className="font-mono sm:max-w-[200px]"
-              />
-              <div className="flex gap-1.5">
-                <Button type="button" variant="ghost" onClick={() => setConfirm(null)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="danger" className="bg-surface ring-1 ring-inset ring-danger/40" disabled={typed.trim().toLowerCase() !== "reset"} loading={busy === "reset"}>
-                  Reset workspace
-                </Button>
+              <label htmlFor="reset-confirm" className="text-[12.5px] leading-[18px] text-fg">
+                I&apos;ll save a backup first, so you can restore this from Backups above. Type <span className="font-mono font-medium">reset</span> to confirm.
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="reset-confirm"
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setConfirm(null);
+                    }
+                  }}
+                  className="font-mono sm:max-w-[200px]"
+                />
+                <div className="flex gap-1.5">
+                  <Button type="button" variant="ghost" onClick={() => setConfirm(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="danger" className="bg-surface ring-1 ring-inset ring-danger/40" disabled={typed.trim().toLowerCase() !== "reset"} loading={busy === "reset"}>
+                    Reset workspace
+                  </Button>
+                </div>
               </div>
-            </div>
-          </form>
-        </Expand>
-      </div>
+            </form>
+          </Expand>
+        </div>
+      )}
     </Group>
   );
 }

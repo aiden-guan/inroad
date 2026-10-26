@@ -4,8 +4,10 @@ import { defineTool } from "@/lib/ai/engine";
 import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
 import { addDays, newId, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type LossReason, type ReviewProposal, type Workspace } from "@/lib/domain/types";
+import { BET_MIN_PER_ARM, betProposal, readoutLine } from "@/lib/learning/bets";
 import { learningData, pct, pipelineData, type DealFact, type LearningData, type PipelineData } from "@/lib/moves/review-data";
 import { clip, first, plural, shortDay } from "@/lib/moves/util";
+import { runMonthly, runRefresh } from "./refresh";
 import { defineWorkflow } from "./types";
 
 /**
@@ -52,9 +54,14 @@ const LEARNING_RULES = `FRIDAY LEARNING REVIEW RULES
   add_banned_word: a word or phrase from our outreach that drew a negative reply.
   note: anything else (an ICP slice or pricing change); the founder decides in Playbook.
   text = the exact thing to add (null for note).
-- messageBet: ONE variable to test next month (frame, persona, subject style, or signal type), a control and a variant,
-  judged by reading replies and counting positive ones. Propose one only when the task says no bet is active this month;
-  otherwise null. Never declare a winner: at founder volume a real A/B test needs 140–686 sends per arm.
+- messageBet: ONE variable to test next month, a control and a variant, judged by reading replies and counting positive
+  ones. Propose one only when the task says no bet is active this month; otherwise null. Never declare a winner: at
+  founder volume a real A/B test needs 140–686 sends per arm.
+  dimension: how the email is written (angle, frame, subject_style, cta, pov), which the composer writes to each arm; or
+  who and why it goes to (persona, signal, channel), which code sorts sends into arms by.
+  controlKey/variantKey: for frame, one of founder_card, 4t, problem_prompter, mouse_trap, observation_problem_proof; for
+  persona, one of economic_buyer, champion, technical_approver, user; for signal, a signal type from the conversions; for
+  channel, email or linkedin. null for the other dimensions. A persona, signal or channel bet without both keys is useless.
 - Benchmarks are context only: average cold reply about 3.4%, top quartile 5.5%+, top 10% 10.7%+ (Instantly 2026 report,
   2025 data). Hand-researched founder outbound should aim for 10%+. Mention a benchmark only next to a rate the task
   supplied with n ≥ 20.
@@ -125,6 +132,9 @@ const learningSchema = z.object({
     .max(3),
   messageBet: z
     .object({
+      dimension: z.enum(["angle", "frame", "subject_style", "cta", "pov", "persona", "signal", "channel"]),
+      controlKey: z.string().max(40).nullable().describe("frame, persona, signal or channel bets: the control's code value. Else null."),
+      variantKey: z.string().max(40).nullable().describe("frame, persona, signal or channel bets: the variant's code value. Else null."),
       variable: z.string().max(100).describe("At most 12 words: the ONE thing that differs."),
       control: z.string().max(200).describe("At most 25 words."),
       variant: z.string().max(200).describe("At most 25 words."),
@@ -254,12 +264,12 @@ function learningPrompt(ws: Workspace, data: LearningData): string {
     `Write this week's Friday learning review for ${first(ws.founder.name) || "the founder"} (week of ${data.weekOf}).`,
     `\nINPUTS VS TARGETS (code):\n${data.inputs.map((i) => `- ${i.metric}: ${i.actual}${i.target !== null ? ` of ${i.target}` : ""}${i.note ? ` (${i.note})` : ""}`).join("\n")}`,
     `\nEVERY REPLY THIS WEEK:\n${data.replies.map((r) => `${r.alias} · ${r.who} at ${r.company} · ${r.sentiment}${r.angle ? ` · angle: ${r.angle}` : ""}${r.signal ? ` · signal: ${r.signal}` : ""} · persona: ${r.persona}\n   <reply>${r.body.replace(/[<>]/g, "")}</reply>`).join("\n") || "(no replies this week)"}`,
-    `\nCONVERSIONS, TRAILING 8 WEEKS (code; labels: anecdote <20, directional 20–99, reliable 100+):\nBy angle:\n${conv("angle")}\nBy signal:\n${conv("signal")}\nBy persona:\n${conv("persona")}`,
+    `\nCONVERSIONS, TRAILING 8 WEEKS (code; labels: anecdote <20, directional 20–99, reliable 100+):\nBy angle:\n${conv("angle")}\nBy signal:\n${conv("signal")}\nBy persona:\n${conv("persona")}\nBy frame:\n${conv("frame")}\nBy point of view:\n${conv("pov")}\nBy subject line:\n${conv("subject_style")}\nBy channel:\n${conv("channel")}`,
     `\nOBJECTIONS THIS WEEK:\n${data.objections.map((o) => `${o.alias} · <reply>${o.text.replace(/[<>]/g, "")}</reply> (${o.source})`).join("\n") || "(none logged)"}`,
     `\nLOSSES THIS WEEK:\n${data.losses.map((l) => `${l.alias} · ${l.company}: ${l.reason}`).join("\n") || "(none)"}`,
     `\nSKIPPED MOVES BY REASON: ${data.skips.map((s) => `${s.reason} ${s.count}`).join(", ") || "(none)"}`,
     `\nSEGMENT BET: ${data.segment ? `${data.segment.name}: ${data.segment.touches} touches · ${data.segment.positiveReplies} positive replies · ${data.segment.meetings} meetings` : "(no segment set)"}`,
-    `\nMESSAGE BET: ${data.activeBet ? `ACTIVE since ${data.activeBet.startedOn}: ${data.activeBet.variable}: control "${data.activeBet.control}" vs variant "${data.activeBet.variant}". Report qualitatively; propose no new bet.` : "none active. You may propose one."}`,
+    `\nMESSAGE BET: ${data.activeBet ? `ACTIVE since ${data.activeBet.startedOn}: ${data.activeBet.variable}: control "${data.activeBet.control}" vs variant "${data.activeBet.variant}".${data.activeBet.readout ? ` So far (code): ${readoutLine(data.activeBet.readout)}` : ""} No verdict below ${BET_MIN_PER_ARM} sends per arm. Report qualitatively; propose no new bet.` : "none active. You may propose one."}`,
     `\nFOUNDER MATERIAL (the only allowed basis for a post or a POV):\n${data.founderMaterial.map((f) => `${f.alias} · ${f.kind}: ${f.text}`).join("\n") || "(none)"}`,
     `\nCall submit_learning_review once.`,
   ].join("\n");
@@ -283,14 +293,22 @@ function renderLearning(data: LearningData, out: LearningOut | undefined, ids: S
     );
   }
 
-  const rows = data.conversions.filter((r) => r.dimension === "angle" || r.dimension === "persona").slice(0, 10);
+  // Angle, signal, persona and subject line (research 01: the Friday read), plus channel once more than one was used.
+  const DIM_LABEL = { angle: "Angle", signal: "Signal", persona: "Persona", subject_style: "Subject", channel: "Channel" } as const;
+  const dims = (["angle", "signal", "persona", "subject_style", "channel"] as const).filter((dim) => dim !== "channel" || data.conversions.filter((r) => r.dimension === "channel").length > 1);
+  const rows = dims.flatMap((dim) => data.conversions.filter((r) => r.dimension === dim).slice(0, 4));
+  const CHANNELS: Record<string, string> = { email: "email", linkedin: "LinkedIn", intro: "warm intro" };
+  const rowLabel = (r: (typeof rows)[number]) =>
+    r.dimension === "subject_style"
+      ? r.key.replace(/^subject names /, "Subject names ").replace(/^no subject tagged$/, "Subject: not tagged")
+      : `${DIM_LABEL[r.dimension as keyof typeof DIM_LABEL]}: ${r.dimension === "channel" ? (CHANNELS[r.key] ?? r.key) : r.key.replace(/_/g, " ")}`;
   if (rows.length) {
-    md.push("## Replies by angle and persona (last 8 weeks)");
+    md.push(`## Replies by angle, signal, persona${dims.includes("channel") ? ", subject line and channel" : " and subject line"} (last 8 weeks)`);
     md.push(
       [
         "| | Sent | Replies | Positive | Sample |",
         "|---|---|---|---|---|",
-        ...rows.map((r) => `| ${r.dimension === "angle" ? "Angle" : "Persona"}: ${r.key} | ${r.sent} | ${r.replies}${r.sent >= 20 ? ` (${pct(r.replies / r.sent)})` : ""} | ${r.positive} | ${r.label} |`),
+        ...rows.map((r) => `| ${rowLabel(r)} | ${r.sent} | ${r.replies}${r.sent >= 20 ? ` (${pct(r.replies / r.sent)})` : ""} | ${r.positive} | ${r.label} |`),
       ].join("\n"),
     );
     md.push("Rates appear only from 20 sends. Below that, read each reply instead of the number.");
@@ -314,7 +332,10 @@ function renderLearning(data: LearningData, out: LearningOut | undefined, ids: S
   }
   if (data.activeBet) {
     md.push(`## The message bet (since ${shortDay(data.activeBet.startedOn)})`);
-    md.push(`${data.activeBet.variable}: “${data.activeBet.control}” vs “${data.activeBet.variant}”. No verdict until each arm has 100+ sends; read the replies and count the positive ones.`);
+    const r = data.activeBet.readout;
+    md.push(
+      `${data.activeBet.variable}: “${data.activeBet.control}” vs “${data.activeBet.variant}”.${r ? ` ${readoutLine(r)}` : ""} No verdict until each arm has ${BET_MIN_PER_ARM} sends; read the replies and count the positive ones.`,
+    );
   }
   return md.join("\n\n");
 }
@@ -338,16 +359,8 @@ function learningProposals(ws: Workspace, data: LearningData, out: LearningOut |
       status: "open",
     });
   }
-  if (out?.messageBet && !data.activeBet) {
-    proposals.push({
-      id: newId("prop"),
-      kind: "message_bet",
-      title: `Next month's bet: ${noBang(out.messageBet.variable)}`,
-      detail: noBang(out.messageBet.why),
-      bet: { variable: noBang(out.messageBet.variable), control: noBang(out.messageBet.control), variant: noBang(out.messageBet.variant), why: noBang(out.messageBet.why) },
-      status: "open",
-    });
-  }
+  const bet = out?.messageBet ? betProposal(out.messageBet) : null;
+  if (bet && !data.activeBet) proposals.push(bet);
   const post = out?.postDraft;
   const fromFounder = post?.sourceIds.some((id) => data.founderMaterial.some((f) => f.alias === id));
   const n = post ? words(post.body) : 0;
@@ -358,6 +371,7 @@ function learningProposals(ws: Workspace, data: LearningData, out: LearningOut |
       title: `Post draft: ${noBang(post.hook)}`,
       detail: "From your own material only. Copy it, edit it, post it yourself.",
       text: `${noBang(post.hook)}\n\n${post.body.trim()}`,
+      post: true,
       status: "open",
     });
   }
@@ -384,17 +398,28 @@ function save(ws: Workspace, today: string, kind: "monday" | "friday", review: s
   ws.briefs[key] = { date: today, kind, greeting: "", matters: [], generatedAt: now.toISOString(), seen: [], review, reviewKind: kind, proposals: merged, reviewRunId: runId };
 }
 
+const TITLES = {
+  monday: "Monday pipeline review",
+  friday: "Friday learning review",
+  monthly: "Monthly review",
+  refresh: "Refreshing the bet from your calls",
+} as const;
+
 export default defineWorkflow({
   id: "review",
-  args: z.object({ kind: z.enum(["monday", "friday"]) }),
-  title: (a) => (a.kind === "monday" ? "Monday pipeline review" : "Friday learning review"),
-  // One ref per kind, so the Monday and Friday cards each follow only their own run.
+  // monthly: the month's bet readout, playbook refresh, pricing log and hiring readiness. refresh: the playbook part
+  // alone (Playbook, Ask, Today after 5 calls); with questionId, the light pass after a founder answer.
+  args: z.object({ kind: z.enum(["monday", "friday", "monthly", "refresh"]), questionId: z.string().max(60).optional() }),
+  title: (a) => (a.kind === "refresh" && a.questionId ? "Checking what your answer changes" : TITLES[a.kind]),
+  // One ref per kind, so each card follows only its own run.
   ref: (a) => ({ kind: "playbook", id: `review:${a.kind}` }),
   heavy: false,
   run: async (ctx) => {
     const now = new Date();
     const today = todayISO(now);
     const ws = ctx.read();
+    if (ctx.args.kind === "monthly") return runMonthly(ctx, now);
+    if (ctx.args.kind === "refresh") return runRefresh(ctx, now);
 
     if (ctx.args.kind === "monday") {
       ctx.emit({ type: "status", text: "Scoring every open deal" });
@@ -412,6 +437,8 @@ export default defineWorkflow({
           messages: [{ role: "user", content: pipelinePrompt(ws, data) }],
           tools: [submitPipeline],
           requireTerminal: true,
+          // The review renders from code alone when the model's picks don't come back.
+          optionalResult: true,
         });
         out = res.result;
       }
@@ -443,6 +470,7 @@ export default defineWorkflow({
         messages: [{ role: "user", content: learningPrompt(ws, data) }],
         tools: [submitLearning],
         requireTerminal: true,
+        optionalResult: true,
       });
       out = res.result;
     }

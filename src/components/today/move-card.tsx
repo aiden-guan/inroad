@@ -9,7 +9,7 @@ import type { Move, SkipReason, Workspace } from "@/lib/domain/types";
 import { ruleLabel } from "@/lib/moves/rules";
 import { spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
-import { MoveBody, cardDraft } from "./move-body";
+import { MoveBody, cardDraft, endsInBody } from "./move-body";
 import { KindIcon, SkipReasons } from "./parts";
 
 export interface MoveCardProps {
@@ -29,6 +29,8 @@ export interface MoveCardProps {
   onDone: () => void;
   /** The founder pressed Done: toast with Undo. */
   onMarkDone: () => void;
+  /** The card's own work put it off until a date: no toast (the card says what happened). */
+  onSnoozeUntil: (until: string) => void;
   onSkipOpen: () => void;
   onSkip: (reason: SkipReason) => void;
   onSkipCancel: () => void;
@@ -45,6 +47,7 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
   const overdue = move.overdueDays ?? 0;
   // Matches the page's A key: with a draft showing, A belongs to the composer's own button.
   const hasDraft = !!cardDraft(p.ws, move);
+  const ownEnd = endsInBody(move);
   return (
     <div className={cn("relative rounded-lg bg-surface shadow-xs ring-1 transition-shadow duration-150", p.focused ? "ring-accent/40" : "ring-border")}>
       <div className={cn("relative flex items-start gap-3 px-4 py-3 transition-colors duration-150", p.focused && "draft-wash", p.expanded || p.skipOpen ? "rounded-t-lg" : "rounded-lg")}>
@@ -93,13 +96,16 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
                 weekStart={p.weekStart}
                 focused={p.focused}
                 onComplete={p.onDone}
+                onSnooze={p.onSnoozeUntil}
                 onChanged={p.onChanged}
                 repliesHandle={repliesHandle}
               />
               <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-2.5">
-                <Button size="sm" variant="ghost" kbd={p.focused && !hasDraft ? "A" : undefined} onClick={p.onMarkDone}>
-                  Done
-                </Button>
+                {!ownEnd && (
+                  <Button size="sm" variant="ghost" kbd={p.focused && !hasDraft ? "A" : undefined} onClick={p.onMarkDone}>
+                    Done
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" kbd={p.focused ? "X" : undefined} onClick={p.onSkipOpen}>
                   Skip
                 </Button>

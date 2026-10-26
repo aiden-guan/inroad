@@ -19,6 +19,8 @@ import { newId, nowISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type Debrief, type EntityRef, type ID, type Meeting, type Person, type Qualification, type QualificationCard, type Workspace } from "@/lib/domain/types";
 import { lintDraft } from "@/lib/quality/lint";
 import { ease } from "@/lib/motion";
+import { ReferralLeads } from "@/components/people/referral-leads";
+import { debriefReferrals } from "@/lib/deals/referrals";
 import { Callout, DraftBlock, gmailHref, Section, useNow } from "./shared";
 
 type ChangeKey = "card" | "nextStep" | "stage" | "people" | "price" | "map" | "pilot";
@@ -312,6 +314,12 @@ export function DebriefReview({ deal, meeting, debrief, today }: { deal: Deal; m
           </ul>
         </Section>
       )}
+      {debriefReferrals(debrief).length > 0 && (
+        <Section label="Who else to talk to">
+          <p className="mb-2.5 text-[13px] text-fg-2">They named people worth meeting. A referral is the warmest first touch you&apos;ll get, so write while the call is fresh.</p>
+          <ReferralLeads meeting={meeting} />
+        </Section>
+      )}
       <Learned debrief={debrief} />
 
       {debrief.quotes.length > 0 && (
@@ -391,7 +399,7 @@ function HandoffButtons({ to, subject, body, authUser, inline }: { to: string; s
 function Learned({ debrief }: { debrief: Debrief }) {
   const { dispatch } = useWorkspace();
   const [added, setAdded] = useState<Set<number>>(new Set());
-  const hasAny = debrief.newObjections.length || debrief.customerWords.length || debrief.povCandidates?.length || debrief.referrals.length;
+  const hasAny = debrief.newObjections.length || debrief.customerWords.length || debrief.povCandidates?.length;
   if (!hasAny) return null;
   return (
     <Section label="For your Playbook">
@@ -404,11 +412,6 @@ function Learned({ debrief }: { debrief: Debrief }) {
         {debrief.customerWords.length > 0 && (
           <p className="text-fg-2">
             <span className="text-fg">Their words, saved to messaging:</span> {debrief.customerWords.map((w) => `“${w}”`).join(" · ")}
-          </p>
-        )}
-        {debrief.referrals.length > 0 && (
-          <p className="text-fg-2">
-            <span className="text-fg">They suggested talking to:</span> {debrief.referrals.join(" · ")}
           </p>
         )}
         {debrief.povCandidates?.map((p, i) => (

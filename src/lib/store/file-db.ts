@@ -1,12 +1,11 @@
 import "server-only";
-import fs from "node:fs";
 import path from "node:path";
-import { readDataFile } from "./data-file";
+import { readDataFile, writeFileAtomic } from "./data-file";
 import { DATA_DIR } from "./settings";
 
 /**
  * A tiny JSON-file database for a single-user, local app.
- * - Atomic writes (write to temp file, then rename) so a crash never corrupts data.
+ * - Atomic, owner-only writes (temp file, then rename) so a crash never corrupts data.
  * - Serialized mutations so concurrent agent runs can't clobber each other.
  */
 export class FileDB<T> {
@@ -54,10 +53,7 @@ export class FileDB<T> {
   }
 
   private write(state: T) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const tmp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
-    fs.renameSync(tmp, this.file);
+    writeFileAtomic(this.file, JSON.stringify(state, null, 2));
     this.cache = state;
   }
 }

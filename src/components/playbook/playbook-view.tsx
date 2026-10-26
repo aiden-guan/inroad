@@ -12,7 +12,7 @@ import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { todayISO } from "@/lib/domain/ids";
 import { PlaybookContext, type AssetRunArgs, type PlaybookContextValue } from "./context";
 import { PlaybookDocument } from "./document";
-import { ASSET_KINDS, parts, type AssetKind } from "./model";
+import { ASSET_KINDS, isContentKind, parts, type AssetKind } from "./model";
 
 function isKind(k: string | null): k is AssetKind {
   return !!k && k in ASSET_KINDS;
@@ -49,10 +49,19 @@ export function PlaybookView() {
     if (!ready || arrived.current) return;
     arrived.current = true;
     const asset = params.get("asset") ?? hashAsset();
-    const target = asset ? `asset-${asset}` : params.get("new") ? "assets" : window.location.hash.slice(1);
+    const kind = params.get("new");
+    const target = asset ? `asset-${asset}` : isKind(kind) ? (isContentKind(kind) ? "content" : "assets") : window.location.hash.slice(1);
     if (!target) return;
-    const frame = requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({ block: "start" }));
-    return () => cancelAnimationFrame(frame);
+    // A frame cancelled before it ran (Strict Mode's second mount, arriving from ⌘K with the workspace loaded) tries again.
+    let ran = false;
+    const frame = requestAnimationFrame(() => {
+      ran = true;
+      document.getElementById(target)?.scrollIntoView({ block: "start" });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (!ran) arrived.current = false;
+    };
   }, [ready, params]);
 
   const assetRuns = useMemo(() => Object.values(runs).filter((r) => r.workflow === "asset").sort((a, b) => b.startedAt - a.startedAt), [runs]);

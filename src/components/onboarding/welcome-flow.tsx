@@ -10,6 +10,8 @@ import { AiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Orb, type OrbState } from "@/components/ui/orb";
+import { OrbMorph, useWide } from "@/components/ui/orb-morph";
+import { useBillingUrl } from "@/lib/client/ai-provider";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
@@ -23,13 +25,15 @@ import { Canvas, clock, inOverlay, isTyping, runSummary, useLiveRefresh, useNow 
 
 type Phase = "start" | "reading" | "drafting" | "offer";
 
+/**
+ * Onboarding's own words for failures where it has something to add. Everything else shows the run's
+ * message, which names the provider and says what to do (out of credits, rate limited, model unavailable).
+ */
 const ERROR_COPY: Record<string, string> = {
-  no_key: "Add your Anthropic API key to put me to work.",
+  no_key: "Add an AI provider key to put me to work.",
   auth: "Your API key was rejected. Paste a new one below.",
-  rate_limit: "Rate limited by the Anthropic API. Give it a minute, then try again.",
-  overloaded: "Claude is busy right now. Try again in a moment.",
   refusal: "I couldn’t do that one. Try again, or tell me in two sentences what you sell.",
-  network: "I couldn’t reach Claude. Check your connection, then try again.",
+  no_submit: "I lost the thread on that one. Your answers and corrections are saved, so trying again picks up from there.",
 };
 
 const isLive = (s: RunSummary["status"] | undefined) => s === "running" || s === "queued";
@@ -38,7 +42,10 @@ const isLive = (s: RunSummary["status"] | undefined) => s === "running" || s ===
 function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?: string; message?: string; stopped: boolean; onRetry: () => void; onStartOver: () => void }) {
   const keyForm = useKeyForm();
   const needsKey = code === "no_key" || code === "auth";
-  const copy = stopped ? "Stopped. What I learned so far is saved." : ((code && ERROR_COPY[code]) ?? "I lost the thread on that one. Your answers and corrections are saved.");
+  const billingUrl = useBillingUrl();
+  const copy = stopped
+    ? "Stopped. What I learned so far is saved."
+    : ((code && ERROR_COPY[code]) ?? (code && message ? `${message}${code === "no_credit" ? " Your answers and corrections are saved." : ""}` : "I lost the thread on that one. Your answers and corrections are saved."));
   return (
     <motion.div
       role="alert"
@@ -47,17 +54,21 @@ function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?:
       transition={{ duration: 0.24, ease: ease.out }}
       className="mt-6 rounded-lg bg-surface p-4 shadow-xs ring-1 ring-border sm:p-5"
     >
-      <p className="text-pretty text-[14px] leading-[21px] text-fg">{copy}</p>
-      {!stopped && !needsKey && !(code && ERROR_COPY[code]) && message && <p className="mt-1 text-pretty text-[12.5px] text-fg-3">{message}</p>}
+      <p className="text-pretty text-[14px] leading-[21px] text-fg">
+        {copy}
+        {code === "no_credit" && (
+          <a href={billingUrl} target="_blank" rel="noreferrer" className="ml-1.5 whitespace-nowrap font-medium text-accent-text underline-offset-2 hover:underline">
+            Add credits ↗
+          </a>
+        )}
+      </p>
+      {!stopped && !needsKey && !code && message && <p className="mt-1 text-pretty text-[12.5px] text-fg-3">{message}</p>}
       {needsKey ? (
         <div className="mt-4">
           <KeyBlock
-            value={keyForm.key}
-            onChange={keyForm.setKey}
-            error={keyForm.error}
-            saved={keyForm.saved}
-            saving={keyForm.saving}
-            title={code === "auth" ? "Paste a working Anthropic API key." : "I run on your Anthropic API key."}
+            form={keyForm}
+            title={code === "auth" ? "Paste a working API key." : "I run on your AI provider's key."}
+            autoFocus
             onSave={async () => {
               if (await keyForm.submit()) onRetry();
             }}
@@ -171,7 +182,7 @@ function WorkingColumn({
             >
               <Square className="size-2.5 fill-current" aria-hidden />
               Stop
-              <Kbd className="hidden sm:inline-flex">Esc</Kbd>
+              <Kbd className="hidden sm:pointer-fine:inline-flex">Esc</Kbd>
             </button>
           )}
         </div>
@@ -247,6 +258,7 @@ export function WelcomeFlow() {
   const [pending, setPending] = useState<{ runId: string; args: StartArgs } | null>(null);
   const [starting, setStarting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const wide = useWide();
 
   const status = ws?.onboarding.status;
   useEffect(() => {
@@ -312,8 +324,13 @@ export function WelcomeFlow() {
             className="mx-auto grid w-full max-w-[960px] grid-cols-1 gap-5 px-4 pb-24 pt-4 sm:px-6 md:grid-cols-[112px_minmax(0,1fr)] md:gap-10 md:px-10 md:pt-12"
           >
             <aside className="md:sticky md:top-12 md:self-start">
-              <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
-              <Orb state={orb} size={36} tick={tick} className="md:hidden" />
+              {/* When the founder says go, this orb flies into the sidebar (or the phone header). */}
+              <OrbMorph on={wide}>
+                <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
+              </OrbMorph>
+              <OrbMorph on={!wide}>
+                <Orb state={orb} size={36} tick={tick} className="md:hidden" />
+              </OrbMorph>
             </aside>
             <div className="min-w-0 max-w-[640px]">
               <AnimatePresence mode="wait" initial={false}>

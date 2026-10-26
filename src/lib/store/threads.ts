@@ -128,6 +128,28 @@ export async function withThread<R>(
   return { thread: state.threads[id], value };
 }
 
+/**
+ * One serialized pass over the threads `match` picks (the file is only written when it picks one):
+ * `fn` rewrites a thread in place (true) or asks for it to go ("delete"). The one exception to
+ * append-only history: deleting a person's details reaches their Ask conversations this way.
+ * Returns how many threads changed.
+ */
+export async function rewriteThreads(match: (thread: StoredThread) => boolean, fn: (thread: StoredThread) => boolean | "delete"): Promise<number> {
+  if (!Object.values(db().read().threads).some(match)) return 0;
+  const { value } = await db().update((draft) => {
+    let changed = 0;
+    for (const [id, thread] of Object.entries(draft.threads)) {
+      if (!match(thread)) continue;
+      const r = fn(thread);
+      if (r === "delete") delete draft.threads[id];
+      else if (r) thread.approxTokens = estimateTokens(thread.messages);
+      if (r) changed++;
+    }
+    return changed;
+  });
+  return value;
+}
+
 /** Upserts a display turn by id (a pending answer is replaced by its final version in place). */
 export function putTurn(thread: StoredThread, turn: AskTurn) {
   const i = thread.turns.findIndex((t) => t.id === turn.id);

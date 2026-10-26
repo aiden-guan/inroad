@@ -1,0 +1,250 @@
+{
+ "version": 1,
+ "name": "ask-thread",
+ "source": "mock",
+ "recordedAt": "2026-10-20T16:30:00.000Z",
+ "exchanges": [
+  {
+   "key": "claude-sonnet-5-5|get_company,get_deal,list_moves,pipeline_summary,propose,start_workflow,workspace_search|2",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "get_company",
+     "get_deal",
+     "list_moves",
+     "pipeline_summary",
+     "propose",
+     "start_workflow",
+     "workspace_search"
+    ],
+    "messages": 2,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock2"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 7590,
+       "cache_read_input_tokens": 0,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 7590,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading what was asked: What should I say to Northwind's CFO about pricing?. Checking the material I was given before writing. Making sure every claim has a source. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "text",
+      "text": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "text_delta",
+      "text": "Here's my take on “What should I say to Northwind's CFO about pricing?”.\n\n**Lead with the pain, not the product.** Your best accounts are teams that just raised and are hiring for the role your product replaces.\n\n- Start with the three warmest accounts in your pipeline\n- Send the drafts I prepared this morning\n- Book follow-ups for Thursday"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 7590,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 7590,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 226,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  },
+  {
+   "key": "claude-sonnet-5-5|get_company,get_deal,list_moves,pipeline_summary,propose,start_workflow,workspace_search|5",
+   "request": {
+    "model": "claude-sonnet-5-5",
+    "tools": [
+     "get_company",
+     "get_deal",
+     "list_moves",
+     "pipeline_summary",
+     "propose",
+     "start_workflow",
+     "workspace_search"
+    ],
+    "messages": 5,
+    "maxTokens": 8000,
+    "effort": "low",
+    "cacheTtl": "5m",
+    "stream": true
+   },
+   "status": 200,
+   "headers": {
+    "content-type": "text/event-stream",
+    "request-id": "req_mock4"
+   },
+   "events": [
+    {
+     "type": "message_start",
+     "message": {
+      "id": "msg_mock3",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-5-5",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+       "input_tokens": 0,
+       "cache_creation_input_tokens": 215,
+       "cache_read_input_tokens": 7590,
+       "cache_creation": {
+        "ephemeral_5m_input_tokens": 215,
+        "ephemeral_1h_input_tokens": 0
+       },
+       "output_tokens": 1
+      }
+     }
+    },
+    {
+     "type": "content_block_start",
+     "index": 0,
+     "content_block": {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "thinking_delta",
+      "thinking": "Reading what was asked: What should I say to Northwind's CFO about pricing?. Checking the material I was given before writing. Making sure every claim has a source. "
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 0,
+     "delta": {
+      "type": "signature_delta",
+      "signature": "mock-signature"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 0
+    },
+    {
+     "type": "content_block_start",
+     "index": 1,
+     "content_block": {
+      "type": "text",
+      "text": ""
+     }
+    },
+    {
+     "type": "content_block_delta",
+     "index": 1,
+     "delta": {
+      "type": "text_delta",
+      "text": "Here's my take on “And what if she pushes back on the price?”.\n\n**Lead with the pain, not the product.** Your best accounts are teams that just raised and are hiring for the role your product replaces.\n\n- Start with the three warmest accounts in your pipeline\n- Send the drafts I prepared this morning\n- Book follow-ups for Thursday"
+     }
+    },
+    {
+     "type": "content_block_stop",
+     "index": 1
+    },
+    {
+     "type": "message_delta",
+     "delta": {
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "stop_details": null
+     },
+     "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 215,
+      "cache_read_input_tokens": 7590,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 215,
+       "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 224,
+      "server_tool_use": null
+     }
+    },
+    {
+     "type": "message_stop"
+    }
+   ],
+   "costUsd": 0
+  }
+ ]
+}

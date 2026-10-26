@@ -12,6 +12,7 @@ import type {
   Account,
   Activity,
   Angle,
+  BetArm,
   DraftCritic,
   DraftFrame,
   DraftStep,
@@ -27,8 +28,11 @@ import { lintStep, recentDraftsFor } from "@/lib/quality/context";
 import { preflight, resolveEmail } from "@/lib/quality/gates";
 import { countWords } from "@/lib/quality/lint";
 import { pickReference } from "@/lib/quality/references";
+import { localReferences } from "@/lib/quality/references-store";
 import { nextFollowUp, recentFirstTouch, repliedSinceFirstTouch, senderOwnsSequence, sequenceOwnerName } from "@/lib/quality/sequence";
 import { stripGreeting, sentences } from "@/lib/quality/similarity";
+import { activeBet, betSteer, nextArm, steerable } from "@/lib/learning/bets";
+import { signalTypeFor } from "@/lib/learning/tags";
 import { defineWorkflow, type WorkflowContext } from "./types";
 
 /**
@@ -57,6 +61,8 @@ const Args = z.object({
   alternate: z.boolean().optional(),
   /** Cold mode: the person who pointed the founder here (a referral reply). The referral is the premise. */
   referredBy: z.string().optional(),
+  /** Cold mode, with referredBy: what they said when the referral came on a call (a debrief quote). */
+  referralQuote: z.string().max(600).optional(),
 });
 type ComposeArgs = z.infer<typeof Args>;
 
@@ -148,7 +154,7 @@ const submitEmail = defineTool({ name: "submit_draft", description: "Submit the 
 const submitLinkedIn = defineTool({ name: "submit_linkedin", description: "Submit the LinkedIn note and message. Call exactly once.", schema: LinkedInDraft, terminal: true });
 const submitIntro = defineTool({ name: "submit_intro", description: "Submit the intro ask and the forwardable note. Call exactly once.", schema: IntroDraft, terminal: true });
 const submitReply = defineTool({ name: "submit_reply", description: "Submit the reply draft. Call exactly once.", schema: ReplyDraft, terminal: true });
-const submitRead = defineTool({ name: "submit_reply_read", description: "Submit how you read the reply. Call exactly once.", schema: ReplyRead, terminal: true });
+export const submitRead = defineTool({ name: "submit_reply_read", description: "Submit how you read the reply. Call exactly once.", schema: ReplyRead, terminal: true });
 const submitCritique = defineTool({ name: "submit_critique", description: "Submit your judgment. Call exactly once.", schema: Critique, terminal: true });
 
 /* ─────────────────────────────── Workspace reads (code gathers, ranks and trims) ─────────────────────────────── */
@@ -303,6 +309,8 @@ async function generate<T>(
     effort,
     maxTokens: 8000,
     requireTerminal: true,
+    // Drafts come in bursts (a revision, the critic's rewrite, the next account) on the same prefix.
+    cacheTtl: "1h",
   });
   if (res.result === undefined) throw new AgentError("I couldn't finish that draft. Try again in a moment.", "unknown");
   return { data: res.result, messages: res.messages };
@@ -339,7 +347,8 @@ function sanitizeRefs(
     if (!ok) problems.push(`CLAIM_UNAPPROVED: ${id} isn't an approved claim. Remove the statement it supports.`);
     return ok;
   });
-  const assetId = draft.assetId && ws.assets.some((a) => a.id === draft.assetId && a.approved === true) ? draft.assetId : null;
+  // Founder content (a post, an answer, a launch post) is never something an email offers, even once posted.
+  const assetId = draft.assetId && ws.assets.some((a) => a.id === draft.assetId && a.approved === true && a.kind !== "post" && a.kind !== "community_answer" && a.kind !== "launch") ? draft.assetId : null;
   if (draft.assetId && !assetId) problems.push(`assetId ${draft.assetId} isn't an approved asset. Drop the resource offer or use a listed asset.`);
   return { spans, lintSpans, povId, credentialClaimId: cred, claimIds, assetId, problems };
 }
@@ -363,8 +372,9 @@ function fixable(lint: DraftStep["lint"], ws: Workspace): boolean {
 
 /* ─────────────────────────────── Critic (Haiku, blind, pairwise) ─────────────────────────────── */
 
-async function critique(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, step: DraftStep, person: Person | undefined, account: Account): Promise<DraftCritic | null> {
-  const ref = pickReference(ws, step.frame, step.step);
+/** Exported for the critic eval (src/lib/quality/critic-eval.ts), which runs it on a labeled set. */
+export async function critique(ctx: Pick<WorkflowContext<unknown>, "agent">, ws: Workspace, step: DraftStep, person: Pick<Person, "title"> | undefined, account: Account): Promise<DraftCritic | null> {
+  const ref = pickReference(ws, step.frame, step.step, Math.random, localReferences());
   const draftIsA = Math.random() < 0.5;
   const draftText = step.subject ? `Subject: ${step.subject}\n\n${step.body}` : step.body;
   const [a, b] = draftIsA ? [draftText, ref.text] : [ref.text, draftText];
@@ -398,6 +408,7 @@ async function critique(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, step: 
       effort: "low",
       maxTokens: 3000,
       requireTerminal: true,
+      cacheTtl: "1h",
     });
     const r = res.result;
     if (!r) return null;
@@ -419,7 +430,7 @@ async function critique(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, step: 
   }
 }
 
-function criticPassed(c: DraftCritic | null): boolean {
+export function criticPassed(c: DraftCritic | null): boolean {
   return !c || (c.wouldReply && c.fatal.length === 0 && c.unsupportedSpans.length === 0 && !c.povObvious);
 }
 
@@ -448,6 +459,8 @@ interface EmailPlan {
   frames: DraftFrame[];
   pkg?: OutreachPackage;
   extra?: string;
+  /** The message-bet arm this first touch is written for, when a bet runs. */
+  bet?: BetArm;
 }
 
 function emailTask(plan: EmailPlan): string {
@@ -523,6 +536,10 @@ async function draftEmail(ctx: WorkflowContext<ComposeArgs>, plan: EmailPlan, mo
       status: "draft",
       angleId: plan.angle?.id,
     };
+    // Stamped for the learning reviews: which why-now signal this rests on, and the bet arm it was written for.
+    const signalType = signalTypeFor(plan.account, plan.angle?.id, step.evidenceIds);
+    if (signalType) step.signalType = signalType;
+    if (plan.bet) step.bet = plan.bet;
     if (plan.step > 1 && plan.pkg) {
       const used = new Set(plan.pkg.steps.flatMap((s) => s.evidenceIds));
       if (step.evidenceIds.length && step.evidenceIds.every((id) => used.has(id)) && step.angleId === plan.pkg.angleId) {
@@ -586,10 +603,11 @@ function channelBlocker(ws: Workspace, pkg: OutreachPackage, stepNo: number) {
   return preflight(ws, pkg, { step: stepNo, status: "draft" } as DraftStep).blockers.find((b) => CHANNEL_BLOCKS.has(b.code));
 }
 
-/** What the referrer said, for a first touch that rests on their referral. */
-function referralBlock(ws: Workspace, referrer: Person, person: Person | undefined): string {
+/** What the referrer said, for a first touch that rests on their referral. `onCall`: their words from a debrief. */
+export function referralBlock(ws: Workspace, referrer: Person, person: Person | undefined, onCall?: string): string {
   const newest = <T extends { at: string }>(xs: T[]) => xs.sort((x, y) => y.at.localeCompare(x.at))[0];
   const said =
+    onCall?.trim() ||
     newest(
       Object.values(ws.outreach)
         .filter((p) => p.mode === "reply" && p.personId === referrer.id && p.reply?.intent === "referral")
@@ -665,6 +683,10 @@ async function runCold(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account
   for (const ev of evidence.slice(0, 3)) ctx.emit({ type: "read", url: ev.url, host: ev.host });
 
   const frames = allowedFrames(ws, person, 1);
+  // A running message bet (writing variables): this draft goes to the arm with fewer drafts. Referrals stay out of it.
+  const bet = activeBet(ws, todayISO());
+  const arm = steerable(bet) && !referrer ? { bet, arm: nextArm(ws, bet) } : undefined;
+  const steer = arm ? betSteer(arm.bet, arm.arm, frames) : undefined;
   const { step, warnings } = await draftEmail(
     ctx,
     {
@@ -677,8 +699,9 @@ async function runCold(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account
       step: 1,
       sendOn: todayISO(),
       thread: "new",
-      frames: referrer ? ["referral", ...frames] : frames,
-      extra: referrer ? referralBlock(ws, referrer, person) : undefined,
+      frames: referrer ? ["referral", ...frames] : (steer?.frames ?? frames),
+      extra: referrer ? referralBlock(ws, referrer, person, a.referralQuote) : steer?.block,
+      bet: arm ? { id: arm.bet.id, arm: arm.arm } : undefined,
     },
     "cold",
   );
@@ -727,6 +750,9 @@ async function runAlternate(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, ac
   const usedEvidence = new Set([first, ...pkg.alternates].flatMap((s) => s.evidenceIds));
   const evidence = evidenceFor(ws, account, angle, usedEvidence);
   const sameAngle = used.has(angle.id);
+  // A different angle for a bet draft stays in the same arm, so swapping it in keeps the bet balanced.
+  const bet = activeBet(ws, todayISO());
+  const steer = first.bet && steerable(bet) && bet.id === first.bet.id ? betSteer(bet, first.bet.arm, allowedFrames(ws, person, 1)) : undefined;
   const { step } = await draftEmail(
     ctx,
     {
@@ -739,10 +765,16 @@ async function runAlternate(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, ac
       step: 1,
       sendOn: first.sendOn,
       thread: "new",
-      frames: allowedFrames(ws, person, 1),
-      extra: sameAngle
-        ? `<rewrite>Same angle, new draft: open a different way and use a different POV than before. Not a paraphrase.</rewrite>\n<previous_draft>\n${first.body}\n</previous_draft>`
-        : `<different_angle>This replaces a draft built on another angle. Don't reuse its opening or question.</different_angle>\n<previous_draft>\n${first.body}\n</previous_draft>`,
+      frames: steer?.frames ?? allowedFrames(ws, person, 1),
+      extra: [
+        sameAngle
+          ? `<rewrite>Same angle, new draft: open a different way and use a different POV than before. Not a paraphrase.</rewrite>\n<previous_draft>\n${first.body}\n</previous_draft>`
+          : `<different_angle>This replaces a draft built on another angle. Don't reuse its opening or question.</different_angle>\n<previous_draft>\n${first.body}\n</previous_draft>`,
+        steer?.block,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      bet: steer ? first.bet : undefined,
     },
     "cold",
   );
@@ -986,11 +1018,14 @@ const UNSUB =
   /\b(unsubscribe( me)?|remove me from (your|the|this) (list|mailing list|emails?|sequence|database)|take me off (your|the|this) (list|mailing list)|opt me out|stop (emailing|contacting|messaging) me|(do not|don'?t) (contact|email|message) me)\b|^\s*(stop|remove( me)?)\.?\s*$/i;
 // Phrases auto-responders use and people rarely write by hand.
 const OOO = /\b(automatic reply|auto-?reply|autoreply|this is an automated|limited access to (my )?e-?mail|(respond|reply|get back to you) (when|upon|on) (my |I )?return)/i;
+// Words a person adds to an auto-reply when they're actually answering.
+const LIVE_CUE = /\b(yes|yeah|sure|let'?s (talk|chat|meet)|interested|relevant|happy to (chat|talk|meet)|works for me)\b/i;
 
-function readInCode(text: string): ReplyIntent | null {
+export function readInCode(text: string): ReplyIntent | null {
   if (text.includes("?")) return null; // a question means a person is talking: let Haiku read it
   if (!text.includes("@") && countWords(text) <= 25 && UNSUB.test(text)) return "unsubscribe";
-  if (countWords(text) < 120 && OOO.test(text)) return "ooo";
+  // "Automatic reply: away until Thursday. Actually yes, let's talk" is a person answering: the model reads it.
+  if (countWords(text) < 120 && OOO.test(text) && !LIVE_CUE.test(text)) return "ooo";
   return null;
 }
 
@@ -1016,6 +1051,26 @@ const REPLY_ACTION: Record<ReplyIntent, NonNullable<OutreachPackage["replyAction
   ooo: "nurture",
 };
 
+/**
+ * Haiku reads the reply. If that call fails (overloaded, cut off, no submit), Sonnet gets one try before
+ * the run stops with a plain message; nothing is logged or drafted until a read succeeds.
+ */
+async function readReply(ctx: WorkflowContext<ComposeArgs>, content: string) {
+  const opts = { system: REPLY_READ_RULES, messages: [{ role: "user" as const, content }], tools: [submitRead], effort: "low" as const, maxTokens: 2000, requireTerminal: true, cacheTtl: "1h" as const };
+  try {
+    return await ctx.agent<z.infer<typeof ReplyRead>>({ ...opts, tier: "fast" });
+  } catch (err) {
+    if (err instanceof AgentError && ["stopped", "no_key", "auth", "no_credit", "rate_limit"].includes(err.code)) throw err;
+    console.warn("[compose] reply read failed on the fast tier, trying once more:", err instanceof Error ? err.message : err);
+    try {
+      return await ctx.agent<z.infer<typeof ReplyRead>>({ ...opts, tier: "operator", maxTokens: 4000 });
+    } catch (again) {
+      if (again instanceof AgentError && ["stopped", "no_key", "auth", "no_credit", "rate_limit"].includes(again.code)) throw again;
+      throw new AgentError("I couldn't read their reply just now. Nothing was saved; try again in a minute.", again instanceof AgentError ? again.code : "unknown");
+    }
+  }
+}
+
 async function runReply(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, account: Account): Promise<ComposeResult> {
   const a = ctx.args;
   const person = a.personId ? ws.people[a.personId] : undefined;
@@ -1037,15 +1092,7 @@ async function runReply(ctx: WorkflowContext<ComposeArgs>, ws: Workspace, accoun
   let referral: { name?: string; email?: string } | undefined;
   let checkBackOn: string | null = null;
   if (!intent) {
-    const read = await ctx.agent<z.infer<typeof ReplyRead>>({
-      tier: "fast",
-      system: REPLY_READ_RULES,
-      messages: [{ role: "user", content: lines(taskHeader(), `<reply from="${person?.name ?? "the prospect"}">\n${text.slice(0, 4000)}\n</reply>`) }],
-      tools: [submitRead],
-      effort: "low",
-      maxTokens: 2000,
-      requireTerminal: true,
-    });
+    const read = await readReply(ctx, lines(taskHeader(), `<reply from="${person?.name ?? "the prospect"}">\n${text.slice(0, 4000)}\n</reply>`));
     const r = read.result;
     intent = r?.intent ?? "positive";
     summary = r?.summary ?? "";

@@ -2,6 +2,7 @@
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/client/cn";
+import { useModKeys } from "@/lib/client/platform";
 
 type Variant = "primary" | "secondary" | "ghost" | "agent" | "danger" | "link";
 type Size = "xs" | "sm" | "md" | "lg";
@@ -36,6 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = "secondary", size = "md", loading, icon, kbd, className, children, disabled, ...props },
   ref,
 ) {
+  const keys = useModKeys();
   return (
     <button
       ref={ref}
@@ -53,13 +55,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {loading ? <Spinner className="size-3.5" /> : icon}
       {children}
       {kbd && (
+        // A key hint means nothing on a phone or a touch screen: shown only with a keyboard-sized layout and a mouse.
         <kbd
           className={cn(
-            "ml-0.5 font-mono text-[11px] opacity-60",
+            "ml-0.5 hidden font-mono text-[11px] opacity-60 md:pointer-fine:inline",
             (variant === "primary" || variant === "agent") && "opacity-70",
           )}
         >
-          {kbd}
+          {keys(kbd)}
         </kbd>
       )}
     </button>

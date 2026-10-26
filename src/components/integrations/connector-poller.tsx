@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 
-const POLLED = ["instantly", "smartlead", "hubspot", "attio"] as const;
+const POLLED = ["instantly", "smartlead", "lemlist", "hubspot", "attio", "calendly", "calcom"] as const;
 // The server keeps each connector's own cadence (2–5 min); this only says the app is open.
 const TICK_MS = 60_000;
 

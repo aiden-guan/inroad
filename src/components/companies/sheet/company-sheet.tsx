@@ -22,7 +22,10 @@ import { newDeal } from "@/lib/deals/rules";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { DealPanel } from "./deal-panel";
 import { DossierView, EnrichmentView } from "./dossier-view";
+import { IntentBlock, readIntent, type SheetIntent } from "./intent";
 import { LogCall } from "./meetings";
+import { newAccount } from "./new-account";
+import { setOpenSheet, unlessSheetOpen } from "./open-sheet";
 import { Callout, useToday } from "./shared";
 import { Timeline } from "./timeline";
 
@@ -40,25 +43,6 @@ const DISQUALIFY: { value: NonNullable<Account["disqualified"]>["reason"]; label
 ];
 
 const STATUS_LABEL: Record<Account["status"], string> = { new: "New", tracked: "Tracked", in_pipeline: "In pipeline", customer: "Customer", disqualified: "Disqualified" };
-
-function newAccount(domain: string): Account {
-  return {
-    domain,
-    name: domain.split(".")[0].replace(/^./, (c) => c.toUpperCase()),
-    status: "new",
-    source: "manual",
-    addedAt: nowISO(),
-    fitScore: 0,
-    tier: "C",
-    criteria: [],
-    signals: [],
-    whyNow: null,
-    whyNowScore: 0,
-    peopleIds: [],
-    warmPathCount: 0,
-    watch: false,
-  };
-}
 
 function openDeal(ws: Workspace | null, account: Account | undefined): Deal | undefined {
   const deal = account?.dealId ? ws?.deals[account.dealId] : undefined;
@@ -78,14 +62,21 @@ export function CompanySheet({ domain, onClose }: { domain: string | null; onClo
   const { ws } = useWorkspace();
   const params = useSearchParams();
   const intentLog = params.get("intent") === "log" || params.get("log") === "1";
+  // ⌘K "Prep for…" opens the deal's meetings; reply, write and intro land as a composer at the top (intent.tsx).
+  const intentPrep = params.get("intent") === "prep";
+  const intent = readIntent(params);
   const account = shown ? ws?.accounts[shown] : undefined;
   // ⌘K lists recently opened companies first.
   useEffect(() => {
     if (domain) pushRecent(domain);
   }, [domain]);
+  useEffect(() => {
+    setOpenSheet(domain);
+    return () => setOpenSheet(null);
+  }, [domain]);
   const deal = openDeal(ws, account);
   const [tabs, setTabs] = useState<Record<string, Tab>>({});
-  const defaultTab: Tab = intentLog ? "deal" : deal && OPEN_STAGES.includes(deal.stage) ? "deal" : "dossier";
+  const defaultTab: Tab = intentLog || intentPrep ? "deal" : deal && OPEN_STAGES.includes(deal.stage) ? "deal" : "dossier";
   const tab = (shown && tabs[shown]) || defaultTab;
   const setTab = (t: Tab) => shown && setTabs((m) => ({ ...m, [shown]: t }));
   // ⌘K → Ask while this sheet is open lands in the sheet's Ask tab instead of stacking a window on top.
@@ -112,7 +103,21 @@ export function CompanySheet({ domain, onClose }: { domain: string | null; onClo
       header={shown ? <Header domain={shown} account={account} deal={deal} tab={tab} onTab={setTab} /> : null}
     >
       {/* Keyed by company: switching companies with the sheet open must not carry a half-logged call (or any form) across. */}
-      {shown && <Body key={shown} domain={shown} account={account} deal={deal} tab={tab} onTab={setTab} focusLog={intentLog} loading={!ws} askPrefill={askPrefill} onAskPrefillSent={consumeAskPrefill} />}
+      {shown && (
+        <Body
+          key={shown}
+          domain={shown}
+          account={account}
+          deal={deal}
+          tab={tab}
+          onTab={setTab}
+          focusLog={intentLog}
+          intent={intent}
+          loading={!ws}
+          askPrefill={askPrefill}
+          onAskPrefillSent={consumeAskPrefill}
+        />
+      )}
     </Sheet>
   );
 }
@@ -122,7 +127,7 @@ function useResearch(domain: string, account: Account | undefined) {
   const ref = useMemo<EntityRef>(() => ({ kind: "account", id: domain }), [domain]);
   const run = useRunFor(ref, "dossier");
   const active = !!run && (run.status === "running" || run.status === "queued");
-  const research = () => void start("dossier", { domain, force: !!account?.dossier });
+  const research = () => void start("dossier", { domain, force: !!account?.dossier }, { notify: unlessSheetOpen(domain) });
   return { run, active, research };
 }
 
@@ -255,6 +260,7 @@ function Body({
   tab,
   onTab,
   focusLog,
+  intent,
   loading,
   askPrefill,
   onAskPrefillSent,
@@ -265,6 +271,7 @@ function Body({
   tab: Tab;
   onTab: (t: Tab) => void;
   focusLog: boolean;
+  intent: SheetIntent | null;
   loading: boolean;
   askPrefill: AskPrefill | null;
   onAskPrefillSent: () => void;
@@ -295,7 +302,7 @@ function Body({
             variant="agent"
             onClick={async () => {
               const ok = await dispatch({ type: "account.add", account: newAccount(domain) });
-              if (ok) void start("dossier", { domain });
+              if (ok) void start("dossier", { domain }, { notify: unlessSheetOpen(domain) });
             }}
           >
             Add and research
@@ -324,7 +331,9 @@ function Body({
             {account.disqualified.note ? ` · ${account.disqualified.note}` : ""}
           </Callout>
         )}
-        {run && (active || run.status === "error") && tab !== "ask" && <WorkLog run={run} className="mb-6" />}
+        {intent && tab !== "ask" && <IntentBlock domain={domain} intent={intent} />}
+        {/* On the dossier tab a failed run is explained once, next to the Research button; elsewhere the log says it. */}
+        {run && (active || (run.status === "error" && tab !== "dossier")) && tab !== "ask" && <WorkLog run={run} className="mb-6" />}
 
         <div key={tab} className="animate-[fade-in_150ms_var(--ease-out)]">
           {tab === "dossier" &&

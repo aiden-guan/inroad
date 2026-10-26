@@ -7,6 +7,8 @@ import type {
   Connector,
   Deal,
   EntityRef,
+  FoundationRevision,
+  FoundationVersion,
   GtmEvent,
   Guest,
   ID,
@@ -22,9 +24,17 @@ import type {
   SkipReason,
   Stage,
   Suppression,
+  VoiceTraits,
   Workspace,
 } from "./types";
-import { addDays, todayISO } from "./ids";
+import { addBusinessDays, addDays, todayISO } from "./ids";
+import { OPEN_STAGES } from "./types";
+import { debriefReferrals } from "@/lib/deals/referrals";
+import { closeDatePushed, newDeal } from "@/lib/deals/rules";
+import { forgetPerson } from "@/lib/people/forget";
+import { touchTags } from "@/lib/learning/tags";
+import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
+import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample, noteToneOff } from "@/lib/quality/voice";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -42,10 +52,23 @@ export type Action =
   | { type: "voice.addSample"; text: string; kind: "email" | "post"; at: string }
   | { type: "voice.update"; patch: { summary?: string; signOff?: string }; at: string }
   | { type: "voice.removeSample"; index: number; at: string }
+  /** The founder accepted (or edited) how they write: drafts follow these traits. Clears the suggestion. */
+  | { type: "voice.setTraits"; traits: VoiceTraits; at: string }
+  | { type: "voice.dismissSuggestion"; at: string }
+  /** Re-read the samples and edits now (code, no tokens) instead of waiting for the next 3rd sample or 20th edit. */
+  | { type: "voice.extract"; at: string }
+  /** A draft skipped as "tone off", kept as an example of what not to write. */
+  | { type: "voice.noteToneOff"; text: string; at: string; moveId?: ID }
+  /** "Show me what bad looks like": AI-written emails the founder got, kept (up to 5) for lint, the critic eval and drafts. */
+  | { type: "voice.addBadExamples"; texts: string[]; at: string }
   | { type: "company.correctChip"; key: string; text: string | null }
   | { type: "foundation.set"; path: (string | number)[]; value: unknown }
   | { type: "foundation.answerQuestion"; questionId: ID; answer: string; at: string }
   | { type: "foundation.lockSegment"; at: string }
+  /** An accepted refresh change. The first one from a run keeps the version it replaces, so a restore undoes the run. */
+  | { type: "foundation.revise"; revision: FoundationRevision; source: FoundationVersion["source"]; runId?: ID; at: string }
+  /** Brings back a kept version as a new one. */
+  | { type: "foundation.restore"; version: number; at: string }
   | { type: "claim.upsert"; claim: Claim }
   | { type: "claim.remove"; id: ID }
   | { type: "objection.upsert"; objection: ObjectionCard }
@@ -58,6 +81,10 @@ export type Action =
   | { type: "connector.remove"; id: ID }
   /** Something the founder did for a connector: it balances the ledger against asks. */
   | { type: "connector.give"; id: ID; what: string; at: string }
+  /** A list of targets went to a connector to mark. It is one ask: it starts their rest like any other. */
+  | { type: "connector.sendList"; id: ID; domains: string[]; at: string }
+  /** The rows the connector marked (none is an answer too). */
+  | { type: "connector.markList"; id: ID; marked: string[]; at: string }
   | { type: "intro.create"; intro: Intro }
   /** Move an intro to a stage (forward, or reopened). Dates, history and the intro_made activity follow in code. */
   | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID }
@@ -74,6 +101,8 @@ export type Action =
   | { type: "account.restore"; domain: string }
   | { type: "person.upsert"; person: Person }
   | { type: "person.remove"; id: ID }
+  /** "Delete their details": the person and everything naming them, keeping only their email as `requested_delete`. */
+  | { type: "person.forget"; id: ID; at: string; suppressionId: ID }
   | { type: "deal.create"; deal: Deal }
   | { type: "deal.update"; id: ID; patch: Partial<Deal>; at: string }
   | { type: "deal.setStage"; id: ID; stage: Stage; at: string; lossReason?: Deal["lossReason"]; nurtureUntil?: string }
@@ -81,7 +110,7 @@ export type Action =
   | { type: "meeting.upsert"; meeting: Meeting }
   /** Narrow meeting edits that patch the server's copy, so a stale client never overwrites a newer brief or debrief. */
   | { type: "meeting.toggleStar"; id: ID; briefAt: string; index: number }
-  | { type: "meeting.patchDebrief"; id: ID; generatedAt: string; patch: { recap?: { subject: string; body: string }; appliedAt?: string } }
+  | { type: "meeting.patchDebrief"; id: ID; generatedAt: string; patch: { recap?: { subject: string; body: string }; appliedAt?: string; referralDomain?: { index: number; domain: string } } }
   | { type: "outreach.editStep"; packageId: ID; step: number; subject?: string | null; body?: string }
   | { type: "outreach.useAlternate"; packageId: ID; index: number }
   | { type: "outreach.approveStep"; packageId: ID; step: number; at: string; activityId: ID }
@@ -90,8 +119,11 @@ export type Action =
   | { type: "outreach.swapAlternate"; packageId: ID; index: number }
   /** Edits the parts of a package that aren't steps: LinkedIn note/DM, warm-intro wrapper. */
   | { type: "outreach.editExtra"; packageId: ID; linkedinNote?: string | null; postAcceptDm?: string; introWrapper?: string }
-  /** Undo for "Mark as sent": back to draft, removes the logged activity, reopens its moves. */
-  | { type: "outreach.unapproveStep"; packageId: ID; step: number; activityId: ID }
+  /**
+   * Undo for "Mark as sent": back to draft, removes the logged activity, reopens its moves.
+   * `moveIds`: the Today cards the approval finished (a reply card has no draft link), reopened too.
+   */
+  | { type: "outreach.unapproveStep"; packageId: ID; step: number; activityId: ID; moveIds?: ID[] }
   /** Points a draft at a person (drafts written to a role before anyone was known). */
   | { type: "outreach.setPerson"; packageId: ID; personId: ID }
   | { type: "activity.log"; activity: Activity }
@@ -104,6 +136,8 @@ export type Action =
   | { type: "move.reopen"; id: ID }
   /** "Check replies": marks touches replied / no reply / bounced / not sent (null clears the mark). */
   | { type: "activity.markOutcome"; ids: ID[]; outcome: NonNullable<Activity["outcome"]> | null; at: string }
+  /** "Let it go" on a yes that has no deal: Today stops chasing the booking (null opens it again). */
+  | { type: "activity.closeLoop"; id: ID; at: string | null }
   /** Applies or dismisses a weekly-review proposal (the change itself is dispatched alongside). */
   | { type: "brief.setProposal"; date: string; proposalId: ID; status: "open" | "applied" | "dismissed"; at: string }
   | { type: "event.upsert"; event: GtmEvent }
@@ -158,6 +192,37 @@ function openIntroFromAsk(ws: Workspace, packageId: ID, at: string) {
     ...(connector?.lastAskedOn ? { priorAskedOn: connector.lastAskedOn } : {}),
   };
   if (connector) connector.lastAskedOn = on;
+}
+
+/** The deal an approved "yes, let's talk" reply opens. Derived from the package so both sides agree. */
+const replyDealId = (packageId: ID) => `deal_${packageId}`;
+
+/**
+ * A yes the founder answered is a conversation under way: without an open deal it becomes one at
+ * Talking, its next step booking the call, so it sits in the pipeline (and Today's booking card
+ * chases it) until a meeting is on the calendar or it's parked or closed. An open deal just gains the
+ * contact (marked, so Undo can take them off again). A customer's yes (to a referral ask, a check-in)
+ * isn't a new sale: they stay a customer, with no deal, and the booking card still chases the call.
+ */
+function openDealFromReply(ws: Workspace, pkg: Workspace["outreach"][string], at: string) {
+  const acc = ws.accounts[pkg.accountDomain];
+  if (!acc || acc.status === "customer") return;
+  const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+  const current = acc.dealId ? ws.deals[acc.dealId] : undefined;
+  if (current && OPEN_STAGES.includes(current.stage)) {
+    if (person && !current.contacts.some((c) => c.personId === person.id)) current.contacts.push({ personId: person.id, role: person.role, viaReply: pkg.id });
+    return;
+  }
+  const id = replyDealId(pkg.id);
+  if (ws.deals[id]) return;
+  const first = person?.name.trim().split(/\s+/)[0];
+  ws.deals[id] = {
+    ...newDeal(acc, id, at),
+    contacts: person ? [{ personId: person.id, role: person.role }] : [],
+    nextStep: { what: first ? `Book the call with ${first}` : "Book the first call", date: addBusinessDays(todayISO(new Date(at)), 2), buyerAgreed: false },
+  };
+  acc.dealId = id;
+  acc.status = "in_pipeline";
 }
 
 function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "intro.advance" }>) {
@@ -255,6 +320,32 @@ export function applyAction(ws: Workspace, action: Action): void {
       ws.voice.samples.push({ text: action.text.slice(0, 4000), kind: action.kind });
       ws.voice.samples = ws.voice.samples.slice(-5);
       ws.voice.updatedAt = action.at;
+      learnFromSample(ws.voice, action.at);
+      return;
+    }
+    case "voice.setTraits": {
+      ws.voice ??= emptyVoice(action.at);
+      // A learned sign-off is the card's sign-off, the one the composer appends; it isn't a trait drafts follow.
+      const { signOff, ...traits } = action.traits;
+      if (signOff) ws.voice.signOff = signOff.slice(0, 80);
+      ws.voice.traits = traits;
+      delete ws.voice.suggested;
+      ws.voice.updatedAt = action.at;
+      return;
+    }
+    case "voice.dismissSuggestion":
+      if (ws.voice) delete ws.voice.suggested;
+      return;
+    case "voice.extract":
+      if (ws.voice) extractVoice(ws.voice, action.at);
+      return;
+    case "voice.noteToneOff":
+      noteToneOff(ws, action.text, action.at, action.moveId);
+      return;
+    case "voice.addBadExamples": {
+      ws.voice ??= emptyVoice(action.at);
+      const texts = action.texts.map((t) => t.trim().slice(0, 3000)).filter((t) => t.split(/\s+/).length >= 15);
+      ws.voice.badExamples = [...(ws.voice.badExamples ?? []), ...texts.map((text) => ({ at: action.at, text }))].slice(-5);
       return;
     }
     case "voice.update": {
@@ -297,6 +388,14 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "foundation.lockSegment":
       need(ws.foundation, "Playbook").icp.segmentLockedAt = action.at;
       return;
+    case "foundation.revise":
+      if (revisionStale(need(ws.foundation, "Playbook"), action.revision)) throw new ActionError("That part of the playbook changed since this was proposed");
+      reviseFoundation(ws, action);
+      return;
+    case "foundation.restore":
+      need(ws.foundationHistory?.find((v) => v.version === action.version), "Version");
+      restoreFoundation(ws, action.version, action.at);
+      return;
     case "claim.upsert":
       upsertBy(ws.claims, action.claim);
       return;
@@ -330,6 +429,20 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "connector.give": {
       const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
       (c.gives ??= []).push({ at: todayISO(new Date(action.at)), what: action.what.trim().slice(0, 140) });
+      return;
+    }
+    case "connector.sendList": {
+      const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
+      const on = todayISO(new Date(action.at));
+      c.list = { sentOn: on, domains: [...new Set(action.domains)].slice(0, 20) };
+      c.lastAskedOn = on;
+      return;
+    }
+    case "connector.markList": {
+      const c = need(ws.connectors.find((x) => x.id === action.id), "Connector");
+      const list = need(c.list, "List");
+      list.marked = action.marked.filter((d) => list.domains.includes(d));
+      list.markedOn = todayISO(new Date(action.at));
       return;
     }
     case "intro.create":
@@ -415,6 +528,10 @@ export function applyAction(ws: Workspace, action: Action): void {
       for (const deal of Object.values(ws.deals)) deal.contacts = deal.contacts.filter((c) => c.personId !== action.id);
       return;
     }
+    case "person.forget":
+      // Unknown ids are a no-op: two tabs may delete the same person.
+      forgetPerson(ws, action.id, action.at, action.suppressionId);
+      return;
     case "deal.create": {
       ws.deals[action.deal.id] = action.deal;
       const acc = ws.accounts[action.deal.accountDomain];
@@ -426,7 +543,10 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "deal.update": {
       const deal = need(ws.deals[action.id], "Deal");
+      // A close date moved later is a push; Today raises a deal that has slipped twice.
+      const pushed = closeDatePushed(deal.closeDate, action.patch.closeDate);
       Object.assign(deal, action.patch, { updatedAt: action.at });
+      if (pushed) deal.closeDatePushes = (deal.closeDatePushes ?? 0) + 1;
       return;
     }
     case "deal.setStage": {
@@ -467,6 +587,13 @@ export function applyAction(ws: Workspace, action: Action): void {
       if (!d || d.generatedAt !== action.generatedAt) return; // a newer debrief replaced it
       if (action.patch.recap) d.recap = action.patch.recap;
       if (action.patch.appliedAt) d.appliedAt = action.patch.appliedAt;
+      // A referral's company, once the founder added it: the lead finds it by domain from then on.
+      const rd = action.patch.referralDomain;
+      if (rd) {
+        d.referralPeople ??= debriefReferrals(d);
+        const r = d.referralPeople[rd.index];
+        if (r) r.domain = rd.domain;
+      }
       return;
     }
     case "outreach.editStep": {
@@ -475,6 +602,8 @@ export function applyAction(ws: Workspace, action: Action): void {
         pkg.steps.find((s) => s.step === action.step),
         "Step",
       );
+      // The text as drafted, kept once, so the send can be compared with it.
+      step.original ??= { subject: step.subject, body: step.body };
       if (action.subject !== undefined) step.subject = action.subject;
       if (action.body !== undefined) step.body = action.body;
       step.edited = true;
@@ -487,6 +616,9 @@ export function applyAction(ws: Workspace, action: Action): void {
       if (!first) return;
       pkg.alternates[action.index] = { ...first };
       Object.assign(first, { subject: alt.subject, body: alt.body, frame: alt.frame, evidenceIds: alt.evidenceIds, lint: alt.lint });
+      // The text as drafted travels with the text, so edits are measured against the right draft.
+      if (alt.original) first.original = alt.original;
+      else delete first.original;
       return;
     }
     case "outreach.approveStep": {
@@ -500,6 +632,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       step.status = "sent";
       step.sentAt = action.at;
       const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+      const asDrafted = step.original ? `${step.original.subject ?? ""}\n${step.original.body}` : undefined;
+      const distance = asDrafted === undefined ? 0 : editDistance(asDrafted, `${step.subject ?? ""}\n${step.body}`);
       ws.activities.push({
         id: action.activityId,
         at: action.at,
@@ -513,10 +647,21 @@ export function applyAction(ws: Workspace, action: Action): void {
         summary: `${pkg.mode === "reply" ? "Replied" : step.step === 1 ? "First touch" : `Follow-up ${step.step - 1}`} to ${person?.name ?? pkg.accountDomain}`,
         body: step.body,
         source: "founder",
+        // Signal, frame, POV, persona, subject style and bet arm: what the learning reviews compare.
+        ...touchTags(ws, pkg, step, action.at),
+        editDistance: distance,
       });
+      // Every edit before sending is the founder showing how they write.
+      if (step.original) learnFromEdit(ws, { before: step.original.body, after: step.body, subjectBefore: step.original.subject, subjectAfter: step.subject, distance }, action.at);
       const acc = ws.accounts[pkg.accountDomain];
       if (acc && acc.status === "new") acc.status = "tracked";
       if (pkg.mode === "warm_intro") openIntroFromAsk(ws, pkg.id, action.at);
+      if (pkg.mode === "reply" && pkg.replyAction === "book") {
+        openDealFromReply(ws, pkg, action.at);
+        // The answer is the deal's first touch: it belongs on the deal it just opened.
+        const answer = ws.activities.find((a) => a.id === action.activityId);
+        if (answer && !answer.dealId) answer.dealId = ws.accounts[pkg.accountDomain]?.dealId;
+      }
       for (const move of Object.values(ws.moves)) {
         if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "done";
       }
@@ -560,9 +705,23 @@ export function applyAction(ws: Workspace, action: Action): void {
       );
       step.status = "draft";
       delete step.sentAt;
+      // Not sent after all: the edit it recorded comes back out of the voice card.
+      const unsent = ws.activities.find((a) => a.id === action.activityId);
+      if (unsent && ws.voice?.edits?.some((e) => e.at === unsent.at)) {
+        ws.voice.edits = ws.voice.edits.filter((e) => e.at !== unsent.at);
+        ws.voice.editsSinceExtract = Math.max(0, (ws.voice.editsSinceExtract ?? 0) - 1);
+      }
       ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
       for (const move of Object.values(ws.moves)) {
         if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "open";
+      }
+      // The card the founder finished by approving, whether or not it carried the draft link (gone moves are skipped).
+      for (const id of action.moveIds ?? []) {
+        const move = ws.moves[id];
+        if (move?.status === "done") {
+          move.status = "open";
+          delete move.autoDone;
+        }
       }
       // Undoing an intro ask also undoes the intro it opened, if nothing has happened on it since.
       const intro = ws.intros?.[`intro_${pkg.id}`];
@@ -573,6 +732,28 @@ export function applyAction(ws: Workspace, action: Action): void {
           else delete connector.lastAskedOn;
         }
         delete ws.intros[intro.id];
+      }
+      // Undoing a "yes" reply takes back the contact it added to an open deal, and the deal it opened if nothing has happened on it since.
+      for (const deal of Object.values(ws.deals)) {
+        if (deal.contacts.some((c) => c.viaReply === pkg.id)) deal.contacts = deal.contacts.filter((c) => c.viaReply !== pkg.id);
+      }
+      const opened = ws.deals[replyDealId(pkg.id)];
+      if (opened && opened.stage === "talking" && opened.stageHistory.length <= 1 && !opened.meetingIds.length) {
+        delete ws.deals[opened.id];
+        const acc = ws.accounts[opened.accountDomain];
+        if (acc?.dealId === opened.id) {
+          const prior = Object.values(ws.deals)
+            .filter((d) => d.accountDomain === acc.domain)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+          // A customer (by a won deal, or marked one) stays a customer.
+          if (prior) {
+            acc.dealId = prior.id;
+            acc.status = prior.stage === "won" || acc.customerAt ? "customer" : "in_pipeline";
+          } else {
+            delete acc.dealId;
+            acc.status = acc.customerAt ? "customer" : "tracked";
+          }
+        }
       }
       return;
     }
@@ -619,6 +800,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       move.status = "open";
       delete move.skipReason;
       delete move.snoozedUntil;
+      // An undone "tone off" skip takes its example back out of the voice card.
+      if (ws.voice?.toneOff) ws.voice.toneOff = ws.voice.toneOff.filter((t) => t.moveId !== action.id);
       return;
     }
     case "activity.markOutcome": {
@@ -633,6 +816,15 @@ export function applyAction(ws: Workspace, action: Action): void {
           a.outcomeAt = action.at;
         }
       }
+      return;
+    }
+    case "activity.closeLoop": {
+      const reply = need(
+        ws.activities.find((a) => a.id === action.id),
+        "Reply",
+      );
+      if (action.at === null) delete reply.loopClosedAt;
+      else reply.loopClosedAt = action.at;
       return;
     }
     case "brief.setProposal": {

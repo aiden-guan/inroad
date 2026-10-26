@@ -11,10 +11,11 @@ import { Num } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
-import { newId } from "@/lib/domain/ids";
+import { newId, nowISO } from "@/lib/domain/ids";
 import type { ObjectionCard } from "@/lib/domain/types";
 import { listItem, spring } from "@/lib/motion";
-import { AssetsBlock, DesignPartnerBlock } from "./assets";
+import { conversationsTarget } from "@/lib/moves/scoreboard";
+import { AssetsBlock, ContentBlock, DesignPartnerBlock } from "./assets";
 import { usePlaybook } from "./context";
 import {
   BAND_LABELS,
@@ -32,6 +33,7 @@ import {
   provenance,
   quoteLog,
   usdRange,
+  type AssetKind,
   type Rate,
 } from "./model";
 import { starterObjections } from "./templates";
@@ -47,6 +49,7 @@ export function HowSection() {
       <Commercial />
       <Objections />
       <AssetsBlock />
+      <ContentBlock />
       <DesignPartnerBlock />
     </Section>
   );
@@ -92,6 +95,8 @@ function Plan() {
   const rounded = Math.round(m.projected);
   const onTrack = m.gap <= 0.05 || rounded >= m.target;
   const goal = (patch: Partial<typeof ws.goal>) => void dispatch({ type: "goal.update", patch });
+  // What Today's masthead actually aims for (the bet's channel plan until the founder picks a number here).
+  const todayTarget = conversationsTarget(ws);
 
   return (
     <Sub id="plan" title="Plan" hint="The goal is an output of what you can do each week, not a wish. Change an input and the number follows.">
@@ -181,7 +186,13 @@ function Plan() {
             {(m.levers.introAsksPerWeek || m.levers.byDate) && (
               <div className="mt-3 flex flex-wrap gap-2 font-sans">
                 {m.levers.introAsksPerWeek && (
-                  <Button size="sm" onClick={() => goal({ introAsksPerWeek: m.levers.introAsksPerWeek! })}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      goal({ introAsksPerWeek: m.levers.introAsksPerWeek! });
+                      toast(`Today now aims for ${m.levers.introAsksPerWeek} intro asks a week.`);
+                    }}
+                  >
                     Ask for {m.levers.introAsksPerWeek} intros a week
                   </Button>
                 )}
@@ -200,7 +211,10 @@ function Plan() {
         {m.warm ? (
           <p>
             Warm capacity: {plural(m.warm.atIcp, "person", "people")} in your network at companies that fit, {m.warm.buyerTitles} in buyer roles.
-            {m.warm.weeksOfAsks !== null && ` At ${m.intro.perWeek} asks a week, that's about ${plural(m.warm.weeksOfAsks, "week")} before you need new sources.`}
+            {m.warm.weeksOfAsks !== null &&
+              (m.warm.weeksOfAsks < 1
+                ? ` At ${m.intro.perWeek} asks a week, that's under a week of asks: your investors and advisors are the next source.`
+                : ` At ${m.intro.perWeek} asks a week, that's about ${plural(m.warm.weeksOfAsks, "week")} before you need new sources.`)}
           </p>
         ) : (
           <p>
@@ -211,13 +225,13 @@ function Plan() {
           </p>
         )}
         <p>Cold email never goes above 20 a day. LinkedIn invites, intro asks and replies don&apos;t count against the cap.</p>
-        {ws.goal.conversationsPerWeek !== m.conversationsPerWeek && (
+        {todayTarget !== m.conversationsPerWeek && (
           <p className="flex flex-wrap items-center gap-x-2">
-            Today aims for {plural(ws.goal.conversationsPerWeek, "conversation")} a week; this plan supports about {m.conversationsPerWeek}.
+            Today aims for {plural(todayTarget, "conversation")} a week; this plan supports about {m.conversationsPerWeek}.
             <button
               type="button"
               onClick={() => {
-                goal({ conversationsPerWeek: m.conversationsPerWeek });
+                goal({ conversationsPerWeek: m.conversationsPerWeek, conversationsChosenAt: nowISO() });
                 toast(`Today now aims for ${plural(m.conversationsPerWeek, "conversation")} a week.`);
               }}
               className="text-fg-2 underline underline-offset-2 hover:text-fg"
@@ -238,13 +252,24 @@ const TRUST_ORDER = [
   "Investor and advisor intros",
   "Signal-based cold email",
   "Communities where your buyer asks for help",
-  "Founder content, 2–3 posts a week",
+  "Founder content, one optional post a week from your calls",
   "Rooms: a virtual roundtable first, a dinner only with a co-host",
   "Launches, once people can try it without a sales call",
 ];
 
+/** The channels whose first action is a draft: each opens the matching Founder content draft. */
+const MOTION_DRAFT: Partial<Record<string, { kind: AssetKind; label: string }>> = {
+  communities: { kind: "community_answer", label: "Find a question to answer" },
+  founder_content: { kind: "post", label: "Draft this week's post" },
+  launches: { kind: "launch", label: "Draft a Show HN post" },
+};
+
 function Channels() {
-  const { p, set } = usePlaybook();
+  const { p, set, setComposer } = usePlaybook();
+  const startDraft = (kind: AssetKind) => {
+    setComposer({ kind });
+    requestAnimationFrame(() => document.getElementById("content")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   const plan = p.channelPlan;
   const motions = plan ? [...plan.motions].map((m, i) => ({ m, i })).sort((a, b) => a.m.rank - b.m.rank) : [];
   return (
@@ -269,6 +294,16 @@ function Channels() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {MOTION_DRAFT[m.motion] && (
+                  <button
+                    type="button"
+                    onClick={() => startDraft(MOTION_DRAFT[m.motion]!.kind)}
+                    className="mt-1.5 inline-flex items-center gap-1 text-[13px] text-fg-2 underline-offset-2 hover:text-fg hover:underline"
+                  >
+                    {MOTION_DRAFT[m.motion]!.label}
+                    <ArrowRight className="size-3.5" aria-hidden />
+                  </button>
                 )}
               </div>
             </li>

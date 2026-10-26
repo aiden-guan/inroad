@@ -2,6 +2,7 @@
 
 import * as DM from "@radix-ui/react-dropdown-menu";
 import * as RP from "@radix-ui/react-popover";
+import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/client/cn";
 
@@ -48,6 +49,25 @@ export function MenuItem({
       <span className="flex-1">{children}</span>
       {hint && <span className="text-[12px] text-fg-3">{hint}</span>}
     </DM.Item>
+  );
+}
+
+/** A menu item that toggles (a tag, a filter). The menu stays open so several can be set in one go. */
+export function MenuCheckItem({ children, checked, onCheckedChange }: { children: ReactNode; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
+  return (
+    <DM.CheckboxItem
+      checked={checked}
+      onCheckedChange={(v) => onCheckedChange(v === true)}
+      onSelect={(e) => e.preventDefault()}
+      className="flex h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 text-[13px] text-fg outline-none data-[highlighted]:bg-bg-subtle"
+    >
+      <span className="flex size-4 items-center justify-center text-fg-2">
+        <DM.ItemIndicator>
+          <Check className="size-3.5" aria-hidden />
+        </DM.ItemIndicator>
+      </span>
+      <span className="flex-1">{children}</span>
+    </DM.CheckboxItem>
   );
 }
 

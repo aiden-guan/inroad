@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+  <schemaVersion>X0708</schemaVersion>
+  <submissionType>D</submissionType>
+  <testOrLive>LIVE</testOrLive>
+  <primaryIssuer>
+    <cik>0001987654</cik>
+    <entityName>Pavewise Inc.</entityName>
+    <issuerAddress>
+      <street1>100 Broadway</street1>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+      <zipCode>10005</zipCode>
+    </issuerAddress>
+    <issuerPhoneNumber>212-555-0100</issuerPhoneNumber>
+    <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+    <entityType>Corporation</entityType>
+    <yearOfInc>
+      <withinFiveYears>true</withinFiveYears>
+      <value>2023</value>
+    </yearOfInc>
+  </primaryIssuer>
+  <relatedPersonsList>
+    <relatedPersonInfo>
+      <relatedPersonName>
+        <firstName>Dana</firstName>
+        <middleName></middleName>
+        <lastName>Okafor</lastName>
+      </relatedPersonName>
+      <relatedPersonAddress>
+        <street1>100 Broadway</street1>
+        <city>New York</city>
+        <stateOrCountry>NY</stateOrCountry>
+        <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+        <zipCode>10005</zipCode>
+      </relatedPersonAddress>
+      <relatedPersonRelationshipList>
+        <relationship>Executive Officer</relationship>
+        <relationship>Director</relationship>
+      </relatedPersonRelationshipList>
+      <relationshipClarification>Chief Executive Officer</relationshipClarification>
+    </relatedPersonInfo>
+    <relatedPersonInfo>
+      <relatedPersonName>
+        <firstName>Priya</firstName>
+        <lastName>Raman</lastName>
+      </relatedPersonName>
+      <relatedPersonRelationshipList>
+        <relationship>Executive Officer</relationship>
+      </relatedPersonRelationshipList>
+    </relatedPersonInfo>
+  </relatedPersonsList>
+  <offeringData>
+    <industryGroup>
+      <industryGroupType>Other Technology</industryGroupType>
+    </industryGroup>
+    <issuerSize>
+      <revenueRange>Decline to Disclose</revenueRange>
+    </issuerSize>
+    <federalExemptionsExclusions>
+      <item>06b</item>
+    </federalExemptionsExclusions>
+    <typeOfFiling>
+      <newOrAmendment>
+        <isAmendment>false</isAmendment>
+      </newOrAmendment>
+      <dateOfFirstSale>
+        <value>2026-09-18</value>
+      </dateOfFirstSale>
+    </typeOfFiling>
+    <durationOfOffering>
+      <moreThanOneYear>false</moreThanOneYear>
+    </durationOfOffering>
+    <typesOfSecuritiesOffered>
+      <isEquityType>true</isEquityType>
+    </typesOfSecuritiesOffered>
+    <businessCombinationTransaction>
+      <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+    </businessCombinationTransaction>
+    <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+    <salesCompensationList></salesCompensationList>
+    <offeringSalesAmounts>
+      <totalOfferingAmount>18000000</totalOfferingAmount>
+      <totalAmountSold>18000000</totalAmountSold>
+      <totalRemaining>0</totalRemaining>
+    </offeringSalesAmounts>
+    <investors>
+      <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+      <totalNumberAlreadyInvested>9</totalNumberAlreadyInvested>
+    </investors>
+  </offeringData>
+</edgarSubmission>
