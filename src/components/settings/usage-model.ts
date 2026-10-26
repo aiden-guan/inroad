@@ -19,6 +19,7 @@ export const WORKFLOW_META: Record<WorkflowId, { label: string; tiers: ModelTier
   ask: { label: "Ask", tiers: ["operator"] },
   asset: { label: "Documents", tiers: ["operator"] },
   studio: { label: "Studio", tiers: ["strategist", "operator", "fast"] },
+  visual: { label: "Studio visuals", tiers: ["strategist", "operator"] },
   brief: { label: "Today's brief", tiers: ["fast"] },
   network: { label: "Network screen", tiers: ["fast"] },
   enrich: { label: "Free signals", tiers: ["none"] },

@@ -19,6 +19,7 @@ import { AUDIENCES, FORMATS, OCCASIONS } from "@/lib/studio/formats";
 import { MaterialCard, ProfileCard } from "./material";
 import { NewPiece, type NewPieceArgs } from "./new-piece";
 import { OptionCard } from "./option-card";
+import { ImagesCard } from "./visuals";
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -95,6 +96,7 @@ export function StudioPage() {
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <ProfileCard ws={ws} />
           <MaterialCard ws={ws} />
+          <ImagesCard ws={ws} />
         </aside>
 
         <main className="min-w-0 space-y-5">

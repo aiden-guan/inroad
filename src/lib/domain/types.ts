@@ -1204,7 +1204,8 @@ export type WorkflowId =
   | "enrich"
   | "asset"
   | "network"
-  | "studio";
+  | "studio"
+  | "visual";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -1367,6 +1368,8 @@ export interface StudioOption {
   edited?: boolean;
   kept?: boolean;
   critic?: StudioCritic;
+  /** The last image prompt Claude wrote for this option, to paste into ChatGPT or reuse. */
+  imagePrompt?: { text: string; preset: string; at: ISODateTime };
 }
 
 export interface StudioPiece {
@@ -1393,12 +1396,81 @@ export interface StudioProfile {
   productName: string;
   /** Words the founder never wants in copy, on top of the house list. */
   neverSay: string[];
+  /** Brand colors for graphics, hex, most used first. Empty → Studio's neutral ink-and-paper palette. */
+  colors?: string[];
+}
+
+/**
+ * An image layer: a real screenshot or photo the founder uploaded, or one OpenAI's GPT Image model
+ * painted from a prompt Claude wrote. Files live in `.data/studio/`, never in the workspace JSON.
+ */
+export interface StudioImage {
+  id: ID;
+  source: "upload" | "openai";
+  file: string;
+  mime: "image/png" | "image/jpeg";
+  width: number;
+  height: number;
+  alt: string;
+  /** Generated images only. A generated image is never presented as the product's UI or a real customer. */
+  generated?: { prompt: string; model: string; size: string; quality: string };
+  createdAt: ISODateTime;
+}
+
+/** Claude's layouts for a graphic (src/lib/studio/visuals.ts). */
+export type VisualLayout = "statement" | "stat" | "quote" | "before_after" | "screenshot" | "photo" | "announcement";
+
+export type VisualCheckCode =
+  | "TEXT_NOT_APPROVED"
+  | "TEXT_MISSING"
+  | "LOW_CONTRAST"
+  | "SAFE_ZONE"
+  | "SMALL_TYPE"
+  | "TEXT_HEAVY"
+  | "SIZE_MISMATCH"
+  | "UNSAFE_REMOVED"
+  | "OVERFLOW"
+  | "NO_IMAGE_SLOT"
+  | "RENDER_FAILED"
+  | "REVIEW";
+
+/**
+ * A finished graphic: Claude's sanitized SVG design, optionally over an image layer, rendered to
+ * PNG on the server. Every word on it comes from the option's linted text.
+ */
+export interface StudioVisual {
+  id: ID;
+  pieceId: ID;
+  optionId: ID;
+  layout: VisualLayout;
+  /** Preset id and pixel size ("linkedin" → 1200×627). */
+  preset: string;
+  width: number;
+  height: number;
+  svgFile: string;
+  pngFile: string | null;
+  imageId?: ID;
+  /** Where the image layer sits, in canvas pixels. */
+  slot?: { x: number; y: number; w: number; h: number };
+  why: string;
+  checks: { code: VisualCheckCode; detail: string; severity: "error" | "warn" }[];
+  /** Claude's look at the actual render: 1–10 (7 = would post) and what it would change. */
+  review?: { score: number; issues: string[]; fix: string };
+  /** Uses a generated image layer: platforms ask advertisers to disclose realistic AI imagery. */
+  aiImagery: boolean;
+  kept?: boolean;
+  /** The option's words were edited after this graphic was made. */
+  stale?: boolean;
+  createdAt: ISODateTime;
+  runId?: ID;
 }
 
 export interface StudioState {
   profile: StudioProfile | null;
   material: StudioMaterial[];
   pieces: Record<ID, StudioPiece>;
+  images: Record<ID, StudioImage>;
+  visuals: Record<ID, StudioVisual>;
 }
 
 /* ─────────────────────────────── Workspace ─────────────────────────────── */

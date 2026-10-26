@@ -8,7 +8,7 @@ import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules"
 import { readConnections } from "@/lib/network/store";
 import { readWorkspace } from "@/lib/store/workspace";
 import { FORMAT_IDS, FORMATS, OCCASIONS } from "@/lib/studio/formats";
-import { checkCopy, copyGuide } from "@/lib/studio/guide";
+import { checkCopy, checkGraphic, copyGuide } from "@/lib/studio/guide";
 import { scoreAccount, scoringContext } from "./scoring";
 import { logCall, recordBudget, type ApiKey } from "./store";
 import { ACCESS, type Scope } from "./types";
@@ -403,6 +403,26 @@ export const TOOLS: ToolDef[] = [
     run: (a) => {
       const data = checkCopy(readWorkspace(), a);
       return { data, summary: data.passed ? `Checked ${FORMATS[a.format].label}: ready` : `Checked ${FORMATS[a.format].label}: ${plural(data.errors.length, "issue")}` };
+    },
+  }),
+  tool({
+    name: "check_graphic",
+    title: "Check a graphic",
+    description:
+      "Check an SVG graphic for one format the way Inroad checks its own: every word must come from the copy or the founder's receipts, plus contrast, safe zones, type size and text share. Returns errors to fix. get_copy_guide's visual block has the sizes and rules.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "POST", path: "/copy/graphic" },
+    schema: z.object({
+      format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]),
+      preset: z.string().max(30).optional().describe("A size id from get_copy_guide's visual.sizes (e.g. linkedin, portrait, story)"),
+      svg: z.string().max(60000).describe("The complete SVG document"),
+      parts: z.record(z.string().max(40), z.string().max(6000)).describe("The checked copy the graphic carries, by part key"),
+    }),
+    run: (a) => {
+      const data = checkGraphic(readWorkspace(), a);
+      return { data, summary: data.passed ? `Checked a ${FORMATS[a.format].label} graphic: ready` : `Checked a ${FORMATS[a.format].label} graphic: ${plural(data.errors.length, "issue")}` };
     },
   }),
 ];
