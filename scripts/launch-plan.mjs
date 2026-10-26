@@ -40,6 +40,9 @@ export function launchPlan(argv, baseEnv, guardPath) {
     const mockUrl = `http://localhost:${env.MOCK_PORT || 4010}`;
     env.ANTHROPIC_BASE_URL = mockUrl;
     env.ANTHROPIC_API_KEY = "mock";
+    // Choosing OpenAI in Settings talks to the mock too (any key works), and fake keys stay out of the keychain.
+    env.OPENAI_BASE_URL = `${mockUrl}/v1`;
+    env.INROAD_KEYCHAIN ||= "off";
     env.FIRECRAWL_API_URL = mockUrl;
     env.GTM_DATA_DIR ||= ".data-mock";
   }

@@ -4,7 +4,7 @@ import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * End to end against the mock Anthropic API (scripts/mock-anthropic.mjs): `npm run e2e`.
+ * End to end against the mock AI APIs (scripts/mock-anthropic.mjs: Anthropic, and OpenAI-compatible): `npm run e2e`.
  * Starts the mock and `next dev` on their own ports with a fresh data folder, so it never touches
  * `.data/` and never spends a token, and with outbound DNS off (e2e/offline.cjs), so it reads the
  * same nothing from the web on every machine. Chromium comes from PLAYWRIGHT_BROWSERS_PATH when it's
@@ -51,6 +51,8 @@ export default defineConfig({
     { name: "sample", testMatch: "sample.spec.ts", dependencies: ["palette"], use: { ...devices["Desktop Chrome"] } },
     // Last: Today's cards on the sample, with a few things added through a restore.
     { name: "today", testMatch: "today-cards.spec.ts", dependencies: ["sample"], use: { ...devices["Desktop Chrome"] } },
+    // Then switch the AI provider to OpenAI (the mock speaks Chat Completions) and back.
+    { name: "provider", testMatch: "provider.spec.ts", dependencies: ["today"], use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: [
     {
@@ -69,6 +71,9 @@ export default defineConfig({
       env: {
         ANTHROPIC_BASE_URL: mockUrl,
         ANTHROPIC_API_KEY: "mock",
+        // OpenAI, when chosen in Settings, talks to the mock; keys go to the encrypted file, never a keychain.
+        OPENAI_BASE_URL: `${mockUrl}/v1`,
+        INROAD_KEYCHAIN: "off",
         FIRECRAWL_API_URL: mockUrl,
         GTM_DATA_DIR: dataDir,
         NEXT_TELEMETRY_DISABLED: "1",

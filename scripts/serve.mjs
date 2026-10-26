@@ -14,7 +14,7 @@
  *   it the app can't tell this computer from a caller who claims to be it, so it refuses everything.
  * - Once Next answers, asks it to run its startup work (POST /api/startup): tighten data-file permissions
  *   and bring a named tunnel back, so hook and MCP URLs work again even if nobody opens the app.
- * - `--mock` points Anthropic and Firecrawl at the mock (`npm run mock:anthropic`, MOCK_PORT or 4010),
+ * - `--mock` points Anthropic, OpenAI and Firecrawl at the mock (`npm run mock:anthropic`, MOCK_PORT or 4010),
  *   keeps its data in .data-mock (GTM_DATA_DIR to change) and serves on 3100.
  *
  * Plain Node, no shell syntax, so it runs the same in cmd, PowerShell, bash and zsh.
