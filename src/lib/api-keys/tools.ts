@@ -1,12 +1,14 @@
 import "server-only";
 import { z } from "zod";
 import { ActionError } from "@/lib/domain/actions";
-import type { SignalType } from "@/lib/domain/types";
+import type { SignalType, StudioFormatId, StudioOccasion } from "@/lib/domain/types";
 import { todayISO } from "@/lib/domain/ids";
 import { normalizeDomain } from "@/lib/hub/records";
 import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules";
 import { readConnections } from "@/lib/network/store";
 import { readWorkspace } from "@/lib/store/workspace";
+import { FORMAT_IDS, FORMATS, OCCASIONS } from "@/lib/studio/formats";
+import { checkCopy, copyGuide } from "@/lib/studio/guide";
 import { scoreAccount, scoringContext } from "./scoring";
 import { logCall, recordBudget, type ApiKey } from "./store";
 import { ACCESS, type Scope } from "./types";
@@ -367,6 +369,40 @@ export const TOOLS: ToolDef[] = [
         summary: `${plural(intros.length, "intro")}, ${intros.filter((i) => i.whose_move === "you").length} the founder's move`,
         records: intros.length,
       };
+    },
+  }),
+  // Studio: the same format specs, moves, receipts and lint the in-app copy writer uses.
+  tool({
+    name: "get_copy_guide",
+    title: "Get the copy guide",
+    description:
+      "How to write one marketing format (launch post, ad, homepage hero, Show HN, store listing…) for this founder: its parts and real platform limits, moves that fit with sourced examples, the founder's receipts (the only specifics allowed) and what fails. Read before writing marketing copy.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/copy/guide" },
+    schema: z.object({
+      format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]).describe(`One of: ${FORMAT_IDS.join(", ")}`),
+      occasion: z.enum(Object.keys(OCCASIONS) as [StudioOccasion, ...StudioOccasion[]]).optional().describe("Why now: launch, feature, funding, milestone, customer_win, lesson, data_drop, hiring, event or evergreen"),
+    }),
+    run: (a) => ({ data: copyGuide(readWorkspace(), a), summary: `Read the copy guide for ${FORMATS[a.format].label}` }),
+  }),
+  tool({
+    name: "check_copy",
+    title: "Check copy",
+    description:
+      "Lint marketing copy for one format, in code: platform limits, AI tells, numbers and superlatives without a receipt, never-say words. Returns errors to fix. Run on every draft.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "POST", path: "/copy/check" },
+    schema: z.object({
+      format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]),
+      parts: z.record(z.string().max(40), z.string().max(6000)).describe("The copy by part key, from get_copy_guide (e.g. {\"headline\": \"…\", \"subhead\": \"…\"})"),
+    }),
+    run: (a) => {
+      const data = checkCopy(readWorkspace(), a);
+      return { data, summary: data.passed ? `Checked ${FORMATS[a.format].label}: ready` : `Checked ${FORMATS[a.format].label}: ${plural(data.errors.length, "issue")}` };
     },
   }),
 ];

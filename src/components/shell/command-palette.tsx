@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, Keyboard, Map as MapIcon, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, Keyboard, Map as MapIcon, MessageCircle, Moon, NotebookPen, PenTool, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAsk } from "@/components/providers/ask-provider";
@@ -154,6 +154,9 @@ export function CommandPalette() {
             </Item>
             <Item value="playbook icp positioning" icon={<NotebookPen className="size-4" />} onSelect={() => run(() => router.push("/playbook"))} hint="G P">
               Playbook
+            </Item>
+            <Item value="studio marketing copy launch post ad headline landing page tagline" icon={<PenTool className="size-4" />} onSelect={() => run(() => router.push("/studio"))} hint="G M">
+              Studio
             </Item>
             <Item value="integrations connect tools" icon={<Plug className="size-4" />} onSelect={() => run(() => router.push("/integrations"))} hint="G I">
               Integrations

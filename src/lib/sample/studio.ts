@@ -85,7 +85,7 @@ export function studio(c: Clock): StudioState {
             parts: {
               headline: "Month-end close without the VLOOKUP on customer ID",
               subhead: "The usage export, the invoice export, a week of matching. Ledgerline matches each event to its invoice line and flags the ones that arrived late.",
-              cta: "Try it on one close",
+              cta: "Try one close",
               proof: "",
             },
             receiptIds: [MATERIAL.closeStory, MATERIAL.demo],
