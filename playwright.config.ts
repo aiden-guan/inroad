@@ -78,6 +78,8 @@ export default defineConfig({
         GTM_DATA_DIR: dataDir,
         NEXT_TELEMETRY_DISABLED: "1",
         NODE_OPTIONS: nodeOptions,
+        // git runs outside the DNS block above: no update checks against GitHub.
+        INROAD_UPDATE_CHECK: "off",
       },
     },
   ],

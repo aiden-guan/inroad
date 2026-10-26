@@ -11,7 +11,7 @@ import { holdsRealWork, readWorkspace } from "./workspace";
 /**
  * Backups: one bundle with every file that makes up a workspace, so nothing is ever gone for good.
  *  - Snapshots in `<data>/backups/`: one a day, the first time Inroad opens that day, and one before
- *    anything replaces the workspace: a reset, the sample, a restore. Each is kept 14 days at most (and
+ *    anything replaces the workspace (a reset, the sample, a restore) or the app (an update). Each is kept 14 days at most (and
  *    no more than the last 14 daily and 10 others), so someone deleted is gone from them within 14 days.
  *  - Export: the same bundle, downloaded from Settings → Data.
  *  - Restore: from a snapshot or a downloaded file (src/lib/sample/store.ts does the replacing).
@@ -27,7 +27,7 @@ export const BACKUP_DIR = () => path.join(DATA_DIR, "backups");
 export const WORKSPACE_FILES = ["workspace.json", "threads.json", "connections.json", "network.json", "desk.json", "runs.json", "hub.json"] as const;
 export type WorkspaceFile = (typeof WORKSPACE_FILES)[number];
 
-export type BackupReason = "daily" | "before_reset" | "before_sample" | "before_restore" | "export";
+export type BackupReason = "daily" | "before_reset" | "before_sample" | "before_restore" | "before_update" | "export";
 
 const KEEP = { daily: 14, event: 10 } as const;
 /** No snapshot outlives this, whatever its kind: Settings promises "the last 14 days". */
@@ -97,7 +97,7 @@ export function buildBundle(reason: BackupReason, now = new Date()): BackupBundl
   return { format: BACKUP_FORMAT, version: 1, createdAt: now.toISOString(), reason, summary: summarize(ws), files };
 }
 
-const REASONS: BackupReason[] = ["daily", "before_reset", "before_sample", "before_restore", "export"];
+const REASONS: BackupReason[] = ["daily", "before_reset", "before_sample", "before_restore", "before_update", "export"];
 // 2026-10-22T16-05-00-123Z-daily.json.gz: sortable, and safe on every file system.
 const NAME = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)-([a-z_]+)\.json\.gz$/;
 
@@ -154,8 +154,8 @@ function prune(now: Date) {
   for (const b of new Set([...daily, ...events, ...old])) fs.rmSync(path.join(BACKUP_DIR(), b.name), { force: true });
 }
 
-/** Before a reset, the sample or a restore: a snapshot when there's real work to lose, else nothing. */
-export function snapshotBefore(reason: "before_reset" | "before_sample" | "before_restore"): BackupEntry | null {
+/** Before a reset, the sample, a restore or an update: a snapshot when there's real work to lose, else nothing. */
+export function snapshotBefore(reason: "before_reset" | "before_sample" | "before_restore" | "before_update"): BackupEntry | null {
   if (!holdsRealWork()) return null;
   try {
     return snapshot(reason);

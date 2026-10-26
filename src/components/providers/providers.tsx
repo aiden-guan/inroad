@@ -4,6 +4,7 @@ import { MotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { UpdateProvider } from "@/components/updates/update-provider";
 import { AskProvider } from "./ask-provider";
 import { RunsProvider } from "./runs-provider";
 import { WorkspaceProvider } from "./workspace-provider";
@@ -15,7 +16,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <WorkspaceProvider>
           <RunsProvider>
             <AskProvider>
-              {children}
+              <UpdateProvider>{children}</UpdateProvider>
               <Toaster
                 position="bottom-right"
                 gap={10}

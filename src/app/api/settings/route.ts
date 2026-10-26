@@ -33,6 +33,7 @@ function status(): SettingsStatus {
       keyHint: settings.openaiApiKey ? `…${settings.openaiApiKey.slice(-4)}` : null,
       imageModel: settings.imageModel ?? DEFAULT_IMAGE_MODEL,
     },
+    updateCheck: settings.updateCheck ?? "on",
   };
 }
 
@@ -72,6 +73,8 @@ const Body = z.object({
   /** The founder's OpenAI key for painting images; null or "" removes it. */
   openaiApiKey: z.string().max(400).nullable().optional(),
   imageModel: z.enum(IMAGE_MODELS.map((m) => m.id) as [string, ...string[]]).optional(),
+  /** Check GitHub for a new version by itself. */
+  updateCheck: z.enum(["on", "off"]).optional(),
 });
 
 /** Saves local-only settings. A provider key is checked with the provider (it lists the models it can use) before it's kept. */
@@ -83,6 +86,7 @@ export async function POST(request: Request) {
     if (body.geocoder) writeSettings({ geocoder: body.geocoder });
     if (body.companyIcons) writeSettings({ companyIcons: body.companyIcons });
     if (body.imageModel) writeSettings({ imageModel: body.imageModel });
+    if (body.updateCheck) writeSettings({ updateCheck: body.updateCheck });
 
     if (body.openaiApiKey === null || body.openaiApiKey === "") {
       writeSettings({ openaiApiKey: undefined });
