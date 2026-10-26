@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { AccessLevel, AgentClient, CreateKeyResponse, KeysResponse } from "@/lib/api-keys/types";
+import type { ModelTier } from "@/lib/ai/models";
+import type { AccessLevel, AgentClient, CreateKeyResponse, KeyEffort, KeysResponse, UpdateKeyResponse } from "@/lib/api-keys/types";
 import { tickNow } from "./bits";
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -71,5 +72,21 @@ export function useAgentKeys(watching: boolean) {
     setData((d) => (d ? { ...d, keys: d.keys.filter((k) => k.id !== id) } : d));
   }, []);
 
-  return { data, error, refresh, create, revoke };
+  const update = useCallback(
+    async (id: string, patch: { model?: ModelTier; effort?: KeyEffort }) => {
+      // Optimistic: the picker moves at once; a failed save reloads what the server has.
+      setData((d) => (d ? { ...d, keys: d.keys.map((k) => (k.id === id ? { ...k, ...patch } : k)) } : d));
+      try {
+        const res = await fetch(`/api/mcp/keys/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+        const { key } = await readJson<UpdateKeyResponse>(res);
+        setData((d) => (d ? { ...d, keys: d.keys.map((k) => (k.id === id ? key : k)) } : d));
+      } catch (e) {
+        void refresh();
+        throw e;
+      }
+    },
+    [refresh],
+  );
+
+  return { data, error, refresh, create, revoke, update };
 }

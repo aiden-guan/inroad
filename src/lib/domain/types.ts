@@ -1203,7 +1203,8 @@ export type WorkflowId =
   | "ask"
   | "enrich"
   | "asset"
-  | "network";
+  | "network"
+  | "agent_ask";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
