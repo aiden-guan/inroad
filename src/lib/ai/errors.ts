@@ -27,16 +27,13 @@ export type AgentErrorCode =
   | "stopped"
   | "unknown";
 
-/** Where a founder adds credits when the API says the balance is too low. */
-export const BILLING_URL = "https://console.anthropic.com/settings/billing";
-
 export class AgentError extends Error {
   /** Spend from turns that completed before the failure (set by runAgent). */
   usage?: Usage;
   costUsd?: number;
   /** The run had left out optional features the API rejected (set by runAgent). */
   compat?: { features: CompatFeature[]; reason: string };
-  /** The API's request id, for "Copy details" when asking Anthropic support about a failure. */
+  /** The API's request id, for "Copy details" when asking the provider's support about a failure. */
   requestId?: string;
   /** What the API said, verbatim (status · type · message). Never the message the founder reads. */
   detail?: string;

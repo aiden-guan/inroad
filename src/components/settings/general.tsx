@@ -1,13 +1,14 @@
 "use client";
 
-import { ArrowUpRight, KeyRound } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { ArrowUpRight } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { Segmented, Skeleton } from "@/components/ui/misc";
 import { setCompanyIcons } from "@/lib/client/icons";
+import { AiProviderGroup } from "./ai-provider";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
 import type { CompanyIcons, Geocoder, NewsSource } from "./types";
 import { useThemePref, type ThemePref, type useSettingsStatus } from "./use-settings";
@@ -16,8 +17,8 @@ type Settings = ReturnType<typeof useSettingsStatus>;
 
 export function GeneralSection({ settings }: { settings: Settings }) {
   return (
-    <SettingsSection id="general" title="General" description="The key I run on, how the app looks, and what may leave this computer for news, places, icons and public records.">
-      <ApiKeyGroup settings={settings} />
+    <SettingsSection id="general" title="General" description="The AI I run on, how the app looks, and what may leave this computer for news, places, icons and public records.">
+      <AiProviderGroup settings={settings} />
       <Group title="Appearance">
         <ThemeRow />
       </Group>
@@ -26,191 +27,6 @@ export function GeneralSection({ settings }: { settings: Settings }) {
       <IconsGroup settings={settings} />
       <PublicDataGroup settings={settings} />
     </SettingsSection>
-  );
-}
-
-/* ───────────── Anthropic API key ───────────── */
-
-function ApiKeyGroup({ settings }: { settings: Settings }) {
-  const { status, error: loadError, save } = settings;
-  const [editing, setEditing] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
-  const [key, setKey] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"save" | "remove" | null>(null);
-  const input = useRef<HTMLInputElement>(null);
-
-  const open = editing || (status !== null && !status.hasKey);
-
-  const submit = async () => {
-    if (!key.trim()) {
-      setError("Paste your key first. It starts with sk-ant-.");
-      input.current?.focus();
-      return;
-    }
-    setBusy("save");
-    setError(null);
-    const problem = await save({ anthropicApiKey: key.trim() });
-    setBusy(null);
-    if (problem) {
-      setError(problem);
-      input.current?.focus();
-      return;
-    }
-    setKey("");
-    setEditing(false);
-    toast("Key saved. Anthropic accepted it.");
-  };
-
-  const remove = async () => {
-    setBusy("remove");
-    const problem = await save({ anthropicApiKey: null });
-    setBusy(null);
-    setConfirmRemove(false);
-    if (problem) toast.error(problem);
-    else toast("Key removed from this machine.");
-  };
-
-  let summary: ReactNode;
-  if (!status) {
-    summary = loadError ? <span className="text-danger">{loadError}</span> : <Skeleton className="mt-1 h-4 w-48" />;
-  } else if (status.keySource === "settings") {
-    summary = (
-      <>
-        Saved on this machine <span className="font-mono text-[12px] text-fg-2">{status.keyHint}</span>
-      </>
-    );
-  } else if (status.keySource === "env") {
-    summary = (
-      <>
-        Using the key from your environment (<span className="font-mono text-[12px]">ANTHROPIC_API_KEY</span>). A key saved here takes priority.
-      </>
-    );
-  } else {
-    summary = "No key yet. Research and drafting wait for one; free signals and syncing your tools work without it.";
-  }
-
-  return (
-    <Group
-      id="api-key"
-      title="Anthropic API key"
-      right={
-        <a
-          href="https://console.anthropic.com/settings/keys"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-0.5 rounded-xs text-[12px] text-fg-3 underline-offset-4 transition-colors hover:text-fg hover:underline"
-        >
-          Get a key <ArrowUpRight className="size-3" aria-hidden />
-        </a>
-      }
-    >
-      <Row
-        label={
-          <span className="flex items-center gap-2">
-            <KeyRound className="size-3.5 text-fg-3" aria-hidden />
-            {status?.hasKey ? "Connected" : status ? "Not connected" : "Checking…"}
-            {status?.hasKey && <Badge tone="success">Active</Badge>}
-          </span>
-        }
-        hint={summary}
-      >
-        {status?.hasKey && !open && (
-          <div className="flex justify-start gap-1.5 sm:justify-end">
-            {confirmRemove ? (
-              <>
-                <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(false)}>
-                  Keep it
-                </Button>
-                <Button size="sm" variant="danger" className="ring-1 ring-inset ring-danger/30" loading={busy === "remove"} onClick={() => void remove()}>
-                  Remove key
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditing(true);
-                    requestAnimationFrame(() => input.current?.focus());
-                  }}
-                >
-                  {status.keySource === "env" ? "Save a key here" : "Replace"}
-                </Button>
-                {status.keySource === "settings" && (
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(true)}>
-                    Remove
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </Row>
-      {confirmRemove && (
-        <p className="px-4 py-2.5 text-[12.5px] text-fg-2">
-          Without a key, research and drafting stop until you add one again. Runs already going will finish.
-        </p>
-      )}
-      {open && (
-        <div className="px-4 py-3.5">
-          <form
-            className="flex flex-col gap-2 sm:flex-row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submit();
-            }}
-          >
-            <Input
-              ref={input}
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="sk-ant-…"
-              aria-label="Anthropic API key"
-              aria-invalid={!!error}
-              aria-describedby="key-help"
-              value={key}
-              onChange={(e) => {
-                setKey(e.target.value);
-                if (error) setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape" && editing) {
-                  e.preventDefault();
-                  setEditing(false);
-                  setKey("");
-                  setError(null);
-                }
-              }}
-              className="h-8 font-mono text-[12.5px] sm:flex-1"
-            />
-            <div className="flex gap-1.5">
-              <Button type="submit" variant="primary" loading={busy === "save"} disabled={!key.trim()}>
-                {busy === "save" ? "Checking with Anthropic" : "Save key"}
-              </Button>
-              {editing && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing(false);
-                    setKey("");
-                    setError(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              )}
-            </div>
-          </form>
-          <FieldError>{error}</FieldError>
-          <p id="key-help" className="mt-2 text-[12px] leading-[18px] text-fg-3">
-            I check it with Anthropic, then keep it only on this computer, readable by you alone. It never goes into exports.
-          </p>
-        </div>
-      )}
-    </Group>
   );
 }
 
