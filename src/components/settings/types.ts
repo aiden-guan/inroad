@@ -57,6 +57,8 @@ export interface SettingsStatus {
   dataDir: string;
   /** The data folder is inside Inroad's own folder (no GTM_DATA_DIR), so deleting or re-cloning Inroad deletes it. */
   dataDirInApp: boolean;
+  /** OpenAI, used only to paint the picture layer of Studio graphics. Same rules: the key never leaves the server. */
+  openai: { hasKey: boolean; keySource: "settings" | "env" | null; keyHint: string | null; imageModel: string };
 }
 
 export type CheckStatus = "pass" | "warn" | "fail";

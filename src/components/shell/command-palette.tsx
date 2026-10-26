@@ -21,6 +21,7 @@ import {
   Moon,
   NotebookPen,
   PenLine,
+  PenTool,
   Phone,
   Plug,
   Reply,
@@ -545,6 +546,9 @@ export function CommandPalette() {
                 </Item>
                 <Item value="playbook icp positioning" icon={<NotebookPen className="size-4" />} onSelect={() => run(() => router.push("/playbook"))} keys="G P">
                   Playbook
+                </Item>
+                <Item value="studio marketing copy launch post ad headline landing page tagline" icon={<PenTool className="size-4" />} onSelect={() => run(() => router.push("/studio"))} keys="G M">
+                  Studio
                 </Item>
                 <Item value="integrations connect tools" icon={<Plug className="size-4" />} onSelect={() => run(() => router.push("/integrations"))} keys="G I">
                   Integrations

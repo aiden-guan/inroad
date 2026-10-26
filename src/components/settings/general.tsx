@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
-import { useState } from "react";
+import { ArrowUpRight, ImageIcon } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -14,6 +14,7 @@ import { AiProviderGroup } from "./ai-provider";
 import { CONSUMER_MODEL_LABELS, MARKET_LABELS } from "@/lib/consumer/market";
 import type { ConsumerModel, Market } from "@/lib/domain/types";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
+import { IMAGE_MODELS } from "@/lib/studio/visuals";
 import type { CompanyIcons, Geocoder, NewsSource } from "./types";
 import { useThemePref, type ThemePref, type useSettingsStatus } from "./use-settings";
 
@@ -23,6 +24,7 @@ export function GeneralSection({ settings }: { settings: Settings }) {
   return (
     <SettingsSection id="general" title="General" description="The AI I run on, who you sell to, how the app looks, and what may leave this computer for news, places, icons and public records.">
       <AiProviderGroup settings={settings} />
+      <ImagesGroup settings={settings} />
       <MarketGroup />
       <Group title="Appearance">
         <ThemeRow />
@@ -92,6 +94,177 @@ function MarketGroup() {
             options={(Object.keys(CONSUMER_MODEL_LABELS) as ConsumerModel[]).map((k) => ({ value: k, label: CONSUMER_MODEL_LABELS[k].label, hint: CONSUMER_MODEL_LABELS[k].hint }))}
           />
         </div>
+      )}
+    </Group>
+  );
+}
+
+/* ───────────── OpenAI (images for Studio graphics) ───────────── */
+
+function ImagesGroup({ settings }: { settings: Settings }) {
+  const { status, save } = settings;
+  const openai = status?.openai;
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"save" | "remove" | "model" | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  const submit = async () => {
+    if (!key.trim()) return;
+    setBusy("save");
+    setError(null);
+    const problem = await save({ openaiApiKey: key.trim() });
+    setBusy(null);
+    if (problem) {
+      setError(problem);
+      input.current?.focus();
+      return;
+    }
+    setKey("");
+    setOpen(false);
+    toast("OpenAI key saved.");
+  };
+
+  const remove = async () => {
+    setBusy("remove");
+    const problem = await save({ openaiApiKey: null });
+    setBusy(null);
+    if (problem) toast.error(problem);
+    else toast("OpenAI key removed from this machine.");
+  };
+
+  const chooseModel = async (id: string) => {
+    if (id === openai?.imageModel) return;
+    setBusy("model");
+    const problem = await save({ imageModel: id });
+    setBusy(null);
+    if (problem) toast.error(problem);
+  };
+
+  const summary = !openai ? (
+    <Skeleton className="mt-1 h-4 w-48" />
+  ) : openai.keySource === "settings" ? (
+    <>
+      Saved on this machine <span className="font-mono text-[12px] text-fg-2">{openai.keyHint}</span>. Images bill to your OpenAI account.
+    </>
+  ) : openai.keySource === "env" ? (
+    <>
+      Using <span className="font-mono text-[12px]">OPENAI_API_KEY</span> from your environment. Images bill to that OpenAI account.
+    </>
+  ) : (
+    "Optional. Without a key, Studio writes the image prompt for you to paste into ChatGPT, and you upload the result."
+  );
+
+  return (
+    <Group
+      id="images"
+      title="Images for Studio graphics"
+      hint="Claude designs every graphic and sets every word itself. An OpenAI key adds photos and illustrations behind the words, painted by GPT Image."
+      right={
+        <a
+          href="https://platform.openai.com/api-keys"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-0.5 rounded-xs text-[12px] text-fg-3 underline-offset-4 transition-colors hover:text-fg hover:underline"
+        >
+          Get a key <ArrowUpRight className="size-3" aria-hidden />
+        </a>
+      }
+    >
+      <Row
+        label={
+          <span className="flex items-center gap-2">
+            <ImageIcon className="size-3.5 text-fg-3" aria-hidden />
+            OpenAI {openai?.hasKey ? <Badge tone="success">Active</Badge> : openai ? <Badge tone="outline">Off</Badge> : null}
+          </span>
+        }
+        hint={summary}
+      >
+        {openai && !open && (
+          <div className="flex justify-start gap-1.5 sm:justify-end">
+            <Button
+              size="sm"
+              onClick={() => {
+                setOpen(true);
+                requestAnimationFrame(() => input.current?.focus());
+              }}
+            >
+              {openai.keySource === "settings" ? "Replace" : openai.keySource === "env" ? "Save a key here" : "Add key"}
+            </Button>
+            {openai.keySource === "settings" && (
+              <Button size="sm" variant="ghost" loading={busy === "remove"} onClick={() => void remove()}>
+                Remove
+              </Button>
+            )}
+          </div>
+        )}
+      </Row>
+      {open && (
+        <div className="px-4 py-3.5">
+          <form
+            className="flex flex-col gap-2 sm:flex-row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit();
+            }}
+          >
+            <Input
+              ref={input}
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="sk-…"
+              aria-label="OpenAI API key"
+              aria-invalid={!!error}
+              aria-describedby="openai-key-help"
+              value={key}
+              onChange={(e) => {
+                setKey(e.target.value);
+                if (error) setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setOpen(false);
+                  setKey("");
+                  setError(null);
+                }
+              }}
+              className="h-8 font-mono text-[12.5px] sm:flex-1"
+            />
+            <div className="flex gap-1.5">
+              <Button type="submit" variant="primary" loading={busy === "save"} disabled={!key.trim()}>
+                {busy === "save" ? "Checking with OpenAI" : "Save key"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setOpen(false);
+                  setKey("");
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+          <FieldError>{error}</FieldError>
+          <p id="openai-key-help" className="mt-2 text-[12px] leading-[18px] text-fg-3">
+            Kept only in <span className="font-mono">settings.json</span> on this machine and sent only to OpenAI. OpenAI may ask you to verify your organization before its image
+            models work.
+          </p>
+        </div>
+      )}
+      {openai?.hasKey && (
+        <ChoiceList<string>
+          name="image-model"
+          label="Image model"
+          value={openai.imageModel}
+          onChange={(v) => void chooseModel(v)}
+          options={IMAGE_MODELS.map((m, i) => ({ value: m.id, label: m.label, hint: m.note, badge: i === 0 ? <Badge tone="outline">Default</Badge> : undefined }))}
+        />
       )}
     </Group>
   );

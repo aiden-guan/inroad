@@ -19,8 +19,9 @@ const nextConfig: NextConfig = {
       }
     : {}),
   cacheComponents: true,
-  // A native module with per-platform binaries: required at runtime from node_modules, never bundled.
-  serverExternalPackages: ["@napi-rs/keyring"],
+  // Native modules with per-platform binaries, loaded with Node's require at runtime, never bundled:
+  // the keychain (@napi-rs/keyring) and the renderer for Studio graphics (SVG → PNG).
+  serverExternalPackages: ["@napi-rs/keyring", "@resvg/resvg-js"],
   partialPrefetching: true,
   turbopack: {
     rules: {

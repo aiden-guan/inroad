@@ -30,6 +30,8 @@ import type {
   PmfSurvey,
   SkipReason,
   Stage,
+  StudioMaterial,
+  StudioProfile,
   Suppression,
   VoiceTraits,
   Workspace,
@@ -43,6 +45,7 @@ import { forgetPerson } from "@/lib/people/forget";
 import { touchTags } from "@/lib/learning/tags";
 import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
 import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample, noteToneOff } from "@/lib/quality/voice";
+import { lintOption } from "@/lib/studio/receipts";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -85,6 +88,19 @@ export type Action =
   | { type: "pov.remove"; id: ID }
   | { type: "asset.upsert"; asset: Asset }
   | { type: "asset.remove"; id: ID }
+  /** Studio: who the copy is for, the product's name, the founder's never-say words. */
+  | { type: "studio.profile.update"; patch: Partial<StudioProfile> }
+  | { type: "studio.material.upsert"; material: StudioMaterial }
+  | { type: "studio.material.remove"; id: ID }
+  /** Edits an option's parts; lint is recomputed so "Ready" means the same on both sides. */
+  | { type: "studio.option.edit"; pieceId: ID; optionId: ID; parts: Record<string, string> }
+  | { type: "studio.option.keep"; pieceId: ID; optionId: ID; kept: boolean }
+  | { type: "studio.piece.remove"; id: ID }
+  | { type: "studio.visual.keep"; id: ID; kept: boolean }
+  /** Removes a graphic's record; the server sweeps its files (src/lib/studio/files.ts). */
+  | { type: "studio.visual.remove"; id: ID }
+  /** Removes an image from the library; graphics already rendered with it keep their PNG. */
+  | { type: "studio.image.remove"; id: ID }
   | { type: "connector.upsert"; connector: Connector }
   | { type: "connector.remove"; id: ID }
   /** Something the founder did for a connector: it balances the ledger against asks. */
@@ -446,6 +462,52 @@ export function applyAction(ws: Workspace, action: Action): void {
       return;
     case "asset.remove":
       ws.assets = ws.assets.filter((a) => a.id !== action.id);
+      return;
+    case "studio.profile.update": {
+      const base: StudioProfile = ws.studio.profile ?? { audience: "b2b", reader: "", productName: ws.company?.name ?? "", neverSay: [] };
+      ws.studio.profile = { ...base, ...action.patch };
+      return;
+    }
+    case "studio.material.upsert":
+      upsertBy(ws.studio.material, action.material);
+      return;
+    case "studio.material.remove":
+      ws.studio.material = ws.studio.material.filter((m) => m.id !== action.id);
+      return;
+    case "studio.option.edit": {
+      const piece = need(ws.studio.pieces[action.pieceId], "Piece");
+      const option = need(
+        piece.options.find((o) => o.id === action.optionId),
+        "Option",
+      );
+      option.parts = { ...option.parts, ...action.parts };
+      option.edited = true;
+      option.lint = lintOption(ws, piece, option);
+      // Graphics set the old words; mark them so the founder remakes them before posting.
+      for (const v of Object.values(ws.studio.visuals)) if (v.optionId === option.id) v.stale = true;
+      return;
+    }
+    case "studio.option.keep": {
+      const piece = need(ws.studio.pieces[action.pieceId], "Piece");
+      const option = need(
+        piece.options.find((o) => o.id === action.optionId),
+        "Option",
+      );
+      option.kept = action.kept;
+      return;
+    }
+    case "studio.piece.remove":
+      delete ws.studio.pieces[action.id];
+      for (const v of Object.values(ws.studio.visuals)) if (v.pieceId === action.id) delete ws.studio.visuals[v.id];
+      return;
+    case "studio.visual.keep":
+      need(ws.studio.visuals[action.id], "Graphic").kept = action.kept;
+      return;
+    case "studio.visual.remove":
+      delete ws.studio.visuals[action.id];
+      return;
+    case "studio.image.remove":
+      delete ws.studio.images[action.id];
       return;
     case "connector.upsert":
       upsertBy(ws.connectors, action.connector);
@@ -1060,6 +1122,8 @@ export function hrefFor(ref: EntityRef | undefined, ws?: Workspace): string | un
       return `/events/${encodeURIComponent(ref.id)}`;
     case "playbook":
       return `/playbook#${ref.id}`;
+    case "studio":
+      return `/studio?piece=${encodeURIComponent(ref.id)}`;
     default:
       return undefined;
   }

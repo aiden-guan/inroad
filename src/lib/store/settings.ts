@@ -61,6 +61,10 @@ export interface Settings {
    * Form D lookups still run but may be refused. Sent only to sec.gov.
    */
   secContact?: string;
+  /** The founder's own OpenAI key, used only to paint image layers for Studio visuals. */
+  openaiApiKey?: string;
+  /** Which GPT Image model paints them. */
+  imageModel?: string;
 }
 
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");

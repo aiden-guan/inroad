@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
 import { sampleWorkspace } from "@/lib/sample";
 import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids";
+import { MATERIAL, PIECE } from "@/lib/sample/studio";
 import { NOW, TODAY, at, consumerWorkspace, day, makeMove, makePackage, makePartner, makeStep, makeWeek, makeWorkspace } from "@/test/factories";
 import { buildRevision } from "@/lib/playbook/revision";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
@@ -29,6 +30,30 @@ function apply(state: Workspace, ...actions: Action[]): Workspace {
 afterEach(() => {
   vi.useRealTimers();
 });
+
+/** The sample plus one graphic (on the hero's first option) and the image it was made with. */
+function withVisual(): Workspace {
+  const w = ws();
+  const optionId = w.studio.pieces[PIECE.hero].options[0].id;
+  w.studio.images.img_test000001 = { id: "img_test000001", source: "upload", file: "img_test000001.png", mime: "image/png", width: 800, height: 600, alt: "", createdAt: at(0) };
+  w.studio.visuals.vis_test000001 = {
+    id: "vis_test000001",
+    pieceId: PIECE.hero,
+    optionId,
+    layout: "screenshot",
+    preset: "og",
+    width: 1200,
+    height: 630,
+    svgFile: "vis_test000001.svg",
+    pngFile: "vis_test000001.png",
+    imageId: "img_test000001",
+    why: "",
+    checks: [],
+    aiImagery: false,
+    createdAt: at(0),
+  };
+  return w;
+}
 
 const cases: Record<Action["type"], () => void> = {
   "founder.update": () => {
@@ -265,6 +290,68 @@ const cases: Record<Action["type"], () => void> = {
   "asset.remove": () => {
     const s = apply(ws(), { type: "asset.remove", id: sample.assets[0].id });
     expect(s.assets).toHaveLength(sample.assets.length - 1);
+  },
+
+  "studio.profile.update": () => {
+    const s = apply(ws(), { type: "studio.profile.update", patch: { audience: "prosumer" } });
+    expect(s.studio.profile).toMatchObject({ audience: "prosumer", productName: "Ledgerline" });
+    // No profile yet: defaults come from the company, then the patch.
+    const fresh = apply(makeWorkspace({ company: sample.company }), { type: "studio.profile.update", patch: { reader: "a controller" } });
+    expect(fresh.studio.profile).toEqual({ audience: "b2b", reader: "a controller", productName: sample.company!.name, neverSay: [] });
+  },
+
+  "studio.material.upsert": () => {
+    const s = apply(ws(), { type: "studio.material.upsert", material: { id: "mat_new", kind: "number", text: "Closes in 6 hours", source: "Design partner, Sept 2026", createdAt: at(0), uses: 0 } });
+    expect(s.studio.material.at(-1)?.id).toBe("mat_new");
+    expect(s.studio.material).toHaveLength(sample.studio.material.length + 1);
+  },
+
+  "studio.material.remove": () => {
+    const s = apply(ws(), { type: "studio.material.remove", id: MATERIAL.demo });
+    expect(s.studio.material.some((m) => m.id === MATERIAL.demo)).toBe(false);
+  },
+
+  "studio.option.edit": () => {
+    const option = sample.studio.pieces[PIECE.hero].options[0];
+    const s = apply(ws(), { type: "studio.option.edit", pieceId: PIECE.hero, optionId: option.id, parts: { headline: "Unlock the power of seamless closes" } });
+    const edited = s.studio.pieces[PIECE.hero].options[0];
+    expect(edited).toMatchObject({ edited: true, parts: { headline: "Unlock the power of seamless closes", subhead: option.parts.subhead } });
+    // Lint follows the edit, so "Ready" can't go stale.
+    expect(option.lint.passed).toBe(true);
+    expect(edited.lint.passed).toBe(false);
+    // Graphics that set the old words are marked.
+    const withGraphic = apply(withVisual(), { type: "studio.option.edit", pieceId: PIECE.hero, optionId: option.id, parts: { cta: "Try it" } });
+    expect(withGraphic.studio.visuals.vis_test000001.stale).toBe(true);
+  },
+
+  "studio.option.keep": () => {
+    const option = sample.studio.pieces[PIECE.hero].options[1];
+    const s = apply(ws(), { type: "studio.option.keep", pieceId: PIECE.hero, optionId: option.id, kept: true });
+    expect(s.studio.pieces[PIECE.hero].options[1].kept).toBe(true);
+  },
+
+  "studio.piece.remove": () => {
+    const s = apply(withVisual(), { type: "studio.piece.remove", id: PIECE.hero });
+    expect(s.studio.pieces[PIECE.hero]).toBeUndefined();
+    expect(s.studio.visuals.vis_test000001).toBeUndefined();
+  },
+
+  "studio.visual.keep": () => {
+    const s = apply(withVisual(), { type: "studio.visual.keep", id: "vis_test000001", kept: true });
+    expect(s.studio.visuals.vis_test000001.kept).toBe(true);
+    expect(() => apply(s, { type: "studio.visual.keep", id: "vis_missing", kept: true })).toThrow(ActionError);
+  },
+
+  "studio.visual.remove": () => {
+    const s = apply(withVisual(), { type: "studio.visual.remove", id: "vis_test000001" });
+    expect(s.studio.visuals).toEqual({});
+  },
+
+  "studio.image.remove": () => {
+    const s = apply(withVisual(), { type: "studio.image.remove", id: "img_test000001" });
+    expect(s.studio.images).toEqual({});
+    // The rendered graphic stays.
+    expect(s.studio.visuals.vis_test000001.pngFile).toBe("vis_test000001.png");
   },
 
   "connector.upsert": () => {
@@ -1017,6 +1104,7 @@ describe("hrefFor", () => {
     expect(hrefFor({ kind: "meeting", id: "mtg_missing" }, s)).toBeUndefined();
     expect(hrefFor({ kind: "event", id: EVENT.dinner })).toBe(`/events/${EVENT.dinner}`);
     expect(hrefFor({ kind: "playbook", id: "fq_soc2" })).toBe("/playbook#fq_soc2");
+    expect(hrefFor({ kind: "studio", id: PIECE.hero })).toBe(`/studio?piece=${PIECE.hero}`);
     expect(hrefFor({ kind: "claim", id: "clm_1" })).toBeUndefined();
   });
 });

@@ -13,7 +13,8 @@
  *     pause_turn, max_tokens, missing or invalid submit (scripts/mock/faults.mjs)
  * It also speaks the OpenAI-compatible Chat Completions API (GET /v1/models, POST /v1/chat/completions) that
  * every other provider uses, planned by the same playbooks (scripts/mock/openai.mjs), and fakes the Firecrawl
- * people capabilities and web search Inroad uses (scripts/mock/firecrawl.mjs).
+ * people capabilities and web search Inroad uses (scripts/mock/firecrawl.mjs), and OpenAI's image endpoint for
+ * Studio graphics (scripts/mock/studio.mjs).
  *
  *   node scripts/mock-anthropic.mjs            # listens on :4010 (MOCK_PORT to change)
  *   ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=mock FIRECRAWL_API_URL=http://localhost:4010 npm run dev
@@ -26,6 +27,7 @@ import { clearFaults, httpFault, listFaults, queueFaults, takeFault, TURN_FAULTS
 import { firecrawl } from "./mock/firecrawl.mjs";
 import { chatCompletions, listModels } from "./mock/openai.mjs";
 import { mockId, planTurn } from "./mock/plan.mjs";
+import { images } from "./mock/studio.mjs";
 import { promptUsage, resetCache } from "./mock/usage.mjs";
 import { validateRequest } from "./mock/validate.mjs";
 import { jsonMessage, streamMessage } from "./mock/wire.mjs";
@@ -139,6 +141,7 @@ async function handle(req, res) {
   if (req.method === "POST" && req.url.startsWith("/v1/messages")) return messages(req, res);
   if (req.method === "GET" && req.url.split("?")[0] === "/v1/models") return listModels(req, res);
   if (req.method === "POST" && req.url.startsWith("/v1/chat/completions")) return chatCompletions(req, res, { delay: DELAY, requests });
+  if (req.method === "POST" && req.url.startsWith("/v1/images/")) return images(req, res, DELAY);
   res.writeHead(404).end();
 }
 
