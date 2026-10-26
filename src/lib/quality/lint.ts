@@ -264,7 +264,7 @@ export function fkGrade(text: string): number {
 }
 
 /** Lowercase, no spaces/commas, units folded ("$12 million" → "$12m", "40 percent" → "40%"). */
-function normNumber(text: string): string {
+export function normNumber(text: string): string {
   return text
     .toLowerCase()
     .replace(/\bmillion\b/g, "m")

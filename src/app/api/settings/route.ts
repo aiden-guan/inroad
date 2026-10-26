@@ -8,6 +8,8 @@ import { aiStatus, removeAiKey, saveAiSetup } from "@/lib/ai/setup";
 import { checkGithubToken } from "@/lib/signals/github";
 import { errorResponse, readJSON } from "@/lib/server/http";
 import { DATA_DIR, dataDirInsideApp, readSettings, writeSettings } from "@/lib/store/settings";
+import { checkOpenAIKey } from "@/lib/studio/openai";
+import { DEFAULT_IMAGE_MODEL, IMAGE_MODELS } from "@/lib/studio/visuals";
 
 function status(): SettingsStatus {
   const settings = readSettings();
@@ -25,6 +27,12 @@ function status(): SettingsStatus {
     secContact: settings.secContact ?? null,
     dataDir: path.resolve(DATA_DIR),
     dataDirInApp: dataDirInsideApp(),
+    openai: {
+      hasKey: Boolean(settings.openaiApiKey || process.env.OPENAI_API_KEY),
+      keySource: settings.openaiApiKey ? "settings" : process.env.OPENAI_API_KEY ? "env" : null,
+      keyHint: settings.openaiApiKey ? `…${settings.openaiApiKey.slice(-4)}` : null,
+      imageModel: settings.imageModel ?? DEFAULT_IMAGE_MODEL,
+    },
   };
 }
 
@@ -61,6 +69,9 @@ const Body = z.object({
   githubToken: z.string().max(400).nullable().optional(),
   /** An email for SEC EDGAR's User-Agent; null or "" removes it. */
   secContact: z.string().max(254).nullable().optional(),
+  /** The founder's OpenAI key for painting images; null or "" removes it. */
+  openaiApiKey: z.string().max(400).nullable().optional(),
+  imageModel: z.enum(IMAGE_MODELS.map((m) => m.id) as [string, ...string[]]).optional(),
 });
 
 /** Saves local-only settings. A provider key is checked with the provider (it lists the models it can use) before it's kept. */
@@ -71,6 +82,18 @@ export async function POST(request: Request) {
     if (body.newsSource) writeSettings({ newsSource: body.newsSource });
     if (body.geocoder) writeSettings({ geocoder: body.geocoder });
     if (body.companyIcons) writeSettings({ companyIcons: body.companyIcons });
+    if (body.imageModel) writeSettings({ imageModel: body.imageModel });
+
+    if (body.openaiApiKey === null || body.openaiApiKey === "") {
+      writeSettings({ openaiApiKey: undefined });
+    } else if (body.openaiApiKey !== undefined) {
+      const key = body.openaiApiKey.trim();
+      if (!key.startsWith("sk-") || key.startsWith("sk-ant-")) {
+        return Response.json({ error: "That doesn't look like an OpenAI API key. It starts with sk-." }, { status: 400 });
+      }
+      if ((await checkOpenAIKey(key)) === "rejected") return Response.json({ error: "OpenAI rejected that key. Check it and try again." }, { status: 400 });
+      writeSettings({ openaiApiKey: key });
+    }
 
     if (body.githubToken === null || body.githubToken === "") writeSettings({ githubToken: undefined });
     else if (body.githubToken !== undefined) {

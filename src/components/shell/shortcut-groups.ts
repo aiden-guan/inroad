@@ -24,6 +24,7 @@ export function shortcutGroups(mac: boolean): ShortcutGroup[] {
         [["G", "N"], "Intros"],
         [["G", "E"], "Events"],
         [["G", "P"], "Playbook"],
+        [["G", "M"], "Studio (marketing copy)"],
         [["G", "I"], "Integrations"],
         [["G", "S"], "Settings"],
         [[mod, "↵"], "Save or send what you're typing"],
@@ -75,6 +76,10 @@ export function shortcutGroups(mac: boolean): ShortcutGroup[] {
     {
       title: "Events",
       rows: [[["N"], "Plan an event"]],
+    },
+    {
+      title: "Studio",
+      rows: [[["N"], "New piece"]],
     },
   ];
 }

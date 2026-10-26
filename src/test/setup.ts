@@ -19,6 +19,8 @@ process.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:9";
 // Keys go to the encrypted key file, never this computer's real keychain.
 process.env.INROAD_KEYCHAIN = "off";
 for (const name of ["OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "XAI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "DEEPSEEK_API_KEY", "TOGETHER_API_KEY", "INROAD_AI_KEY", "INROAD_AI_PROVIDER", "INROAD_AI_MODEL", "INROAD_AI_BASE_URL", "FIRECRAWL_API_KEY"]) delete process.env[name];
+// Like Anthropic's: an OpenAI base URL nothing listens on, so a stray image or chat call fails fast.
+process.env.OPENAI_BASE_URL = "http://127.0.0.1:9/v1";
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = (input, init) => {
