@@ -47,3 +47,7 @@ next-env.d.ts
 # end-to-end tests
 /test-results/
 /playwright-report/
+
+# The Mac app: its assembled server and the packaged builds
+/desktop/dist-server
+/desktop/dist

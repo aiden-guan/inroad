@@ -1,0 +1,11 @@
+{
+  "name": "inroad-desktop",
+  "productName": "Inroad",
+  "version": "0.1.0",
+  "description": "Your AI Head of GTM",
+  "author": "Inroad",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.cjs",
+  "dependencies": {}
+}
