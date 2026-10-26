@@ -142,7 +142,7 @@ describe("tools", () => {
 
   it("lists only the tools a key's scopes allow, in a fixed order", async () => {
     // New tools are appended, never inserted, so callers' prompt caches over the earlier ones keep hitting.
-    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth", "get_copy_guide", "check_copy", "check_graphic"];
+    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth", "get_copy_guide", "check_copy", "check_graphic", "ask_inroad"];
     expect(await names(tokens.read)).toEqual(read);
     expect(await names(tokens.records)).toEqual([
       "get_icp",
@@ -162,6 +162,7 @@ describe("tools", () => {
       "get_copy_guide",
       "check_copy",
       "check_graphic",
+      "ask_inroad",
     ]);
     expect(await names(tokens.drafts)).toEqual([
       "get_icp",
@@ -182,6 +183,7 @@ describe("tools", () => {
       "get_copy_guide",
       "check_copy",
       "check_graphic",
+      "ask_inroad",
     ]);
   });
 

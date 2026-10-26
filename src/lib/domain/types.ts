@@ -1594,7 +1594,8 @@ export type WorkflowId =
   | "network"
   | "partners"
   | "studio"
-  | "visual";
+  | "visual"
+  | "agent_ask";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 

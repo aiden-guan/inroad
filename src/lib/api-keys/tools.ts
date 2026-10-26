@@ -6,12 +6,16 @@ import { todayISO } from "@/lib/domain/ids";
 import { normalizeDomain } from "@/lib/hub/records";
 import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules";
 import { readConnections } from "@/lib/network/store";
+import { AgentError } from "@/lib/ai/errors";
+import { MODEL_LABELS } from "@/lib/ai/models";
+import { startRun, stopRun, subscribe } from "@/lib/runs/registry";
 import { readWorkspace } from "@/lib/store/workspace";
 import { FORMAT_IDS, FORMATS, OCCASIONS } from "@/lib/studio/formats";
 import { checkCopy, checkGraphic, copyGuide } from "@/lib/studio/guide";
+import agentAsk from "@/lib/workflows/agent-ask";
 import { scoreAccount, scoringContext } from "./scoring";
-import { logCall, recordBudget, type ApiKey } from "./store";
-import { ACCESS, type Scope } from "./types";
+import { askBudget, logCall, recordBudget, type ApiKey } from "./store";
+import { ACCESS, keyModelOf, type Scope } from "./types";
 import { accountView, growthView, icpView, nextActionsView, playbookView, searchView } from "./views";
 import { ToolError, addAccounts, addPartners, completeAction, logActivity, logGrowthWeek, submitDraft } from "./writes";
 
@@ -491,7 +495,67 @@ export const TOOLS: ToolDef[] = [
       return { data, summary: data.passed ? `Checked a ${FORMATS[a.format].label} graphic: ready` : `Checked a ${FORMATS[a.format].label} graphic: ${plural(data.errors.length, "issue")}` };
     },
   }),
+  tool({
+    name: "ask_inroad",
+    title: "Ask Inroad",
+    description:
+      "Ask the founder's Head of GTM a question about their accounts, pipeline, next moves or positioning. Read-only. Unlike the other tools this runs AI on the founder's credits, so call the plain read tools first and ask only for judgment.",
+    scope: "read",
+    readOnly: true,
+    idempotent: false,
+    rest: { method: "POST", path: "/ask" },
+    schema: z.object({
+      question: z.string().trim().min(1).max(4000).describe("One question, at most 4,000 characters"),
+      domain: domain.optional().describe("The company the question is about, if any"),
+    }),
+    run: async (a, ctx) => {
+      const limit = askBudget(ctx.key.id);
+      if (!limit.ok) throw new ToolError(`This key has used its 30 questions this hour. Try again in ${limit.retryInMin} min.`, 429);
+      const { model, effort } = keyModelOf(ctx.key);
+      const answer = await askAndWait({ keyId: ctx.key.id, keyName: ctx.key.name, question: a.question, domain: a.domain ? normalizeDomain(a.domain) ?? undefined : undefined, model, effort, base: ctx.base });
+      const cost = answer.costUsd < 0.01 ? "<$0.01" : `$${answer.costUsd.toFixed(2)}`;
+      return {
+        data: { answer: answer.text, model: MODEL_LABELS[model], effort, cost_usd: Number(answer.costUsd.toFixed(4)) },
+        summary: `Answered a question on ${MODEL_LABELS[model]}, ${effort} effort · ${cost}`,
+      };
+    },
+  }),
 ];
+
+const ASK_TIMEOUT_MS = 120_000;
+
+/** Starts an agent_ask run (so it shows in the sidebar, receipts and the monthly budget) and waits for its answer. */
+async function askAndWait(args: Parameters<typeof agentAsk.run>[0]["args"]): Promise<{ text: string; costUsd: number }> {
+  let run;
+  try {
+    run = await startRun(agentAsk, args);
+  } catch (err) {
+    if (err instanceof AgentError) throw new ToolError(err.message, 429);
+    throw err;
+  }
+  return new Promise((resolve, reject) => {
+    let text = "";
+    let error: string | null = null;
+    let costUsd = 0;
+    const timer = setTimeout(() => {
+      unsubscribe();
+      stopRun(run.id);
+      reject(new ToolError("Inroad took too long to answer (over 2 minutes). Ask a narrower question.", 504));
+    }, ASK_TIMEOUT_MS);
+    const unsubscribe = subscribe(run.id, (event) => {
+      if (event.type === "result") text = String((event.data as { answer?: unknown } | null)?.answer ?? "");
+      else if (event.type === "error") error = event.message;
+      else if (event.type === "usage") costUsd = event.costUsd;
+      else if (event.type === "done") {
+        clearTimeout(timer);
+        queueMicrotask(() => unsubscribe());
+        if (error) reject(new ToolError(`Inroad couldn't answer: ${error}`, 502));
+        else if (!text) reject(new ToolError("No answer came back. Try again.", 502));
+        else resolve({ text, costUsd });
+      }
+    });
+  });
+}
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 

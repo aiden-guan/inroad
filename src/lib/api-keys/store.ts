@@ -3,7 +3,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { ActionError } from "@/lib/domain/actions";
 import { newId, nowISO } from "@/lib/domain/ids";
 import { FileDB, singletonDB } from "@/lib/store/file-db";
-import type { AgentCall, AgentClient, ApiKeyPublic, Scope } from "./types";
+import type { ModelTier } from "@/lib/ai/models";
+import type { AgentCall, AgentClient, ApiKeyPublic, KeyEffort, Scope } from "./types";
 
 /**
  * `.data/keys.json`: agent keys (hashed, never the token), the per-key call log, and the
@@ -52,7 +53,7 @@ export function listKeys(): { keys: ApiKeyPublic[]; calls: AgentCall[] } {
   return { keys: f.keys.filter((k) => !k.revokedAt).map(toPublic), calls: f.calls.slice(0, 200) };
 }
 
-export async function createKey(input: { name: string; client: AgentClient; scopes: Scope[] }): Promise<{ key: ApiKeyPublic; token: string }> {
+export async function createKey(input: { name: string; client: AgentClient; scopes: Scope[]; model?: ModelTier; effort?: KeyEffort }): Promise<{ key: ApiKeyPublic; token: string }> {
   const token = `inr_${randomBytes(24).toString("base64url")}`;
   const key: StoredKey = {
     id: newId("key"),
@@ -62,6 +63,8 @@ export async function createKey(input: { name: string; client: AgentClient; scop
     preview: `${token.slice(0, 8)}…${token.slice(-4)}`,
     createdAt: nowISO(),
     calls: 0,
+    ...(input.model ? { model: input.model } : {}),
+    ...(input.effort ? { effort: input.effort } : {}),
     hash: sha256(token),
   };
   await mutate((f) => {
@@ -69,6 +72,17 @@ export async function createKey(input: { name: string; client: AgentClient; scop
     f.keys.push(key);
   });
   return { key: toPublic(key), token };
+}
+
+/** Changes the model and effort a key's asks run on. Takes effect from its next call. */
+export async function updateKey(id: string, patch: { model?: ModelTier; effort?: KeyEffort }): Promise<ApiKeyPublic | null> {
+  return mutate((f) => {
+    const k = f.keys.find((x) => x.id === id && !x.revokedAt);
+    if (!k) return null;
+    if (patch.model) k.model = patch.model;
+    if (patch.effort) k.effort = patch.effort;
+    return toPublic(k);
+  });
 }
 
 export async function revokeKey(id: string): Promise<boolean> {
@@ -151,6 +165,25 @@ export function rateLimit(keyId: string, now = Date.now()): number {
   b.calls.push(now);
   buckets.set(keyId, b);
   return 0;
+}
+
+const ASKS_PER_HOUR = 30;
+const asks = (() => {
+  const g = globalThis as unknown as { __inroadKeyAsks?: Map<string, number[]> };
+  g.__inroadKeyAsks ??= new Map();
+  return g.__inroadKeyAsks;
+})();
+
+/** ask_inroad spends the founder's tokens, so a looping agent gets a much tighter cap than plain reads. */
+export function askBudget(keyId: string, now = Date.now()): { ok: boolean; retryInMin: number } {
+  const recent = (asks.get(keyId) ?? []).filter((t) => now - t < 3_600_000);
+  if (recent.length >= ASKS_PER_HOUR) {
+    asks.set(keyId, recent);
+    return { ok: false, retryInMin: Math.max(1, Math.ceil((3_600_000 - (now - recent[0])) / 60_000)) };
+  }
+  recent.push(now);
+  asks.set(keyId, recent);
+  return { ok: true, retryInMin: 0 };
 }
 
 /** Records written in the last hour; writes past the cap are refused so a loop can't flood the workspace. */
