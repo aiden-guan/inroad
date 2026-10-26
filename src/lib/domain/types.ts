@@ -48,6 +48,19 @@ export interface Evidence {
   flaggedWrong?: { at: ISODateTime; note?: string };
 }
 
+/* ─────────────────────────────── Market ─────────────────────────────── */
+
+/** Who the company sells to. Unset (workspaces made before consumer mode) reads as "b2b": see `marketOf`. */
+export type Market = "b2b" | "consumer";
+
+/**
+ * How a consumer company makes money and grows. It picks the channel plan, the retention benchmark and the pricing default.
+ * app: consumer software (mobile or web), free or paid · dtc: physical products sold direct · marketplace: two sides
+ * (buyers and sellers, hosts and guests) · social: the network is the product (social, community, user content) ·
+ * prosumer: individuals paying for a tool they use for work or a serious hobby.
+ */
+export type ConsumerModel = "app" | "dtc" | "marketplace" | "social" | "prosumer";
+
 /* ─────────────────────────────── Company & Playbook ─────────────────────────────── */
 
 export interface LearningChip {
@@ -77,6 +90,12 @@ export interface CompanySnapshot {
   founderNote?: string; // the optional sentence from onboarding
   /** From the founder's own MX records (onboarding); used for sender setup. */
   emailProvider?: "google" | "microsoft" | "other" | "none";
+  /** Businesses or consumers. The founder's pick (onboarding, Settings) wins over what the site suggests. */
+  market?: Market;
+  consumerModel?: ConsumerModel;
+  marketSource?: "founder" | "site";
+  /** What on the site pointed at consumers ("App Store link", "Shopify cart"), found in code. */
+  marketHints?: string[];
 }
 
 export interface ValueTheme {
@@ -97,7 +116,22 @@ export interface Positioning {
   warning?: string;
 }
 
-export type DetectionMethod = "job_posts" | "form_d" | "press" | "site" | "yc_directory" | "github" | "dns" | "hn" | "founder_knowledge";
+export type DetectionMethod =
+  | "job_posts"
+  | "form_d"
+  | "press"
+  | "site"
+  | "yc_directory"
+  | "github"
+  | "dns"
+  | "hn"
+  | "founder_knowledge"
+  // Consumer audiences: where a trait shows up in public, or by asking users.
+  | "app_reviews"
+  | "community"
+  | "social"
+  | "search_trends"
+  | "survey";
 
 export type SignalType =
   | "champion_job_change"
@@ -113,12 +147,18 @@ export type SignalType =
   | "public_pain"
   | "filing"
   | "hiring"
-  | "sensitive";
+  | "sensitive"
+  // Consumer moments: what makes a person look for this now.
+  | "life_event"
+  | "seasonal"
+  | "trend"
+  | "competitor_gap";
 
 export interface ICPCriterion {
   id: ID;
   text: string;
-  kind: "firmographic" | "technographic" | "situational";
+  /** demographic and behavioral describe consumer audiences; the rest describe companies. */
+  kind: "firmographic" | "technographic" | "situational" | "demographic" | "behavioral";
   mustHave: boolean;
   detection: DetectionMethod;
   status: "validated" | "hypothesis";
@@ -154,17 +194,23 @@ export interface SegmentBet {
   meetings?: number;
 }
 
-export type PersonaRole = "economic_buyer" | "champion" | "technical_approver" | "user" | "blocker";
+/**
+ * Business buying roles, then consumer ones: early_adopter (the first users who look for this), payer (pays for someone
+ * else: a parent, a gift giver) and influencer (who shapes the choice: a creator, an expert, a friend group).
+ */
+export type PersonaRole = "economic_buyer" | "champion" | "technical_approver" | "user" | "blocker" | "early_adopter" | "payer" | "influencer";
 
 export interface Persona {
   id: ID;
   role: PersonaRole;
+  /** Job titles for businesses; for consumers, how the segment describes itself ("first-time parents"). */
   titles: string[];
+  /** What they're measured on (businesses) or what they want to get done (consumers). */
   kpis: string[];
   pains: string[];
   triggers: string[];
   objections: string[];
-  wateringHoles: { name: string; kind: "community" | "podcast" | "newsletter" | "conference"; url?: string }[];
+  wateringHoles: { name: string; kind: "community" | "podcast" | "newsletter" | "conference" | "creator" | "social" | "forum"; url?: string }[];
   line: string; // ≤25 words, how to talk to this persona
 }
 
@@ -175,6 +221,8 @@ export interface MessagingTree {
   bySignal: { signal: SignalType; implication: string }[];
   customerWords: { phrase: string; source: "call" | "site" | "job_post" | "review" | "community" | "founder" }[];
   bannedWords: string[];
+  /** Consumer: first lines for short video and posts, each from a real pain, moment or customer word. */
+  hooks?: string[];
 }
 
 export type Motion =
@@ -185,7 +233,21 @@ export type Motion =
   | "founder_content"
   | "exec_dinners"
   | "design_partner_program"
-  | "launches";
+  | "launches"
+  // Consumer motions (see src/lib/consumer/plan.ts).
+  | "hand_recruiting"
+  | "user_conversations"
+  | "short_video"
+  | "creators"
+  | "referral_loop"
+  | "waitlist"
+  | "app_store"
+  | "seo"
+  | "paid_social"
+  | "press"
+  | "ambassadors"
+  | "supply_seeding"
+  | "pop_ups";
 
 export interface ChannelPlan {
   funnel: {
@@ -194,12 +256,15 @@ export interface ChannelPlan {
     coldContactsNeeded: number;
     perWeek: { conversations: number; firstTouches: number; introAsks: number; meetings: number };
     warning?: string;
+    /** Consumer plans: retention-first math (active users needed ÷ the retention bar = signups needed). */
+    consumer?: { signupsNeeded: number; signupsPerWeek: number; retentionTarget: number; weeks: number };
   };
   motions: { motion: Motion; rank: number; why: string; weeklyTarget: string; firstActions: string[] }[];
 }
 
 export interface CommercialDefault {
-  structure: "paid_pilot" | "paid_design_partner" | "annual_with_opt_out";
+  /** The first three are business deals; the rest are how a consumer pays (see src/lib/consumer/plan.ts). */
+  structure: "paid_pilot" | "paid_design_partner" | "annual_with_opt_out" | "free_trial" | "freemium" | "direct_purchase" | "take_rate";
   terms: string;
   priceAnchor: string;
   discountRule: string;
@@ -235,7 +300,8 @@ export interface Provenance {
   label: string; // "From your site + 2 answers · 0 conversations confirm this"
 }
 
-export type FoundationSection = "positioning" | "icp" | "personas" | "messaging" | "questions";
+/** "growth" is written for consumer companies only. */
+export type FoundationSection = "positioning" | "icp" | "personas" | "messaging" | "questions" | "growth";
 
 /** One row of the first-run reading ledger: a page actually crawled, or a free lookup. */
 export interface OnboardingLedgerRow {
@@ -263,6 +329,135 @@ export interface Foundation {
   founderQuestions: FounderQuestion[];
   confidence: Confidence;
   provenance?: Partial<Record<FoundationSection, Provenance>>;
+  /** Consumer companies: how the product grows (Playbook → How we grow). */
+  growth?: GrowthModel;
+}
+
+/* ─────────────────────────────── Consumer growth ─────────────────────────────── */
+
+export type GrowthLoopKind = "viral" | "word_of_mouth" | "content" | "creator" | "community" | "paid" | "marketplace";
+/** d30 = active 30 days after signup; w4 = active in week 4; m3_repeat = bought again within 90 days; m1_paid = still paying after one renewal. */
+export type RetentionMetric = "d1" | "d30" | "w4" | "m3_repeat" | "m1_paid";
+
+/** The consumer playbook's growth model. The strategist proposes the product-specific parts; code fills the benchmark. */
+export interface GrowthModel {
+  model: ConsumerModel;
+  /** One number that counts delivered value ("weekly active families who log 3+ feeds"), with why. */
+  northStar: { metric: string; why: string };
+  /** The first moment a new user gets the value, within `withinDays` of signing up. */
+  activation: { event: string; withinDays: number; status: "hypothesis" | "validated"; howToTest?: string };
+  /** How often the need naturally comes up; sets which retention window matters. */
+  cadence: "daily" | "weekly" | "monthly" | "occasional";
+  /** Where new users should come from once retention holds. */
+  primaryLoop: { kind: GrowthLoopKind; how: string };
+  /** Code-filled from the benchmark table for this model and cadence (percent of a signup cohort). */
+  retention: { metric: RetentionMetric; target: number; good: number; source: string };
+  /** Where the first 100 users come from, by hand. Up to 3 lines. */
+  firstHundred: string[];
+}
+
+/** One week of numbers the founder logs (or a connected tool fills). Counts are for the week starting `weekOf`. */
+export interface GrowthWeek {
+  weekOf: ISODate;
+  /** New users (apps), first-time buyers (DTC), new buyers or sellers (marketplaces). */
+  signups: number;
+  /** Of this week's signups, how many reached the activation event. */
+  activated?: number;
+  /** Distinct users active this week (buyers this week for DTC). */
+  active?: number;
+  /** Percent (0–100) of the cohort that signed up four weeks earlier and was active this week. */
+  retainedPct?: number;
+  /** Paying customers or subscribers at week end. */
+  paying?: number;
+  newPaying?: number;
+  churnedPaying?: number;
+  revenueUsd?: number;
+  /** Paid acquisition spend this week (ads, paid creators). */
+  spendUsd?: number;
+  /** Signups that came from an invite, a referral link or a friend. */
+  referred?: number;
+  /** Where most signups came from, in the founder's words ("TikTok", "r/running"). */
+  topChannel?: string;
+  note?: string;
+  source: "founder" | IntegrationId;
+  loggedAt: ISODateTime;
+}
+
+/** Creators, communities, newsletters, podcasts, press and partner brands: who a consumer company reaches its users through. */
+export type PartnerKind = "creator" | "community" | "newsletter" | "podcast" | "press" | "brand";
+export type PartnerStage = "shortlist" | "contacted" | "replied" | "agreed" | "live" | "done" | "passed";
+export type PartnerPlatform = "tiktok" | "instagram" | "youtube" | "x" | "reddit" | "discord" | "facebook" | "substack" | "podcast" | "web" | "other";
+export type PartnerOffer = "gifted" | "flat_fee" | "affiliate" | "hybrid" | "free_access" | "collab";
+
+export interface PartnerOutreach {
+  channel: "email" | "dm";
+  subject: string | null;
+  body: string;
+  /** The one follow-up, sent about 5 days later if there's no answer. */
+  followUp?: string;
+  draftedAt: ISODateTime;
+  lint?: LintResult;
+  runId?: ID;
+  sentOn?: ISODate;
+  followedUpOn?: ISODate;
+  edited?: boolean;
+}
+
+export interface Partner {
+  id: ID;
+  kind: PartnerKind;
+  name: string;
+  platform?: PartnerPlatform;
+  handle?: string;
+  url?: string;
+  /** Who listens, in plain words ("new parents, mostly US"). */
+  audience?: string;
+  /** Founder-entered or from a creator tool; never estimated by the agent. */
+  followers?: number;
+  /** 0–1. Founder-entered or from a creator tool. */
+  engagementRate?: number;
+  /** Why their audience is ours, ≤160 chars. */
+  fit: string;
+  /** Where the agent saw it (a search result or a page read in a run). */
+  sourceUrl?: string;
+  source: "agent" | "founder" | "integration";
+  stage: PartnerStage;
+  stageHistory: { stage: PartnerStage; at: ISODateTime }[];
+  offer?: { type: PartnerOffer; amountUsd?: number; commissionPct?: number; terms?: string };
+  outreach?: PartnerOutreach;
+  /** The creator brief (an Asset of kind creator_brief) once they agreed. */
+  briefAssetId?: ID;
+  /** Paid or gifted content needs a clear disclosure. The founder checks the live post and confirms it. */
+  disclosure?: "confirmed" | "missing";
+  /** A unique code or link, so results can be counted. */
+  trackingCode?: string;
+  results?: { at: ISODateTime; views?: number; clicks?: number; signups?: number; orders?: number; costUsd?: number; note?: string }[];
+  notes?: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+  runId?: ID;
+}
+
+/** One growth experiment. Code sizes it; below the sample it needs, it's a before/after read, not a test. */
+export interface Experiment {
+  id: ID;
+  stage: "acquisition" | "activation" | "retention" | "referral" | "revenue";
+  hypothesis: string;
+  change: string;
+  metric: string;
+  ice?: { impact: number; confidence: number; ease: number };
+  /** Current rate of the metric (0–1), used to size the test. */
+  baseline?: number;
+  /** Users per variant a readable A/B result needs (computed in code). */
+  perArm?: number;
+  startedOn?: ISODate;
+  endsOn?: ISODate;
+  status: "idea" | "running" | "won" | "lost" | "inconclusive";
+  result?: string;
+  /** The weekly review proposal it came from. */
+  proposalId?: ID;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
 }
 
 /** An approved "about us" fact. Outbound copy may only use approved claims. */
@@ -322,6 +517,10 @@ export interface Goal {
   /** Plan inputs (Playbook → Plan). Intro asks and community conversations don't count against the cold cap. */
   introAsksPerWeek?: number; // 4
   communityPerWeek?: number; // 0
+  /** What the target counts. Unset = won deals (business). Consumer: weekly active users or paying customers, from the growth log. */
+  metric?: "deals" | "active_users" | "paying";
+  /** Consumer: user conversations a week (interviews, onboarding calls, churn calls). */
+  userTalksPerWeek?: number; // 5
 }
 
 export interface Caps {
@@ -344,7 +543,22 @@ export interface PovItem {
 /** Things a CTA can offer. A draft that offers a resource must point at one of these. */
 export interface Asset {
   id: ID;
-  kind: "one_pager" | "demo_script" | "security" | "design_partner_terms" | "pilot_proposal" | "insight" | "case_study" | "other";
+  kind:
+    | "one_pager"
+    | "demo_script"
+    | "security"
+    | "design_partner_terms"
+    | "pilot_proposal"
+    | "insight"
+    | "case_study"
+    | "other"
+    // Consumer documents.
+    | "creator_brief"
+    | "launch_plan"
+    | "referral_program"
+    | "interview_guide";
+  /** creator_brief: the partner it was written for. */
+  partnerId?: ID;
   title: string;
   body: string; // markdown
   createdAt: ISODateTime;
@@ -620,7 +834,19 @@ export type LintCode =
   | "SPAN_UNSUPPORTED"
   | "CLAIM_UNAPPROVED"
   | "SKELETON_REPEAT"
-  | "NEAR_DUPLICATE";
+  | "NEAR_DUPLICATE"
+  // Consumer marketing rules (src/lib/consumer/compliance.ts).
+  | "DISCLOSURE_MISSING"
+  | "REVIEW_INCENTIVE"
+  | "FAKE_SOCIAL_PROOF"
+  | "HEALTH_CLAIM"
+  | "EARNINGS_CLAIM"
+  | "GUARANTEE_CLAIM"
+  | "FREE_TERMS"
+  | "FALSE_URGENCY"
+  | "ENV_CLAIM"
+  | "SCRIPTED_OPINION"
+  | "OFFER_MISSING";
 
 export interface LintResult {
   passed: boolean;
@@ -878,7 +1104,11 @@ export type ActivityKind =
   | "event_attended"
   | "note"
   | "skip"
-  | "pushed";
+  | "pushed"
+  /** Consumer: a conversation with a user (interview, onboarding call, churn call). */
+  | "user_conversation"
+  /** Consumer: outreach to a creator, community, newsletter, podcast or press contact was sent. */
+  | "partner_contacted";
 
 export interface Activity {
   id: ID;
@@ -888,6 +1118,7 @@ export interface Activity {
   accountDomain?: string;
   dealId?: ID;
   eventId?: ID;
+  partnerId?: ID;
   /** The meeting a `meeting_held` activity records (set by the debrief). */
   meetingId?: ID;
   channel?: "email" | "linkedin" | "phone" | "in_person" | "intro" | "integration";
@@ -923,7 +1154,12 @@ export type MoveKind =
   | "check_replies"
   | "close_out"
   | "import"
-  | "research";
+  | "research"
+  // Consumer moves.
+  | "growth"
+  | "partner"
+  | "user_talk"
+  | "experiment";
 
 /** One item in the founder's queue ("Your moves" on Today). Produced by code rules; ranked by code. */
 export interface Move {
@@ -975,7 +1211,7 @@ export interface Scoreboard {
 /** A one-click change proposed by a weekly review. The founder applies or dismisses it; nothing applies itself. */
 export interface ReviewProposal {
   id: ID;
-  kind: "close_lost" | "nurture" | "add_pov" | "add_objection" | "add_customer_words" | "add_anti_icp" | "add_banned_word" | "message_bet" | "note";
+  kind: "close_lost" | "nurture" | "add_pov" | "add_objection" | "add_customer_words" | "add_anti_icp" | "add_banned_word" | "message_bet" | "note" | "experiment";
   title: string; // ≤12 words, "Nurture Northwind until Jan 12"
   detail: string; // the reason, ≤40 words
   /** Verbatim quotes or facts behind it. */
@@ -986,13 +1222,18 @@ export interface ReviewProposal {
   text?: string; // the POV / objection / phrase to add
   objectionCategory?: ObjectionCard["category"];
   bet?: { variable: string; control: string; variant: string; why: string };
+  /** Consumer growth review: an experiment the founder can add to the list with one click. */
+  experiment?: Pick<Experiment, "stage" | "hypothesis" | "change" | "metric" | "ice" | "baseline">;
   status: "open" | "applied" | "dismissed";
   decidedAt?: ISODateTime;
 }
 
+/** monday = pipeline review, friday = learning review, growth = the consumer Monday review. */
+export type ReviewKind = "monday" | "friday" | "growth";
+
 export interface Brief {
   date: ISODate;
-  kind: "daily" | "monday" | "friday";
+  kind: "daily" | ReviewKind;
   greeting: string;
   matters: { text: string; url?: string; ref?: EntityRef; date?: ISODate; quote?: string }[]; // ≤3
   generatedAt: ISODateTime;
@@ -1003,7 +1244,7 @@ export interface Brief {
   /** Signal and reply keys a brief already covered, so the model only runs when something is new. */
   seen?: string[];
   llmRuns?: number;
-  reviewKind?: "monday" | "friday";
+  reviewKind?: ReviewKind;
   proposals?: ReviewProposal[];
   reviewRunId?: ID;
   /** Deals still listed on an open close-out at the day's last prepare (the next morning's greeting says so first). */
@@ -1203,7 +1444,8 @@ export type WorkflowId =
   | "ask"
   | "enrich"
   | "asset"
-  | "network";
+  | "network"
+  | "partners";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -1319,6 +1561,8 @@ export interface Workspace {
     domain?: string;
     /** "Anything your website won't tell me?" (or the description when there's no site). */
     note?: string;
+    /** "Who buys from you?" at the start. Unset = let the site decide. */
+    market?: Market;
     site?: "reading" | "ok" | "thin" | "spa" | "none" | "unreachable";
     pagesRead?: number;
     ledger?: OnboardingLedgerRow[];
@@ -1389,6 +1633,25 @@ export interface Workspace {
   suppression: Suppression[];
   runs: RunSummary[]; // newest first, last 200
   usage: Record<string /* YYYY-MM */, UsageMonth>;
+  /** Consumer: one row per week, oldest first. */
+  growthLog?: GrowthWeek[];
+  /** Consumer: creators, communities, newsletters, podcasts, press and partner brands, by id. */
+  partners?: Record<ID, Partner>;
+  /** Consumer: growth experiments, by id. */
+  experiments?: Record<ID, Experiment>;
+  /** Consumer: Sean Ellis "how would you feel if you could no longer use it?" survey results, oldest first. */
+  pmfSurveys?: PmfSurvey[];
+}
+
+export interface PmfSurvey {
+  id: ID;
+  on: ISODate;
+  /** People who answered (ask only users with 2+ uses in the last 2 weeks). */
+  answers: number;
+  veryDisappointed: number;
+  /** Who was asked, when it was one segment ("weekly runners"). */
+  segment?: string;
+  note?: string;
 }
 
 /* ─────────────────────────────── Ask (threads.json, not the workspace) ─────────────────────────────── */

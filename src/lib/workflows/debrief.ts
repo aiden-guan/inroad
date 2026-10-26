@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { EMBER_CORE, companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { dealContext } from "@/lib/deals/context";
 import { cleanDate, corpus, firstAttemptOnly, quoteIn } from "@/lib/deals/ledger";
 import {
@@ -341,7 +341,7 @@ export default defineWorkflow({
     const res = await ctx.agent<DebriefSubmit>({
       tier: "operator",
       effort: "medium",
-      system: [EMBER_CORE, DEBRIEF_RULES, companyContext(ws)],
+      system: [coreFor(ws), DEBRIEF_RULES, companyContext(ws)],
       messages: [{ role: "user", content: message }],
       tools: [submit],
       requireTerminal: true,

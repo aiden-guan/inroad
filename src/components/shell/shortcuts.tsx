@@ -11,6 +11,7 @@ const GROUPS: { title: string; rows: [keys: string[], what: string][] }[] = [
       [["⌘", "K"], "Ask, or jump to a company, page or action"],
       [["?"], "These shortcuts"],
       [["G", "T"], "Today"],
+      [["G", "R"], "Creators and communities"],
       [["G", "C"], "Companies"],
       [["G", "N"], "Intros"],
       [["G", "E"], "Events"],

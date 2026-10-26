@@ -69,9 +69,10 @@ export function conversationsBetween(ws: Workspace, from: string, until: Date): 
   });
   const covered = new Set(held.map((m) => `${m.dealId}:${localDate(m.startsAt)}`));
   const logged = ws.activities.filter((a) => {
-    if (a.kind !== "meeting_held") return false;
+    // Consumer user conversations (interviews, onboarding and churn calls) are conversations too.
+    if (a.kind !== "meeting_held" && a.kind !== "user_conversation") return false;
     const t = new Date(a.at).getTime();
-    return t >= fromMs && t <= untilMs && !covered.has(`${a.dealId}:${localDate(a.at)}`);
+    return t >= fromMs && t <= untilMs && (a.kind === "user_conversation" || !covered.has(`${a.dealId}:${localDate(a.at)}`));
   });
   return held.length + logged.length;
 }
@@ -83,8 +84,15 @@ export function isQualified(ws: Workspace, dealId: string): boolean {
   return !!d.qualification?.qualified || ((d.qualification?.total ?? 0) >= 8 && !!d.nextStep?.date);
 }
 
-/** Paid pilots or design partners: won deals, plus pilots/proposals whose pilot is paid. */
+/**
+ * Progress toward the goal. Business: paid pilots or design partners (won deals, plus pilots/proposals whose pilot is
+ * paid). Consumer: the latest logged weekly active users or paying customers.
+ */
 export function goalWins(ws: Workspace): number {
+  if (ws.goal.metric === "active_users" || ws.goal.metric === "paying") {
+    const latest = [...(ws.growthLog ?? [])].sort((a, b) => a.weekOf.localeCompare(b.weekOf)).at(-1);
+    return (ws.goal.metric === "paying" ? latest?.paying : latest?.active) ?? 0;
+  }
   return Object.values(ws.deals).filter((d) => d.stage === "won" || ((d.stage === "pilot" || d.stage === "proposal") && d.pilot?.paid)).length;
 }
 

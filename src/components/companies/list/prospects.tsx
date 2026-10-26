@@ -79,6 +79,10 @@ const SIGNAL_ICON: Record<SignalType, LucideIcon> = {
   public_pain: TriangleAlert,
   filing: FileText,
   sensitive: EyeOff,
+  life_event: UserRoundCheck,
+  seasonal: CalendarClock,
+  trend: Rocket,
+  competitor_gap: TriangleAlert,
 };
 
 const TIER_RANK: Record<AccountT["tier"], number> = { A: 0, B: 1, C: 2 };

@@ -55,6 +55,10 @@ const STRENGTH: Record<SignalType, 0 | 1 | 2 | 3> = {
   filing: 1,
   hiring: 1,
   sensitive: 0,
+  life_event: 2,
+  seasonal: 1,
+  trend: 1,
+  competitor_gap: 2,
 };
 
 /** Which supplied signal types count as evidence for a situational criterion, by its detection method. */

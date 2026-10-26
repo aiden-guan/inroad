@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CopyButton, Markdown } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { nowISO } from "@/lib/domain/ids";
-import type { Brief, EntityRef, ReviewProposal, Workspace } from "@/lib/domain/types";
+import type { Brief, EntityRef, ReviewKind, ReviewProposal, Workspace } from "@/lib/domain/types";
 import { applyLabel, proposalActions } from "./proposals";
 import { RunInline } from "./parts";
 
@@ -17,19 +17,24 @@ const ABOUT = {
     "I'll score every open deal for risk, pick the ones that need you this week, propose what to kill or nurture after 14 days without a dated next step, and find the earliest broken stage in your funnel. About a minute.",
   friday:
     "I'll read every reply from this week, tally inputs against targets with sample sizes, quote the objections, and propose up to 3 playbook edits and one message bet for next month. About a minute.",
+  growth:
+    "I'll read last week's numbers against your retention bar, find the leakiest stage, check your creators and user conversations, and propose one experiment sized for your traffic. About a minute.",
 } as const;
 
+const RUN_LABEL: Record<ReviewKind, string> = { monday: "Run the pipeline review", friday: "Run the learning review", growth: "Run the growth review" };
+const DOC_LABEL: Record<ReviewKind, string> = { monday: "pipeline review", friday: "learning review", growth: "growth review" };
+
 /** The review workflow's run ref: one per kind, so each card shows only its own work log. */
-const reviewRef = (kind: "monday" | "friday"): EntityRef => ({ kind: "playbook", id: `review:${kind}` });
+const reviewRef = (kind: ReviewKind): EntityRef => ({ kind: "playbook", id: `review:${kind}` });
 
 /** This week's review of a kind, newest first (it may have been run on any day this week). */
-export function findReview(ws: Workspace, kind: "monday" | "friday", weekStart: string): Brief | undefined {
+export function findReview(ws: Workspace, kind: ReviewKind, weekStart: string): Brief | undefined {
   return Object.values(ws.briefs)
     .filter((b) => b.reviewKind === kind && b.review && b.date >= weekStart)
     .sort((a, b) => b.date.localeCompare(a.date))[0];
 }
 
-export function ReviewBody({ ws, kind, weekStart }: { ws: Workspace; kind: "monday" | "friday"; weekStart: string }) {
+export function ReviewBody({ ws, kind, weekStart }: { ws: Workspace; kind: ReviewKind; weekStart: string }) {
   const review = findReview(ws, kind, weekStart);
   if (!review) {
     return (
@@ -39,7 +44,7 @@ export function ReviewBody({ ws, kind, weekStart }: { ws: Workspace; kind: "mond
           workflow="review"
           args={{ kind }}
           runRef={reviewRef(kind)}
-          label={kind === "monday" ? "Run the pipeline review" : "Run the learning review"}
+          label={RUN_LABEL[kind]}
           hint="Costs about $0.05"
         />
       </div>
@@ -48,7 +53,7 @@ export function ReviewBody({ ws, kind, weekStart }: { ws: Workspace; kind: "mond
   return <ReviewDoc ws={ws} review={review} kind={kind} />;
 }
 
-export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "monday" | "friday" }) {
+export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; kind: ReviewKind }) {
   const proposals = review.proposals ?? [];
   const open = proposals.filter((p) => p.status === "open");
   return (
@@ -56,7 +61,7 @@ export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; 
       <div className="flex items-center gap-2 text-[12px] text-fg-3">
         <AiBadge />
         <span>
-          Your Head of GTM · {kind === "monday" ? "pipeline review" : "learning review"} · {new Date(`${review.date}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+          Your Head of GTM · {DOC_LABEL[kind]} · {new Date(`${review.date}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
         </span>
       </div>
       <Markdown className="[&>p:first-child]:text-[19px] [&>p:first-child]:leading-[28px]">{review.review ?? ""}</Markdown>

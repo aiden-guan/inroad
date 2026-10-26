@@ -5,8 +5,11 @@ import type {
   PovItem,
   Claim,
   Connector,
+  ConsumerModel,
   Deal,
   EntityRef,
+  Experiment,
+  GrowthWeek,
   GtmEvent,
   Guest,
   ID,
@@ -15,15 +18,20 @@ import type {
   Intro,
   IntroSide,
   IntroStage,
+  Market,
   Meeting,
   ObjectionCard,
   OutboundWebhook,
+  Partner,
+  PartnerStage,
   Person,
+  PmfSurvey,
   SkipReason,
   Stage,
   Suppression,
   Workspace,
 } from "./types";
+import { consumerGoal } from "@/lib/consumer/plan";
 import { addDays, todayISO } from "./ids";
 
 /**
@@ -121,7 +129,26 @@ export type Action =
   | { type: "webhook.update"; id: ID; patch: Partial<Pick<OutboundWebhook, "url" | "label" | "events" | "paused">> }
   | { type: "suppression.add"; entry: Suppression }
   | { type: "suppression.remove"; id: ID }
-  | { type: "run.markSeen"; id: ID };
+  | { type: "run.markSeen"; id: ID }
+  /** Businesses or consumers, set by the founder (it wins over what the site suggested). The playbook is rewritten separately. */
+  | { type: "company.setMarket"; market: Market; consumerModel?: ConsumerModel }
+  /** One week of consumer numbers; replaces the row for the same week. */
+  | { type: "growth.log"; week: GrowthWeek }
+  | { type: "growth.remove"; weekOf: string }
+  | { type: "partner.upsert"; partner: Partner }
+  | { type: "partner.update"; id: ID; patch: Partial<Omit<Partner, "id" | "stageHistory" | "createdAt">>; at: string }
+  | { type: "partner.setStage"; id: ID; stage: PartnerStage; at: string }
+  /** The founder sent the outreach (or the one follow-up). Logs a partner_contacted activity; undo with partner.unmark. */
+  | { type: "partner.markSent"; id: ID; what: "outreach" | "follow_up"; at: string; activityId: ID }
+  | { type: "partner.unmark"; id: ID; what: "outreach" | "follow_up"; activityId: ID }
+  | { type: "partner.editOutreach"; id: ID; subject?: string | null; body?: string; followUp?: string }
+  | { type: "partner.logResult"; id: ID; result: NonNullable<Partner["results"]>[number] }
+  | { type: "partner.remove"; id: ID }
+  | { type: "experiment.upsert"; experiment: Experiment }
+  | { type: "experiment.update"; id: ID; patch: Partial<Omit<Experiment, "id" | "createdAt">>; at: string }
+  | { type: "experiment.remove"; id: ID }
+  | { type: "pmf.log"; survey: PmfSurvey }
+  | { type: "pmf.remove"; id: ID };
 
 export class ActionError extends Error {}
 
@@ -699,6 +726,126 @@ export function applyAction(ws: Workspace, action: Action): void {
       if (run) run.seen = true;
       return;
     }
+    case "company.setMarket": {
+      const company = need(ws.company, "Company");
+      company.market = action.market;
+      company.consumerModel = action.market === "consumer" ? (action.consumerModel ?? company.consumerModel ?? "app") : undefined;
+      company.marketSource = "founder";
+      // The goal counts what this market sells: deals for businesses; active users or customers for consumers.
+      if (action.market === "consumer" && (!ws.goal.metric || ws.goal.metric === "deals")) Object.assign(ws.goal, consumerGoal(company.consumerModel ?? "app"));
+      if (action.market === "b2b" && ws.goal.metric && ws.goal.metric !== "deals") Object.assign(ws.goal, { metric: "deals", target: 5, targetLabel: "paid pilots or design partners" });
+      return;
+    }
+    case "growth.log": {
+      const log = (ws.growthLog ??= []);
+      const i = log.findIndex((w) => w.weekOf === action.week.weekOf);
+      if (i >= 0) log[i] = action.week;
+      else log.push(action.week);
+      log.sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+      return;
+    }
+    case "growth.remove":
+      ws.growthLog = (ws.growthLog ?? []).filter((w) => w.weekOf !== action.weekOf);
+      return;
+    case "partner.upsert": {
+      ws.partners ??= {};
+      ws.partners[action.partner.id] = action.partner;
+      return;
+    }
+    case "partner.update": {
+      const p = need(ws.partners?.[action.id], "Partner");
+      Object.assign(p, action.patch, { updatedAt: action.at });
+      return;
+    }
+    case "partner.setStage": {
+      const p = need(ws.partners?.[action.id], "Partner");
+      if (p.stage === action.stage) return;
+      p.stage = action.stage;
+      p.stageHistory.push({ stage: action.stage, at: action.at });
+      p.updatedAt = action.at;
+      return;
+    }
+    case "partner.markSent": {
+      const p = need(ws.partners?.[action.id], "Partner");
+      const o = need(p.outreach, "Draft");
+      const day = todayISO(new Date(action.at));
+      if (action.what === "outreach") {
+        if (o.sentOn) return;
+        o.sentOn = day;
+        if (p.stage === "shortlist") {
+          p.stage = "contacted";
+          p.stageHistory.push({ stage: "contacted", at: action.at });
+        }
+      } else {
+        if (o.followedUpOn) return;
+        o.followedUpOn = day;
+      }
+      p.updatedAt = action.at;
+      ws.activities.push({
+        id: action.activityId,
+        at: action.at,
+        kind: "partner_contacted",
+        partnerId: p.id,
+        channel: o.channel === "email" ? "email" : undefined,
+        summary: `${action.what === "outreach" ? "Reached out to" : "Followed up with"} ${p.name}`,
+        source: "founder",
+      });
+      return;
+    }
+    case "partner.unmark": {
+      const p = need(ws.partners?.[action.id], "Partner");
+      const o = need(p.outreach, "Draft");
+      if (action.what === "outreach") {
+        o.sentOn = undefined;
+        // Undo, not a move: drop the "contacted" step that marking it sent added.
+        if (p.stage === "contacted") {
+          p.stage = "shortlist";
+          if (p.stageHistory.at(-1)?.stage === "contacted") p.stageHistory.pop();
+        }
+      } else o.followedUpOn = undefined;
+      ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
+      return;
+    }
+    case "partner.editOutreach": {
+      const o = need(need(ws.partners?.[action.id], "Partner").outreach, "Draft");
+      if (action.subject !== undefined) o.subject = action.subject;
+      if (action.body !== undefined) o.body = action.body;
+      if (action.followUp !== undefined) o.followUp = action.followUp;
+      o.edited = true;
+      return;
+    }
+    case "partner.logResult": {
+      const p = need(ws.partners?.[action.id], "Partner");
+      (p.results ??= []).push(action.result);
+      p.updatedAt = action.result.at;
+      return;
+    }
+    case "partner.remove":
+      if (ws.partners) delete ws.partners[action.id];
+      return;
+    case "experiment.upsert":
+      ws.experiments ??= {};
+      ws.experiments[action.experiment.id] = action.experiment;
+      return;
+    case "experiment.update": {
+      const e = need(ws.experiments?.[action.id], "Experiment");
+      Object.assign(e, action.patch, { updatedAt: action.at });
+      return;
+    }
+    case "experiment.remove":
+      if (ws.experiments) delete ws.experiments[action.id];
+      return;
+    case "pmf.log": {
+      const list = (ws.pmfSurveys ??= []);
+      const i = list.findIndex((x) => x.id === action.survey.id);
+      if (i >= 0) list[i] = action.survey;
+      else list.push(action.survey);
+      list.sort((a, b) => a.on.localeCompare(b.on));
+      return;
+    }
+    case "pmf.remove":
+      ws.pmfSurveys = (ws.pmfSurveys ?? []).filter((x) => x.id !== action.id);
+      return;
   }
 }
 

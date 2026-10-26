@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { defineTool, type AgentTool } from "@/lib/ai/engine";
 import { AgentError } from "@/lib/ai/errors";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { CRITIC_RULES, OUTREACH_RULES, REPLY_READ_RULES, fmtAngle, fmtEvidence, fmtRecipient, fmtVoice } from "@/lib/ai/prompts/outreach";
 import { shortDate } from "@/lib/client/format";
 import { applyAction } from "@/lib/domain/actions";
@@ -262,7 +262,7 @@ interface Gen<T> {
   messages: Anthropic.Beta.BetaMessageParam[];
 }
 
-const SYSTEM = (ws: Workspace) => [EMBER_CORE, OUTREACH_RULES, companyContext(ws)];
+const SYSTEM = (ws: Workspace) => [coreFor(ws), OUTREACH_RULES, companyContext(ws)];
 
 async function generate<T>(
   ctx: WorkflowContext<ComposeArgs>,

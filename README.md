@@ -32,6 +32,17 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
+### Consumer companies
+
+Inroad also runs a consumer mode for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. It picks the mode from your site (store links, a cart, two-sided signup), and you can change it in onboarding or Settings. In consumer mode:
+
+- **Retention comes before acquisition.** You log last week's numbers, and code checks week-4 retention against the bar for your category (DTC uses 90-day repeat purchase). Inroad tells you to hold paid spend until retention clears the bar. Activation, the Sean Ellis 40% survey, the quick ratio, CAC and payback are all computed in code.
+- **Creators and communities replace accounts.** The agent keeps only creators and communities whose links appeared in its own search results, and it never stores follower counts it reports. Each one gets one note and one follow-up a week later; if they stay quiet, Inroad suggests letting them go. Briefs must tell creators to disclose, and Inroad asks you to confirm that each paid or gifted post carries `#ad`.
+- **A weekly growth rhythm.** You talk to five users a week, run one ICE-ranked experiment sized with Lehr's rule, and get a Monday growth review.
+- **Consumer marketing rules in the linter.** It covers FTC endorsement disclosure, the 16 CFR 465 fake-review rule, app-store rating rules, health and earnings claims, "free" terms and false urgency.
+
+The sources, figures and their limits are in [`docs/research/10-consumer-gtm.md`](docs/research/10-consumer-gtm.md).
+
 ---
 
 ## Core Capabilities
@@ -272,6 +283,7 @@ inroad/
 │   │   └── map/                 # Interactive geospatial prospect clustering
 │   ├── lib/                     # Core business logic and infrastructure
 │   │   ├── ai/                  # Multi-tier Claude engine, prompts, and SSE streaming
+│   │   ├── consumer/            # Consumer mode: market read, benchmarks, growth math, creator rules, compliance
 │   │   ├── api-keys/            # MCP server implementation, REST auth, tools
 │   │   ├── connectors/          # Firecrawl, Apollo, and FullEnrich clients
 │   │   ├── domain/              # Workspace entities, actions, and reducer

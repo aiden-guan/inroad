@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, Keyboard, Map as MapIcon, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, Keyboard, Map as MapIcon, Megaphone, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAsk } from "@/components/providers/ask-provider";
@@ -143,6 +143,9 @@ export function CommandPalette() {
             <Item value="today" icon={<Sunrise className="size-4" />} onSelect={() => run(() => router.push("/today"))} hint="G T">
               Today
             </Item>
+            <Item value="creators communities influencers partners newsletters" icon={<Megaphone className="size-4" />} onSelect={() => run(() => router.push("/partners"))} hint="G R">
+              Creators and communities
+            </Item>
             <Item value="companies" icon={<Building2 className="size-4" />} onSelect={() => run(() => router.push("/companies"))} hint="G C">
               Companies
             </Item>
@@ -165,6 +168,12 @@ export function CommandPalette() {
           <Command.Group heading="Do">
             <Item value="find new companies discover accounts" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
               Find new companies to talk to
+            </Item>
+            <Item value="find creators communities influencers where users gather" icon={<Megaphone className="size-4" />} onSelect={() => run(() => void start("partners", { mode: "find", count: 8, source: "founder" }))}>
+              Find creators and communities
+            </Item>
+            <Item value="log weekly numbers growth signups retention" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/playbook#numbers"))}>
+              Log this week&apos;s numbers
             </Item>
             <Item value="import linkedin connections warm network csv" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=linkedin"))}>
               Import LinkedIn connections

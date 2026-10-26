@@ -23,7 +23,7 @@ import {
   type ScoredCandidate,
 } from "@/components/events/plan-math";
 import { AgentError, defineTool } from "@/lib/ai/engine";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { DinnerPlan, GtmEvent, Guest, ISODate, SignalType, Workspace } from "@/lib/domain/types";
 import { DATA_DIR } from "@/lib/store/settings";
@@ -604,7 +604,7 @@ async function runPlan(ctx: WorkflowContext<Args>, a: PlanArgs) {
     const res = await ctx.agent<PlanOut>({
       tier: "operator",
       effort: "medium",
-      system: [EMBER_CORE, ROOM_RULES, companyContext(ws)],
+      system: [coreFor(ws), ROOM_RULES, companyContext(ws)],
       messages: [{ role: "user", content: message }],
       tools: [
         defineTool({
@@ -842,7 +842,7 @@ async function runDebrief(ctx: WorkflowContext<Args>, a: DebriefArgs) {
   const res = await ctx.agent<DebriefOut>({
     tier: "operator",
     effort: "low",
-    system: [EMBER_CORE, AFTER_RULES, companyContext(ws)],
+    system: [coreFor(ws), AFTER_RULES, companyContext(ws)],
     messages: [{ role: "user", content: message }],
     tools: [defineTool({ name: "submit_room_debrief", description: "Submit per-guest debriefs, next-morning notes and the group email.", schema: submitDebrief, terminal: true })],
     requireTerminal: true,

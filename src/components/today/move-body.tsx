@@ -16,6 +16,7 @@ import { nextStep } from "@/lib/intros/rules";
 import { RULE_PREFIX } from "@/lib/moves/rules";
 import { ago, clip, clockTime, companyName, first, knowsDirectly } from "@/lib/moves/util";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
+import { CONSUMER_RULES, ConsumerMoveBody } from "./consumer-moves";
 import { DealResolver } from "./deal-resolver";
 import { RunInline } from "./parts";
 import { ReviewBody } from "./review-panel";
@@ -171,6 +172,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
   const rule = ruleOf(move);
   const person = move.ref?.kind === "person" ? ws.people[move.ref.id] : undefined;
   const domain = person?.accountDomain ?? (move.ref?.kind === "account" ? move.ref.id : undefined);
+
+  if (CONSUMER_RULES.has(rule)) return <ConsumerMoveBody rule={rule} {...props} />;
 
   switch (rule) {
     case "reply":
