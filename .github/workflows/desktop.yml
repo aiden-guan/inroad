@@ -1,0 +1,101 @@
+name: Mac app
+
+# Builds Inroad for Mac (Apple silicon and Intel) on GitHub's Mac runners, opens the Apple silicon build and checks
+# it works, and keeps the .dmg and .zip as downloads on the run. A tag like v0.2.0 also publishes them as a release.
+# Runs when the app's shell or this workflow changes, on a tag, or by hand (Actions → Mac app → Run workflow).
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "desktop/**"
+      - "scripts/desktop/**"
+      - ".github/workflows/desktop.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    name: Mac app (${{ matrix.arch }})
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # electron-builder downloads the Electron it packages; the one npm would fetch isn't used.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # "true" only when the repository has a Developer ID certificate (never on forks).
+      HAS_SIGNING: ${{ secrets.MAC_CERTIFICATE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the server
+        run: npm run desktop:server -- --platform darwin --arch ${{ matrix.arch }}
+
+      # With the repository's Developer ID certificate and Apple ID: signed, and notarized by Apple, so it opens
+      # like any app from the internet.
+      - name: Package (signed and notarized)
+        if: env.HAS_SIGNING == 'true'
+        run: npm run desktop:dist -- --${{ matrix.arch }}
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Without them: signed ad hoc, which a Mac runs after the first-open steps in the README.
+      - name: Package (ad hoc signature)
+        if: env.HAS_SIGNING != 'true'
+        run: npm run desktop:dist -- --${{ matrix.arch }} -c.mac.identity=-
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Open the app and check it works
+        if: matrix.arch == 'arm64'
+        run: npm run desktop:test
+        env:
+          INROAD_DESKTOP_APP: ${{ github.workspace }}/desktop/dist/mac-arm64/Inroad.app/Contents/MacOS/Inroad
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Inroad-mac-${{ matrix.arch }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: mac
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release with the Mac downloads
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Inroad $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

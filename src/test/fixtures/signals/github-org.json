@@ -1,0 +1,17 @@
+{
+  "login": "acmehq",
+  "id": 91000001,
+  "node_id": "O_kgDOBWxyz",
+  "url": "https://api.github.com/users/acmehq",
+  "html_url": "https://github.com/acmehq",
+  "type": "Organization",
+  "name": "Acme",
+  "company": null,
+  "blog": "https://www.acme.dev",
+  "location": "San Francisco",
+  "email": null,
+  "public_repos": 4,
+  "followers": 310,
+  "created_at": "2022-03-01T10:00:00Z",
+  "updated_at": "2026-10-12T10:00:00Z"
+}

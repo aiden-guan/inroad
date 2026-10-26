@@ -2,6 +2,7 @@
 
 import { Mail, UtensilsCrossed, Video } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
+import { toast } from "sonner";
 import { useRunFor } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { duration, usd } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { EntityRef, GtmEvent, Guest, ID, ISODate, RunSummary } from "@/lib/domain/types";
+import { inviteOverCap } from "@/lib/quality/cap";
 import { STATUS_LABEL, candidateKey, composeUrl, deriveStatus, missingTokens, wordCount } from "./plan-math";
 
 export function KindIcon({ kind, className }: { kind: GtmEvent["kind"]; className?: string }) {
@@ -180,7 +182,7 @@ export function SummaryReceipt({ summary }: { summary: RunSummary }) {
 
 /** Guest mutations that keep activity, status and the event's own status in step. */
 export function useGuestActions(ev: GtmEvent | undefined) {
-  const { dispatch } = useWorkspace();
+  const { ws, dispatch } = useWorkspace();
   return useMemo(() => {
     if (!ev) return null;
     const withStatus = (next: GtmEvent, actions: Action[]): Action[] => {
@@ -218,7 +220,15 @@ export function useGuestActions(ev: GtmEvent | undefined) {
             },
           });
         }
-        return dispatch(withStatus({ ...ev, guests: { ...ev.guests, [guest.id]: next } }, actions));
+        // A cold invite uses a slot of the cold cap like a first touch (W11). Past the cap the record stays true; the next ones wait.
+        const over = status === "invited" && !guest.invitedOn && ws ? inviteOverCap(ws, guest, today) : null;
+        return dispatch(withStatus({ ...ev, guests: { ...ev.guests, [guest.id]: next } }, actions)).then((ok) => {
+          if (ok && over) {
+            const cap = over === "week" ? `${ws!.caps.firstTouchesPerWeek} a week` : `${ws!.caps.firstTouchesPerDayMax} a day`;
+            toast.warning(`That's past your cold cap of ${cap}, invites included. Hold the next cold invites until ${over === "week" ? "Monday" : "tomorrow"}.`);
+          }
+          return ok;
+        });
       },
       /** A human follow-up touch after the event (counts toward the 5-in-90-days cap). */
       logTouch(guest: Guest, what: string, body?: string) {
@@ -259,5 +269,5 @@ export function useGuestActions(ev: GtmEvent | undefined) {
         ]);
       },
     };
-  }, [ev, dispatch]);
+  }, [ev, ws, dispatch]);
 }

@@ -3,6 +3,7 @@
 import { ChevronDown, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ForgetPerson } from "@/components/people/forget-person";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
@@ -11,7 +12,8 @@ import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO } from "@/lib/domain/ids";
-import type { Suppression, Workspace } from "@/lib/domain/types";
+import type { Person, Suppression, Workspace } from "@/lib/domain/types";
+import { emailsOf } from "@/lib/people/forget";
 import { Group } from "./parts";
 import { normalizeDomain } from "./validate";
 
@@ -39,6 +41,12 @@ function parseEntry(raw: string): { email?: string; domain?: string } | null {
   return domain ? { domain } : null;
 }
 
+/** The person on file with this address, if any. */
+function personByEmail(ws: Workspace, email: string): Person | undefined {
+  const e = email.toLowerCase();
+  return Object.values(ws.people).find((p) => emailsOf(p).includes(e));
+}
+
 export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch }) {
   const [entry, setEntry] = useState("");
   const [reason, setReason] = useState<Reason>("manual");
@@ -46,11 +54,16 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [armed, setArmed] = useState<string | null>(null);
+  const [forgetFor, setForgetFor] = useState<string | null>(null);
 
   const list = useMemo(() => [...ws.suppression].sort((a, b) => b.at.localeCompare(a.at)), [ws.suppression]);
   const q = query.trim().toLowerCase();
   const filtered = q ? list.filter((s) => (s.email ?? s.domain ?? "").includes(q) || REASONS[s.reason].toLowerCase().includes(q)) : list;
   const shown = showAll || q ? filtered : filtered.slice(0, PAGE);
+
+  // "Asked to be deleted" for someone on file deletes them, not just labels the address.
+  const parsedNow = parseEntry(entry);
+  const onFile = reason === "requested_delete" && parsedNow?.email ? personByEmail(ws, parsedNow.email) : undefined;
 
   const add = async () => {
     const parsed = parseEntry(entry);
@@ -58,6 +71,11 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
       setError("Enter an email address or a domain, like jo@acme.com or acme.com.");
       return;
     }
+    if (reason === "requested_delete" && !parsed.email) {
+      setError("Deleting is per person. Enter their email address.");
+      return;
+    }
+    if (onFile) return; // the hold-to-delete below handles it
     const dupe = ws.suppression.some((s) => (parsed.email && s.email?.toLowerCase() === parsed.email) || (parsed.domain && !s.email && s.domain?.toLowerCase() === parsed.domain));
     if (dupe) {
       setError("Already on your list.");
@@ -135,12 +153,26 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
                 </MenuItem>
               ))}
             </Menu>
-            <Button type="submit" disabled={!entry.trim()}>
+            <Button type="submit" disabled={!entry.trim() || !!onFile}>
               Add
             </Button>
           </div>
         </form>
         <FieldError>{error}</FieldError>
+        {onFile && (
+          <div className="mt-3 rounded-md bg-bg-subtle p-3 animate-[fade-in_150ms_var(--ease-out)]">
+            <p className="mb-1.5 text-[13px] text-fg">
+              {onFile.name} is on file{ws.accounts[onFile.accountDomain] ? ` at ${ws.accounts[onFile.accountDomain].name}` : ""}.
+            </p>
+            <ForgetPerson
+              person={onFile}
+              onDone={() => {
+                setEntry("");
+                setReason("manual");
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {list.length === 0 ? (
@@ -163,8 +195,10 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
           <ul className="divide-y divide-border">
             {shown.map((s) => {
               const isArmed = armed === s.id;
+              // Marked "asked to be deleted" before deleting was real: they're still on file.
+              const stillOnFile = s.reason === "requested_delete" && s.email ? personByEmail(ws, s.email) : undefined;
               return (
-                <li key={s.id} className="group/row flex min-h-11 items-center gap-3 px-4 py-2">
+                <li key={s.id} className="group/row flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
                   <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-fg" title={s.email ?? s.domain}>
                     {s.email ?? (
                       <>
@@ -173,6 +207,11 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
                       </>
                     )}
                   </span>
+                  {stillOnFile && forgetFor !== s.id && (
+                    <button type="button" onClick={() => setForgetFor(s.id)} className="h-6 rounded-xs px-1.5 text-[12px] font-medium text-danger transition-colors hover:bg-danger-subtle">
+                      Still on file · delete
+                    </button>
+                  )}
                   <Badge tone={s.reason === "bounce" ? "warning" : "neutral"} className="hidden sm:inline-flex">
                     {REASONS[s.reason]}
                   </Badge>
@@ -204,6 +243,9 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
                     >
                       <X className="size-3.5" />
                     </button>
+                  )}
+                  {stillOnFile && forgetFor === s.id && (
+                    <ForgetPerson person={stillOnFile} onDone={() => setForgetFor(null)} onCancel={() => setForgetFor(null)} className="w-full pb-1 animate-[fade-in_150ms_var(--ease-out)]" />
                   )}
                 </li>
               );

@@ -1,13 +1,15 @@
 import "server-only";
 import { ActionError } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
-import type { Account, Connection, ContactPath, Person, Workspace } from "@/lib/domain/types";
+import type { Account, Connection, ContactPath, Person, RelationshipTag, Workspace } from "@/lib/domain/types";
 import { ensureAccount, ensurePerson, findPerson, isFreeMail, isSuppressed, normalizeDomain } from "@/lib/hub/records";
-import { mutateWorkspace } from "@/lib/store/workspace";
+import { wasForgotten } from "@/lib/people/forget";
+import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { CSV_LIMITS, headerKey, isLinkedInHeader, linkedinKey, normalizeCompany, parseCsv, parseLinkedInDate } from "./csv";
 import { planImport, readListRows } from "./plan";
 import { FIELDS, looksLikeConnections, presetById, type Mapping, type PresetId } from "./presets";
 import { mutateNetwork, readNetwork, updateConnections } from "./store";
+import { knowsByTag } from "./tags";
 import { BUYER_ROLES, normalizeTitle, seniority } from "./titles";
 import type { ImportBatch } from "./types";
 
@@ -45,6 +47,7 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
   const preset = presetById(input.preset);
   const rows = readListRows(parsed.rows, input.mapping);
   const at = nowISO();
+  const matched: { email?: string; linkedin?: string; tag: RelationshipTag }[] = [];
   const fileName = input.fileName.slice(0, 120) || "import.csv";
   const via = preset.id === "generic" ? fileName : preset.label;
 
@@ -67,6 +70,8 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
       };
       const touchedAccounts = new Set<string>();
       const touchedPeople = new Set<string>();
+      // People on a signup or user list know the product: their tag makes a later job change a champion signal.
+      const knows = preset.kind === "signups" ? ("signup" as const) : preset.kind === "customers" ? ("customer" as const) : null;
 
       for (const row of plan.rows) {
         const domain = row.domain!;
@@ -100,10 +105,16 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
         if (preset.kind === "customers" && (account.status === "new" || account.status === "tracked")) {
           b.statusChanged.push({ domain, from: account.status, to: "customer" });
           account.status = "customer";
+          account.customerAt = at;
           if (!created) touchedAccounts.add(domain);
         }
 
         if (!row.person) continue;
+        // Asked to have their details deleted: a list doesn't bring them back.
+        if (wasForgotten(ws, { email: row.email, linkedinUrl: row.linkedin, name: row.name, domain })) {
+          b.skipped++;
+          continue;
+        }
         const before = findPerson(ws, { email: row.email, linkedinUrl: row.linkedin, name: row.name, domain });
         const snapshot = before ? { email: before.email, title: before.title, linkedinUrl: before.linkedinUrl, location: before.location, paths: before.contactPaths.length } : null;
         const { person, created: madePerson } = ensurePerson(
@@ -111,6 +122,14 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
           { domain, email: row.email, name: row.name, title: row.title, linkedinUrl: row.linkedin, location: row.location },
           { via, source: "csv_import" },
         );
+        if (knows && !(person.tags ?? []).includes(knows)) {
+          person.tags = [...(person.tags ?? []), knows];
+          if (!madePerson) {
+            b.filled.push({ kind: "person", id: person.id, field: "tag", value: knows });
+            touchedPeople.add(person.id);
+          }
+        }
+        if (knows && (person.email || person.linkedinUrl)) matched.push({ email: person.email?.toLowerCase(), linkedin: person.linkedinUrl, tag: knows });
         if (madePerson) {
           b.created.people.push(person.id);
           if (row.notes) person.notes = `${preset.label}: ${row.notes}`.slice(0, 400);
@@ -144,10 +163,31 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
     })
   ).value;
 
+  // The same people among the founder's LinkedIn connections, by email or profile URL (SPEC W2 step 5),
+  // recorded in the batch so undoing it takes those tags off too.
+  if (matched.length) {
+    for (const t of await tagMatchingConnections(matched)) batch.filled.push({ kind: "connection", id: t.id, field: "tag", value: t.tag });
+  }
   await mutateNetwork((n) => {
     n.imports.unshift(batch);
   });
   return batch;
+}
+
+/** Tags connections that are the same person as a signup, user or customer row. Returns the tags it added. */
+export async function tagMatchingConnections(people: { email?: string; linkedin?: string; tag: RelationshipTag }[]): Promise<{ id: string; tag: RelationshipTag }[]> {
+  const byEmail = new Map(people.filter((p) => p.email).map((p) => [p.email!, p.tag]));
+  const byUrl = new Map(people.filter((p) => p.linkedin).map((p) => [linkedinKey(p.linkedin), p.tag]));
+  return updateConnections((rows) => {
+    const added: { id: string; tag: RelationshipTag }[] = [];
+    for (const r of rows) {
+      const tag = (r.email && byEmail.get(r.email.toLowerCase())) || (r.url && byUrl.get(linkedinKey(r.url)));
+      if (!tag || r.tags?.includes(tag)) continue;
+      r.tags = [...(r.tags ?? []), tag];
+      added.push({ id: r.id, tag });
+    }
+    return added;
+  });
 }
 
 /* ───────────── Undo ───────────── */
@@ -178,7 +218,7 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
   const batch = readNetwork().imports.find((b) => b.id === batchId);
   if (!batch) throw new ActionError("That import isn't in your history anymore.");
   if (batch.undoneAt) throw new ActionError("That import was already undone.");
-  if (batch.kind !== "csv") throw new ActionError("LinkedIn imports can't be undone. Re-import a newer Connections.csv instead.");
+  if (batch.kind === "linkedin") throw new ActionError("LinkedIn imports can't be undone. Re-import a newer Connections.csv instead.");
 
   const result = (
     await mutateWorkspace((ws) => {
@@ -211,6 +251,7 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
         removedAccounts++;
       }
       for (const f of batch.filled) {
+        if (f.kind === "connection") continue; // connections.json, below
         if (f.kind === "account") {
           const acc = ws.accounts[f.id];
           if (!acc) continue;
@@ -221,6 +262,7 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
           const p = ws.people[f.id];
           if (!p) continue;
           if (f.field === "contactPath") p.contactPaths = p.contactPaths.filter((c) => !(c.kind === "integration" && c.value === f.value));
+          else if (f.field === "tag") p.tags = (p.tags ?? []).filter((t) => t !== f.value);
           else if (f.field === "title" && p.title === f.value) p.title = "";
           else if ((f.field === "email" || f.field === "linkedinUrl" || f.field === "location" || f.field === "notes") && p[f.field] === f.value) delete p[f.field];
         }
@@ -232,6 +274,19 @@ export async function undoImport(batchId: string): Promise<{ batch: ImportBatch;
       return { removedPeople, removedAccounts, kept };
     })
   ).value;
+
+  // Tags this import put on the founder's LinkedIn connections ("signed up", "customer").
+  const tagged = batch.filled.filter((f) => f.kind === "connection");
+  if (tagged.length) {
+    await updateConnections((rows) => {
+      for (const f of tagged) {
+        const r = rows.find((x) => x.id === f.id);
+        if (!r?.tags) continue;
+        r.tags = r.tags.filter((t) => t !== f.value);
+        if (!r.tags.length) delete r.tags;
+      }
+    });
+  }
 
   const undoneAt = nowISO();
   const updated = await mutateNetwork((n) => {
@@ -275,6 +330,7 @@ export async function importConnections(input: { fileName: string; text: string 
   let skipped = 0;
   const stats = { total: 0, added: 0, changed: 0, removed: 0, withEmail: 0 };
 
+  const ws = readWorkspace();
   await updateConnections((rows) => {
     const byKey = new Map<string, Connection>();
     const keyOf = (first: string, last: string, url: string, company: string) => linkedinKey(url) || `name:${first} ${last}|${normalizeCompany(company)}`.toLowerCase();
@@ -294,6 +350,11 @@ export async function importConnections(input: { fileName: string; text: string 
         continue;
       }
       const key = keyOf(firstName, lastName, url, company);
+      // Asked to have their details deleted: LinkedIn's file still lists them, but nothing here keeps them.
+      if (wasForgotten(ws, { email, linkedinUrl: url })) {
+        skipped++;
+        continue;
+      }
       if (seen.has(key)) {
         skipped++;
         continue;
@@ -378,13 +439,27 @@ export async function importConnections(input: { fileName: string; text: string 
 
 /* ───────────── Warm paths and "track these companies" ───────────── */
 
-const KNOWS_PRODUCT_TAGS: NonNullable<Connection["tags"]>[number][] = ["design_partner", "past_user", "customer", "ex_colleague"];
+/** Account tags for the founder's own early users (onboarding's "last 3 users"): small teams that all used it. */
+export const USER_ACCOUNT_TAGS = ["design_partner", "past_user"];
 
-/** Someone who used the product, was a design partner, or worked with the founder. */
+/**
+ * Someone who used the product, was a design partner, signed up or worked with the founder: tagged by the
+ * founder, matched to a signup or user list, a champion on file, or (before a move) at one of the companies
+ * the founder named as their users or design partners.
+ */
 export function knowsProduct(ws: Workspace, c: Connection): boolean {
-  if (c.tags?.some((t) => KNOWS_PRODUCT_TAGS.includes(t))) return true;
+  if (knowsByTag(c.tags)) return true;
+  const before = [c.previous?.company, ...(c.history ?? []).slice(0, -1).map((h) => h.company)].filter((x): x is string => !!x).map(normalizeCompany);
+  if (before.length) {
+    for (const a of Object.values(ws.accounts)) {
+      if (!(a.tags ?? []).some((t) => USER_ACCOUNT_TAGS.includes(t))) continue;
+      const n = normalizeCompany(a.name);
+      if (n && before.includes(n)) return true;
+    }
+  }
   const person = (c.personId && ws.people[c.personId]) || findPerson(ws, { linkedinUrl: c.url, email: c.email ?? null });
   if (!person) return false;
+  if (knowsByTag(person.tags)) return true;
   if (person.champion) return true;
   if (ws.accounts[person.accountDomain]?.status === "customer") return true;
   return Object.values(ws.deals).some((d) => d.contacts.some((x) => x.personId === person.id) && (d.stage === "won" || d.stage === "pilot"));

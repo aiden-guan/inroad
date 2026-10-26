@@ -19,5 +19,6 @@ export type AgentEvent =
   | { type: "text_reset"; text: string }
   | { type: "usage"; costUsd: number; model: "strategist" | "operator" | "fast" }
   | { type: "result"; data: unknown }
-  | { type: "error"; message: string; code?: string }
+  /** requestId and detail (what the API said) back "Copy details"; message is always plain words. */
+  | { type: "error"; message: string; code?: string; requestId?: string; detail?: string }
   | { type: "done" };

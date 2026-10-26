@@ -40,7 +40,7 @@ export function VoicePrompt({ onContinue }: { onContinue: () => void }) {
           <p className="font-serif text-[17px] leading-[26px] text-fg">
             Teach me how you write: paste 2–3 emails you&apos;ve sent. <AiBadge className="ml-1 align-[2px]" />
           </p>
-          <p className="mt-0.5 text-[13px] leading-5 text-fg-2">I&apos;ll match your greeting, length and tone. Ones that got replies work best. Saved on this computer. When I draft, I send Claude a couple of them as examples, so trim signatures and phone numbers.</p>
+          <p className="mt-0.5 text-[13px] leading-5 text-fg-2">I&apos;ll match your greeting, length and tone. Ones that got replies work best. Saved on this computer. When I draft, I send the AI a couple of them as examples, so trim signatures and phone numbers.</p>
         </div>
       </div>
       <Textarea

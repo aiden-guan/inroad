@@ -105,11 +105,52 @@ export function monthSpend(): number {
   return readWorkspace().usage[monthKey()]?.costUsd ?? 0;
 }
 
-export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown): Promise<RunSummary> {
+/**
+ * What a run may cost before it ends, held against the budget while it runs (its real cost is only
+ * booked at the end): the top of each workflow's range in SPEC's route table.
+ */
+const RESERVE_USD: Partial<Record<WorkflowDef<unknown>["id"], number>> = {
+  foundation: 0.9,
+  brief: 0.15,
+  discovery: 2,
+  dossier: 0.8,
+  compose: 0.15,
+  prep: 0.4,
+  debrief: 0.25,
+  review: 0.4,
+  network: 0.4,
+  ask: 0.5,
+  dinner_plan: 0.8,
+};
+const RESERVE_DEFAULT_USD = 0.3;
+
+/** Reservations of the runs in flight, by run id. */
+const reserved = (() => {
+  const g = globalThis as unknown as { __inroadReserved?: Map<string, number> };
+  g.__inroadReserved ??= new Map();
+  return g.__inroadReserved;
+})();
+
+/** This month's spend plus what the runs in flight may still cost. */
+export function committedSpend(): number {
+  return monthSpend() + [...reserved.values()].reduce((n, v) => n + v, 0);
+}
+
+export interface StartOptions {
+  /**
+   * Started by Inroad itself (Today's brief, briefs and drafts prepared ahead, a network screen), not by the
+   * founder: it only starts when its whole reservation fits under the budget, so a burst of them can't
+   * run past it before any has booked its cost.
+   */
+  automatic?: boolean;
+}
+
+export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: StartOptions = {}): Promise<RunSummary> {
   const args = def.args.parse(rawArgs);
   const ws = readWorkspace();
   const budget = ws.caps.monthlyBudgetUsd;
-  if (budget > 0 && monthSpend() >= budget) {
+  const hold = RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
+  if (budget > 0 && (committedSpend() >= budget || (opts.automatic && committedSpend() + hold > budget))) {
     throw new AgentError(`This month's AI budget ($${budget}) is used up. Raise it in Settings → Usage to keep going.`, "rate_limit");
   }
 
@@ -123,6 +164,7 @@ export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown): Promis
   };
   const live: LiveRun = { summary, events: [], listeners: new Set(), done: false, abort: new AbortController() };
   state.live.set(summary.id, live);
+  if (budget > 0) reserved.set(summary.id, hold);
   await saveSummary(summary);
 
   void execute(def, args, live);
@@ -135,8 +177,16 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
   let usage: Usage = emptyUsage();
   let costUsd = 0;
   let topTier: ModelTierName = "none";
+  // On providers other than Anthropic: the model behind topTier, and whether any run lacked a price.
+  let topModelName: string | undefined;
+  let unpriced = false;
   let sources = 0;
   let drafts = 0;
+  let compat: RunReceipt["compat"];
+  const noteCompat = (c: RunReceipt["compat"]) => {
+    if (!c) return;
+    compat = { features: [...new Set([...(compat?.features ?? []), ...c.features])], reason: compat?.reason || c.reason };
+  };
 
   const emit = (event: AgentEvent) => {
     if (live.done) return;
@@ -174,10 +224,14 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
           usage = addUsage(usage, err.usage);
           costUsd += err.costUsd ?? 0;
         }
+        if (err instanceof AgentError) noteCompat(err.compat);
         throw err;
       }
       usage = addUsage(usage, result.usage);
       costUsd += result.costUsd;
+      noteCompat(result.compat);
+      if (result.modelName && tier === topTier) topModelName = result.modelName;
+      if (result.unpriced) unpriced = true;
       return result;
     },
   };
@@ -193,7 +247,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
 
   emit({ type: "status", text: "Starting" });
   let result: unknown = null;
-  let error: { code: string; message: string } | undefined;
+  let error: { code: string; message: string; requestId?: string; detail?: string } | undefined;
   try {
     // Stopped while queued: end now instead of running against a slot it never got.
     if (live.abort.signal.aborted) throw new AgentError("Stopped.", "stopped");
@@ -206,6 +260,8 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     const message = err instanceof Error ? err.message : "Something went wrong.";
     if (!(err instanceof AgentError)) console.error(`[run ${live.summary.id}] ${def.id} failed:`, err);
     error = { code, message };
+    if (err instanceof AgentError && err.requestId) error.requestId = err.requestId;
+    if (err instanceof AgentError && err.detail) error.detail = err.detail;
   } finally {
     if (slot) releaseHeavySlot();
   }
@@ -221,6 +277,9 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     cacheReadTokens: usage.cacheReadTokens,
     costUsd,
     model: topTier,
+    ...(topModelName ? { modelName: topModelName } : {}),
+    ...(unpriced ? { unpriced } : {}),
+    ...(compat ? { compat } : {}),
   };
 
   const stopped = live.abort.signal.aborted;
@@ -238,8 +297,15 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     ws.usage[key].costUsd += costUsd;
     ws.usage[key].runs += 1;
     ws.usage[key].byWorkflow[def.id] = (ws.usage[key].byWorkflow[def.id] ?? 0) + costUsd;
-  });
+  }).finally(() => reserved.delete(live.summary.id));
   await saveSummary(live.summary);
+  // One of the first three finished its research: Today re-prepares before anyone hears it ended, so the draft it
+  // unlocks is already running when the page refreshes, wherever the founder is (moves/prepare).
+  if (def.id === "dossier") {
+    await import("@/lib/moves/prepare")
+      .then((m) => m.prepareAfterRun(live.summary))
+      .catch((err) => console.warn("[today] not prepared after research:", err instanceof Error ? err.message : err));
+  }
   await stepsDB()
     .update((all) => {
       all[live.summary.id] = steps.slice(-300);
@@ -250,7 +316,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
 
   if (error) {
     // The client maps code "stopped" to status "stopped" (and shows no toast for it).
-    const errEvent: AgentEvent = stopped ? { type: "error", code: "stopped", message: "Stopped." } : { type: "error", message: error.message, code: error.code };
+    const errEvent: AgentEvent = stopped ? { type: "error", code: "stopped", message: "Stopped." } : { type: "error", ...error };
     live.events.push(errEvent);
     for (const l of live.listeners) l(errEvent);
   } else {
@@ -297,7 +363,7 @@ export function subscribe(runId: string, listener: (event: AgentEvent) => void):
       else if (s.type === "read" && s.url) listener({ type: "read", url: s.url, host: s.host ?? s.text });
       else if (s.type === "status" || s.type === "thinking" || s.type === "action") listener({ type: s.type, text: s.text });
     }
-    if (summary?.error) listener({ type: "error", message: summary.error.message, code: summary.error.code });
+    if (summary?.error) listener({ type: "error", ...summary.error });
     else if (summary?.status === "stopped") listener({ type: "error", code: "stopped", message: "Stopped." });
     if (summary?.receipt) listener({ type: "usage", costUsd: summary.receipt.costUsd, model: summary.receipt.model === "none" ? "fast" : summary.receipt.model });
     listener({ type: "done" });

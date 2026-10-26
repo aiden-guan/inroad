@@ -220,7 +220,7 @@ function channelPlan(goal: Goal, caps: Caps): ChannelPlan {
         motion: "founder_content",
         rank: 6,
         why: "Your Tollgate years are the credential. Posts about late events make your name familiar before a cold email lands.",
-        weeklyTarget: "2 posts",
+        weeklyTarget: "1 post, optional",
         firstActions: ["Write up why the reconciliation script outlives the analyst"],
       },
     ],

@@ -1,8 +1,9 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { computeMoves, mergeMoves } from "@/lib/moves/rules";
+import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
 import { sampleWorkspace } from "@/lib/sample";
 import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids";
-import { NOW, TODAY, at, makeMove, makeStep, makeWorkspace } from "@/test/factories";
+import { NOW, TODAY, at, makeMove, makePackage, makeStep, makeWorkspace } from "@/test/factories";
+import { buildRevision } from "@/lib/playbook/revision";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
 
@@ -69,6 +70,57 @@ const cases: Record<Action["type"], () => void> = {
     // Only the last five are kept.
     expect(fresh.voice?.samples.map((s) => s.text)).toEqual(["sample 1", "sample 2", "sample 3", "sample 4", "sample 5"]);
     expect(fresh.voice?.updatedAt).toBe(at(0));
+    // Every 3rd sample re-reads the voice (7 added: after the 6th, one since).
+    expect(fresh.voice?.samplesSinceExtract).toBe(1);
+    expect(fresh.voice?.suggested).toMatchObject({ basis: "5 samples", contractions: false });
+  },
+
+  "voice.setTraits": () => {
+    const s = ws();
+    s.voice!.suggested = { greeting: "hi_first_name", at: at(-1), basis: "3 samples" };
+    apply(s, { type: "voice.setTraits", traits: { greeting: "first_name", contractions: true }, at: at(0) });
+    expect(s.voice?.traits).toEqual({ greeting: "first_name", contractions: true });
+    expect(s.voice?.suggested).toBeUndefined();
+    const fresh = apply(makeWorkspace(), { type: "voice.setTraits", traits: { formality: 2 }, at: at(0) });
+    expect(fresh.voice?.traits).toEqual({ formality: 2 });
+  },
+
+  "voice.dismissSuggestion": () => {
+    const s = ws();
+    s.voice!.suggested = { greeting: "hi_first_name", at: at(-1), basis: "3 samples" };
+    apply(s, { type: "voice.dismissSuggestion", at: at(0) });
+    expect(s.voice?.suggested).toBeUndefined();
+    apply(makeWorkspace(), { type: "voice.dismissSuggestion", at: at(0) });
+  },
+
+  "voice.extract": () => {
+    const s = ws();
+    apply(s, { type: "voice.extract", at: at(0) });
+    expect(s.voice?.suggested?.basis).toBe(`${sample.voice!.samples.length} samples`);
+    // Accepting what it found, then re-reading: nothing new to suggest.
+    const traits: Partial<NonNullable<Workspace["voice"]>["suggested"]> = { ...s.voice!.suggested! };
+    delete traits.at;
+    delete traits.basis;
+    apply(s, { type: "voice.setTraits", traits, at: at(0) }, { type: "voice.extract", at: at(0) });
+    expect(s.voice?.suggested).toBeUndefined();
+  },
+
+  "voice.addBadExamples": () => {
+    const long = "Hi Dana, I hope this email finds you well. Companies like yours struggle with finance ops and our platform helps.";
+    const s = apply(makeWorkspace(), { type: "voice.addBadExamples", texts: [long, "  too short  ", long.replace("Dana", "Sam")], at: at(0) });
+    // Fragments too short to judge are dropped; only the last five are kept.
+    expect(s.voice?.badExamples?.map((b) => b.text)).toEqual([long, long.replace("Dana", "Sam")]);
+    apply(s, { type: "voice.addBadExamples", texts: [1, 2, 3, 4].map((i) => `${long} ${i}`), at: at(0) });
+    expect(s.voice?.badExamples).toHaveLength(5);
+    expect(s.voice?.badExamples?.[0].text).toBe(long.replace("Dana", "Sam"));
+  },
+
+  "voice.noteToneOff": () => {
+    const s = apply(ws(), { type: "voice.noteToneOff", text: "Hope this finds you well!", at: at(0), moveId: "mv_x" });
+    expect(s.voice?.toneOff).toEqual([{ at: at(0), text: "Hope this finds you well!", moveId: "mv_x" }]);
+    // Skipping the same card again replaces its example rather than adding a second one.
+    apply(s, { type: "voice.noteToneOff", text: "Second try.", at: at(0), moveId: "mv_x" });
+    expect(s.voice?.toneOff?.map((t) => t.text)).toEqual(["Second try."]);
   },
 
   "voice.update": () => {
@@ -125,6 +177,43 @@ const cases: Record<Action["type"], () => void> = {
   "foundation.lockSegment": () => {
     const s = apply(ws(), { type: "foundation.lockSegment", at: at(0) });
     expect(s.foundation?.icp.segmentLockedAt).toBe(at(0));
+  },
+
+  "foundation.revise": () => {
+    const s = ws();
+    const f = structuredClone(s.foundation!);
+    const v = f.version;
+    const sentence = buildRevision(f, { target: "icp.sentence", op: "set", text: "Usage-priced API companies past $2M ARR whose controller closes the books by hand." })!;
+    const words = buildRevision(f, { target: "messaging.customerWords", op: "add", text: "month-end fire drill" })!;
+    apply(s, { type: "foundation.revise", revision: sentence, source: "refresh", runId: "run_r", at: at(0) });
+    expect(s.foundation!.icp.hypothesis.sentence).toBe(sentence.text);
+    expect(s.foundation!.version).toBe(v + 1);
+    // The version it replaced is kept whole, so the refresh can be undone.
+    expect(s.foundationHistory).toEqual([expect.objectContaining({ version: v, source: "refresh", runId: "run_r", changes: [expect.stringContaining("The ICP bet")] })]);
+    expect(s.foundationHistory![0].snapshot.icp.hypothesis.sentence).toBe(f.icp.hypothesis.sentence);
+    // A second change from the same refresh joins that version.
+    apply(s, { type: "foundation.revise", revision: words, source: "refresh", runId: "run_r", at: at(0) });
+    expect(s.foundation!.version).toBe(v + 1);
+    expect(s.foundationHistory![0].changes).toHaveLength(2);
+    expect(s.foundation!.messaging.customerWords.at(-1)).toEqual({ phrase: "month-end fire drill", source: "call" });
+    // The founder edited that part since: the old proposal no longer applies.
+    expect(() => apply(s, { type: "foundation.revise", revision: { ...sentence, before: "Something else" }, source: "refresh", at: at(0) })).toThrow(ActionError);
+  },
+
+  "foundation.restore": () => {
+    const s = ws();
+    const v = s.foundation!.version;
+    const original = s.foundation!.icp.hypothesis.sentence;
+    apply(s, { type: "foundation.revise", revision: buildRevision(s.foundation!, { target: "icp.sentence", op: "set", text: "A new bet." })!, source: "monthly", runId: "run_m", at: at(-1) });
+    apply(s, { type: "foundation.lockSegment", at: at(0) });
+    apply(s, { type: "foundation.restore", version: v, at: at(0) });
+    expect(s.foundation!.icp.hypothesis.sentence).toBe(original);
+    expect(s.foundation!.version).toBe(v + 2);
+    // What happened since the old version stays: the segment lock is a record, not part of the bet.
+    expect(s.foundation!.icp.segmentLockedAt).toBe(at(0));
+    expect(s.foundationHistory!.map((x) => x.version)).toEqual([v, v + 1]);
+    expect(s.foundationHistory!.at(-1)!.changes).toEqual([`Restored v${v}`]);
+    expect(() => apply(s, { type: "foundation.restore", version: 99, at: at(0) })).toThrow("Version not found");
   },
 
   "claim.upsert": () => {
@@ -194,6 +283,22 @@ const cases: Record<Action["type"], () => void> = {
     const gives = s.connectors.find((c) => c.id === id)!.gives!;
     expect(gives.at(-1)).toEqual({ at: TODAY, what: `Sent a customer lead ${"x".repeat(200)}`.slice(0, 140) });
     expect(() => apply(s, { type: "connector.give", id: "con_missing", what: "x", at: at(0) })).toThrow(ActionError);
+  },
+
+  "connector.sendList": () => {
+    const id = sample.connectors[1].id;
+    const s = apply(ws(), { type: "connector.sendList", id, domains: ["a.example", "b.example", "a.example"], at: at(0) });
+    const c = s.connectors.find((x) => x.id === id)!;
+    expect(c.list).toEqual({ sentOn: TODAY, domains: ["a.example", "b.example"] });
+    expect(c.lastAskedOn).toBe(TODAY);
+    expect(() => apply(s, { type: "connector.sendList", id: "con_missing", domains: [], at: at(0) })).toThrow(ActionError);
+  },
+
+  "connector.markList": () => {
+    const id = sample.connectors[1].id;
+    const s = apply(ws(), { type: "connector.sendList", id, domains: ["a.example", "b.example"], at: at(-2) }, { type: "connector.markList", id, marked: ["b.example", "z.example"], at: at(0) });
+    expect(s.connectors.find((x) => x.id === id)!.list).toMatchObject({ marked: ["b.example"], markedOn: TODAY });
+    expect(() => apply(ws(), { type: "connector.markList", id, marked: [], at: at(0) })).toThrow(ActionError);
   },
 
   "intro.create": () => {
@@ -317,6 +422,15 @@ const cases: Record<Action["type"], () => void> = {
     expect(() => apply(s, { type: "person.remove", id: PERSON.dana })).not.toThrow();
   },
 
+  "person.forget": () => {
+    // The full contract is in src/lib/people/forget.test.ts.
+    const s = apply(ws(), { type: "person.forget", id: PERSON.dana, at: at(0), suppressionId: "sup_del" });
+    expect(s.people[PERSON.dana]).toBeUndefined();
+    expect(s.suppression.at(-1)).toEqual({ id: "sup_del", email: "dana@northwind.example", reason: "requested_delete", at: at(0) });
+    expect(() => apply(s, { type: "person.forget", id: PERSON.dana, at: at(0), suppressionId: "sup_again" })).not.toThrow();
+    expect(s.suppression.filter((x) => x.reason === "requested_delete")).toHaveLength(1);
+  },
+
   "deal.create": () => {
     const s = ws();
     const deal = { ...s.deals[DEAL.saltmarsh], id: "deal_fernwick", accountDomain: DOMAIN.fernwick, name: "Fernwick" };
@@ -400,9 +514,12 @@ const cases: Record<Action["type"], () => void> = {
   "outreach.editStep": () => {
     const s = apply(ws(), { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 1, body: "Owen, new body." });
     const step = s.outreach[PACKAGE.fernwickCold].steps[0];
-    expect(step).toMatchObject({ body: "Owen, new body.", edited: true, subject: sample.outreach[PACKAGE.fernwickCold].steps[0].subject });
+    const drafted = sample.outreach[PACKAGE.fernwickCold].steps[0];
+    expect(step).toMatchObject({ body: "Owen, new body.", edited: true, subject: drafted.subject });
     apply(s, { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 1, subject: null });
     expect(s.outreach[PACKAGE.fernwickCold].steps[0].subject).toBeNull();
+    // The draft as written is kept once, from before the first edit.
+    expect(step.original).toEqual({ subject: drafted.subject, body: drafted.body });
     expect(() => apply(s, { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 4, body: "x" })).toThrow("Step not found");
     expect(() => apply(s, { type: "outreach.editStep", packageId: "pkg_missing", step: 1, body: "x" })).toThrow("Draft not found");
   },
@@ -435,6 +552,11 @@ const cases: Record<Action["type"], () => void> = {
         draftRef: { packageId: PACKAGE.fernwickCold, step: 1 },
         summary: "First touch to Owen Park",
         source: "founder",
+        // What the learning reviews compare: the why-now signal behind the angle, frame, POV, persona and subject.
+        signalType: "jd_names_pain",
+        tags: { frame: "founder_card", povId: "pov_script_black_box", credentialClaimId: "clm_tollgate_credential", persona: "champion", subjectStyle: "trigger" },
+        // Sent as drafted.
+        editDistance: 0,
       }),
     ]);
     expect(s.moves[card.id].status).toBe("done");
@@ -490,6 +612,13 @@ const cases: Record<Action["type"], () => void> = {
     expect(step.sentAt).toBeUndefined();
     expect(s.activities.find((a) => a.id === sentActivity.id)).toBeUndefined();
     expect(s.moves.mv_done.status).toBe("open");
+    // The card the approval finished comes back too, even without a draft link; missing ids are skipped.
+    s.moves.mv_card = makeMove("mv_card", { status: "done" });
+    s.moves.mv_skipped = makeMove("mv_skipped", { status: "skipped" });
+    apply(s, { type: "outreach.approveStep", packageId: PACKAGE.driftglassCold, step: 1, at: at(0), activityId: "act_again" });
+    apply(s, { type: "outreach.unapproveStep", packageId: PACKAGE.driftglassCold, step: 1, activityId: "act_again", moveIds: ["mv_card", "mv_skipped", "mv_missing"] });
+    expect(s.moves.mv_card.status).toBe("open");
+    expect(s.moves.mv_skipped.status).toBe("skipped");
   },
 
   "outreach.setPerson": () => {
@@ -552,6 +681,14 @@ const cases: Record<Action["type"], () => void> = {
     apply(s, { type: "activity.markOutcome", ids: ["act_025"], outcome: null, at: at(0) });
     expect(s.activities.find((a) => a.id === "act_025")).not.toHaveProperty("outcome");
     expect(s.activities.find((a) => a.id === "act_033")?.outcome).toBe("no_reply");
+  },
+
+  "activity.closeLoop": () => {
+    const s = apply(ws(), { type: "activity.closeLoop", id: "act_034", at: at(0) });
+    expect(s.activities.find((a) => a.id === "act_034")?.loopClosedAt).toBe(at(0));
+    apply(s, { type: "activity.closeLoop", id: "act_034", at: null });
+    expect(s.activities.find((a) => a.id === "act_034")).not.toHaveProperty("loopClosedAt");
+    expect(() => apply(s, { type: "activity.closeLoop", id: "act_missing", at: at(0) })).toThrow(ActionError);
   },
 
   "brief.setProposal": () => {
@@ -680,6 +817,62 @@ describe("applyAction", () => {
   it("throws ActionError for records that don't exist", () => {
     expect(() => apply(ws(), { type: "move.skip", id: "mv_missing", reason: "other" })).toThrow(ActionError);
     expect(() => apply(ws(), { type: "event.chooseTheme", id: "evt_missing", index: 0 })).toThrow(ActionError);
+  });
+});
+
+describe("Undo after Mark as sent on Today", () => {
+  it("puts a reply card back on Today, and it survives the next prepare", () => {
+    const s = ws();
+    const card = s.moves.mv_reply_act_034;
+    expect(card).toMatchObject({ status: "open", kind: "reply" });
+    // The reply draft Today showed for Dana. Its card carries no draft link (the reply rule never sets one).
+    s.outreach.out_reply = makePackage("out_reply", DOMAIN.northwind, { mode: "reply", personId: PERSON.dana, createdAt: at(0, "09:00"), steps: [makeStep(1, { thread: "reply", subject: null })], replyAction: "draft" });
+    expect(card.draft).toBeUndefined();
+
+    // A (or "Mark as sent"), then the card finishes quietly.
+    apply(s, { type: "outreach.approveStep", packageId: "out_reply", step: 1, at: at(0, "09:40"), activityId: "act_sent" }, { type: "move.done", id: card.id });
+    s.moves = mergeMoves(s.moves, computeMoves(s, NOW), TODAY);
+    expect(s.moves[card.id].status).toBe("done");
+
+    // Undo from the toast.
+    apply(s, { type: "outreach.unapproveStep", packageId: "out_reply", step: 1, activityId: "act_sent", moveIds: [card.id] });
+    s.moves = mergeMoves(s.moves, computeMoves(s, NOW), TODAY);
+    expect(s.outreach.out_reply.steps[0].status).toBe("draft");
+    expect(s.moves[card.id].status).toBe("open");
+    expect(visibleMoves(s.moves, TODAY).map((m) => m.id)).toContain(card.id);
+  });
+});
+
+describe("edits teach the voice card", () => {
+  it("measures how far the send moved from the draft, keeps the diff, and takes it back on Undo", () => {
+    const s = ws();
+    const drafted = structuredClone(s.outreach[PACKAGE.fernwickCold].steps[0]);
+    expect(drafted.body.startsWith("Owen,")).toBe(true);
+    const edited = drafted.body.replace(/^Owen,/, "Hi Owen,");
+    apply(s, { type: "outreach.editStep", packageId: PACKAGE.fernwickCold, step: 1, body: edited, subject: drafted.subject?.toLowerCase() });
+    apply(s, { type: "outreach.approveStep", packageId: PACKAGE.fernwickCold, step: 1, at: at(0, "09:45"), activityId: "act_edit" });
+    const sent = s.activities.find((a) => a.id === "act_edit")!;
+    expect(sent.editDistance).toBeGreaterThan(0);
+    expect(sent.editDistance).toBeLessThan(0.2);
+    expect(s.voice?.edits?.at(-1)).toMatchObject({ before: drafted.body, after: edited, distance: sent.editDistance });
+    expect(s.voice?.editsSinceExtract).toBe(1);
+    apply(s, { type: "outreach.unapproveStep", packageId: PACKAGE.fernwickCold, step: 1, activityId: "act_edit" });
+    expect(s.voice?.edits ?? []).toEqual([]);
+    expect(s.voice?.editsSinceExtract).toBe(0);
+  });
+
+  it("re-reads the voice on the 20th edit", () => {
+    const s = makeWorkspace();
+    for (let i = 0; i < 20; i++) {
+      const id = `out_${i}`;
+      s.outreach[id] = makePackage(id, "acme.example", { steps: [makeStep(1, { body: "Dana, I wanted to reach out about your close process." })] });
+      apply(s, { type: "outreach.editStep", packageId: id, step: 1, body: "Hi Dana,\n\nYour close runs nine days. It's the reconciliation, isn't it?" });
+      apply(s, { type: "outreach.approveStep", packageId: id, step: 1, at: at(0), activityId: `act_${i}` });
+    }
+    expect(s.voice?.editsSinceExtract).toBe(0);
+    expect(s.voice?.suggested).toMatchObject({ greeting: "hi_first_name", contractions: true, basis: "0 samples, 20 edits to drafts" });
+    expect(s.voice?.suggested?.avoidsWords).toEqual(expect.arrayContaining(["wanted", "reach", "process"]));
+    expect(s.voice?.traits).toBeUndefined();
   });
 });
 
