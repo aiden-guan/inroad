@@ -12,6 +12,7 @@ import { duration, plural, relativeTime } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
 import type { ModelTierName, RunStep, RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
+import { useAiStatus, useBillingUrl } from "@/lib/client/ai-provider";
 import { productHealth } from "@/lib/quality/telemetry";
 import { Callout, Group, Row, SettingsSection, TextSetting } from "./parts";
 import { COMPAT_EFFECT, COMPAT_LABEL, cost, ROUTING, SEARCH_PRICE, TIER_LABEL, tokens, usageReport, workflowLabel, type UsageReport } from "./usage-model";
@@ -29,8 +30,9 @@ export function UsageSection({ ws, dispatch, now }: { ws: Workspace; dispatch: D
     <SettingsSection
       id="usage"
       title="Usage & budget"
-      description="You pay Anthropic directly for the AI work, at cost. Every run ends with a receipt; this is the month in one place."
+      description="You pay your AI provider directly for the AI work, at cost. Every run ends with a receipt; this is the month in one place."
     >
+      <UnpricedNote />
       <SpendCard report={report} />
       <CompatHealth report={report} now={now} />
       <BudgetGroup ws={ws} dispatch={dispatch} report={report} />
@@ -44,6 +46,21 @@ export function UsageSection({ ws, dispatch, now }: { ws: Workspace; dispatch: D
 }
 
 /* ───────────── This month ───────────── */
+
+/** A provider model with no known price: spend can't be counted, so say so instead of showing $0 as if free. */
+function UnpricedNote() {
+  const ai = useAiStatus();
+  if (!ai?.active || ai.active.kind !== "openai" || !ai.unpriced) return null;
+  return (
+    <Callout tone="warning" title={`I don't know ${ai.active.models.operator}'s price, so spend here counts $0 for it.`}>
+      Add its price per million tokens in{" "}
+      <Link href="/settings#api-key" className="underline underline-offset-2">
+        General → AI provider
+      </Link>{" "}
+      so receipts and the monthly budget count real money. Until then, set a spend limit with {ai.active.name}.
+    </Callout>
+  );
+}
 
 function SpendCard({ report }: { report: UsageReport }) {
   const { spendUsd, budgetUsd, share, state } = report;
@@ -119,6 +136,10 @@ function CompatHealth({ report, now }: { report: UsageReport; now: number }) {
 /* ───────────── Budget ───────────── */
 
 function BudgetGroup({ ws, dispatch, report }: { ws: Workspace; dispatch: Dispatch; report: UsageReport }) {
+  const ai = useAiStatus();
+  const billingUrl = useBillingUrl();
+  const anthropic = !ai?.active || ai.active.kind === "anthropic";
+  const providerName = ai?.active?.name ?? "your AI provider";
   return (
     <div className="space-y-3">
       {report.state === "over" && (
@@ -135,7 +156,7 @@ function BudgetGroup({ ws, dispatch, report }: { ws: Workspace; dispatch: Dispat
       <Group>
         <TextSetting
           label="Monthly budget (USD)"
-          hint="A hard stop for AI spend, checked before each run. As a backstop, set a spend limit in your Anthropic Console too."
+          hint="A hard stop for AI spend, checked before each run. As a backstop, set a spend limit with your AI provider too."
           value={String(ws.caps.monthlyBudgetUsd)}
           mono
           inputMode="numeric"
@@ -145,18 +166,18 @@ function BudgetGroup({ ws, dispatch, report }: { ws: Workspace; dispatch: Dispat
             const n = Number(v);
             if (!Number.isFinite(n)) return "Enter a dollar amount, like 50.";
             if (n < 5) return "Set at least $5. One dossier costs about $0.10.";
-            if (n > 5000) return "That's above $5,000. Set it in the Anthropic Console instead.";
+            if (n > 5000) return "That's above $5,000. Set a limit with your AI provider instead.";
             return null;
           }}
           onSave={(v) => dispatch({ type: "caps.update", patch: { monthlyBudgetUsd: Math.round(Number(v)) } })}
         />
         <Row
-          label="Anthropic Console limit"
-          hint="Anthropic stops all API use at that limit, even if this machine's records were reset."
+          label={anthropic ? "Anthropic Console limit" : `${providerName} spend limit`}
+          hint={`${anthropic ? "Anthropic" : providerName} stops all API use at a limit set there, even if this machine's records were reset.`}
         >
           <div className="flex sm:justify-end">
             <a
-              href="https://console.anthropic.com/settings/limits"
+              href={anthropic ? "https://console.anthropic.com/settings/limits" : billingUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-7 items-center gap-1 rounded-sm px-2.5 text-[13px] font-medium text-fg-2 ring-1 ring-border-strong/70 transition-[background-color,color,transform] duration-150 hover:bg-bg-subtle hover:text-fg active:scale-[0.97]"
@@ -318,7 +339,7 @@ function RecentRuns({ report, now }: { report: UsageReport; now: number }) {
 
 function receiptLine(r: RunSummary): string {
   const rc = r.receipt;
-  const parts = [workflowLabel(r.workflow), rc ? TIER_LABEL[rc.model] : null, rc ? duration(rc.durationMs) : null, rc?.sources ? plural(rc.sources, "source") : null, rc?.drafts ? plural(rc.drafts, "draft") : null];
+  const parts = [workflowLabel(r.workflow), rc ? (rc.modelName ?? TIER_LABEL[rc.model]) : null, rc ? duration(rc.durationMs) : null, rc?.sources ? plural(rc.sources, "source") : null, rc?.drafts ? plural(rc.drafts, "draft") : null];
   return parts.filter(Boolean).join(" · ");
 }
 
@@ -383,7 +404,7 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
   const rc = run.receipt;
   const fields: [string, string][] = rc
     ? [
-        ["Model", TIER_LABEL[rc.model]],
+        ["Model", rc.modelName ?? TIER_LABEL[rc.model]],
         ["Worked for", duration(rc.durationMs)],
         ["Sources", String(rc.sources)],
         ["Web searches", rc.searches ? `${rc.searches} · ${cost(rc.searches * SEARCH_PRICE)}` : "0"],
@@ -391,7 +412,7 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
         ["Input tokens", tokens(rc.inputTokens)],
         ["Cache reads", tokens(rc.cacheReadTokens)],
         ["Output tokens", tokens(rc.outputTokens)],
-        ["Cost", cost(rc.costUsd)],
+        ["Cost", rc.unpriced ? "Price not set" : cost(rc.costUsd)],
         ...(rc.compat ? ([["Compatibility mode", `without ${rc.compat.features.map((f) => COMPAT_LABEL[f]).join(" and ")}`]] as [string, string][]) : []),
       ]
     : [];
@@ -450,6 +471,10 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
 /* ───────────── How Inroad keeps cost down ───────────── */
 
 function HowCostStaysLow({ report }: { report: UsageReport }) {
+  const ai = useAiStatus();
+  // On another provider the table names its models and the prices set for them; web search runs on Firecrawl credits.
+  const other = ai?.active?.kind === "openai" ? ai.active : null;
+  const routing = ROUTING.map((r) => (other && r.tier !== "none" ? { ...r, model: other.models[r.tier], price: ai?.prices[other.models[r.tier]] } : r));
   const byTier = new Map<ModelTierName, { runs: number; costUsd: number }>(report.byModel.map((m) => [m.tier, m]));
   const cachePct = report.cache.share === null ? null : Math.round(report.cache.share * 100);
   const points: { title: string; body: ReactNode }[] = [
@@ -461,7 +486,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
       title: "Web search is a capped fallback.",
       body: (
         <>
-          Only when free sources come back thin, and at most 3 to 5 searches a run at {cost(SEARCH_PRICE)} each. This month: <span className="font-mono tnum">{report.searches}</span>.
+          Only when free sources come back thin, and at most 3 to 5 searches a run{other ? ", on your Firecrawl credits" : ` at ${cost(SEARCH_PRICE)} each`}. This month: <span className="font-mono tnum">{report.searches}</span>.
         </>
       ),
     },
@@ -498,7 +523,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
           <span className="text-right">This month</span>
         </div>
         <ul className="divide-y divide-border">
-          {ROUTING.map((r) => {
+          {routing.map((r) => {
             const used = byTier.get(r.tier);
             return (
               <li key={r.tier} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[120px_minmax(0,1fr)_120px_88px]">
@@ -514,8 +539,10 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
                       <br />
                       {cost(r.price.output)} out
                     </>
-                  ) : (
+                  ) : r.tier === "none" ? (
                     "$0"
+                  ) : (
+                    "Not set"
                   )}
                 </p>
                 <p className="text-right font-mono text-[12px] leading-5 text-fg-2">

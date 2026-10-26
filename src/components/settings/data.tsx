@@ -93,7 +93,7 @@ export function DataSection({
               Data stays on this machine
             </span>
           }
-          hint="What leaves it: calls to Anthropic with the context a task needs, and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in General). Connected tools get only what you push to them."
+          hint="What leaves it: calls to your AI provider with the context a task needs (none with Ollama), and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in General). Connected tools get only what you push to them."
         />
         <div className="px-4 py-3">
           <div className="flex items-center gap-2">

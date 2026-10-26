@@ -137,7 +137,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
         <motion.form variants={listItem} custom={2} onSubmit={submit} className="mt-8" noValidate>
           {needsKey && (
             <div className="mb-5">
-              <KeyBlock value={keyForm.key} onChange={keyForm.setKey} error={keyForm.error} saved={keyForm.saved} />
+              <KeyBlock form={keyForm} />
             </div>
           )}
 

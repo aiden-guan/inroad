@@ -18,6 +18,7 @@ import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
 import { duration, relativeTime, usd } from "@/lib/client/format";
 import { MODEL_LABELS, costOf, emptyUsage } from "@/lib/ai/models";
+import { useAiStatus } from "@/lib/client/ai-provider";
 import type { AskThreadSummary, AskTurn, EntityRef, Workspace } from "@/lib/domain/types";
 import { AnswerText, countWords, settledText, useWordReveal } from "./answer-text";
 import { ProposalChip } from "./proposal-chip";
@@ -187,7 +188,12 @@ function Receipt({ turn, onNavigate, hereHref }: { turn: AskTurn; onNavigate?: (
   const r = turn.receipt;
   if (!r) return null;
   const records = turn.records ?? [];
-  const parts = [`Worked for ${duration(r.durationMs)}`, r.sources ? `${r.sources} web source${r.sources === 1 ? "" : "s"}` : null, usd(r.costUsd), r.model === "strategist" ? MODEL_LABELS.strategist : null].filter(Boolean);
+  const parts = [
+    `Worked for ${duration(r.durationMs)}`,
+    r.sources ? `${r.sources} web source${r.sources === 1 ? "" : "s"}` : null,
+    r.unpriced ? null : usd(r.costUsd),
+    r.modelName ?? (r.model === "strategist" ? MODEL_LABELS.strategist : null),
+  ].filter(Boolean);
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-fg-3">
       <span className="font-mono">{parts.join(" · ")}</span>
@@ -484,8 +490,12 @@ function Composer({
   // "Think harder" re-reads the whole thread on the strategist model (a cache write at its rates), so the
   // hint prices this thread rather than quoting a flat multiple.
   const threadTokens = conv.thread?.approxTokens ?? 0;
+  const ai = useAiStatus();
+  const other = ai?.active?.kind === "openai" ? ai.active : null;
   const deepUsd = costOf("strategist", { ...emptyUsage(), cacheWriteTokens: threadTokens + 13_000, outputTokens: 2_000 });
-  const deepHint = `For this message only: ${MODEL_LABELS.strategist} with more thinking. Re-reads this conversation on ${MODEL_LABELS.strategist}, about ${usd(deepUsd)}.${threadTokens > 30_000 ? " Start fresh first to keep it cheap." : ""}`;
+  const deepModel = other ? other.models.strategist : MODEL_LABELS.strategist;
+  // Prices here are Anthropic's; on another provider the cost depends on prices this app may not know.
+  const deepHint = `For this message only: ${deepModel} with more thinking. Re-reads this conversation on ${deepModel}${other ? "" : `, about ${usd(deepUsd)}`}.${threadTokens > 30_000 ? " Start fresh first to keep it cheap." : ""}`;
 
   const submit = () => {
     if (!text.trim() || conv.busy || tooLong) return;

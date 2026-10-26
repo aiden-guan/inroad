@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Orb, type OrbState } from "@/components/ui/orb";
 import { OrbMorph, useWide } from "@/components/ui/orb-morph";
-import { BILLING_URL } from "@/lib/ai/errors";
+import { useBillingUrl } from "@/lib/client/ai-provider";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
@@ -25,15 +25,14 @@ import { Canvas, clock, inOverlay, isTyping, runSummary, useLiveRefresh, useNow 
 
 type Phase = "start" | "reading" | "drafting" | "offer";
 
+/**
+ * Onboarding's own words for failures where it has something to add. Everything else shows the run's
+ * message, which names the provider and says what to do (out of credits, rate limited, model unavailable).
+ */
 const ERROR_COPY: Record<string, string> = {
-  no_key: "Add your Anthropic API key to put me to work.",
+  no_key: "Add an AI provider key to put me to work.",
   auth: "Your API key was rejected. Paste a new one below.",
-  rate_limit: "Rate limited by the Anthropic API. Give it a minute, then try again.",
-  overloaded: "Claude is busy right now. Try again in a moment.",
   refusal: "I couldn’t do that one. Try again, or tell me in two sentences what you sell.",
-  network: "I couldn’t reach Claude. Check your connection, then try again.",
-  no_credit: "Your Anthropic account is out of credits. Add credits in the Anthropic Console, then try again. Your answers and corrections are saved.",
-  model_unavailable: "Your Anthropic account can’t use one of the models I need yet. Check your model access in the Anthropic Console, then try again.",
   no_submit: "I lost the thread on that one. Your answers and corrections are saved, so trying again picks up from there.",
 };
 
@@ -43,7 +42,10 @@ const isLive = (s: RunSummary["status"] | undefined) => s === "running" || s ===
 function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?: string; message?: string; stopped: boolean; onRetry: () => void; onStartOver: () => void }) {
   const keyForm = useKeyForm();
   const needsKey = code === "no_key" || code === "auth";
-  const copy = stopped ? "Stopped. What I learned so far is saved." : ((code && ERROR_COPY[code]) ?? "I lost the thread on that one. Your answers and corrections are saved.");
+  const billingUrl = useBillingUrl();
+  const copy = stopped
+    ? "Stopped. What I learned so far is saved."
+    : ((code && ERROR_COPY[code]) ?? (code && message ? `${message}${code === "no_credit" ? " Your answers and corrections are saved." : ""}` : "I lost the thread on that one. Your answers and corrections are saved."));
   return (
     <motion.div
       role="alert"
@@ -55,21 +57,17 @@ function FailurePanel({ code, message, stopped, onRetry, onStartOver }: { code?:
       <p className="text-pretty text-[14px] leading-[21px] text-fg">
         {copy}
         {code === "no_credit" && (
-          <a href={BILLING_URL} target="_blank" rel="noreferrer" className="ml-1.5 whitespace-nowrap font-medium text-accent-text underline-offset-2 hover:underline">
+          <a href={billingUrl} target="_blank" rel="noreferrer" className="ml-1.5 whitespace-nowrap font-medium text-accent-text underline-offset-2 hover:underline">
             Add credits ↗
           </a>
         )}
       </p>
-      {!stopped && !needsKey && !(code && ERROR_COPY[code]) && message && <p className="mt-1 text-pretty text-[12.5px] text-fg-3">{message}</p>}
+      {!stopped && !needsKey && !code && message && <p className="mt-1 text-pretty text-[12.5px] text-fg-3">{message}</p>}
       {needsKey ? (
         <div className="mt-4">
           <KeyBlock
-            value={keyForm.key}
-            onChange={keyForm.setKey}
-            error={keyForm.error}
-            saved={keyForm.saved}
-            saving={keyForm.saving}
-            title={code === "auth" ? "Paste a working Anthropic API key." : "I run on your Anthropic API key."}
+            form={keyForm}
+            title={code === "auth" ? "Paste a working API key." : "I run on your AI provider's key."}
             autoFocus
             onSave={async () => {
               if (await keyForm.submit()) onRetry();

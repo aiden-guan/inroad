@@ -12,7 +12,7 @@ import { AiBadge, Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SourceChip } from "@/components/ui/source";
 import { Receipt } from "@/components/ui/work-log";
-import { BILLING_URL } from "@/lib/ai/errors";
+import { useBillingUrl } from "@/lib/client/ai-provider";
 import { cn } from "@/lib/client/cn";
 import { age, hostOf, shortDate } from "@/lib/client/format";
 import { daysBetween } from "@/lib/domain/ids";
@@ -53,6 +53,7 @@ const MOVE_COPY: Record<Dossier["recommendation"]["move"], string> = {
 /** Before any research: what code found for free, and the one action that matters. */
 export function EnrichmentView({ account, onResearch, researching, lastRun }: { account: Account; onResearch: () => void; researching: boolean; lastRun?: RunState }) {
   const { ws } = useWorkspace();
+  const billingUrl = useBillingUrl();
   const e = account.enrichment;
   const failed = !researching && lastRun?.status === "error" ? lastRun : undefined;
   // After a reload the in-memory run is gone, but the stored one still says why the last attempt failed.
@@ -73,7 +74,7 @@ export function EnrichmentView({ account, onResearch, researching, lastRun }: { 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           {blocked &&
             (error?.code === "no_credit" ? (
-              <a href={BILLING_URL} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-[14px] font-medium text-primary-fg shadow-btn transition-transform active:scale-[0.97]">
+              <a href={billingUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-[14px] font-medium text-primary-fg shadow-btn transition-transform active:scale-[0.97]">
                 Add credits <ArrowUpRight className="size-4" />
               </a>
             ) : (

@@ -3,7 +3,7 @@
 import { ArrowUpRight, Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { BILLING_URL } from "@/lib/ai/errors";
+import { useBillingUrl } from "@/lib/client/ai-provider";
 import { cn } from "@/lib/client/cn";
 
 export interface RunError {
@@ -19,9 +19,10 @@ export interface RunError {
  */
 export function AgentErrorNote({ error, className, withFix = true }: { error: RunError; className?: string; /** False when the fix is already the main button nearby. */ withFix?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const billingUrl = useBillingUrl();
   const details = [error.code && `code ${error.code}`, error.requestId && `request ${error.requestId}`, error.detail].filter(Boolean).join(" · ");
   const fix = !withFix ? null : error.code === "no_credit" ? (
-    <a href={BILLING_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-fg-2 underline-offset-2 hover:text-fg hover:underline">
+    <a href={billingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-fg-2 underline-offset-2 hover:text-fg hover:underline">
       Add credits <ArrowUpRight className="size-3" aria-hidden />
     </a>
   ) : error.code === "auth" || error.code === "no_key" ? (

@@ -1,13 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import type { CompanyIcons, Geocoder, NewsSource, SettingsStatus } from "./types";
+import type { ModelTier } from "@/lib/ai/models";
+import type { ProviderId } from "@/lib/ai/providers";
+import type { CompanyIcons, Geocoder, ModelPrice, NewsSource, SettingsStatus } from "./types";
 
 /* ───────────── Local settings (GET/POST /api/settings) ───────────── */
+
+/** What POST /api/settings takes. Every field is optional; only what's sent changes. */
+export interface SettingsUpdate {
+  anthropicApiKey?: string | null;
+  ai?: {
+    provider: ProviderId;
+    key?: string;
+    baseUrl?: string;
+    model?: string;
+    models?: Partial<Record<ModelTier, string | null>>;
+    prices?: Record<string, ModelPrice | null>;
+    refresh?: boolean;
+  };
+  removeKey?: ProviderId;
+  newsSource?: NewsSource;
+  geocoder?: Geocoder;
+  companyIcons?: CompanyIcons;
+  githubToken?: string | null;
+  secContact?: string | null;
+}
 
 export function useSettingsStatus() {
   const [status, setStatus] = useState<SettingsStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -21,10 +44,13 @@ export function useSettingsStatus() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [version]);
+
+  /** Reads the settings again (after something else saved them). */
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
 
   /** Posts a change; returns an error message to show inline, or null when it saved. */
-  const save = useCallback(async (body: { anthropicApiKey?: string | null; newsSource?: NewsSource; geocoder?: Geocoder; companyIcons?: CompanyIcons; githubToken?: string | null; secContact?: string | null }): Promise<string | null> => {
+  const save = useCallback(async (body: SettingsUpdate): Promise<string | null> => {
     try {
       const res = await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json();
@@ -37,7 +63,7 @@ export function useSettingsStatus() {
     }
   }, []);
 
-  return { status, error, save };
+  return { status, error, save, reload };
 }
 
 /* ───────────── Theme: System / Light / Dark ───────────── */
