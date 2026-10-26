@@ -14,6 +14,42 @@ read your playbook, check your warm paths and push leads in through Inroad's MCP
 
 ---
 
+## The Mac app
+
+Inroad is also a Mac app: the same Inroad in its own window, no Terminal needed. It runs its server inside the app,
+on this Mac only, keeps your work in `~/Library/Application Support/Inroad/Workspace`, and your AI key in the Mac
+Keychain.
+
+**Get it.** On GitHub, open **Actions → Mac app**, pick the latest green run, and download **Inroad-mac-arm64**
+(Apple silicon: M1 and later) or **Inroad-mac-x64** (Intel). Tagged versions (`v0.2.0`) are also attached to a
+**Release**. Open the `.dmg` and drag Inroad into Applications.
+
+**The first time you open it.** Until the app is signed with an Apple Developer ID (below), macOS blocks it as coming
+from an unidentified developer. Open it once, then go to **System Settings → Privacy & Security**, find the line
+saying Inroad was blocked, and choose **Open Anyway**. Or, in Terminal: `xattr -dr com.apple.quarantine
+/Applications/Inroad.app`. You only do this once per version.
+
+**Day to day.** Closing the window keeps Inroad in the Dock; quitting stops its server. **Inroad → Settings…** (⌘,)
+opens Settings; **Help** opens the data folder and the server log (`~/Library/Application Support/Inroad/Logs`).
+To update, download the new version and replace the app: your work stays where it is.
+
+**Build it yourself on a Mac:**
+
+```bash
+npm ci
+npm run desktop:server -- --platform darwin --arch arm64   # the app's server (x64 for Intel)
+npm run desktop:dist -- --arm64 -c.mac.identity=-          # desktop/dist/Inroad-<version>-arm64.dmg
+npm run desktop:dev                                        # or run the shell from the repository
+npm run desktop:test                                       # check the shell (on Linux: xvfb-run npm run desktop:test)
+```
+
+**Signing for release.** A paid Apple Developer Program membership gives you a Developer ID Application certificate.
+Add these repository secrets and the Mac app workflow signs every build and has Apple notarize it, so it opens like any
+app from the internet: `MAC_CERTIFICATE` (the certificate exported as .p12, base64), `MAC_CERTIFICATE_PASSWORD`,
+`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. Before the first release, change `appId` in
+`desktop/electron-builder.yml` to a reverse-DNS name you own, and the version in `desktop/app/package.json`. The Mac
+App Store would need App Sandbox, which this build doesn't use.
+
 ## Quick start
 
 You need [Node.js](https://nodejs.org) 20.9 or newer (24 is what CI uses; `.nvmrc` says so for `nvm use`).
