@@ -2,18 +2,22 @@
 
 import { motion } from "motion/react";
 import { ArrowUpRight, ChevronDown, Search } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ComposeButton } from "@/components/compose/composer";
 import type { RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { AgentErrorNote } from "@/components/ui/agent-error";
 import { AiBadge, Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SourceChip } from "@/components/ui/source";
 import { Receipt } from "@/components/ui/work-log";
+import { useBillingUrl } from "@/lib/client/ai-provider";
 import { cn } from "@/lib/client/cn";
 import { age, hostOf, shortDate } from "@/lib/client/format";
 import { daysBetween } from "@/lib/domain/ids";
 import { listItem } from "@/lib/motion";
+import { actionableRecommendation, latestRun } from "@/lib/moves/util";
 import type { Account, Angle, Dossier, Signal, SignalType } from "@/lib/domain/types";
 import { WaysIn } from "@/components/intros/ways-in";
 import { usePeopleData } from "@/components/people/use-people-data";
@@ -48,21 +52,50 @@ const MOVE_COPY: Record<Dossier["recommendation"]["move"], string> = {
 
 /** Before any research: what code found for free, and the one action that matters. */
 export function EnrichmentView({ account, onResearch, researching, lastRun }: { account: Account; onResearch: () => void; researching: boolean; lastRun?: RunState }) {
+  const { ws } = useWorkspace();
+  const billingUrl = useBillingUrl();
   const e = account.enrichment;
+  const failed = !researching && lastRun?.status === "error" ? lastRun : undefined;
+  // After a reload the in-memory run is gone, but the stored one still says why the last attempt failed.
+  const stored = !researching && !lastRun && ws ? latestRun(ws, "dossier", account.domain) : undefined;
+  const error = failed ? (failed.error ?? { message: "That attempt didn't finish." }) : stored?.status === "error" ? stored.error : undefined;
+  // Out of credits or a bad key: retrying can't work, so the fix is the main action.
+  const blocked = error?.code === "no_credit" || error?.code === "auth" || error?.code === "no_key";
   return (
     <div className="space-y-8">
       <div className="rounded-lg bg-surface px-5 py-6 ring-1 ring-border">
-        <p className="font-serif text-[24px] leading-[30px] tracking-[-0.01em] text-fg">I haven&apos;t researched {account.name} yet.</p>
+        <p className="font-serif text-[24px] leading-[30px] tracking-[-0.01em] text-fg">
+          {error ? `My research on ${account.name} didn't finish.` : <>I haven&apos;t researched {account.name} yet.</>}
+        </p>
         <p className="mt-2 max-w-[56ch] text-[14px] leading-[21px] text-fg-2">
           I&apos;ll read their site, open roles, recent news and Hacker News for free, then write a one-screen dossier: why now, who to talk to, and the angle, every fact
           with its source. Usually $0.05–0.15.
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button variant="agent" size="lg" loading={researching} onClick={onResearch} icon={<Search className="size-4" />}>
-            {researching ? `Researching ${account.name}` : `Research ${account.name}`}
+          {blocked &&
+            (error?.code === "no_credit" ? (
+              <a href={billingUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-[14px] font-medium text-primary-fg shadow-btn transition-transform active:scale-[0.97]">
+                Add credits <ArrowUpRight className="size-4" />
+              </a>
+            ) : (
+              <Link href="/settings#api-key" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-[14px] font-medium text-primary-fg shadow-btn transition-transform active:scale-[0.97]">
+                Open Settings
+              </Link>
+            ))}
+          <Button variant={blocked ? "secondary" : "agent"} size="lg" loading={researching} onClick={onResearch} icon={<Search className="size-4" />}>
+            {researching ? `Researching ${account.name}` : error ? "Research again" : `Research ${account.name}`}
           </Button>
-          {lastRun?.status === "error" && <span className="text-[13px] text-danger">{lastRun.error?.message ?? "The last attempt failed."} Try again.</span>}
         </div>
+        {/* The one place a failed run is explained: what it cost, why, and (when a retry can work) that it costs about as much again. */}
+        {error && (
+          <div className="mt-3 space-y-1">
+            {failed && <Receipt run={failed} />}
+            <p className="px-1.5">
+              <AgentErrorNote error={error} withFix={!blocked} className="text-[13px] leading-[19px]" />
+            </p>
+            {!blocked && <p className="px-1.5 text-[12px] text-fg-3">Trying again costs about the same as the first attempt.</p>}
+          </div>
+        )}
       </div>
 
       <WaysIn account={account} />
@@ -132,7 +165,9 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
 
   const signals = useMemo(() => account.signals.filter((s) => !s.evidenceId || ev([s.evidenceId]).length > 0).slice(0, 6), [account.signals, ev]);
   const people = ws?.people ?? {};
-  const recommended = d.recommendation.personId ? people[d.recommendation.personId] : undefined;
+  // What Today's card says too: with nothing citable, watch rather than a draft button that can only fail.
+  const rec = (ws && actionableRecommendation(ws, account)) || { move: d.recommendation.move, why: d.recommendation.why, personId: d.recommendation.personId };
+  const recommended = rec.personId ? people[rec.personId] : undefined;
   const bestAngle = d.angles[0];
   const sourceIds = useMemo(
     () => [
@@ -170,6 +205,12 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
           )}
           {lastRun && lastRun.status !== "running" && lastRun.status !== "queued" && lastRun.workflow === "dossier" && <Receipt run={lastRun} />}
         </div>
+        {lastRun?.status === "error" && lastRun.workflow === "dossier" && !refreshing && (
+          <p className="mb-3">
+            <AgentErrorNote error={lastRun.error ?? { message: "The refresh didn't finish." }} className="text-[13px] leading-[19px]" />{" "}
+            <span className="text-[12px] text-fg-3">This dossier from {shortDate(d.generatedAt)} is unchanged.</span>
+          </p>
+        )}
         <Cited evidence={ev(d.snapshot.descriptionEvidenceIds)}>
           <p className="font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg text-pretty">{d.snapshot.plainDescription}</p>
         </Cited>
@@ -191,7 +232,7 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
       <div className="rounded-lg bg-surface p-4 ring-1 ring-border">
         <p className="text-[12px] font-medium text-fg-3">My recommendation</p>
         <p className="mt-1 font-serif text-[19px] leading-[27px] text-fg">
-          {MOVE_COPY[d.recommendation.move]}
+          {MOVE_COPY[rec.move]}
           {recommended && (
             <>
               {" "}
@@ -200,9 +241,9 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
           )}
           .
         </p>
-        <p className="mt-1 font-serif text-[16px] leading-[24px] text-fg-2">{d.recommendation.why}</p>
+        <p className="mt-1 font-serif text-[16px] leading-[24px] text-fg-2">{rec.why}</p>
         <div className="mt-3">
-          <RecommendationAction account={account} angle={bestAngle} personId={recommended?.id} move={d.recommendation.move} signals={signals} />
+          <RecommendationAction account={account} angle={bestAngle} personId={recommended?.id} move={rec.move} signals={signals} />
         </div>
       </div>
 

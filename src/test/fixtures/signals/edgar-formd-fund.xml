@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+  <submissionType>D</submissionType>
+  <primaryIssuer>
+    <cik>0001765432</cik>
+    <entityName>Northgate Opportunity Fund II, L.P.</entityName>
+    <entityType>Limited Partnership</entityType>
+  </primaryIssuer>
+  <relatedPersonsList></relatedPersonsList>
+  <offeringData>
+    <industryGroup>
+      <industryGroupType>Pooled Investment Fund</industryGroupType>
+    </industryGroup>
+    <typeOfFiling><newOrAmendment><isAmendment>false</isAmendment></newOrAmendment><dateOfFirstSale><yetToOccur>true</yetToOccur></dateOfFirstSale></typeOfFiling>
+    <offeringSalesAmounts>
+      <totalOfferingAmount>Indefinite</totalOfferingAmount>
+      <totalAmountSold>40000000</totalAmountSold>
+    </offeringSalesAmounts>
+  </offeringData>
+</edgarSubmission>

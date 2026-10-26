@@ -1,24 +1,28 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { connectorFor } from "@/lib/connectors";
-import { CONNECTORS, CRM_IDS, SEQUENCER_IDS, type CrmId, type SequencerId } from "@/lib/connectors/catalog";
+import { BOOKING_IDS, CONNECTORS, CRM_IDS, SEQUENCER_IDS, isBooking, type BookingId, type CrmId, type SequencerId } from "@/lib/connectors/catalog";
 import type { ConnectorConfig, ConnectorError, CrmChanges, PollCursor } from "@/lib/connectors/types";
+import { closeDatePushed } from "@/lib/deals/rules";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Stage, type Workspace } from "@/lib/domain/types";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { receivePolled } from "./inbound";
-import { companyDomainOf, ensureAccount, ensurePerson, normalizeDomain } from "./records";
+import { askedToBeDeleted, companyDomainOf, ensureAccount, ensurePerson, normalizeDomain } from "./records";
 import { mutateHub, readHub, type HubState } from "./store";
 
 /**
  * Polling fallback for a local app that no webhook can reach. Zero tokens: plain HTTP reads, then
  * the same code paths a webhook takes.
  *
- * - Sequencers (Instantly, Smartlead): replies with the vendor's interest labels, bounces and
+ * - Sequencers (Instantly, Smartlead, lemlist): replies with the vendor's interest labels, bounces and
  *   unsubscribes, shaped like the vendor's webhook payload and handed to the inbound parser, so a
  *   reply becomes the same activity, reply move, suppression and Slack alert, deduplicated on the
  *   same external ids. Polled when there's no public URL, or when the tool hasn't delivered a
  *   webhook in a day (a quick-tunnel URL changes on every restart, so registered webhooks go stale).
+ * - Booking tools connected with a key (Calendly, Cal.com): new, moved and canceled bookings, shaped
+ *   like their webhook payloads, on the same rule as sequencers (no public URL, or webhooks gone quiet).
+ *   Calendly sends webhooks only on paid plans, so for most founders this is how bookings arrive.
  * - CRMs (HubSpot, Attio): always polled, since HubSpot Service Keys get no webhooks. Ownership rule
  *   (research 07): the CRM owns contacts and deals. So people at companies already here get empty
  *   fields filled; new CRM companies are noted as known, never made prospects; a mirrored deal takes
@@ -29,7 +33,7 @@ import { mutateHub, readHub, type HubState } from "./store";
  * Each connector keeps its own cursor and cadence in hub.json; one poll runs at a time.
  */
 
-type PolledId = SequencerId | CrmId;
+type PolledId = SequencerId | CrmId | BookingId;
 
 /** Minimum gap between polls, from the rate limits in research 06. */
 const EVERY_MS: Record<PolledId, number> = {
@@ -37,10 +41,14 @@ const EVERY_MS: Record<PolledId, number> = {
   instantly: 2 * 60_000,
   // 60 requests a minute on Standard; a poll makes up to ~20 calls spaced a second apart.
   smartlead: 5 * 60_000,
-  lemlist: Infinity,
+  // 20 requests per 2 seconds; a poll makes 7–14 calls.
+  lemlist: 3 * 60_000,
   // Search allows 5 a second; a poll makes 3 searches. Research 07: every 5–15 minutes.
   hubspot: 5 * 60_000,
   attio: 5 * 60_000,
+  // A poll makes 1–21 calls (Calendly reads each changed booking's invitees); Cal.com allows 120 a minute.
+  calendly: 5 * 60_000,
+  calcom: 5 * 60_000,
 };
 const BACKOFF_MS: Partial<Record<ConnectorError["code"], number>> = { rate_limited: 10 * 60_000, auth: 30 * 60_000, forbidden: 30 * 60_000, plan: 6 * 60 * 60_000 };
 const DEFAULT_BACKOFF_MS = 5 * 60_000;
@@ -75,7 +83,7 @@ export function dueConnectors(ws: Workspace, hub: HubState, now: number, force =
     if (st?.nextAt && Date.parse(st.nextAt) > now) return false;
     return force || !st?.lastAt || now - Date.parse(st.lastAt) >= EVERY_MS[id];
   };
-  for (const id of SEQUENCER_IDS) {
+  for (const id of [...SEQUENCER_IDS, ...BOOKING_IDS]) {
     if (!ws.integrations[id]?.enabled || EVERY_MS[id] === Infinity) continue;
     if (publicUrl(ws) && webhooksArrive(hub, id, now)) continue;
     if (due(id)) out.push(id);
@@ -101,7 +109,7 @@ async function pollDue({ force = false }: { force?: boolean }): Promise<PollResu
   const out: PollResult[] = [];
   for (const id of ids) {
     try {
-      out.push(CRM_IDS.includes(id as CrmId) ? await pollCrm(id as CrmId) : await pollSequencer(id as SequencerId));
+      out.push(CRM_IDS.includes(id as CrmId) ? await pollCrm(id as CrmId) : await pollSequencer(id as SequencerId | BookingId));
     } catch (err) {
       console.error("[poll]", id, err);
       await record(id, { ok: false, message: err instanceof Error ? err.message : "Polling failed." });
@@ -133,8 +141,10 @@ async function record(id: PolledId, r: { ok: true; cursor: PollCursor; summary?:
 
 const batchKey = (events: unknown[]) => `poll:${createHash("sha256").update(JSON.stringify(events)).digest("hex").slice(0, 32)}`;
 
-async function pollSequencer(id: SequencerId): Promise<PollResult> {
-  const poll = connectorFor(id)?.sequencer?.pollEvents;
+/** Sequencers and booking tools: their own change feed, through the webhook parser. */
+async function pollSequencer(id: SequencerId | BookingId): Promise<PollResult> {
+  const c = connectorFor(id);
+  const poll = isBooking(id) ? c?.booking?.pollEvents : c?.sequencer?.pollEvents;
   if (!poll) return { id, ok: true, changed: false };
   const r = await poll(readHub().poll?.[id]?.cursor ?? {});
   if (!r.ok) {
@@ -182,7 +192,8 @@ interface CrmApplied {
   seen: string[];
 }
 
-function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string, string>, seen: Record<string, string>, at: string): CrmApplied {
+/** Exported for tests. */
+export function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string, string>, seen: Record<string, string>, at: string): CrmApplied {
   const name = CONNECTORS[id].name;
   const out: CrmApplied = { people: 0, companies: 0, deals: 0, questions: 0, known: [], seen: [] };
   const meta = { source: "integration" as const, sourceDetail: `${name} sync`, at };
@@ -206,6 +217,8 @@ function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string
     const domain = companyDomainOf(email);
     // Only people at companies the founder already has; the CRM's whole contact list isn't a lead list.
     if (!domain || !ws.accounts[domain]) continue;
+    // Someone who asked to be deleted stays deleted, even while the CRM still holds them.
+    if (askedToBeDeleted(ws, email)) continue;
     const existing = Object.values(ws.people).find((x) => x.email?.toLowerCase() === email);
     const before = existing ? JSON.stringify([existing.name, existing.title, existing.email, existing.contactPaths.length]) : null;
     const { person, created } = ensurePerson(ws, { domain, email, name: p.name, title: p.title }, { via: name, source: "integration" });
@@ -223,6 +236,7 @@ function applyCrm(ws: Workspace, id: CrmId, ch: CrmChanges, mirrored: Map<string
       touched = true;
     }
     if (d.closeDate && d.closeDate !== deal.closeDate) {
+      if (closeDatePushed(deal.closeDate, d.closeDate)) deal.closeDatePushes = (deal.closeDatePushes ?? 0) + 1;
       deal.closeDate = d.closeDate;
       touched = true;
     }

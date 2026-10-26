@@ -100,6 +100,7 @@ export function lintStep(ws: Workspace, pkg: OutreachPackage, step: DraftStep, e
     spans: step.personalizedSpans.map((s) => ({ text: s.text, support: spanSupport(ws.evidence[s.evidenceId]) })),
     knownNames: knownNamesFor(ws, pkg),
     recent: pkg.mode === "cold" && step.step === 1 ? recentDraftsFor(ws, pkg.id, pkg.accountDomain) : undefined,
+    badExamples: pkg.mode === "cold" || pkg.mode === "follow_up" ? ws.voice?.badExamples?.map((b) => b.text) : undefined,
   };
   const main = lintDraft({
     ...base,

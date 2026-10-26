@@ -161,6 +161,12 @@ export function ensurePerson(
   return { person, created: true };
 }
 
+/** They asked for their details to be deleted: a sync doesn't bring them back (only the address is kept, to stay away). */
+export function askedToBeDeleted(ws: Workspace, email: string | null | undefined): boolean {
+  const e = email?.trim().toLowerCase();
+  return !!e && ws.suppression.some((s) => s.reason === "requested_delete" && s.email?.toLowerCase() === e);
+}
+
 export function isSuppressed(ws: Workspace, email: string | undefined, domain: string | undefined): boolean {
   const e = email?.toLowerCase();
   return ws.suppression.some((s) => (e && s.email?.toLowerCase() === e) || (domain && s.domain?.toLowerCase() === domain.toLowerCase()));

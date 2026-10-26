@@ -188,6 +188,23 @@ it("ways in: direct first, then insiders, connectors and alumni, with blocking c
   for (let i = 1; i < ways.length; i++) assert.ok(!(ways[i].ready && !ways[i - 1].ready), "ready paths come first");
 });
 
+it("ways in: an insider who knows the product outranks a more senior one who doesn't, and says why", () => {
+  const ws = base();
+  const acc = ws.accounts["glassmoor.example"];
+  const rows: Connection[] = [
+    { id: "cn1", firstName: "Nina", lastName: "Park", url: "https://www.linkedin.com/in/nina-park", company: "Glassmoor", companyNorm: "glassmoor", matchedDomain: acc.domain, position: "VP Engineering" },
+    { id: "cn3", firstName: "Ari", lastName: "Stone", url: "https://www.linkedin.com/in/ari-stone", company: "Glassmoor", companyNorm: "glassmoor", matchedDomain: acc.domain, position: "Engineer", tags: ["design_partner"] },
+  ];
+  const inside = waysIn(ws, acc.domain, rows, TODAY).filter((w) => w.kind === "inside" && w.via.connectionId);
+  assert.deepEqual(
+    inside.map((w) => w.via.connectionId),
+    ["cn3", "cn1"],
+  );
+  assert.match(inside[0].why, /^Ari was a design partner\. Ari works at/);
+  assert.deepEqual(inside[0].via.tags, ["design_partner"]);
+  assert.equal(inside[1].via.tags, undefined);
+});
+
 it("ways in: a connector who passed on this company isn't suggested as ready for 90 days", () => {
   const ws = base();
   const c = ws.connectors.find((x) => x.reach?.includes("glassmoor.example"))!;

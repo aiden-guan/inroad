@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Input, Textarea } from "@/components/ui/field";
 import { Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { newId, nowISO } from "@/lib/domain/ids";
-import type { PovItem } from "@/lib/domain/types";
+import type { PovItem, VoiceTraits } from "@/lib/domain/types";
+import { EXTRACT_EVERY_EDITS, extractVoice, traitLines } from "@/lib/quality/voice";
 import { listItem } from "@/lib/motion";
 import { usePlaybook } from "./context";
 import { plural, words } from "./model";
@@ -23,6 +24,7 @@ export function VoiceSection() {
   return (
     <Section id="voice" title="Voice" kicker={<p className="text-[13px] text-fg-3">How you sound, and what you believe that others don&apos;t.</p>}>
       <VoiceCardBlock />
+      <LearnedTraits />
       <PovBank />
     </Section>
   );
@@ -117,6 +119,154 @@ function VoiceCardBlock() {
             </Button>
           </div>
         </div>
+      </div>
+    </Sub>
+  );
+}
+
+/* ───────────────────────────── What I've learned ───────────────────────────── */
+
+const GREETINGS: { value: NonNullable<VoiceTraits["greeting"]>; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "first_name", label: "Dana," },
+  { value: "hi_first_name", label: "Hi Dana," },
+  { value: "hey_first_name", label: "Hey Dana," },
+];
+const SUBJECTS: { value: NonNullable<VoiceTraits["subjectStyle"]>; label: string }[] = [
+  { value: "lowercase", label: "lowercase" },
+  { value: "sentence", label: "Sentence" },
+  { value: "title", label: "Title Case" },
+];
+
+function withoutMeta(s: NonNullable<NonNullable<ReturnType<typeof usePlaybook>["ws"]["voice"]>["suggested"]>): VoiceTraits {
+  const t: VoiceTraits & { at?: string; basis?: string } = { ...s };
+  delete t.at;
+  delete t.basis;
+  return t;
+}
+
+function Trait({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+  return (
+    <div className={cn("min-w-0", wide && "sm:col-span-2")}>
+      <FieldLabel className="mb-1.5">{label}</FieldLabel>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Traits read in code from the founder's samples, edited drafts and "tone off" skips (SPEC §6 VoiceCard). A re-read
+ * lands as a suggestion; drafts follow only what the founder keeps here.
+ */
+function LearnedTraits() {
+  const { ws, dispatch } = usePlaybook();
+  const v = ws.voice;
+  const traits = v?.traits ?? {};
+  const suggested = v?.suggested;
+  const edits = v?.edits?.length ?? 0;
+  const material = (v?.samples.length ?? 0) + edits > 0;
+  const set = (patch: Partial<VoiceTraits>) => void dispatch({ type: "voice.setTraits", traits: { ...traits, ...patch }, at: nowISO() });
+
+  return (
+    <Sub
+      id="voice-traits"
+      title="What I've learned"
+      hint="Read from your samples, the drafts you edit before sending and the ones you skip as tone off. Drafts follow what you keep here."
+    >
+      <AnimatePresence initial={false}>
+        {suggested && (
+          <motion.div
+            key={suggested.at}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, transition: { duration: 0.12 } }}
+            className="mb-5 rounded-md bg-surface p-3.5 ring-1 ring-border"
+          >
+            <Drafted draft className="pl-3">
+              <p className="text-[13px] font-medium text-fg">
+                <DraftLabel /> · from {suggested.basis}
+              </p>
+              <ul className="mt-1.5 space-y-0.5 text-[13.5px] leading-[21px] text-fg-2">
+                {traitLines(withoutMeta(suggested), "you").map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    void dispatch({ type: "voice.setTraits", traits: withoutMeta(suggested), at: nowISO() });
+                    toast(suggested.signOff ? `Kept. Drafts follow these from now on, signed “${suggested.signOff}”.` : "Kept. Drafts follow these from now on.");
+                  }}
+                >
+                  Use these
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => void dispatch({ type: "voice.dismissSuggestion", at: nowISO() })}>
+                  Not now
+                </Button>
+              </div>
+            </Drafted>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        <Trait label="Greeting">
+          <Segmented value={traits.greeting ?? ("" as NonNullable<VoiceTraits["greeting"]>)} onChange={(greeting) => set({ greeting })} layoutId="voice-greeting" options={GREETINGS} className="max-w-full overflow-x-auto" />
+        </Trait>
+        <Trait label="Subject lines">
+          <Segmented value={traits.subjectStyle ?? ("" as NonNullable<VoiceTraits["subjectStyle"]>)} onChange={(subjectStyle) => set({ subjectStyle })} layoutId="voice-subject" options={SUBJECTS} />
+        </Trait>
+        <Trait label="Contractions">
+          <Segmented
+            value={traits.contractions === undefined ? "" : traits.contractions ? "yes" : "no"}
+            onChange={(c) => set({ contractions: c === "yes" })}
+            layoutId="voice-contractions"
+            options={[
+              { value: "yes", label: "It's, we're" },
+              { value: "no", label: "It is, we are" },
+            ]}
+          />
+        </Trait>
+        <Trait label="Formality">
+          <Segmented
+            value={traits.formality ? String(traits.formality) : ""}
+            onChange={(f) => set({ formality: Number(f) as VoiceTraits["formality"] })}
+            layoutId="voice-formality"
+            options={["1", "2", "3", "4", "5"].map((n) => ({ value: n, label: n }))}
+          />
+        </Trait>
+        <Trait label="Words you use" wide>
+          <TagList items={traits.usesWords ?? []} label="word you use" placeholder="Add a word" onChange={(usesWords) => set({ usesWords })} />
+        </Trait>
+        <Trait label="Words you cut from drafts" wide>
+          <TagList items={traits.avoidsWords ?? []} label="word you cut" placeholder="Add a word" onChange={(avoidsWords) => set({ avoidsWords })} />
+        </Trait>
+        <Trait label="Habits" wide>
+          <TagList items={traits.punctuationHabits ?? []} label="habit" placeholder="Add one, like “No exclamation marks”" onChange={(punctuationHabits) => set({ punctuationHabits })} />
+        </Trait>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-mono text-[11.5px] tnum text-fg-3">
+          {traits.avgSentenceWords ? `~${traits.avgSentenceWords} words a sentence · ` : ""}
+          {plural(edits, "edit")} kept · re-read every {EXTRACT_EVERY_EDITS} edits and every 3rd sample
+        </p>
+        <Button
+          size="xs"
+          variant="secondary"
+          disabled={!material}
+          onClick={() => {
+            const at = nowISO();
+            const next = structuredClone(v!);
+            extractVoice(next, at);
+            void dispatch({ type: "voice.extract", at });
+            if (!next.suggested) toast("Nothing new since you last kept them.");
+          }}
+        >
+          Re-read now
+        </Button>
       </div>
     </Sub>
   );

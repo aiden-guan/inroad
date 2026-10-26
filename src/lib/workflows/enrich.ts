@@ -6,6 +6,8 @@ import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Enrichment, Evidence, Signal, SignalType, Workspace } from "@/lib/domain/types";
 import { gatherSignals } from "@/lib/signals";
 import { TTL, cached } from "@/lib/signals/cache";
+import { shortUsd, type FormDFiling } from "@/lib/signals/edgar";
+import type { HiringPost } from "@/lib/signals/hn-hiring";
 import { fetchText, toDomain } from "@/lib/signals/http";
 import { findOpenRoles, type JobPosting } from "@/lib/signals/jobs";
 import { companyNews, hackerNews, type NewsItem } from "@/lib/signals/news";
@@ -427,6 +429,55 @@ export function detectSignals(
   }
 
   return out.sort((a, b) => b.signal.strength - a.signal.strength || b.signal.date.localeCompare(a.signal.date));
+}
+
+/**
+ * A Form D notice as a dated funding signal: the filing date, what was sold, and a link to the record.
+ * `matched` says how sure the domain is (the filing has no website): a name match on a directory or the
+ * company's own site counts, a guess doesn't, and a guess is context, never an outreach line.
+ */
+export function filingSignal(
+  f: Pick<FormDFiling, "company" | "filedAt" | "url" | "amountSoldUsd" | "totalOfferingUsd" | "firstSaleOn" | "industry" | "isAmendment">,
+  opts: { today: string; implication?: string; matched: boolean },
+): FoundSignal | null {
+  const age = daysBetween(f.filedAt, opts.today);
+  if (age < 0 || age > SIGNAL_WINDOW.funding || f.isAmendment) return null;
+  const sold = shortUsd(f.amountSoldUsd);
+  const offered = shortUsd(f.totalOfferingUsd);
+  const quote = [
+    f.totalOfferingUsd !== undefined ? `Total Offering Amount: $${f.totalOfferingUsd.toLocaleString("en-US")}` : null,
+    f.amountSoldUsd !== undefined ? `Total Amount Sold: $${f.amountSoldUsd.toLocaleString("en-US")}` : null,
+    f.firstSaleOn ? `Date of First Sale: ${f.firstSaleOn}` : null,
+    f.industry ? `Industry Group: ${f.industry}` : null,
+  ]
+    .filter(Boolean)
+    .join("; ");
+  return {
+    signal: {
+      type: "funding",
+      headline: words(sold ? `Filed a Form D: ${sold} raised` : "Filed a Form D for a new round", 14),
+      date: f.filedAt,
+      url: f.url,
+      host: "sec.gov",
+      strength: opts.matched ? 2 : 1,
+      usableInOutreach: opts.matched,
+      implication: opts.implication ?? defaultImplication("funding"),
+    },
+    evidence: {
+      claim: `${f.company} filed a Form D on ${f.filedAt}${sold ? `: ${sold} sold${offered && offered !== sold ? ` of ${offered} offered` : ""}` : ""}`.slice(0, 200),
+      quote: (quote || `Form D filed ${f.filedAt}`).slice(0, 300),
+      url: f.url,
+      host: "sec.gov",
+      sourceType: "filing",
+      publishedAt: f.filedAt,
+      confidence: opts.matched ? "high" : "low",
+    },
+  };
+}
+
+/** The roles in a "Who is hiring?" post as dated postings, so the job rules read them like a board. */
+export function hiringPostJobs(post: Pick<HiringPost, "roles" | "postedAt" | "url">): JobPosting[] {
+  return post.roles.map((title) => ({ title, postedAt: post.postedAt, url: post.url, team: functionOf(title)?.label }));
 }
 
 export function signalKey(s: Pick<Signal, "type" | "url" | "date">): string {

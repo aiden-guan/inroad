@@ -124,6 +124,9 @@ COACHING (use the frameworks; name one only when it helps)
   compare them.
 - Weekly: only qualified deals count as pipeline; coverage = 1 / win rate; one experiment a week; diagnose at the
   earliest broken stage.
+- Monthly: revisit positioning and the ICP from the best-fit customers. When the founder asks to rebuild or update the
+  ICP, positioning or personas from what calls showed, propose start_workflow review {kind: "refresh"}: it suggests
+  each change for them to accept or reject. One message bet a month; no verdict below 100 sends per arm.
 
 BOUNDARIES
 - Legal questions (GDPR, CASL, CAN-SPAM, contracts, DPAs): general guidance only, then "Confirm with counsel."
@@ -972,7 +975,8 @@ export function buildTools(s: TurnState): AgentTool[] {
         "compose {domain, personId?, mode? cold|follow_up|linkedin|warm_intro|reply, angleId?, connectorId?} draft outreach (reply: uses the reply the founder pasted) · " +
         "prep {meetingId} call brief · debrief {dealId? | meetingId? | domain?} uses the call notes the founder pasted in this message · " +
         "dinner_plan {kind dinner|roundtable, city? (dinner), month? YYYY-MM, goal? accelerate_deals|create_pipeline|expand_customers|market_intel, budgetUsd?, coHost?} · " +
-        "asset {kind one_pager|demo_script|security|design_partner_terms|pilot_proposal|insight|case_study, title?, brief?, dealId?} · review {kind monday|friday}.",
+        "asset {kind one_pager|demo_script|security|design_partner_terms|pilot_proposal|insight|case_study, title?, brief?, dealId?} · " +
+        "review {kind monday|friday|monthly|refresh} (refresh rebuilds the ICP, positioning and personas from the founder's calls as changes they accept or reject).",
       schema: StartInput,
       label: (i) => `Proposing: ${clip(i.summary, 60)}`,
       run: async (i) => {
@@ -1118,8 +1122,11 @@ function threadInit(a: Args, label: string | undefined) {
   return () => ({ title: clip(a.message, 64), context: a.context, contextLabel: label, createdAt: at, updatedAt: at });
 }
 
+/** A 400 saying this model takes no system message mid-conversation. What the API said is in `detail` (`message` is for the founder). */
 function isSystemRoleError(err: unknown): boolean {
-  return err instanceof AgentError && err.code === "bad_request" && /system/i.test(err.message) && /role|message/i.test(err.message);
+  if (!(err instanceof AgentError) || err.code !== "bad_request") return false;
+  const said = err.detail ?? err.message;
+  return /system/i.test(said) && /role|message/i.test(said);
 }
 
 export default defineWorkflow<Args>({
@@ -1239,7 +1246,7 @@ export default defineWorkflow<Args>({
       citations: citations.length ? citations : undefined,
       proposals: state.proposals.length ? state.proposals : undefined,
       records: state.records.size ? [...state.records.values()].slice(0, 6) : undefined,
-      receipt: { durationMs: Date.now() - started, sources, costUsd: result.costUsd, model: tier },
+      receipt: { durationMs: Date.now() - started, sources, costUsd: result.costUsd, model: tier, ...(result.modelName ? { modelName: result.modelName } : {}), ...(result.unpriced ? { unpriced: true } : {}) },
       error: empty ? { code: "empty", message: "No answer came back. Try again." } : undefined,
     };
 

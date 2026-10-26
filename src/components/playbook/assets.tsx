@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, FileText, MoreHorizontal, Plus, X } from "lucide-react";
+import { Check, ChevronDown, FileText, MessageSquareText, MoreHorizontal, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,11 +13,13 @@ import { CopyButton, Markdown, Segmented } from "@/components/ui/misc";
 import { Receipt, WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
 import { duration, shortDate, usd } from "@/lib/client/format";
+import { useModKeys } from "@/lib/client/platform";
 import { newId, nowISO } from "@/lib/domain/ids";
 import { OPEN_STAGES, STAGE_LABELS, type Asset, type Deal } from "@/lib/domain/types";
 import { ease, listItem, spring } from "@/lib/motion";
-import { usePlaybook } from "./context";
-import { ASSET_KINDS, CREATABLE_KINDS, assetGate, checkAsset, debriefCount, plural, type AssetKind } from "./model";
+import { QuestionFinder } from "./content";
+import { usePlaybook, type ComposerState } from "./context";
+import { ASSET_KINDS, CONTENT_KINDS, CREATABLE_KINDS, assetGate, checkAsset, contentRunTitle, debriefCount, isContentKind, plural, postSources, type AssetKind } from "./model";
 import { SIERRA_URL, designPartnerKit, templateFor } from "./templates";
 import { DraftLabel, ResearchCite, Sub, undoable } from "./ui";
 
@@ -30,10 +32,11 @@ function openDeals(deals: Record<string, Deal>): Deal[] {
 /* ───────────────────────────── Library ───────────────────────────── */
 
 export function AssetsBlock() {
-  const { ws, assetRuns, composer, setComposer } = usePlaybook();
-  const assets = ws.assets.filter((a) => a.kit !== "design_partner").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const drafting = assetRuns.filter((r) => r.status === "running" || r.status === "queued");
+  const { ws, assetRuns, composer: open, setComposer } = usePlaybook();
+  const assets = ws.assets.filter((a) => a.kit !== "design_partner" && !isContentKind(a.kind)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const drafting = assetRuns.filter((r) => (r.status === "running" || r.status === "queued") && !isContentRun(r.title));
   const approved = assets.filter((a) => a.approved).length;
+  const composer = open && !isContentKind(open.kind) ? open : null;
 
   return (
     <Sub
@@ -66,7 +69,7 @@ export function AssetsBlock() {
             exit={{ opacity: 0, transition: { duration: 0.12 } }}
             className="mb-4"
           >
-            <NewAsset kind={composer.kind} initialDealId={composer.dealId} onClose={() => setComposer(null)} />
+            <NewAsset composer={composer} onClose={() => setComposer(null)} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -100,6 +103,85 @@ export function AssetsBlock() {
             </p>
           </>
         )
+      )}
+    </Sub>
+  );
+}
+
+const isContentRun = (title: string) => CONTENT_KINDS.some((k) => title === contentRunTitle(k));
+
+/* ───────────────────────────── Founder content ───────────────────────────── */
+
+/**
+ * Drafts the founder posts by hand (SPEC non-goal 11): one optional post a week, answers to questions buyers asked in
+ * public, and a Show HN post once there's something to try. No calendar, no scheduling, nothing posted for them.
+ */
+export function ContentBlock() {
+  const { ws, assetRuns, composer: open, setComposer } = usePlaybook();
+  const items = ws.assets.filter((a) => isContentKind(a.kind)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const drafting = assetRuns.filter((r) => (r.status === "running" || r.status === "queued") && isContentRun(r.title));
+  const composer = open && isContentKind(open.kind) ? open : null;
+  return (
+    <Sub
+      id="content"
+      title="Founder content"
+      hint="Drafts you post yourself, by hand. One post a week at most, answers where buyers ask, and a launch when people can try it."
+      right={
+        <Menu
+          trigger={
+            <Button size="sm" variant="ghost" icon={<Plus className="size-3.5" />}>
+              New
+            </Button>
+          }
+        >
+          <MenuLabel>New draft</MenuLabel>
+          {CONTENT_KINDS.map((k) => (
+            <MenuItem key={k} onSelect={() => setComposer({ kind: k })}>
+              {ASSET_KINDS[k].label}
+            </MenuItem>
+          ))}
+        </Menu>
+      }
+    >
+      <AnimatePresence initial={false}>
+        {composer && (
+          <motion.div
+            key={`${composer.kind}-${composer.brief ?? ""}`}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: ease.out } }}
+            exit={{ opacity: 0, transition: { duration: 0.12 } }}
+            className="mb-4"
+          >
+            <NewAsset composer={composer} onClose={() => setComposer(null)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {drafting.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {drafting.map((r) => (
+            <WorkLog key={r.id} run={r} />
+          ))}
+        </div>
+      )}
+
+      {items.length === 0 && drafting.length === 0 && !composer ? (
+        <div className="rounded-lg bg-surface p-5 ring-1 ring-border">
+          <p className="font-serif text-[17px] leading-[26px] text-fg">Your buyers ask for help in public.</p>
+          <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-fg-2">
+            A useful answer there, with no pitch, often beats a cold email. I look for recent questions on Hacker News that match your buyer&apos;s pains, then draft an answer from what you&apos;ve seen.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" icon={<MessageSquareText className="size-3.5" />} onClick={() => setComposer({ kind: "community_answer" })}>
+              Answer a question
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setComposer({ kind: "post" })}>
+              Draft this week&apos;s post
+            </Button>
+          </div>
+        </div>
+      ) : (
+        items.length > 0 && <AssetList assets={items} />
       )}
     </Sub>
   );
@@ -145,7 +227,7 @@ function AssetRow({ asset }: { asset: Asset }) {
         {!asset.approved && gaps > 0 && <span className="hidden text-[12px] text-warning sm:inline">{plural(gaps, "gap")}</span>}
         {asset.approved ? (
           <span className="inline-flex items-center gap-1 text-[12px] text-fg-2">
-            <Check className="size-3.5" aria-hidden /> Approved
+            <Check className="size-3.5" aria-hidden /> {isContentKind(asset.kind) ? "Posted" : "Approved"}
           </span>
         ) : (
           <DraftLabel />
@@ -172,16 +254,27 @@ function AssetRow({ asset }: { asset: Asset }) {
 
 /* ───────────────────────────── New asset ───────────────────────────── */
 
-function NewAsset({ kind, initialDealId, onClose }: { kind: AssetKind; initialDealId?: string; onClose: () => void }) {
-  const { ws, dispatch, draftAsset, setOpenAsset } = usePlaybook();
+const BRIEF_PLACEHOLDER: Partial<Record<AssetKind, string>> = {
+  post: "e.g. The pattern from this week's calls: nobody trusts the month-end number.",
+  community_answer: "Paste the question, or find one below.",
+  launch: "e.g. The link where people can try it, and what isn't done yet.",
+};
+
+function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () => void }) {
+  const { ws, dispatch, draftAsset, setOpenAsset, today } = usePlaybook();
+  const { kind, dealId: initialDealId } = composer;
   const deals = openDeals(ws.deals);
   const meta = ASSET_KINDS[kind];
   const needsDeal = kind === "pilot_proposal";
+  const content = isContentKind(kind);
+  const question = kind === "community_answer";
   const [dealId, setDealId] = useState<string | undefined>(initialDealId && ws.deals[initialDealId] ? initialDealId : needsDeal ? deals[0]?.id : undefined);
-  const [brief, setBrief] = useState("");
+  const [brief, setBrief] = useState(composer.brief ?? "");
+  const [from, setFrom] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const gate = assetGate(ws, { kind, dealId });
+  const gate = assetGate(ws, { kind, dealId, brief }, today);
   const deal = dealId ? ws.deals[dealId] : undefined;
+  const sources = kind === "post" ? postSources(ws) : [];
 
   const fromTemplate = () => {
     const t = templateFor(kind, ws, { deal, calls: debriefCount(ws) });
@@ -194,7 +287,15 @@ function NewAsset({ kind, initialDealId, onClose }: { kind: AssetKind; initialDe
 
   const draft = async () => {
     setBusy(true);
-    const ok = await draftAsset({ kind, dealId, brief: brief.trim() || undefined, assetId: newId("ast") });
+    const source = sources.find((x) => x.id === from);
+    const ok = await draftAsset({
+      kind,
+      dealId,
+      brief: brief.trim() || undefined,
+      assetId: newId("ast"),
+      meetingId: source?.kind === "call" ? source.id : undefined,
+      fromAssetId: source?.kind === "memo" ? source.id : undefined,
+    });
     setBusy(false);
     if (ok) onClose();
   };
@@ -246,26 +347,55 @@ function NewAsset({ kind, initialDealId, onClose }: { kind: AssetKind; initialDe
         </div>
       )}
 
+      {sources.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-[12px] font-medium text-fg-2">Start from</p>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Start from">
+            {[{ id: "", label: "Everything you've said" }, ...sources].map((x) => (
+              <button
+                key={x.id || "all"}
+                type="button"
+                role="radio"
+                aria-checked={from === x.id}
+                onClick={() => setFrom(x.id)}
+                className={cn(
+                  "inline-flex h-7 max-w-full items-center truncate rounded-sm px-2.5 text-[13px] ring-1 ring-inset transition-colors duration-150",
+                  from === x.id ? "bg-fg text-bg ring-fg" : "text-fg-2 ring-border hover:bg-bg-subtle hover:text-fg",
+                )}
+              >
+                {x.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4">
         <label htmlFor="asset-brief" className="mb-1.5 block text-[12px] font-medium text-fg-2">
-          Anything I should know? <span className="font-normal text-fg-3">Optional</span>
+          {question ? "The question you're answering" : "Anything I should know?"} {!question && <span className="font-normal text-fg-3">Optional</span>}
         </label>
         <Textarea
           id="asset-brief"
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
-          placeholder={needsDeal ? "e.g. They want to start with one region's data." : "e.g. For CFOs who weren't on the first call."}
-          className="min-h-16 text-[13.5px]"
+          placeholder={BRIEF_PLACEHOLDER[kind] ?? (needsDeal ? "e.g. They want to start with one region's data." : "e.g. For CFOs who weren't on the first call.")}
+          className={cn("text-[13.5px]", question ? "min-h-24" : "min-h-16")}
           maxLength={2000}
         />
+        {question && <QuestionFinder onPick={(text) => setBrief(text)} />}
       </div>
 
-      {gate && <p className="mt-3 text-[13px] leading-5 text-warning">{gate}</p>}
+      {/* An empty question isn't worth a warning: the field says what it needs, and the button waits for it. */}
+      {gate && !(question && !brief.trim()) && <p className="mt-3 text-[13px] leading-5 text-warning">{gate}</p>}
 
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <Button size="sm" variant="ghost" onClick={fromTemplate} disabled={needsDeal && !dealId && deals.length > 0}>
-          Use the template instead · free
-        </Button>
+        {content ? (
+          <p className="text-[12.5px] leading-[18px] text-fg-3">You post it yourself. I never post for you.</p>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={fromTemplate} disabled={needsDeal && !dealId && deals.length > 0}>
+            Use the template instead · free
+          </Button>
+        )}
         <div className="flex items-center gap-3">
           <span className="hidden font-mono text-[11.5px] text-fg-3 sm:inline">about $0.05 · no web</span>
           <Button size="sm" variant="agent" onClick={() => void draft()} loading={busy} disabled={!!gate}>
@@ -297,6 +427,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
     setMode(asset.body.trim() ? "preview" : "write");
   }
   const area = useRef<HTMLTextAreaElement>(null);
+  const keys = useModKeys();
   const dirty = draft !== asset.body;
   const check = checkAsset(ws, { body: draft, dealId: asset.dealId });
   const deal = asset.dealId ? ws.deals[asset.dealId] : undefined;
@@ -325,9 +456,10 @@ function AssetEditor({ asset }: { asset: Asset }) {
     }
   };
 
+  const content = isContentKind(asset.kind);
   const approve = () => {
     upsert({ approved: true });
-    toast("Approved. Emails can offer it now.");
+    toast(content ? "Marked as posted. It stays here so you don't repeat yourself." : "Approved. Emails can offer it now.");
   };
 
   const remove = () => {
@@ -337,8 +469,9 @@ function AssetEditor({ asset }: { asset: Asset }) {
   };
 
   const redraft = async () => {
-    const ok = await draftAsset({ kind: asset.kind, dealId: asset.dealId, assetId: newId("ast"), title: asset.title });
-    if (ok) toast("Writing a fresh version. This one stays as it is.");
+    // Founder content is rewritten in place: one post a week means one draft, not two.
+    const ok = await draftAsset({ kind: asset.kind, dealId: asset.dealId, assetId: content ? asset.id : newId("ast"), title: asset.title, brief: content ? (asset.brief ?? undefined) : undefined });
+    if (ok) toast(content ? "Writing a fresh version over this draft." : "Writing a fresh version. This one stays as it is.");
   };
 
   return (
@@ -372,8 +505,8 @@ function AssetEditor({ asset }: { asset: Asset }) {
             </button>
           }
         >
-          {asset.kind !== "other" && <MenuItem onSelect={() => void redraft()}>Write a fresh version</MenuItem>}
-          {asset.approved && <MenuItem onSelect={() => upsert({ approved: false })}>Back to draft</MenuItem>}
+          {asset.kind !== "other" && !(content && asset.approved) && <MenuItem onSelect={() => void redraft()}>{content ? "Write a fresh version over this one" : "Write a fresh version"}</MenuItem>}
+          {asset.approved && <MenuItem onSelect={() => upsert({ approved: false })}>{content ? "Not posted yet" : "Back to draft"}</MenuItem>}
           <MenuSeparator />
           <MenuItem danger onSelect={remove}>
             Delete
@@ -475,7 +608,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
         <Input
           aria-label="Where you host it"
           value={url}
-          placeholder="Link, if you host it in Notion or Docs (optional)"
+          placeholder={content ? "Link to it once it's up (optional)" : "Link, if you host it in Notion or Docs (optional)"}
           onChange={(e) => setUrl(e.target.value)}
           onBlur={() => {
             const v = url.trim();
@@ -488,20 +621,20 @@ function AssetEditor({ asset }: { asset: Asset }) {
           }}
           className="h-8 font-mono text-[12.5px]"
         />
-        <span className="font-mono text-[11.5px] text-fg-3 sm:text-right">{dirty ? (mode === "write" ? "Unsaved · ⌘S" : "Unsaved") : "Saved"}</span>
+        <span className="font-mono text-[11.5px] text-fg-3 sm:text-right">{dirty ? (mode === "write" ? `Unsaved · ${keys("⌘S")}` : "Unsaved") : "Saved"}</span>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className={cn("text-[13px] leading-5 transition-colors duration-150", check.blocking ? "text-fg-2" : check.unsourced.length ? "text-warning" : "text-fg-2")}>
-          {asset.approved && !dirty ? "Approved. Emails can offer this." : check.line}
+          {asset.approved && !dirty ? (content ? "Posted. Kept here so you don't repeat yourself." : "Approved. Emails can offer this.") : content ? check.line.replace("approve", "post").replace("to send", "to post") : check.line}
         </p>
         {asset.approved && !dirty ? (
           <span className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-2">
-            <Check className="size-4" aria-hidden /> In use
+            <Check className="size-4" aria-hidden /> {content ? "Posted" : "In use"}
           </span>
         ) : (
           <Button size="sm" variant="primary" disabled={check.blocking} onClick={approve}>
-            {asset.approved ? "Save and keep approved" : "Approve for outreach"}
+            {content ? (asset.approved ? "Save" : "Mark as posted") : asset.approved ? "Save and keep approved" : "Approve for outreach"}
           </Button>
         )}
       </div>

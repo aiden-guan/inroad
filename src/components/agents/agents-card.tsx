@@ -373,7 +373,7 @@ function PublicAddress({ origin, publicUrl }: { origin: string; publicUrl: strin
           "Paste the https address your tunnel prints. Tunnel addresses change when you restart them."
         )}
       </p>
-      <CopyField value={`cloudflared tunnel --url ${origin || "http://localhost:3000"}`} className="mt-2.5" />
+      <CopyField value={`cloudflared tunnel --url ${(origin || "http://localhost:3000").replace("//localhost", "//127.0.0.1")}`} className="mt-2.5" />
       <form
         onSubmit={(e) => {
           e.preventDefault();

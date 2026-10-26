@@ -1,7 +1,8 @@
 import { addDays, daysBetween } from "@/lib/domain/ids";
-import type { Account, Connection, Connector, ID, Intro, IntroStage, Meeting, Person, Workspace } from "@/lib/domain/types";
+import type { Account, Connection, Connector, ID, Intro, IntroStage, Meeting, Person, RelationshipTag, Workspace } from "@/lib/domain/types";
 import { bestPerson, first, knowsDirectly, localDate } from "@/lib/moves/util";
 import { linkedinKey, normalizeCompany } from "@/lib/network/csv";
+import { knowsByTag, tagPhrase } from "@/lib/network/tags";
 import { normalizeTitle, seniority } from "@/lib/network/titles";
 
 /**
@@ -274,7 +275,7 @@ export interface WayIn {
   /** Stable across renders: `${kind}:${who}`. */
   id: string;
   kind: WayInKind;
-  via: { name: string; title?: string; company?: string; connectorId?: ID; linkedinUrl?: string; personId?: ID };
+  via: { name: string; title?: string; company?: string; connectorId?: ID; linkedinUrl?: string; personId?: ID; connectionId?: ID; tags?: RelationshipTag[] };
   /** Who the intro would be to. */
   target?: { personId?: ID; name: string };
   why: string;
@@ -285,6 +286,12 @@ export interface WayIn {
 }
 
 const RANK: Record<WayInKind, number> = { direct: 100, inside: 80, connector: 72, alumni: 58, customer: 38, investor: 32 };
+/** Someone who knows the product ranks above any other path of their kind (SPEC W2 warm-path order). */
+const KNOWS_BONUS = 15;
+const knowsLine = (name: string, tags: RelationshipTag[] | undefined) => {
+  const phrase = tagPhrase(tags);
+  return phrase ? `${first(name)} ${phrase}. ` : "";
+};
 
 /** Words too generic to say a connector reaches a company ("usage-priced SaaS founders" matches everyone otherwise). */
 const STOP = new Set(
@@ -372,11 +379,11 @@ export function waysIn(ws: Workspace, domain: string, connections: Connection[],
     push({
       id: `direct:${p.id}`,
       kind: "direct",
-      via: { name: p.name, title: p.title, personId: p.id, linkedinUrl: p.linkedinUrl },
-      why: `You're connected to ${first(p.name)}. Write to them yourself: an intro would only slow it down.`,
+      via: { name: p.name, title: p.title, personId: p.id, linkedinUrl: p.linkedinUrl, ...(p.tags?.length ? { tags: p.tags } : {}) },
+      why: `${knowsLine(p.name, p.tags)}You're connected to ${first(p.name)}. Write to them yourself: an intro would only slow it down.`,
       concerns: [],
       ready: true,
-      score: RANK.direct + seniority(normalizeTitle(p.title)),
+      score: RANK.direct + seniority(normalizeTitle(p.title)) + (knowsByTag(p.tags) ? KNOWS_BONUS : 0),
     });
   }
   const targetUrl = target?.linkedinUrl ? linkedinKey(target.linkedinUrl) : "";
@@ -392,12 +399,12 @@ export function waysIn(ws: Workspace, domain: string, connections: Connection[],
     push({
       id: `inside:${c.id}`,
       kind: "inside",
-      via: { name, title: c.position, company: c.company, connectorId: listed?.id, linkedinUrl: c.url },
+      via: { name, title: c.position, company: c.company, connectorId: listed?.id, linkedinUrl: c.url, connectionId: c.id, ...(c.tags?.length ? { tags: c.tags } : {}) },
       target: tgt,
-      why: `${first(name)} works at ${acc.name}${c.position ? ` as ${c.position}` : ""}. A colleague's forward reads as a referral, not a pitch.`,
+      why: `${knowsLine(name, c.tags)}${first(name)} works at ${acc.name}${c.position ? ` as ${c.position}` : ""}. A colleague's forward reads as a referral, not a pitch.`,
       concerns,
       ready: !blocked,
-      score: RANK.inside + seniority(normalizeTitle(c.position)),
+      score: RANK.inside + seniority(normalizeTitle(c.position)) + (knowsByTag(c.tags) ? KNOWS_BONUS : 0),
     });
   }
 
@@ -435,12 +442,12 @@ export function waysIn(ws: Workspace, domain: string, connections: Connection[],
     push({
       id: `alumni:${c.id}`,
       kind: "alumni",
-      via: { name, title: c.position, company: c.company, connectorId: listed?.id, linkedinUrl: c.url },
+      via: { name, title: c.position, company: c.company, connectorId: listed?.id, linkedinUrl: c.url, connectionId: c.id, ...(c.tags?.length ? { tags: c.tags } : {}) },
       target: tgt,
-      why: `${first(name)} worked at ${acc.name} (seen ${past.seenOn.slice(0, 4)}) and now works at ${c.company}. Alumni usually still know who owns what.`,
+      why: `${knowsLine(name, c.tags)}${first(name)} worked at ${acc.name} (seen ${past.seenOn.slice(0, 4)}) and now works at ${c.company}. Alumni usually still know who owns what.`,
       concerns: [...concerns, "Check they still talk to the team before asking."],
       ready: !blocked,
-      score: RANK.alumni + Math.min(10, seniority(normalizeTitle(past.position))),
+      score: RANK.alumni + Math.min(10, seniority(normalizeTitle(past.position))) + (knowsByTag(c.tags) ? KNOWS_BONUS : 0),
     });
   }
 

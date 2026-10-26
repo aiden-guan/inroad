@@ -32,13 +32,13 @@ export interface RunState {
   writingChars: number;
   text: string;
   result?: unknown;
-  error?: { message: string; code?: string };
+  error?: { message: string; code?: string; requestId?: string; detail?: string };
   costUsd?: number;
 }
 
 interface StartOptions {
-  /** Toast when finished (default true). */
-  notify?: boolean;
+  /** Toast when finished (default true). A function is asked at the end, e.g. "unless that sheet is still open". */
+  notify?: boolean | (() => boolean);
   /** Called once with the run's result. */
   onResult?: (result: unknown) => void;
   /** Called instead of the toast when the run doesn't start; `code` is the server's error code (e.g. rate_limit). */
@@ -90,7 +90,7 @@ function reduce(state: RunState, event: AgentEvent): RunState {
     case "result":
       return { ...state, result: event.data, status: "done" };
     case "error":
-      return { ...state, error: { message: event.message, code: event.code }, status: event.code === "stopped" ? "stopped" : "error" };
+      return { ...state, error: { message: event.message, code: event.code, requestId: event.requestId, detail: event.detail }, status: event.code === "stopped" ? "stopped" : "error" };
     case "done":
       return {
         ...state,
@@ -155,7 +155,8 @@ export function RunsProvider({ children }: { children: ReactNode }) {
           return;
         }
         await refresh();
-        if (options.current.get(runId)?.notify !== false) {
+        const notify = options.current.get(runId)?.notify;
+        if (typeof notify === "function" ? notify() : notify !== false) {
           if (errorMessage) toast.error(errorMessage);
           else if (succeeded && title) toast(`Done · ${title}`);
         }

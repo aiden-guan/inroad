@@ -21,6 +21,7 @@ import type {
   Provenance,
   Workspace,
 } from "@/lib/domain/types";
+import { keepVersion } from "@/lib/playbook/revision";
 import { runSteps, startRun } from "@/lib/runs/registry";
 import { gatherSignals, type CompanySignals } from "@/lib/signals";
 import { TTL, cached, invalidate } from "@/lib/signals/cache";
@@ -364,7 +365,7 @@ function channelPlan(ws: Workspace, stage: CompanySnapshot["stage"]): ChannelPla
     },
     founder_content: {
       why: "Writing what you learn in calls makes later outreach warmer.",
-      weeklyTarget: "2 short posts on what you see in calls",
+      weeklyTarget: "1 optional post a week, from what you see in calls",
       firstActions: ["Post one pattern from your last 5 conversations"],
     },
     exec_dinners: {
@@ -946,7 +947,11 @@ export default defineWorkflow({
         ws.onboarding.sections = { ...ws.onboarding.sections, snapshot: nowISO() };
         ws.onboarding.status = "drafting";
       }
-      if ((firstRun && !resume) || !ws.foundation) ws.foundation = skeleton(ws, ws.foundation);
+      if ((firstRun && !resume) || !ws.foundation) {
+        // Rewriting the bet from the site again: the version it replaces stays restorable.
+        if (ws.foundation) keepVersion(ws, { version: ws.foundation.version, at: nowISO(), changes: ["Rewritten from your site"], source: "rebuild", runId: ctx.runId });
+        ws.foundation = skeleton(ws, ws.foundation);
+      }
       else if (resume) {
         // Kept sections stay; the code-filled parts follow the stage this read found.
         ws.foundation.channelPlan = channelPlan(ws, c.stage);
@@ -1174,6 +1179,8 @@ export default defineWorkflow({
       system: [EMBER_CORE, FOUNDATION_RULES],
       tools: [finishBet, submitSection],
       requireTerminal: true,
+      // Sections are saved as they arrive; a missing finish_bet falls through to the continuation below.
+      optionalResult: true,
     };
     if (resume && saved.has("icp")) await startDiscovery(); // no-op when the stopped run already started it
 
