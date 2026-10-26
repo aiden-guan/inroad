@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # Electron is for the Mac app (desktop.yml); these jobs never start it.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       # "true" only when the repository has the secret (never on forks), so the paid evals run only then.
       HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
@@ -71,6 +73,8 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # Electron is for the Mac app (desktop.yml); these jobs never start it.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
       - uses: actions/checkout@v4
 
