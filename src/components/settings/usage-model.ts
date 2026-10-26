@@ -99,7 +99,30 @@ export interface UsageReport {
   history: { month: string; costUsd: number; runs: number }[];
   /** This month's finished and live runs, newest first. */
   recent: RunSummary[];
+  /**
+   * Runs this month in compatibility mode: the API rejected an optional feature and the run went without
+   * it (no refusal fallbacks, or no strict output). Null when every run had everything.
+   */
+  compat: { runs: number; features: CompatLeftOut[]; lastAt: string; reason: string } | null;
 }
+
+type CompatLeftOut = NonNullable<NonNullable<RunSummary["receipt"]>["compat"]>["features"][number];
+
+/** What compat mode left out, in the founder's words. */
+export const COMPAT_LABEL: Record<CompatLeftOut, string> = {
+  fallback: "refusal fallbacks",
+  binding: "thinking-history binding",
+  strict: "strict output checks",
+  betas: "refusal fallbacks and thinking-history binding",
+};
+
+/** What going without each one means for the founder. */
+export const COMPAT_EFFECT: Record<CompatLeftOut, string> = {
+  fallback: "a refused request won't be retried on another model",
+  binding: "an Ask follow-up after the playbook or the Web toggle changed may be turned down",
+  strict: "tool output isn't held to its schema by the API",
+  betas: "a refused request won't be retried on another model, and an Ask follow-up after a change may be turned down",
+};
 
 function monthOf(iso: string): string {
   const d = new Date(iso);
@@ -149,6 +172,16 @@ export function usageReport(ws: Workspace, now: Date = new Date()): UsageReport 
 
   const byModel = (["strategist", "operator", "fast", "none"] as ModelTierName[]).map((tier) => ({ tier, ...(modelBy.get(tier) ?? { runs: 0, costUsd: 0 }) }));
 
+  const degraded = recent.filter((r) => r.receipt?.compat);
+  const compat = degraded.length
+    ? {
+        runs: degraded.length,
+        features: [...new Set(degraded.flatMap((r) => r.receipt!.compat!.features))],
+        lastAt: degraded[0].endedAt ?? degraded[0].startedAt,
+        reason: degraded[0].receipt!.compat!.reason,
+      }
+    : null;
+
   const totalIn = inputTokens + cacheReadTokens;
   const history = Object.entries(ws.usage)
     .filter(([k]) => k <= month)
@@ -172,6 +205,7 @@ export function usageReport(ws: Workspace, now: Date = new Date()): UsageReport 
     cache: { inputTokens, cacheReadTokens, share: totalIn > 0 ? cacheReadTokens / totalIn : null },
     history,
     recent,
+    compat,
   };
 }
 

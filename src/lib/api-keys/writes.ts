@@ -3,7 +3,7 @@ import { applyAction } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Activity, ActivityKind, DraftStep, OutreachPackage, Person, SkipReason, Workspace } from "@/lib/domain/types";
 import { accountData, activityData, emitHubEvent, personData } from "@/lib/hub";
-import { companyDomainOf, ensureAccount, ensurePerson, findPerson, isFreeMail, isSuppressed, normalizeDomain, normalizeEmail } from "@/lib/hub/records";
+import { askedToBeDeleted, companyDomainOf, ensureAccount, ensurePerson, findPerson, isFreeMail, isSuppressed, normalizeDomain, normalizeEmail } from "@/lib/hub/records";
 import { mergeMoves, computeMoves } from "@/lib/moves/rules";
 import { lintStep } from "@/lib/quality/context";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
@@ -204,6 +204,8 @@ function resolvePerson(ws: Workspace, input: { email?: string; linkedin_url?: st
   if (!domain || isFreeMail(domain)) return { domain, created: false };
   ensureAccount(ws, { domain }, { source: "integration", sourceDetail: `${via} via agent key`, at: nowISO(), tag: "via:agent" });
   if (!email && !linkedin && !name) return { domain, created: false };
+  // They asked for their details to be deleted: log against the company, without bringing them back.
+  if (askedToBeDeleted(ws, email)) return { domain, created: false };
   const made = ensurePerson(ws, { domain, email, name, linkedinUrl: linkedin, title: clip(input.title, 120) }, { via, source: "integration" });
   return { person: made.person, domain, created: made.created };
 }

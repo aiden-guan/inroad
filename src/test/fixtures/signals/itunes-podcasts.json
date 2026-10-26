@@ -1,0 +1,37 @@
+{
+  "resultCount": 3,
+  "results": [
+    {
+      "wrapperType": "podcastEpisode",
+      "kind": "podcast-episode",
+      "trackId": 1000671234567,
+      "trackName": "Dana Okafor (Pavewise) on rebuilding finance ops after a Series A",
+      "collectionName": "The Finance Stack",
+      "collectionId": 1500000001,
+      "releaseDate": "2026-10-08T07:00:00Z",
+      "trackViewUrl": "https://podcasts.apple.com/us/podcast/dana-okafor-pavewise/id1500000001?i=1000671234567",
+      "description": "Dana Okafor, CEO of Pavewise, on why the first finance hire inherits a spreadsheet, and what they changed after raising.",
+      "shortDescription": "Dana Okafor of Pavewise on finance ops."
+    },
+    {
+      "wrapperType": "podcastEpisode",
+      "kind": "podcast-episode",
+      "trackId": 1000660000001,
+      "trackName": "Okafor family recipes",
+      "collectionName": "Kitchen Talk",
+      "releaseDate": "2026-09-30T07:00:00Z",
+      "trackViewUrl": "https://podcasts.apple.com/us/podcast/okafor-family/id1500000002?i=1000660000001",
+      "description": "A different Dana Okafor shares her grandmother's recipes."
+    },
+    {
+      "wrapperType": "podcastEpisode",
+      "kind": "podcast-episode",
+      "trackId": 1000650000001,
+      "trackName": "Usage pricing with Dana Okafor",
+      "collectionName": "Pricing Talks",
+      "releaseDate": "2026-08-12T07:00:00Z",
+      "trackViewUrl": "https://podcasts.apple.com/us/podcast/usage-pricing/id1500000003?i=1000650000001",
+      "description": "Dana Okafor of Pavewise explains how they price usage."
+    }
+  ]
+}

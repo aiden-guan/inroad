@@ -64,7 +64,7 @@ function clean(s: string) {
   return s.replace(/\s+/g, " ").trim();
 }
 
-function digestPage(url: string, html: string, maxChars: number): PageDigest {
+export function digestPage(url: string, html: string, maxChars: number): PageDigest {
   const root = parse(html, { blockTextElements: { script: false, style: false, noscript: false, pre: true } });
   const meta = (sel: string) => root.querySelector(sel)?.getAttribute("content")?.trim() ?? "";
   const title = clean(root.querySelector("title")?.text ?? "");

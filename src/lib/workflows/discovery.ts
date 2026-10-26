@@ -5,9 +5,12 @@ import { defineTool } from "@/lib/ai/engine";
 import { AgentError } from "@/lib/ai/errors";
 import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
-import type { Account, DiscoverySource, Enrichment, ICPCriterion, Signal, Workspace } from "@/lib/domain/types";
+import type { Account, DetectionMethod, DiscoverySource, Enrichment, ICPCriterion, Signal, Workspace } from "@/lib/domain/types";
 import { knownDomains } from "@/lib/hub/store";
 import { TTL, cached } from "@/lib/signals/cache";
+import { NOT_A_BUYER_INDUSTRY, formDDetail, formDIndustries, formDSearch, shortUsd, statesIn, type FormDFiling } from "@/lib/signals/edgar";
+import { githubOrg, hasGithubToken, orgLine } from "@/lib/signals/github";
+import { whoIsHiring, type HiringPost } from "@/lib/signals/hn-hiring";
 import { fetchText, toDomain } from "@/lib/signals/http";
 import { companyNews, hackerNews, type NewsItem } from "@/lib/signals/news";
 import {
@@ -27,6 +30,9 @@ import {
   bestSignal,
   buyerFunctions,
   detectSignals,
+  filingSignal,
+  functionOf,
+  hiringPostJobs,
   lightJobs,
   newsForEnrichment,
   pool,
@@ -43,19 +49,25 @@ import {
   whyNowSentence,
   type FoundSignal,
   type SignalSources,
+  type SiteBasics,
 } from "./enrich";
 import { defineWorkflow, type WorkflowContext } from "./types";
 
 /**
  * W3 · Company discovery with why-now signals.
  *
- * Code gathers and ranks; models only judge. Sources, cheapest first:
- *   1. the YC directory (ranked in code against the ICP), seeded with lookalikes of the founder's users
- *   2. competitors' public customer pages (plain HTTP)
- *   3. accounts the founder imported but nobody scored yet
- *   4. a capped Sonnet web search, only when 1–3 come up thin
+ * Code gathers and ranks; models only judge. The ICP criteria's detection methods pick the sources
+ * (queryPlan), cheapest first:
+ *   1. the YC directory (ranked in code against the ICP), seeded with lookalikes of the founder's users.
+ *      It's mostly venture-backed startups, so it leads only when the ICP is startups.
+ *   2. HN "Who is hiring?" posts that mention the ICP (job_posts / hn criteria, startup ICPs)
+ *   3. SEC Form D notices from the last 90 days in the ICP's industry groups (form_d criteria, "raised" ICPs,
+ *      and any ICP that isn't startups: Form D covers private companies of every kind)
+ *   4. competitors' public customer pages (plain HTTP)
+ *   5. accounts the founder imported but nobody scored yet
+ *   6. a capped Sonnet web search when the screened survivors are too few (or nothing came in at all)
  * Haiku screens candidates against ICP criteria in batches (true/false/unknown); code computes fit,
- * why-now from free signals (job boards, news, HN) and the tier. Up to N accounts, never padded.
+ * why-now from free signals (job boards, news, HN, filings) and the tier. Up to N accounts, never padded.
  *
  * `source: "onboarding"` is the W3f fast lane: no news, no competitor crawl, one screening batch,
  * and only companies with fit ≥70 and a dated signal ≤60 days old.
@@ -93,6 +105,12 @@ interface Candidate {
   batch?: string;
   isHiring?: boolean;
   yc?: YcCompany;
+  /** The Form D notice it came from; its funding signal is added after screening. */
+  filing?: FormDFiling;
+  /** The "Who is hiring?" post it came from; its roles count as dated postings. */
+  hnPost?: HiringPost;
+  /** One line about its GitHub org, for criteria detected on GitHub. */
+  github?: string;
   /** Code relevance 0–1 before any model looks at it. */
   prior: number;
   /** Already in the workspace (imported, unscored): score it in place instead of adding. */
@@ -402,6 +420,75 @@ function likeName(brief?: string): string | undefined {
   return brief?.match(/\b(?:like|similar to)\s+([A-Za-z0-9][\w.&' -]{1,40}?)(?=$|[,.;!?]|\s(?:and|or|but|in|with|that|who)\b)/i)?.[1]?.trim();
 }
 
+/* ─────────────────────────── Query plan (code): detection methods pick the sources ─────────────────────────── */
+
+const STARTUP_WORDS =
+  /\b(startups?|seed|pre-seed|series [a-e]|yc|y combinator|venture[- ]backed|vc[- ]backed|founders?|early[- ]stage|saas|devtools?|developer[- ]tools?|api (?:companies|startups|businesses)|ai (?:companies|startups|labs))\b/i;
+const NOT_STARTUP_WORDS =
+  /\b(banks?|credit unions?|clinics?|hospitals?|health systems?|dental|dentists?|law firms?|accounting firms?|manufactur\w*|factories|retailers?|restaurants?|municipalit\w*|governments?|government agencies|universit\w*|colleges?|schools?|school districts?|insurers?|carriers?|logistics|construction|contractors?|enterprises?|fortune \d+|public companies|hotels?|nonprofits?|non-profits?|family[- ]owned|smbs?|small businesses|local businesses)\b/i;
+// ICP words too loose to say a hiring post is in the segment ("model", "calls", "enterprise").
+const LOOSE = new Set("model models moving changes change changed calls enterprise enterprises contracts contract bills billed metric metrics token tokens remote using based modern".split(" "));
+const FUNDED_WORDS = /\b(raised|funded|funding|series [a-e]|seed[- ]stage|recently raised|new round|venture[- ]backed|vc[- ]backed)\b/i;
+
+export interface QueryPlan {
+  methods: DetectionMethod[];
+  /** The ICP describes venture-backed startups (the YC directory is mostly that). */
+  startupIcp: boolean;
+  /** How many ranked YC companies to take (fewer when the ICP isn't startups) and how much to trust them. */
+  ycLimit: number;
+  ycPrior: number;
+  hnHiring: { keywords: string[]; icpWords: string[]; limit: number } | null;
+  formD: { industries: string[]; states: string[]; sinceDays: number; limit: number } | null;
+  /** Candidates to look up on GitHub before screening (criteria detected on GitHub). 60 lookups an hour without a token. */
+  github: number;
+  /** Strong fits without a hiring signal that get a news check (more when a criterion is detected in the press). */
+  news: number;
+}
+
+/** Which free sources this ICP calls for, from each criterion's detection method and the ICP's own words. */
+export function queryPlan(ws: Workspace, args: Pick<Args, "brief" | "source">): QueryPlan {
+  const fast = args.source === "onboarding";
+  const methods = [...new Set((ws.foundation?.icp.criteria ?? []).map((c) => c.detection).filter(Boolean))];
+  const icp = customerText(ws);
+  const text = `${icp}\n${args.brief ?? ""}`;
+  const band = parseTeamBand(icp);
+  const startupIcp =
+    !text.trim() || methods.includes("yc_directory") || STARTUP_WORDS.test(text) || (!NOT_STARTUP_WORDS.test(text) && (!band || band[1] <= 1000));
+
+  const icpWords = contentWords(text).filter((w) => w.length >= 5 && !LOOSE.has(w)).slice(0, 16);
+  const fnWords = buyerFunctions(ws).map((k) => functionOf(k)?.label ?? k);
+  const wantsHiring = methods.includes("job_posts") || methods.includes("hn");
+  const hnHiring = icpWords.length && (wantsHiring || (startupIcp && !fast)) ? { keywords: [...icpWords, ...fnWords], icpWords, limit: fast ? 10 : 30 } : null;
+
+  const funded = methods.includes("form_d") || FUNDED_WORDS.test(text);
+  const scope = args.brief?.trim() ? args.brief : [ws.foundation?.icp.primarySegment, ws.foundation?.icp.hypothesis.companyGroup].filter(Boolean).join(" ");
+  const formD = funded || (!startupIcp && !fast) ? { industries: formDIndustries(text), states: statesIn(scope ?? ""), sinceDays: 90, limit: fast ? 6 : 14 } : null;
+
+  return {
+    methods,
+    startupIcp,
+    ycLimit: startupIcp ? (fast ? 40 : 140) : fast ? 10 : 30,
+    ycPrior: startupIcp ? 1 : 0.6,
+    hnHiring,
+    formD,
+    github: methods.includes("github") && !fast ? (hasGithubToken() ? 20 : 6) : 0,
+    news: methods.includes("press") ? 6 : 3,
+  };
+}
+
+/**
+ * What to say when nothing cleared the bar. Name the source limit, not the founder's bet: the free
+ * sources lean toward venture-backed startups, so an ICP outside that world needs a list or the network.
+ */
+export function emptyNote(o: { considered: number; sources: string[]; startupIcp: boolean; topReason?: string; searched: boolean }): string {
+  const from = `${o.sources.length ? o.sources.join(", ") : "the free sources"}${o.searched ? " and a short web search" : ""}`;
+  const next = "Import a list of companies you'd like to sell to (a CRM export, a conference list), or start from your network.";
+  if (!o.considered) return `I couldn't find candidates for this segment in ${from}. Those sources can miss buyers who aren't startups or don't hire in public. ${next}`;
+  const lean = o.sources.includes("YC directory") && !o.startupIcp ? " The YC directory is mostly venture-backed startups, which may not be who buys from you." : "";
+  const why = o.topReason ? ` Most were dropped for “${o.topReason}”; if that isn't a must-have, make it nice-to-have in your Playbook.` : "";
+  return `None of the ${o.considered} companies I found in ${from} fit your ICP.${lean}${why} ${next}`;
+}
+
 /* ─────────────────────────── Sources beyond YC ─────────────────────────── */
 
 const SKIP_HOSTS =
@@ -459,6 +546,101 @@ async function competitorCustomers(domain: string): Promise<{ url: string; names
   }
 }
 
+const squash = (s: string) => normalizeCompanyName(s).replace(/\b(technologies|technology|software|systems|labs|group|holdings|health|ai)\b/g, "").replace(/ /g, "");
+
+/**
+ * A company's own domain from its name, for sources that don't carry one (filings, some HN posts):
+ * the YC directory, a hint the source gave (a job-board slug), then name.com and name.io, each kept
+ * only when the homepage's own name matches. No match → null, never a guess.
+ */
+export async function resolveDomain(name: string, dir: YcCompany[], hints: string[] = []): Promise<{ domain: string; yc?: YcCompany; basics?: SiteBasics } | null> {
+  const y = ycByName(dir, name);
+  if (y) return { domain: y.domain, yc: y };
+  const stem = squash(name);
+  if (stem.length < 3) return null;
+  const guesses = [...new Set([...hints.map((h) => toDomain(h)).filter((d): d is string => !!d), `${stem}.com`, `${stem}.io`])].slice(0, 3);
+  for (const d of guesses) {
+    const b = await siteBasics(d);
+    if (!b) continue;
+    const site = squash(b.name);
+    if (site && (site === stem || (site.length >= 4 && (site.includes(stem) || stem.includes(site))))) return { domain: toDomain(b.url) ?? d, basics: b };
+  }
+  return null;
+}
+
+/** Recent Form D filers in the ICP's industry groups, with their amounts and a domain we could confirm. */
+async function formDCandidates(plan: NonNullable<QueryPlan["formD"]>, dir: YcCompany[], today: string): Promise<{ cands: Candidate[]; lookups: number; read: string[] }> {
+  let lookups = 0;
+  const filings: FormDFiling[] = [];
+  for (const industry of plan.industries) {
+    const found = await formDSearch({ query: `"${industry}"`, sinceDays: plan.sinceDays, states: plan.states, limit: 40, today });
+    lookups++;
+    for (const f of found) if (!filings.some((x) => x.cik === f.cik)) filings.push(f);
+  }
+  // Funds, SPVs and trusts file most Form Ds and never buy software: drop them by name before reading any filing.
+  const issuers = filings.filter((f) => !/\b(fund|funds|l\.?p\.?|lp|spv|trust|capital partners|ventures?|holdings? llc|reit|series [a-z0-9]+ of)\b/i.test(f.company)).slice(0, plan.limit);
+  const detailed = await pool(issuers, 4, async (f) => {
+    lookups++;
+    return formDDetail(f);
+  });
+  // In filing order (pool keeps it), so the same filings always make the same screening cards.
+  const resolved = await pool(
+    detailed.filter((f): f is FormDFiling => !!f && !(f.industry && NOT_A_BUYER_INDUSTRY.test(f.industry))),
+    4,
+    async (f): Promise<Candidate | null> => {
+      const name = f.company.replace(/,?\s+(inc|llc|ltd|corp|corporation|co|pbc)\.?$/i, "").trim();
+      const r = await resolveDomain(name, dir);
+      lookups += r?.yc ? 0 : 2;
+      if (!r) return null;
+      const sold = shortUsd(f.amountSoldUsd);
+      return {
+        ...(r.yc ? fromYc(r.yc, 0.6) : { domain: r.domain, name, oneLiner: r.basics?.description ?? "", description: r.basics?.description ?? "", tags: [], prior: 0.6 }),
+        name: r.yc?.name ?? name,
+        source: "form_d",
+        sourceDetail: `Form D${sold ? ` · ${sold}` : ""} · filed ${f.filedAt}`,
+        sourceUrl: f.url,
+        industry: r.yc ? r.yc.subindustry || r.yc.industry : f.industry,
+        location: r.yc?.locations ?? f.location,
+        filing: f,
+      };
+    },
+  );
+  const cands = resolved.filter((c): c is Candidate => !!c);
+  return { cands, lookups, read: cands.map((c) => c.sourceUrl!) };
+}
+
+/** Companies in this month's HN "Who is hiring?" thread whose post mentions the ICP. */
+async function hiringCandidates(plan: NonNullable<QueryPlan["hnHiring"]>, dir: YcCompany[]): Promise<{ cands: Candidate[]; lookups: number; threadUrl?: string }> {
+  const { thread, matches } = await whoIsHiring(plan.keywords, plan.limit * 2);
+  let lookups = thread ? 2 : 1;
+  const icp = new Set(plan.icpWords);
+  const relevant = matches.filter((m) => m.hits.some((h) => icp.has(h))).slice(0, plan.limit);
+  const found = await pool(relevant, 4, async (m): Promise<Candidate | null> => {
+    const p = m.post;
+    const y = p.domain ? ycByDomain(dir, p.domain) : ycByName(dir, p.company);
+    let domain = y?.domain ?? p.domain;
+    if (!domain) {
+      const r = await resolveDomain(p.company, dir, p.board ? [`${p.board.token}.com`] : []);
+      lookups += 2;
+      domain = r?.domain;
+    }
+    if (!domain) return null;
+    const firstLine = p.text.split("\n").slice(1).join(" ").split(/(?<=[.!?])\s/)[0]?.slice(0, 200) ?? "";
+    return {
+      ...(y ? fromYc(y, 0.55) : { domain, name: p.company, oneLiner: firstLine, description: m.excerpt, tags: [], prior: 0.55 }),
+      name: y?.name ?? p.company,
+      description: y ? `${y.description} ${m.excerpt}`.slice(0, 400) : m.excerpt,
+      source: "hn_hiring",
+      sourceDetail: `HN Who is hiring · ${p.roles.slice(0, 2).join(", ") || "open roles"}`.slice(0, 120),
+      sourceUrl: p.url,
+      location: y?.locations ?? p.location,
+      isHiring: true,
+      hnPost: p,
+    };
+  });
+  return { cands: found.filter((c): c is Candidate => !!c), lookups, threadUrl: thread?.url };
+}
+
 function normUrl(u: string): string {
   return u
     .replace(/^https?:\/\/(www\.)?/i, "")
@@ -481,7 +663,7 @@ function seenUrls(messages: Anthropic.Beta.BetaMessageParam[]): Set<string> {
   return out;
 }
 
-async function searchFallback(ctx: WorkflowContext<Args>, ws: Workspace, crits: Crit[], ex: Exclusions, maxSearches: number, have: string[]): Promise<Candidate[]> {
+async function searchFallback(ctx: WorkflowContext<Args>, ws: Workspace, crits: Crit[], ex: Exclusions, maxSearches: number, have: string[], context?: string): Promise<Candidate[]> {
   const personas = (ws.foundation?.personas ?? []).filter((p) => p.role === "champion" || p.role === "user" || p.role === "economic_buyer");
   const titles = [...new Set(personas.flatMap((p) => p.titles))].slice(0, 6);
   const competitors = (ws.foundation?.competitors ?? []).map((c) => c.name).slice(0, 4);
@@ -491,6 +673,7 @@ async function searchFallback(ctx: WorkflowContext<Args>, ws: Workspace, crits: 
     `ICP criteria:\n${crits.map((c) => `- ${c.mustHave ? "(must) " : ""}${c.text}`).join("\n")}`,
     titles.length ? `Buyer titles (trigger roles are "founding/first/head of" versions of these): ${titles.join(", ")}` : "",
     competitors.length ? `Competitors (exclude them; their customer pages are fair game): ${competitors.join(", ")}` : "",
+    context ? `Why you're searching: ${context}` : "",
     `Already have (don't return these): ${have.slice(0, 40).join(", ") || "none"}`,
     `Never return: ${[...ex.domains].slice(0, 60).join(", ") || "none"}`,
   ]
@@ -551,6 +734,9 @@ function card(c: Candidate, n: number): string {
     c.batch ? `YC ${shortBatch(c.batch)}` : null,
     c.location ? c.location.split(";")[0] : null,
     c.isHiring ? "hiring" : null,
+    c.filing ? `Form D filed ${c.filing.filedAt}${shortUsd(c.filing.amountSoldUsd) ? `, ${shortUsd(c.filing.amountSoldUsd)} sold` : ""}${c.filing.industry ? `, ${c.filing.industry}` : ""}${c.filing.yearOfInc ? `, incorporated ${c.filing.yearOfInc}` : ""}` : null,
+    c.hnPost?.roles.length ? `hiring on HN: ${c.hnPost.roles.slice(0, 3).join(", ")}` : null,
+    c.github ?? null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -587,6 +773,8 @@ ${batch.map((c, i) => card(c, i + 1)).join("\n")}`;
           effort: "low",
           maxTokens: 8000,
           requireTerminal: true,
+          // Screening batches share their prefix; a 1-hour cache pays off from the third.
+          cacheTtl: "1h",
           system: [EMBER_CORE, SCREEN_RULES, companyContext(ws)],
           messages: [{ role: "user", content }],
           tools: [screenTool],
@@ -673,6 +861,10 @@ function sourceLabel(s: DiscoverySource): string {
       return "YC directory";
     case "competitor_customers":
       return "competitors' customer pages";
+    case "hn_hiring":
+      return "HN “Who is hiring?”";
+    case "form_d":
+      return "SEC Form D filings";
     case "web_search":
     case "ats_search":
       return "web search";
@@ -714,6 +906,7 @@ export default defineWorkflow({
 
     const crits = screeningCriteria(ws, args.brief);
     const ex = buildExclusions(ws);
+    const plan = queryPlan(ws, args);
     const cands = new Map<string, Candidate>();
     const sourceCounts = new Map<DiscoverySource, number>();
     const add = (c: Candidate): boolean => {
@@ -765,18 +958,54 @@ export default defineWorkflow({
     if (seedYc.length) ctx.emit({ type: "action", text: `Looking for companies like ${seedYc.slice(0, 3).map((s) => s.name).join(", ")}` });
 
     let ycMatched = 0;
+    let query: YcQuery | undefined;
     if (dir.length) {
       ctx.emit({ type: "status", text: `Checking ${dir.length.toLocaleString("en-US")} YC companies` });
-      const query = buildQuery(ws, args.brief, dir, seedYc, seedTexts, ex);
-      const ranked = rankYc(dir, query, fast ? 40 : 140);
+      query = buildQuery(ws, args.brief, dir, seedYc, seedTexts, ex);
+      // The directory is venture-backed startups: for any other ICP it's a side source, not the list.
+      const ranked = rankYc(dir, query, plan.ycLimit);
       const top = ranked[0]?.score || 1;
-      for (const m of ranked) if (add(fromYc(m.company, Math.max(0, Math.min(1, m.score / top))))) ycMatched++;
+      for (const m of ranked) if (add(fromYc(m.company, plan.ycPrior * Math.max(0, Math.min(1, m.score / top))))) ycMatched++;
       ctx.emit({ type: "action", text: ycMatched ? `${ycMatched} YC companies look like your segment` : "No YC companies matched your segment" });
     } else {
       ctx.emit({ type: "status", text: "The YC directory didn't load; using other sources" });
     }
 
-    // 2. Competitors' public customer pages (full run only; they're slower and skew larger).
+    // 2. This month's HN "Who is hiring?" posts that mention the ICP: hiring right now, dated, often not in YC.
+    if (plan.hnHiring && !ctx.signal.aborted) {
+      ctx.emit({ type: "status", text: "Reading this month's HN “Who is hiring?” thread" });
+      // The directory's vocabulary (tags and rare words the ICP uses) says "this is the segment" better than raw ICP words.
+      const words = query ? [...query.tags.keys(), ...query.keywords.keys()].filter((w) => w.length >= 3) : [];
+      const hnPlan = words.length ? { ...plan.hnHiring, icpWords: words, keywords: [...words, ...plan.hnHiring.keywords.filter((k) => !plan.hnHiring!.icpWords.includes(k))] } : plan.hnHiring;
+      const hn = await hiringCandidates(hnPlan, dir);
+      lookups += hn.lookups;
+      if (hn.threadUrl) ctx.emit({ type: "read", url: hn.threadUrl, host: "news.ycombinator.com" });
+      let n = 0;
+      for (const c of hn.cands) {
+        // Already found in YC: keep that card and add the post, whose roles are dated hiring signals.
+        const have = cands.get(c.domain);
+        if (have) have.hnPost ??= c.hnPost;
+        else if (add(c)) n++;
+      }
+      if (n) ctx.emit({ type: "action", text: `${n} hiring on Hacker News look like your segment` });
+    }
+
+    // 3. Fresh Form D filings in the ICP's industries: private companies of any kind that just raised.
+    if (plan.formD && !ctx.signal.aborted) {
+      ctx.emit({ type: "status", text: "Checking SEC Form D filings from the last 90 days" });
+      const fd = await formDCandidates(plan.formD, dir, today);
+      lookups += fd.lookups;
+      if (fd.read.length) ctx.emit({ type: "read", url: "https://efts.sec.gov/LATEST/search-index", host: "sec.gov" });
+      let n = 0;
+      for (const c of fd.cands) {
+        const have = cands.get(c.domain);
+        if (have) have.filing ??= c.filing;
+        else if (add(c)) n++;
+      }
+      if (n) ctx.emit({ type: "action", text: `${n} recent Form D filer${n === 1 ? "" : "s"} to check` });
+    }
+
+    // 4. Competitors' public customer pages (full run only; they're slower and skew larger).
     if (!fast) {
       for (const comp of (ws.foundation?.competitors ?? []).filter((c) => c.domain).slice(0, 3)) {
         const d = toDomain(comp.domain!);
@@ -808,7 +1037,7 @@ export default defineWorkflow({
       }
     }
 
-    // 3. Companies the founder imported (CSV, integrations, network) that nobody has scored yet.
+    // 5. Companies the founder imported (CSV, integrations, network) that nobody has scored yet.
     const rescore = fast
       ? []
       : Object.values(ws.accounts)
@@ -817,32 +1046,52 @@ export default defineWorkflow({
           .map((a) => fromAccount(a, ycByDomain(dir, a.domain)));
     if (rescore.length) ctx.emit({ type: "status", text: `Scoring ${rescore.length} compan${rescore.length === 1 ? "y" : "ies"} you added` });
 
-    // 4. Web search only when free sources are thin.
-    const thin = fast ? cands.size < 6 : cands.size < Math.max(15, target * 3);
-    if (thin && !ctx.signal.aborted) {
+    // 6. Web search up front only when nothing much came in; otherwise after screening, if too few survive.
+    let searched = false;
+    const webSearch = async (context?: string): Promise<Candidate[]> => {
+      searched = true;
+      const found = await searchFallback(ctx, ws, crits, ex, fast ? 2 : 5, [...cands.values()].map((c) => c.name), context);
+      const fresh = found.filter((c) => add(c));
+      if (fresh.length) ctx.emit({ type: "action", text: `${fresh.length} more from the web` });
+      return fresh;
+    };
+    if (cands.size < 6 && !ctx.signal.aborted) {
       ctx.emit({ type: "status", text: "Free sources came up thin, so I'm searching the web" });
-      const found = await searchFallback(ctx, ws, crits, ex, fast ? 2 : 5, [...cands.values()].map((c) => c.name));
-      for (const c of found) add(c);
-      if (found.length) ctx.emit({ type: "action", text: `${found.length} more from the web` });
+      await webSearch();
     }
 
-    const considered = cands.size + rescore.length;
     const pickedForScreen = [...cands.values()].sort((a, b) => b.prior - a.prior).slice(0, fast ? 24 : 100);
     const toScreen = [...pickedForScreen, ...rescore];
     if (!toScreen.length) {
-      const note = "I couldn't find candidates for this segment in free sources. That usually means the ICP is too narrow, or your buyers don't list publicly. Widen the bet or start from your network.";
+      const note = emptyNote({ considered: 0, sources: [], startupIcp: plan.startupIcp, searched });
       ctx.emit({ type: "status", text: "No candidates to screen" });
       return { added: 0, accounts: [], considered: 0, screened: 0, sourcesUsed: [], rejected: [], note };
     }
 
-    // 5. Screen with Haiku in batches of ~20: each criterion true / false / unknown.
+    // GitHub, for criteria detected there: the org's public activity goes on the card the screen reads.
+    if (plan.github && !ctx.signal.aborted) {
+      const devs = pickedForScreen.slice(0, plan.github);
+      ctx.emit({ type: "status", text: `Checking GitHub for ${devs.length} of them` });
+      await pool(
+        devs,
+        3,
+        async (c) => {
+          const org = await githubOrg(c.yc?.slug ?? c.domain.split(".")[0]);
+          lookups++;
+          if (org && !org.rateLimited && org.domain === c.domain && org.repos.length) c.github = orgLine(org);
+        },
+        ctx.signal,
+      );
+    }
+
+    // 7. Screen with Haiku in batches of ~20: each criterion true / false / unknown.
     ctx.emit({ type: "status", text: `Screening ${toScreen.length} against your ICP` });
-    const screenedCount = await screen(ctx, ws, crits, toScreen, fast ? 24 : 20);
+    let screenedCount = await screen(ctx, ws, crits, toScreen, fast ? 24 : 20);
 
     const rejected: { domain: string; reason: string }[] = [];
     const reasonCounts = new Map<string, number>();
     const kept: Candidate[] = [];
-    for (const c of toScreen) {
+    const judge = (c: Candidate) => {
       if (c.screened && c.met) {
         c.fit = fitFrom(crits, c.met);
         const anti = c.met.__anti?.why;
@@ -852,26 +1101,44 @@ export default defineWorkflow({
           rejected.push({ domain: c.domain, reason: reason.slice(0, 140) });
           const key = anti ? (/competitor/i.test(anti) ? "competitors" : "anti-ICP") : failed!.text.toLowerCase().slice(0, 48);
           reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1);
-          continue;
+          return;
         }
         if (c.fit < 50 && !c.existing) {
           rejected.push({ domain: c.domain, reason: `Fit ${c.fit}: mostly unknown` });
-          continue;
+          return;
         }
       } else {
         // Not screened (model unavailable or skipped it): a code-only estimate, 45–65, below the A/B bar of 70.
         c.fit = Math.round(45 + 20 * c.prior);
       }
       kept.push(c);
+    };
+    for (const c of toScreen) judge(c);
+
+    // 8. Too few survived the screen: the free sources missed this ICP, so search the web now (once),
+    //    telling it what the free sources got wrong, and screen what it finds.
+    const strong = () => kept.filter((c) => !c.existing && c.screened && (c.fit ?? 0) >= 70).length;
+    const need = fast ? target * 2 : Math.max(10, target * 2);
+    if (!searched && strong() < need && !ctx.signal.aborted) {
+      const worst = [...reasonCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+      ctx.emit({ type: "status", text: `Only ${strong()} strong fit${strong() === 1 ? "" : "s"} so far, so I'm searching the web` });
+      const context = `free sources gave ${toScreen.length} candidates and ${strong()} strong fits${worst ? `; most were dropped for "${worst[0]}"` : ""}. Find companies those sources miss.`;
+      const more = await webSearch(context);
+      if (more.length && !ctx.signal.aborted) {
+        screenedCount += await screen(ctx, ws, crits, more, fast ? 24 : 20);
+        for (const c of more) judge(c);
+        toScreen.push(...more);
+      }
     }
+    const considered = cands.size + rescore.length;
     const topReason = [...reasonCounts.entries()].sort((a, b) => b[1] - a[1])[0];
     ctx.emit({
       type: "action",
       text: `${kept.length} fit, ${rejected.length} dropped${topReason && topReason[1] > 1 ? ` (most for ${topReason[0]})` : ""}`,
     });
 
-    // 6. Free why-now signals for the shortlist: job boards and HN for all; news (rate-limited) only
-    //    for strong fits that still lack a reason to talk now.
+    // 9. Free why-now signals for the shortlist: job boards and HN for all, plus the filing or hiring
+    //    post a candidate came from; news (rate-limited) only for strong fits that still lack a reason.
     const functions = buyerFunctions(ws);
     const implications = signalImplications(ws);
     const warm = warmPathIndex();
@@ -889,10 +1156,14 @@ export default defineWorkflow({
     const score = (c: Candidate) => {
       const r = raw.get(c.domain);
       if (!r) return;
+      const jobs = c.hnPost ? [...r.jobs.jobs, ...hiringPostJobs(c.hnPost)] : r.jobs.jobs;
       c.found = detectSignals(
-        { name: c.name, domain: c.domain, jobs: r.jobs.jobs, boardUrl: r.jobs.boardUrl, jobsFrom: r.jobs.from, news: r.news, hn: r.hn, yc: c.yc },
+        { name: c.name, domain: c.domain, jobs, boardUrl: r.jobs.boardUrl, jobsFrom: r.jobs.from, news: r.news, hn: r.hn, yc: c.yc },
         { today, functions, implications },
       );
+      // A filing is matched by name: the YC directory or the homepage named the same company.
+      const filed = c.filing ? filingSignal(c.filing, { today, implication: implications.funding, matched: true }) : null;
+      if (filed && !c.found.some((f) => f.signal.type === "funding" && f.signal.date === filed.signal.date)) c.found.push(filed);
       c.warm = warm.byDomain.get(c.domain) ?? warm.byName.get(normalizeCompanyName(c.name)) ?? 0;
       c.whyNow = whyNowScore(asSignals(c.found), today, c.warm);
       c.tier = tierFor(c.fit ?? 0, c.whyNow);
@@ -921,7 +1192,7 @@ export default defineWorkflow({
       6,
       async (c) => {
         const [jobs, hn] = await Promise.all([
-          lightJobs(c.domain, { board: ws.accounts[c.domain]?.enrichment?.jobBoard, tokens: [c.yc?.slug], ycSlug: c.yc?.slug }),
+          lightJobs(c.domain, { board: ws.accounts[c.domain]?.enrichment?.jobBoard ?? c.hnPost?.board, tokens: [c.yc?.slug], ycSlug: c.yc?.slug }),
           cached(`hn:${c.domain}`, 12 * TTL.hour, () => hackerNews(c.domain)).catch((): NewsItem[] => []),
         ]);
         lookups += jobs.lookups + 1;
@@ -936,7 +1207,7 @@ export default defineWorkflow({
       const needNews = shortlist
         .filter((c) => !c.existing && (c.fit ?? 0) >= 70 && (c.whyNow ?? 0) < 2)
         .sort((a, b) => (b.fit ?? 0) - (a.fit ?? 0))
-        .slice(0, 3);
+        .slice(0, plan.news);
       if (needNews.length) {
         // The open news API allows one request every 5s, so this step is time-boxed; late answers are
         // still cached for the next run and the dossier.
@@ -969,7 +1240,7 @@ export default defineWorkflow({
       return asSignals(c.found).some((s) => s.usableInOutreach && s.strength >= 1 && signalAge(s, today) <= 60 && signalDecay(s, today) > 0);
     }
 
-    // 7. Pick: fit first, then why-now. At most 5 from any one source before backfilling. Never pad.
+    // 10. Pick: fit first, then why-now. At most 5 from any one source before backfilling. Never pad.
     const fresh = shortlist.filter((c) => !c.existing);
     let picks: Candidate[];
     if (fast) {
@@ -999,7 +1270,7 @@ export default defineWorkflow({
     // A stop saves nothing: picks made from half-checked data would look finished.
     if (ctx.signal.aborted) throw new AgentError("Stopped.", "stopped");
 
-    // 8. Write: new accounts (status new), plus scores for the imported ones. Evidence per signal.
+    // 11. Write: new accounts (status new), plus scores for the imported ones. Evidence per signal.
     // Imported accounts that couldn't be screened stay unscored, so the next run tries them again.
     const rescored = kept.filter((c) => c.existing && c.screened);
     const written = await ctx.mutate((draft) => {
@@ -1081,10 +1352,16 @@ export default defineWorkflow({
           watchingCount ? `, and ${watchingCount} ${watchingCount === 1 ? "is a strong fit" : "are strong fits"} with no reason yet` : ""
         }.${written.length < target ? " Fewer strong ones beat a padded list." : ""}${retry}`
       : fits
-        ? `${fits} companies fit your ICP, but none had a dated reason to talk this month. Widen the bet, or start from your network.${retry}`
+        ? `${fits} companies fit your ICP, but none had a dated reason to talk this month, so I left them out. Start from your network, or look again next week.${retry}`
         : unscreened
           ? `I couldn't screen the ${unscreened} companies I found against your ICP this time. I'll retry them next run.`
-          : `None of the ${considered} companies I checked fit your ICP. That usually means the bet is too narrow, or your buyers don't hire in public.`;
+          : emptyNote({
+              considered,
+              sources: [...new Set(sourcesUsed.filter((s) => s.source !== "web_search" && s.source !== "ats_search").map((s) => sourceLabel(s.source)))],
+              startupIcp: plan.startupIcp,
+              topReason: topReason && topReason[1] > 1 ? topReason[0] : undefined,
+              searched,
+            });
 
     ctx.emit({
       type: "status",

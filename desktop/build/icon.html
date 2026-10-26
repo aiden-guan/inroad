@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html,body{margin:0;width:1024px;height:1024px;background:transparent}
+  .tile{position:absolute;left:100px;top:100px;width:824px;height:824px;border-radius:185px;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #2a2724 0%, #161513 55%, #0e0d0c 100%);
+    box-shadow: 0 24px 48px rgba(0,0,0,.28), 0 4px 10px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 1px rgba(255,255,255,.04);
+    overflow:hidden}
+  /* the road: two converging lines toward the horizon */
+  .road{position:absolute;inset:0}
+  .glow{position:absolute;left:50%;top:42%;width:620px;height:620px;transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle, rgba(124,147,255,.35) 0%, rgba(124,147,255,.10) 38%, rgba(124,147,255,0) 66%)}
+  .orb{position:absolute;left:50%;top:42%;width:264px;height:264px;transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, #dfe5ff 0%, #8fa3ff 22%, #4f6cf0 52%, #2236a8 100%);
+    box-shadow: 0 0 0 14px rgba(124,147,255,.07), 0 30px 60px rgba(20,30,90,.5), inset -12px -20px 36px rgba(10,16,60,.42)}
+  .shine{position:absolute;left:50%;top:42%;width:264px;height:264px;transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle at 36% 26%, rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 22%)}
+</style></head><body>
+<div class="tile">
+  <svg class="road" viewBox="0 0 824 824" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="r" x1="0" y1="1" x2="0" y2="0">
+        <stop offset="0" stop-color="#f2f0eb" stop-opacity=".62"/>
+        <stop offset=".75" stop-color="#f2f0eb" stop-opacity=".12"/>
+        <stop offset="1" stop-color="#f2f0eb" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon points="196,824 236,824 410,520 406,520" fill="url(#r)"/>
+    <polygon points="588,824 628,824 418,520 414,520" fill="url(#r)"/>
+    <polygon points="404,824 420,824 416,770 408,770" fill="#f2f0eb" fill-opacity=".38"/>
+    <polygon points="407,724 417,724 415,688 409,688" fill="#f2f0eb" fill-opacity=".28"/>
+    <polygon points="409,652 415,652 414,628 410,628" fill="#f2f0eb" fill-opacity=".18"/>
+  </svg>
+  <div class="glow"></div>
+  <div class="orb"></div>
+  <div class="shine"></div>
+</div>
+</body></html>

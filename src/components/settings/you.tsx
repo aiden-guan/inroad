@@ -1,10 +1,11 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
+import { useState } from "react";
 import type { Action } from "@/lib/domain/actions";
 import type { Workspace } from "@/lib/domain/types";
 import { Segmented } from "@/components/ui/misc";
-import { Group, Row, SettingsSection, TextSetting } from "./parts";
+import { Group, Row, SavedMark, SettingsSection, TextSetting } from "./parts";
 import { emailProblem, gmailProblem, normalizeUrl, urlProblem } from "./validate";
 
 type Dispatch = (actions: Action | Action[]) => Promise<boolean>;
@@ -13,6 +14,7 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
   const f = ws.founder;
   const update = (patch: Partial<Workspace["founder"]>) => dispatch({ type: "founder.update", patch });
   const authUser = (f.gmailAuthUser || "0").trim() || "0";
+  const [saved, setSaved] = useState(false);
 
   return (
     <SettingsSection id="you" title="You" description="Who I'm working for, and the details I need when someone says yes.">
@@ -78,6 +80,29 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
           normalize={normalizeUrl}
           onSave={(v) => update({ schedulingUrl: v })}
         />
+      </Group>
+
+      <Group title="Your day" hint="After this time, Today folds the deals with no dated next step into one close-out card. Nothing is blocked if you skip it.">
+        <Row label="End-of-day close-out" hint="Your local time." htmlFor="settings-close-out">
+          <div className="flex items-center gap-2 sm:justify-end">
+            <SavedMark show={saved} />
+            <input
+              id="settings-close-out"
+              type="time"
+              value={f.closeOutTime ?? "16:30"}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!/^\d{2}:\d{2}$/.test(v) || v === (f.closeOutTime ?? "16:30")) return;
+                void update({ closeOutTime: v }).then((ok) => {
+                  if (!ok) return;
+                  setSaved(true);
+                  setTimeout(() => setSaved(false), 1400);
+                });
+              }}
+              className="h-8 rounded-sm bg-surface px-2 font-mono text-[13px] text-fg ring-1 ring-border-strong/70 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            />
+          </div>
+        </Row>
       </Group>
 
       <Group title="LinkedIn">

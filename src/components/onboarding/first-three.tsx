@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Users } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { ease, spring } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
 import { PendingRow } from "./reading-ledger";
 import { rankAccounts, runSummary } from "./shared";
+import { KnownUsers } from "./known-users";
 
 const AGREEMENT = [
   "I draft. You decide, and you send.",
@@ -108,7 +109,8 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       ? []
       : rankAccounts(
           Object.values(ws.accounts).filter(
-            (a) => Date.parse(a.addedAt) >= dStarted - 2000 && a.status !== "disqualified" && a.domain !== ws.company?.domain,
+            // A list dropped in while reading adds companies too; only the ones discovery gave a reason to talk count here. Never pad.
+            (a) => Date.parse(a.addedAt) >= dStarted - 2000 && a.status !== "disqualified" && a.domain !== ws.company?.domain && !(a.source === "csv_import" && !a.whyNow && !a.signals.length),
           ),
         ).slice(0, 3);
   const lastStep = dLive?.steps[dLive.steps.length - 1];
@@ -118,6 +120,17 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
   const fRun = o.runId ? runs[o.runId] : undefined;
   const receipt = receiptLine(fRun, runSummary(ws, o.runId));
   const provenance = f?.provenance?.icp?.label ?? "From your site · 0 conversations confirm this";
+
+  // A list dropped in while reading couldn't be screened before the bet existed. Now it does: screen it once,
+  // so the card can say how many of the founder's connections sit at companies that fit.
+  const net = ws.network;
+  const netRun = Object.values(runs).find((r) => r.workflow === "network" && (r.status === "running" || r.status === "queued"));
+  const screenStarted = useRef(false);
+  useEffect(() => {
+    if (screenStarted.current || !net || net.screenedAt || !f?.icp.criteria.length || netRun) return;
+    screenStarted.current = true;
+    void start("network", { reason: "import" }, { notify: false });
+  }, [net, f, netRun, start]);
 
   const findCompanies = async (widen = false) => {
     if (finding) return;
@@ -140,16 +153,23 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       const r = await start("dossier", { domain: a.domain }, { notify: false });
       if (r) ids.push(r.id);
     }
+    // "10 more prospects" in the background (SPEC §3.1): queued behind the dossiers, it lands in Later on Today.
+    if (research.length) await start("discovery", { count: 10, source: "weekly" }, { notify: false });
     const actions: Action[] = [];
     if (name.trim() !== (ws.founder.name ?? "") || title.trim() !== (ws.founder.title ?? "")) {
       actions.push({ type: "founder.update", patch: { name: name.trim(), title: title.trim() || undefined } });
     }
     for (const a of research) if (!a.watch) actions.push({ type: "account.track", domain: a.domain, watch: true });
-    actions.push({ type: "onboarding.update", patch: { status: "hired", hiredAt: nowISO(), dossierRunIds: ids } });
+    // Today keeps a card for each of these until the first note goes, whatever their signals say.
+    actions.push({ type: "onboarding.update", patch: { status: "hired", hiredAt: nowISO(), dossierRunIds: ids, firstThree: research.map((a) => a.domain) } });
     if (!(await dispatch(actions))) {
       setBusy(false);
       return;
     }
+    // On a phone the offer card is long and its button at the bottom: the orb at the top is off screen, so
+    // its flight into the header wouldn't play (a shared transition needs both ends in view), and Today
+    // would open scrolled down. Back to the top first.
+    await scrollToTop();
     setLeaving(true);
     setTimeout(() => router.push(to), 180);
   };
@@ -212,6 +232,8 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
           </div>
         )}
 
+        <KnownUsers ws={ws} />
+
         <ol className="mt-6 divide-y divide-border border-y border-border" aria-label="Companies to talk to first" aria-live="polite">
           <AnimatePresence initial={false}>
             {found.map((a, i) => (
@@ -245,14 +267,16 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               ) : (
                 <>
                   <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
-                    I didn&rsquo;t find any. That usually means the bet is too narrow, or your buyers don&rsquo;t hire in public.
+                    {(dLive?.result as { note?: string } | undefined)?.note ??
+                      "I didn’t find any in the free sources I checked. They lean toward venture-backed startups that hire in public, so they can miss buyers who don’t."}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="secondary" size="sm" onClick={() => void findCompanies(true)}>
-                      Widen the bet
+                      Look in more places
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire("/integrations?import=linkedin", [])}>
-                      Start from your network: drop your LinkedIn export
+                    {/* A list dropped while reading is already in: start from it on Today rather than ask for it again. */}
+                    <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire(net ? "/today" : "/integrations?import=linkedin", [])}>
+                      {net ? "Start from the people you know" : "Start from your network: drop your LinkedIn export"}
                     </Button>
                   </div>
                 </>
@@ -260,6 +284,21 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
             </li>
           )}
         </ol>
+
+        {net && (
+          <div className="mt-3" aria-live="polite">
+            {netRun ? (
+              <ul>
+                <PendingRow verb={`Matching your ${net.total.toLocaleString("en-US")} connections against the bet`} />
+              </ul>
+            ) : (
+              <p className="flex gap-2 text-pretty text-[13px] leading-5 text-fg-2">
+                <Users className="mt-0.5 size-3.5 shrink-0 text-fg-3" aria-hidden />
+                {net.screenedAt && net.line ? net.line : `${net.total.toLocaleString("en-US")} connections in. I'll match them against the bet on Today.`}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-6">
           <SectionLabel>How I work</SectionLabel>
@@ -341,4 +380,14 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       </AnimatePresence>
     </>
   );
+}
+
+/** Narrow screens only: scrolls to the top (smoothly, unless reduced motion) and resolves once it's there. */
+async function scrollToTop() {
+  if (window.scrollY === 0 || window.matchMedia("(min-width: 768px)").matches) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
+  const until = Date.now() + 800;
+  while (window.scrollY > 0 && Date.now() < until) await new Promise((r) => requestAnimationFrame(r));
+  if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "instant" });
 }

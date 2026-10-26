@@ -1,5 +1,6 @@
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Activity, Scoreboard, Workspace } from "@/lib/domain/types";
+import { coldFirstTouches } from "@/lib/quality/cap";
 import { isOpen, localDate } from "./util";
 
 /**
@@ -7,14 +8,31 @@ import { isOpen, localDate } from "./util";
  * is never shown. Rates hide below n=20 and dollars hide until a price has been quoted.
  */
 
+/** The default weekly intro asks (the default plan: 25 cold + 4 intro asks a week). */
 export const INTRO_ASKS_PER_WEEK = 4;
 
-/** A cold-email first touch: step 1 of a cold package, actually sent (not reverted as "didn't send"). */
+/**
+ * The weekly intro asks Today, the scoreboard and the reviews chase: the founder's own number from
+ * Playbook → Plan, else the bet's channel plan, else the default. Following the plan's advice changes Today.
+ */
+export function introAsksTarget(ws: Workspace): number {
+  return ws.goal.introAsksPerWeek ?? ws.foundation?.channelPlan?.funnel?.perWeek?.introAsks ?? INTRO_ASKS_PER_WEEK;
+}
+
+/**
+ * A cold-email first touch the founder sent: step 1 of a cold package, actually sent (not reverted as
+ * "didn't send"). For reply and meeting rates; the cap counts more (see `coldFirstTouches`).
+ */
 export function isColdFirstTouch(ws: Workspace, a: Activity): boolean {
   if (a.kind !== "touch_sent" || a.outcome === "not_sent") return false;
-  if (!a.draftRef || a.draftRef.step !== 1) return false;
+  // A deleted person's touch keeps what it was (its draft is gone).
+  if (!a.draftRef) return a.forgotten?.draft?.step === 1 && a.forgotten.draft.mode === "cold";
+  if (a.draftRef.step !== 1) return false;
   return ws.outreach[a.draftRef.packageId]?.mode === "cold";
 }
+
+/** Who an activity is about, for per-person counts: their id, or a deleted person's opaque one. */
+const whoOf = (a: Activity) => a.personId ?? a.forgotten?.who;
 
 export interface Counters {
   today: string;
@@ -29,21 +47,19 @@ export interface Counters {
 export function counters(ws: Workspace, now: Date): Counters {
   const today = todayISO(now);
   const weekStart = weekOf(today);
-  let coldThisWeek = 0;
-  let coldToday = 0;
+  // The same count the pre-send gate and the guest list use: pushed first touches and cold invites included.
+  const coldThisWeek = coldFirstTouches(ws, { from: weekStart });
+  const coldToday = coldFirstTouches(ws, { from: today, until: today });
   let introAsksThisWeek = 0;
   const peopleThisWeek = new Map<string, Set<string>>();
   for (const a of ws.activities) {
     const day = localDate(a.at);
     if (day < weekStart) continue;
-    if (isColdFirstTouch(ws, a)) {
-      coldThisWeek++;
-      if (day === today) coldToday++;
-    }
     if (a.kind === "intro_requested") introAsksThisWeek++;
-    if (a.kind === "touch_sent" && a.accountDomain && a.personId && a.outcome !== "not_sent") {
+    const who = whoOf(a);
+    if (a.kind === "touch_sent" && a.accountDomain && who && a.outcome !== "not_sent") {
       const set = peopleThisWeek.get(a.accountDomain) ?? new Set<string>();
-      set.add(a.personId);
+      set.add(who);
       peopleThisWeek.set(a.accountDomain, set);
     }
   }
@@ -55,7 +71,9 @@ export function coldQuotaLeft(ws: Workspace, c: Counters): number {
   return Math.max(0, Math.min(ws.caps.firstTouchesPerWeek - c.coldThisWeek, ws.caps.firstTouchesPerDayMax - c.coldToday));
 }
 
+/** Weekly conversations: the number the founder chose in Playbook → Plan ("Use N"), else the bet's channel plan, else the goal default. */
 export function conversationsTarget(ws: Workspace): number {
+  if (ws.goal.conversationsChosenAt && ws.goal.conversationsPerWeek > 0) return ws.goal.conversationsPerWeek;
   return ws.foundation?.channelPlan?.funnel?.perWeek?.conversations || ws.goal.conversationsPerWeek || 10;
 }
 
@@ -110,12 +128,13 @@ export function computeScoreboard(ws: Workspace, now: Date): Scoreboard {
   const since = addDays(c.today, -28);
   const touched = new Map<string, string>();
   for (const a of ws.activities) {
-    if (!isColdFirstTouch(ws, a) || !a.personId || localDate(a.at) < since) continue;
-    if (!touched.has(a.personId) || a.at < touched.get(a.personId)!) touched.set(a.personId, a.at);
+    const who = whoOf(a);
+    if (!isColdFirstTouch(ws, a) || !who || localDate(a.at) < since) continue;
+    if (!touched.has(who) || a.at < touched.get(who)!) touched.set(who, a.at);
   }
   let replied = 0;
-  for (const [personId, firstAt] of touched) {
-    if (ws.activities.some((a) => a.kind === "reply_received" && a.personId === personId && a.at > firstAt)) replied++;
+  for (const [who, firstAt] of touched) {
+    if (ws.activities.some((a) => a.kind === "reply_received" && whoOf(a) === who && a.at > firstAt)) replied++;
   }
   const n = touched.size;
 
@@ -129,7 +148,7 @@ export function computeScoreboard(ws: Workspace, now: Date): Scoreboard {
     qualifiedDeals: qualified.length,
     dealsMissingNextStep: dealsMissingNextStep(ws, c.today).length,
     goalProgress: [goalWins(ws), ws.goal.target],
-    introAsks: [c.introAsksThisWeek, INTRO_ASKS_PER_WEEK],
+    introAsks: [c.introAsksThisWeek, introAsksTarget(ws)],
   };
   if (n >= 20) sb.replyRate = { value: replied / n, n };
   if (priced) {

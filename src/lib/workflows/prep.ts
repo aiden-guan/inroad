@@ -9,11 +9,12 @@ import { daysBetween, nowISO, todayISO } from "@/lib/domain/ids";
 import { clockTime, localDate } from "@/lib/moves/util";
 import type { Evidence, MeetingBrief, Person } from "@/lib/domain/types";
 import { gatherSignals } from "@/lib/signals";
+import { attendeeEpisodes } from "@/lib/signals/public-records";
 import { defineWorkflow } from "./types";
 
 /**
  * W7 · Meeting prep. A 5-minute read built from what's already on file (dossier, evidence, the
- * card, earlier debriefs, approved objections). Sonnet writes it in one call; web search (≤2)
+ * card, earlier debriefs, approved objections, podcast episodes the attendees appeared on). Sonnet writes it in one call; web search (≤2)
  * only runs when the dossier is stale or missing and the free refresh comes back thin. Code fixes the call type, guarantees the
  * mandatory discovery questions, and keeps only citations that resolve.
  */
@@ -211,8 +212,12 @@ export default defineWorkflow({
       for (const n of [...sig.news, ...sig.hn]) if (n.publishedAt && (!since || n.publishedAt.slice(0, 10) > since)) newItems.push({ line: `${n.publishedAt.slice(0, 10)} · ${n.source} · ${n.title}`, url: n.url });
       ctx.emit({ type: "action", text: `${newItems.length} new items since ${since ?? "the start"}` });
     }
+    // What the attendees have said in public, on podcasts (free, cached a week).
+    const episodes = account ? await attendeeEpisodes(meeting.attendees, account.name) : [];
+    ctx.noteFreeSignals(Math.min(3, meeting.attendees.length));
+    if (episodes.length) ctx.emit({ type: "action", text: `${episodes.length} podcast episode${episodes.length === 1 ? "" : "s"} with ${[...new Set(episodes.map((e) => e.person.split(" ")[0]))].join(" and ")}` });
     const webSearch = stale && newItems.length < 2 ? 2 : 0;
-    const candidateUrls = new Set(newItems.map((n) => normUrl(n.url)));
+    const candidateUrls = new Set([...newItems, ...episodes].map((n) => normUrl(n.url)));
 
     const attendees = meeting.attendees.map((a) => {
       const p = (a.personId && ws.people[a.personId]) || accountPeople.find((x) => x.name.toLowerCase() === a.name.toLowerCase());
@@ -253,11 +258,12 @@ export default defineWorkflow({
       "",
       evidence.length ? `<evidence>\n${evidence.map((e) => `[${e.id}] ${e.claim} — "${e.quote.slice(0, 160)}" (${e.host}${e.publishedAt ? `, ${e.publishedAt}` : ""})`).join("\n")}\n</evidence>` : "<evidence>none on file</evidence>",
       newItems.length ? `\n<new_since_last_touch>\n${newItems.slice(0, 10).map((n) => `- ${n.line} · ${n.url}`).join("\n")}\n</new_since_last_touch>` : null,
+      episodes.length ? `\n<attendee_podcasts>\n${episodes.map((e) => `- ${e.line} · ${e.url}`).join("\n")}\n</attendee_podcasts>` : null,
       objections.length ? `\nApproved objection library:\n${objections.map((o) => `[${o.id}] "${o.objection}" → ${o.response}`).join("\n")}` : "\nNo approved objection responses yet; any response you write is a draft.",
       "",
       webSearch > 0
         ? `The dossier is ${dossier ? "stale" : "missing"} and free sources found little new. You may run up to ${webSearch} web searches for news about the company or the attendees' public talks and posts. Cite those by url. Never search the founder's private details.`
-        : "Do not search. Cite evidence ids from the list above, or urls from new_since_last_touch.",
+        : `Do not search. Cite evidence ids from the list above, or urls from new_since_last_touch${episodes.length ? " or attendee_podcasts" : ""}.`,
       "Then call submit_brief once.",
     ]
       .filter((l) => l !== null)

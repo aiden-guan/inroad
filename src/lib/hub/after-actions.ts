@@ -25,9 +25,12 @@ function toEvents(action: Action, ws: Workspace): Emit[] {
       if (!pkg || !step) return [];
       const base = { person: personData(ws, pkg.personId), account: accountData(ws, pkg.accountDomain) };
       const activity = ws.activities.find((a) => a.id === action.activityId);
+      // Answering a "yes" opens a deal at Talking (in the reducer, keyed by the package).
+      const opened = pkg.mode === "reply" ? ws.deals[`deal_${pkg.id}`] : undefined;
       return [
         { type: "draft.approved", data: { draft: draftData(pkg, step), ...base } },
         ...(activity ? [{ type: "touch.sent" as const, data: { activity: activityData(activity), draft: draftData(pkg, step), ...base } }] : []),
+        ...(opened ? [{ type: "deal.created" as const, data: { deal: dealData(ws, opened.id), account: accountData(ws, opened.accountDomain) } }] : []),
       ];
     }
     case "activity.log": {

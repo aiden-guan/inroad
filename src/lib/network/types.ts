@@ -4,7 +4,7 @@ import type { PresetId } from "./presets";
 /** One import, kept in `.data/network.json` so it can be undone and shown in history. */
 export interface ImportBatch {
   id: ID;
-  kind: "csv" | "linkedin";
+  kind: "csv" | "linkedin" | "github";
   preset?: PresetId;
   presetLabel?: string;
   fileName: string;
@@ -14,9 +14,12 @@ export interface ImportBatch {
   counts: { accountsCreated: number; accountsUpdated: number; peopleCreated: number; peopleUpdated: number };
   /** LinkedIn re-import diff. */
   linkedin?: { total: number; added: number; changed: number; removed: number; withEmail: number };
+  /** GitHub stargazers: how many the repo has, how many profiles were read, how many named a company. */
+  github?: { repo: string; total: number; read: number; matched: number; rateLimited: boolean; withToken: boolean };
   /** What this import created or filled in, so undo can take exactly that back out. */
   created: { accounts: string[]; people: ID[] };
-  filled: { kind: "account" | "person"; id: string; field: string; value: unknown }[];
+  /** "connection": a tag put on a row of the founder's LinkedIn connections (connections.json). */
+  filled: { kind: "account" | "person" | "connection"; id: string; field: string; value: unknown }[];
   statusChanged: { domain: string; from: Account["status"]; to: Account["status"] }[];
   undoneAt?: ISODateTime;
   undo?: { removedAccounts: number; removedPeople: number; kept: number };

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ActionError } from "@/lib/domain/actions";
-import { holdsRealWork, loadSampleWorkspace } from "@/lib/sample/store";
+import { holdsRealWork, leaveSampleWorkspace, loadSampleWorkspace } from "@/lib/sample/store";
 import { errorResponse } from "@/lib/server/http";
 import { publicWorkspace } from "@/lib/store/workspace";
 
@@ -31,6 +31,16 @@ export async function POST(request: Request) {
     }
     const ws = await loadSampleWorkspace();
     return Response.json(publicWorkspace(ws), { headers: { "Cache-Control": "no-store" } });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
+
+/** Leaves the sample: the founder's own workspace comes back if the sample replaced it, else an empty one. */
+export async function DELETE() {
+  try {
+    const { ws, restored } = await leaveSampleWorkspace();
+    return Response.json({ workspace: publicWorkspace(ws), restored }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return errorResponse(err);
   }

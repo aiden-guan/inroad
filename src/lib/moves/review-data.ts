@@ -1,6 +1,10 @@
+import { pilotWatch } from "@/lib/deals/rules";
 import { addDays, daysBetween, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Activity, type Deal, type LossReason, type ReviewProposal, type Stage, type Workspace } from "@/lib/domain/types";
-import { conversationsBetween, conversationsTarget, counters, goalWins, INTRO_ASKS_PER_WEEK, isColdFirstTouch, isQualified, sampleLabel } from "./scoreboard";
+import { SEND_KINDS, activeBet, betReadout, type BetReadout } from "@/lib/learning/bets";
+import { sendChannel } from "@/lib/learning/tags";
+import { coldFirstTouches } from "@/lib/quality/cap";
+import { conversationsBetween, conversationsTarget, counters, goalWins, introAsksTarget, isColdFirstTouch, isQualified, sampleLabel } from "./scoreboard";
 import { clip, companyName, daysSince, first, isOpen, localDate } from "./util";
 
 /**
@@ -120,6 +124,11 @@ export function pipelineData(ws: Workspace, now: Date): PipelineData {
     const lastActivity = daysSince(d.lastActivityAt || d.updatedAt, today);
     if (lastActivity > 7) flags.push(`no_activity_${lastActivity}d`);
     if (d.stage === "pilot" && d.pilot && !d.pilot.paid) flags.push("unpaid_pilot");
+    // Pilot to paid: the same reads as Today's pilot cards.
+    const pw = pilotWatch(d, today);
+    if (d.stage === "pilot" && pw.endsIn !== undefined && pw.endsIn < 0) flags.push(`pilot_ended_${-pw.endsIn}d_ago_no_decision`);
+    else if (d.stage === "pilot" && pw.endsIn !== undefined && pw.endsIn <= 5 && !pw.roiBooked) flags.push("pilot_ending_no_roi_review");
+    if (pw.overdue.length) flags.push(`map_steps_overdue_${pw.overdue.length}`);
     if (d.stage !== "talking" && !d.card?.economicBuyer?.value && !d.qualification?.economicBuyer) flags.push("economic_buyer_unknown");
     const champion = d.card?.champion?.name ? `${d.card.champion.name}${d.card.champion.status ? ` (${d.card.champion.status})` : ""}` : d.contacts.find((c) => c.role === "champion") ? first(ws.people[d.contacts.find((c) => c.role === "champion")!.personId]?.name) : "none";
     const company = companyName(ws, d.accountDomain);
@@ -133,7 +142,7 @@ export function pipelineData(ws: Workspace, now: Date): PipelineData {
       d.qualification ? `card ${d.qualification.total}/12` : "card not scored",
       d.card?.criticalEvent?.value ? `critical event: ${clip(d.card.criticalEvent.value, 60)}${d.card.criticalEvent.date ? ` (${d.card.criticalEvent.date})` : ""}` : "critical event: none captured",
       d.card?.decisionProcess?.value ? `decision process: ${clip(d.card.decisionProcess.value, 60)}` : "decision process: unknown",
-      d.pilot ? `pilot: ${d.pilot.paid ? "paid" : "unpaid"}${d.pilot.criteria ? `, criteria "${clip(d.pilot.criteria, 60)}"` : ", no written criteria"}` : "",
+      d.pilot ? `pilot: ${d.pilot.paid ? "paid" : "unpaid"}${d.pilot.criteria ? `, criteria "${clip(d.pilot.criteria, 60)}"` : ", no written criteria"}${d.pilot.endsOn ? `, ends ${d.pilot.endsOn}` : ""}` : "",
       d.priceQuotes?.length ? `quoted $${d.priceQuotes.at(-1)!.amountUsd}` : "",
     ].filter(Boolean);
     const alias = `d${i + 1}`;
@@ -174,10 +183,10 @@ export function pipelineData(ws: Workspace, now: Date): PipelineData {
     candidates: facts.filter((f) => (f.flags.includes("no_dated_next_step") || f.flags.some((x) => x.startsWith("next_step_overdue"))) && f.daysWithoutDatedStep >= 14),
     singleThreaded: facts.filter((f) => f.flags.includes("single_threaded")),
     overdue: facts.filter((f) => f.flags.some((x) => x.startsWith("next_step_overdue"))),
-    targets: { conversations: conversationsTarget(ws), coldFirstTouches: ws.caps.firstTouchesPerWeek, introAsks: INTRO_ASKS_PER_WEEK, eventActions },
+    targets: { conversations: conversationsTarget(ws), coldFirstTouches: ws.caps.firstTouchesPerWeek, introAsks: introAsksTarget(ws), eventActions },
     lastWeek: {
       conversations: conversationsBetween(ws, lastStart, new Date(`${start}T00:00:00`)),
-      coldFirstTouches: lastWeekActs.filter((a) => isColdFirstTouch(ws, a)).length,
+      coldFirstTouches: coldFirstTouches(ws, { from: lastStart, until: addDays(start, -1) }),
       introAsks: lastWeekActs.filter((a) => a.kind === "intro_requested").length,
       replies: replies.length,
       positiveReplies: replies.filter((a) => a.sentiment === "positive").length,
@@ -202,7 +211,7 @@ export interface ReplyFact {
 }
 
 export interface ConversionRow {
-  dimension: "angle" | "signal" | "persona" | "channel";
+  dimension: "angle" | "signal" | "persona" | "channel" | "frame" | "pov" | "subject_style";
   key: string;
   sent: number;
   replies: number;
@@ -211,7 +220,7 @@ export interface ConversionRow {
   label: "anecdote" | "directional" | "reliable";
 }
 
-export type ActiveBet = NonNullable<ReviewProposal["bet"]> & { startedOn: string };
+export type ActiveBet = NonNullable<ReviewProposal["bet"]> & { startedOn: string; id?: string; endsOn?: string; readout?: BetReadout };
 
 export interface LearningData {
   weekOf: string;
@@ -227,9 +236,9 @@ export interface LearningData {
   segment: { name: string; touches: number; positiveReplies: number; meetings: number } | null;
 }
 
-/** The touch a reply answers: the latest touch to that person before the reply. */
+/** The touch a reply answers: the latest send to that person before the reply (email, LinkedIn, sequencer or intro). */
 function touchBefore(ws: Workspace, reply: Activity): Activity | undefined {
-  return ws.activities.filter((a) => a.kind === "touch_sent" && a.personId === reply.personId && a.at <= reply.at).sort((a, b) => b.at.localeCompare(a.at))[0];
+  return ws.activities.filter((a) => SEND_KINDS.has(a.kind) && a.personId === reply.personId && a.at <= reply.at).sort((a, b) => b.at.localeCompare(a.at))[0];
 }
 
 function angleName(ws: Workspace, domain: string | undefined, angleId: string | undefined): string | undefined {
@@ -243,7 +252,30 @@ function angleName(ws: Workspace, domain: string | undefined, angleId: string | 
   return undefined;
 }
 
-function personaOf(ws: Workspace, personId: string | undefined): string {
+const FRAME_LABELS: Record<string, string> = {
+  founder_card: "advice ask (founder card)",
+  "4t": "4T",
+  problem_prompter: "problem prompter",
+  mouse_trap: "mouse trap",
+  observation_problem_proof: "observation, problem, proof",
+  referral: "referral",
+  permission_to_close: "permission to close",
+};
+
+const SUBJECT_LABELS: Record<string, string> = { trigger: "subject names their trigger", problem: "subject names the problem", other: "subject names neither" };
+
+function povLabel(ws: Workspace, povId: string | undefined, credentialId: string | undefined): string {
+  if (povId) {
+    const pov = ws.povs.find((p) => p.id === povId);
+    return pov ? `POV: ${clip(pov.text, 60)}` : "a POV since removed";
+  }
+  if (credentialId) return "a credential, no POV";
+  return "no POV tagged";
+}
+
+/** The persona a send was written to (its tag, stamped at send time), else the person's role or title. */
+function personaOf(ws: Workspace, personId: string | undefined, touch?: Activity): string {
+  if (touch?.tags?.persona) return touch.tags.persona.replace(/_/g, " ");
   const p = personId ? ws.people[personId] : undefined;
   if (!p) return "unknown";
   if (p.role) return p.role.replace(/_/g, " ");
@@ -271,15 +303,16 @@ export function learningData(ws: Workspace, now: Date): LearningData {
       body: clip(a.body ?? a.summary ?? "", 500),
       angle: angleName(ws, domain, touch?.angleId),
       signal: touch?.signalType,
-      persona: personaOf(ws, a.personId),
+      persona: personaOf(ws, a.personId, touch),
     };
   });
 
-  // Conversions over the trailing 8 weeks, by person. Labels carry the sample size.
+  // Conversions over the trailing 8 weeks, by person: the first send on any channel, including drafts handed to a
+  // sequencer. Labels carry the sample size.
   const since = addDays(today, -56);
   const firstTouches = new Map<string, Activity>();
   for (const a of ws.activities) {
-    if (a.kind !== "touch_sent" || a.outcome === "not_sent" || !a.personId || localDate(a.at) < since) continue;
+    if (!SEND_KINDS.has(a.kind) || a.outcome === "not_sent" || !a.personId || localDate(a.at) < since) continue;
     const prev = firstTouches.get(a.personId);
     if (!prev || a.at < prev.at) firstTouches.set(a.personId, a);
   }
@@ -300,10 +333,17 @@ export function learningData(ws: Workspace, now: Date): LearningData {
     const meeting = !!deal?.meetingIds.some((id) => ws.meetings[id] && ws.meetings[id].startsAt > touch.at);
     const replied = later.length > 0;
     const positive = later.some((a) => a.sentiment === "positive");
+    const channel = sendChannel(ws, touch);
+    bump("persona", personaOf(ws, personId, touch), replied, positive, meeting);
+    bump("channel", channel, replied, positive, meeting);
+    // An intro ask went to the connector, not the buyer: it says nothing about how the note was written.
+    if (channel === "intro") continue;
     bump("angle", angleName(ws, domain, touch.angleId) ?? "no angle tagged", replied, positive, meeting);
     bump("signal", touch.signalType ?? "no signal tagged", replied, positive, meeting);
-    bump("persona", personaOf(ws, personId), replied, positive, meeting);
-    bump("channel", touch.channel ?? "email", replied, positive, meeting);
+    bump("frame", FRAME_LABELS[touch.tags?.frame ?? ""] ?? touch.tags?.frame ?? "no frame tagged", replied, positive, meeting);
+    bump("pov", povLabel(ws, touch.tags?.povId, touch.tags?.credentialClaimId), replied, positive, meeting);
+    // LinkedIn notes have no subject line.
+    if (channel === "email") bump("subject_style", SUBJECT_LABELS[touch.tags?.subjectStyle ?? ""] ?? "no subject tagged", replied, positive, meeting);
   }
   const conversions = [...rows.values()].map((r) => ({ ...r, label: sampleLabel(r.sent) })).sort((a, b) => a.dimension.localeCompare(b.dimension) || b.sent - a.sent);
 
@@ -356,7 +396,7 @@ export function learningData(ws: Workspace, now: Date): LearningData {
     inputs: [
       { metric: "Conversations held", actual: conversationsBetween(ws, start, now), target: conversationsTarget(ws) },
       { metric: "Cold first touches", actual: c.coldThisWeek, target: ws.caps.firstTouchesPerWeek, note: "a ceiling, not a goal" },
-      { metric: "Intro asks", actual: c.introAsksThisWeek, target: INTRO_ASKS_PER_WEEK },
+      { metric: "Intro asks", actual: c.introAsksThisWeek, target: introAsksTarget(ws) },
       { metric: "Replies", actual: replyActs.length, target: null },
       { metric: "Positive replies", actual: replyActs.filter((a) => a.sentiment === "positive").length, target: null },
       { metric: "Paid pilots (to date)", actual: goalWins(ws), target: ws.goal.target, toDate: true },
@@ -373,24 +413,25 @@ export function learningData(ws: Workspace, now: Date): LearningData {
 }
 
 /**
- * The message bet the founder started most recently. A bet runs through the end of the calendar month after
- * the one it started in, so a bet started on the 30th still gets a full month of sends.
+ * The message bet the founder started most recently, while it runs: through the end of the calendar month after the
+ * one it started in, so a bet started on the 30th still gets a full month of sends. Carries the per-arm counts so far.
  */
 export function activeMessageBet(ws: Workspace, today: string): ActiveBet | null {
-  const month = today.slice(0, 7);
-  const [y, m] = month.split("-").map(Number);
-  const prevMonth = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-  let best: { bet: NonNullable<ReviewProposal["bet"]>; at: string } | null = null;
-  for (const b of Object.values(ws.briefs)) {
-    for (const p of b.proposals ?? []) {
-      if (p.kind !== "message_bet" || p.status !== "applied" || !p.bet || !p.decidedAt) continue;
-      if (!best || p.decidedAt > best.at) best = { bet: p.bet, at: p.decidedAt };
-    }
-  }
-  if (!best) return null;
-  const startedOn = localDate(best.at);
-  const started = startedOn.slice(0, 7);
-  return started === month || started === prevMonth ? { ...best.bet, startedOn } : null;
+  const bet = activeBet(ws, today);
+  if (!bet) return null;
+  return {
+    variable: bet.variable,
+    control: bet.control,
+    variant: bet.variant,
+    why: bet.why,
+    dimension: bet.dimension,
+    controlKey: bet.controlKey,
+    variantKey: bet.variantKey,
+    startedOn: bet.startedOn,
+    id: bet.id,
+    endsOn: bet.endsOn,
+    readout: betReadout(ws, bet.id),
+  };
 }
 
 export function pct(v: number): string {

@@ -124,6 +124,7 @@ ${batch.map((g, i) => card(g, i + 1)).join("\n")}`;
         effort: "low",
         maxTokens: 6000,
         requireTerminal: true,
+        cacheTtl: "1h",
         system: [EMBER_CORE, NETWORK_RULES, companyContext(ws)],
         messages: [{ role: "user", content }],
         tools: [screenTool],

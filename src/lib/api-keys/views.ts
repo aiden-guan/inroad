@@ -1,6 +1,6 @@
 import "server-only";
 import { todayISO } from "@/lib/domain/ids";
-import { themeNeedsProof } from "@/components/playbook/model";
+import { offerable, themeNeedsProof } from "@/components/playbook/model";
 import { STAGE_LABELS, type Move, type Persona, type Workspace } from "@/lib/domain/types";
 import { isSuppressed, normalizeDomain, normalizeEmail } from "@/lib/hub/records";
 import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
@@ -132,7 +132,7 @@ export function playbookView(ws: Workspace, args: { channel?: Channel; persona?:
       .filter((o) => o.approved)
       .slice(0, 12)
       .map((o) => ({ objection: o.objection, underlying_concern: o.underlyingConcern, clarifying_question: o.clarifyingQ, response: o.response, walk_away_if: o.walkAwayIf })),
-    assets: ws.assets.filter((a) => a.approved).map((a) => ({ id: a.id, kind: a.kind, title: a.title, url: a.url ?? null })),
+    assets: ws.assets.filter(offerable).map((a) => ({ id: a.id, kind: a.kind, title: a.title, url: a.url ?? null })),
     competitors: f.competitors.slice(0, 8).map((c) => ({ name: c.name, domain: c.domain ?? null, when_we_win: c.whenWeWin, when_we_lose: c.whenWeLose })),
     voice: ws.voice ? { summary: ws.voice.summary, sign_off: ws.voice.signOff } : null,
     caps: {

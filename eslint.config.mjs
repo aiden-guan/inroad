@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Mac app's assembled server and packaged builds (generated, see desktop/).
+    "desktop/dist-server/**",
+    "desktop/dist/**",
   ]),
 ]);
 

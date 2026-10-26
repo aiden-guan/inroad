@@ -25,7 +25,8 @@ import {
  */
 
 const TOOL = "Firecrawl";
-const API = (process.env.FIRECRAWL_API_URL ?? "https://api.firecrawl.dev").replace(/\/+$/, "");
+/** Read per call, so a test or a self-hosted Firecrawl can point it elsewhere after start. */
+const api = () => (process.env.FIRECRAWL_API_URL ?? "https://api.firecrawl.dev").replace(/\/+$/, "");
 const PROVIDER_NAME: Record<string, string> = { apollo: "Apollo", fullenrich: "FullEnrich" };
 
 type Json = Record<string, unknown>;
@@ -62,7 +63,7 @@ async function http(key: string, path: string, init: { body?: unknown; requestId
   for (let attempt = 0; ; attempt++) {
     let res: Response;
     try {
-      res = await fetch(`${API}${path}`, {
+      res = await fetch(`${api()}${path}`, {
         method: init.body === undefined ? "GET" : "POST",
         headers: {
           accept: "application/json",
@@ -181,6 +182,30 @@ function toWorkEmail(data: Json): FoundEmail | null {
   if (!address && candidates[0]) address = str(candidates[0].email);
   if (!status) status = str(candidates.find((c) => str(c.email).toLowerCase() === address.toLowerCase())?.status);
   return workEmail(address, status, status.toUpperCase() === "DELIVERABLE") ?? null;
+}
+
+export interface WebResult {
+  url: string;
+  title: string;
+  description: string;
+}
+
+/**
+ * Plain web search (POST /v2/search, 2 credits per 10 results), for AI providers that have no search of
+ * their own (everyone but Anthropic). Reads both the v2 shape (`data.web`) and the older flat `data` list.
+ */
+export async function firecrawlSearch(key: string, query: string, limit = 8): Promise<Result<WebResult[]>> {
+  const r = await http(key.trim(), "/v2/search", { body: { query, limit }, timeoutMs: 30_000 });
+  if (!r.ok) return r;
+  const data = r.value.data;
+  const rows = Array.isArray(data) ? data : arr(obj(data).web);
+  const out: WebResult[] = [];
+  for (const row of rows.map(obj)) {
+    const url = str(row.url);
+    if (!/^https?:\/\//i.test(url)) continue;
+    out.push({ url, title: str(row.title) || url, description: str(row.description) || str(row.snippet) });
+  }
+  return ok(out.slice(0, limit));
 }
 
 export const firecrawl: ConnectorFactory = (key) => {

@@ -500,7 +500,7 @@ export function Prospects({
       )}
 
       {rows.length > 0 && (
-        <p className="mt-4 hidden items-center gap-3 text-[11.5px] text-fg-3 md:flex">
+        <p className="mt-4 hidden items-center gap-3 text-[11.5px] text-fg-3 md:pointer-fine:flex">
           <span className="flex items-center gap-1">
             <Kbd>J</Kbd>
             <Kbd>K</Kbd> move

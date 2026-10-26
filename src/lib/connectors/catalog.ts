@@ -2,15 +2,19 @@
  * What the hub knows about each tool, shared by the server (connectors, inbound parsing) and the
  * Integrations page. Plain data only. Paths and scopes come from docs/research/06-connector-apis.md.
  */
+import { CLIENTS } from "@/lib/api-keys/types";
 import type { HubEventType, IntegrationId, Stage } from "@/lib/domain/types";
 
-export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack" | "firecrawl";
+export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack" | "firecrawl" | "calendly" | "calcom";
 export type CrmId = "hubspot" | "attio";
 export type SequencerId = "instantly" | "smartlead" | "lemlist";
+/** Booking tools with a key: read by polling when their webhooks can't reach this app. */
+export type BookingId = "calendly" | "calcom";
 
 export const CRM_IDS: CrmId[] = ["hubspot", "attio"];
 export const SEQUENCER_IDS: SequencerId[] = ["instantly", "smartlead", "lemlist"];
-export const NATIVE_IDS: NativeConnectorId[] = ["hubspot", "attio", "instantly", "smartlead", "lemlist", "slack", "firecrawl"];
+export const BOOKING_IDS: BookingId[] = ["calendly", "calcom"];
+export const NATIVE_IDS: NativeConnectorId[] = ["hubspot", "attio", "instantly", "smartlead", "lemlist", "slack", "firecrawl", "calendly", "calcom"];
 
 export function isNative(id: string): id is NativeConnectorId {
   return (NATIVE_IDS as string[]).includes(id);
@@ -21,13 +25,16 @@ export function isSequencer(id: string): id is SequencerId {
 export function isCrm(id: string): id is CrmId {
   return (CRM_IDS as string[]).includes(id);
 }
+export function isBooking(id: string): id is BookingId {
+  return (BOOKING_IDS as string[]).includes(id);
+}
 
 export interface ConnectorMeta {
   id: NativeConnectorId;
   name: string;
   /** For the favicon mark. */
   domain: string;
-  kind: "crm" | "sequencer" | "notify" | "data";
+  kind: "crm" | "sequencer" | "notify" | "data" | "booking";
   blurb: string;
   secretLabel: string;
   placeholder: string;
@@ -155,6 +162,38 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     },
     scopes: [],
     note: "People data comes through Firecrawl Alexandria and is paid in Firecrawl credits. The first time a provider is used, an admin of your Firecrawl team accepts its data terms once.",
+  },
+  calendly: {
+    id: "calendly",
+    name: "Calendly",
+    domain: "calendly.com",
+    kind: "booking",
+    blurb: "New bookings become a meeting on the deal and a prep move on the day.",
+    secretLabel: "Personal access token",
+    placeholder: "Paste your Calendly personal access token",
+    where: {
+      href: "https://calendly.com/integrations/api_webhooks",
+      linkLabel: "Open Calendly",
+      path: "Calendly → Integrations → API & Webhooks → Personal Access Tokens → Generate new token",
+    },
+    scopes: ["users:read", "scheduled_events:read"],
+    note: "Works on every Calendly plan, including Free. I read your scheduled events every few minutes while Inroad is open; nothing is written to Calendly.",
+  },
+  calcom: {
+    id: "calcom",
+    name: "Cal.com",
+    domain: "cal.com",
+    kind: "booking",
+    blurb: "New bookings become a meeting on the deal and a prep move on the day.",
+    secretLabel: "API key",
+    placeholder: "cal_live_…",
+    where: {
+      href: "https://app.cal.com/settings/developer/api-keys",
+      linkLabel: "Open Cal.com",
+      path: "Cal.com → Settings → Developer → API keys → New",
+    },
+    scopes: [],
+    note: "I read your bookings every few minutes while Inroad is open; nothing is written to Cal.com.",
   },
 };
 
@@ -308,7 +347,7 @@ export const BOOKING_SOURCES: InboundSourceMeta[] = [
     domain: "calendly.com",
     steps: [
       "Calendly sends webhooks on Standard plans and up. Create a webhook subscription for invitee.created and invitee.canceled with the URL below.",
-      "No webhook plan? Route new bookings through Zapier or Make to the same URL.",
+      "No webhook plan, or no public URL? Connect a personal access token below and I'll check for bookings instead.",
       "Each booking becomes a meeting on the deal and a prep move on the day.",
     ],
     docs: "https://developer.calendly.com/receive-data-from-scheduled-events-in-real-time-with-webhook-subscriptions",
@@ -319,7 +358,7 @@ export const BOOKING_SOURCES: InboundSourceMeta[] = [
     domain: "cal.com",
     steps: [
       "In Cal.com, open Settings → Developer → Webhooks → New.",
-      "Paste the URL below and pick Booking created, Booking cancelled and Booking rescheduled.",
+      "Paste the URL below and pick Booking created, Booking cancelled and Booking rescheduled. No public URL? Connect an API key below and I'll check for bookings instead.",
       "Each booking becomes a meeting on the deal and a prep move on the day.",
     ],
     docs: "https://cal.com/docs/developing/guides/automation/webhooks",
@@ -330,6 +369,17 @@ export function inboundSourceName(source: string): string {
   const all = [...LEAD_SOURCES, ...Object.values(REPLY_SOURCES), ...BOOKING_SOURCES];
   return all.find((s) => s.id === source)?.name ?? (source === "generic" ? "Webhook" : source.charAt(0).toUpperCase() + source.slice(1));
 }
+
+/**
+ * The tools and agents Inroad connects to, whose marks the Integrations page shows. Their icons are
+ * always fetched (from their own sites, through /api/favicon): they say nothing about the founder's
+ * prospects, unlike a company's domain (see src/lib/signals/icons.ts).
+ */
+export const TOOL_DOMAINS: ReadonlySet<string> = new Set([
+  ...Object.values(CONNECTORS).map((c) => c.domain),
+  ...[...LEAD_SOURCES, ...Object.values(REPLY_SOURCES), ...BOOKING_SOURCES].flatMap((s) => (s.domain ? [s.domain] : [])),
+  ...CLIENTS.flatMap((c) => (c.domain ? [c.domain] : [])),
+]);
 
 /** Activity.source for things that arrived through a hook. */
 export function activitySourceFor(source: string): IntegrationId {

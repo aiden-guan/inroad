@@ -1,0 +1,6 @@
+[
+  { "id": 1, "name": "acme-cli", "full_name": "acmehq/acme-cli", "html_url": "https://github.com/acmehq/acme-cli", "description": "The Acme command line", "fork": false, "archived": false, "stargazers_count": 320, "language": "Go", "pushed_at": "2026-10-10T08:00:00Z" },
+  { "id": 2, "name": "acme-sdk", "full_name": "acmehq/acme-sdk", "html_url": "https://github.com/acmehq/acme-sdk", "description": "TypeScript SDK for the Acme API", "fork": false, "archived": false, "stargazers_count": 1240, "language": "TypeScript", "pushed_at": "2026-10-14T18:30:00Z" },
+  { "id": 3, "name": "old-site", "full_name": "acmehq/old-site", "html_url": "https://github.com/acmehq/old-site", "description": null, "fork": false, "archived": true, "stargazers_count": 3, "language": "HTML", "pushed_at": "2023-01-01T00:00:00Z" },
+  { "id": 4, "name": "react", "full_name": "acmehq/react", "html_url": "https://github.com/acmehq/react", "description": "Fork", "fork": true, "archived": false, "stargazers_count": 1, "language": "JavaScript", "pushed_at": "2024-05-01T00:00:00Z" }
+]

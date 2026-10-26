@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import type { Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
+import { ListDrop } from "./list-drop";
 
 const enter = { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, transition: { duration: 0.12 } }, transition: { duration: 0.28, ease: ease.out } };
 
 /**
  * "Two quick ones while I read." Skippable. Answers land in the workspace immediately; the running bet picks them
- * up on its next step, and discovery seeds from any domains named here.
+ * up on its next step, and discovery seeds from any domains named here. A list dropped below goes in right away.
  */
 export function InlineQuestions({ ws }: { ws: Workspace }) {
   const { dispatch } = useWorkspace();
@@ -23,12 +24,22 @@ export function InlineQuestions({ ws }: { ws: Workspace }) {
 
   if (o.questionsDone) {
     const answered = !!(o.answers?.last3 || o.answers?.before);
-    if (!answered) return null;
+    const listIn = !!ws.network || Object.values(ws.accounts).some((a) => a.source === "csv_import");
     return (
-      <motion.p {...enter} className="flex items-center gap-2 text-[13px] text-fg-2">
-        <Check className="size-3.5 text-fg-3" aria-hidden />
-        Got your answers. They go into the bet.
-      </motion.p>
+      <div className="space-y-3">
+        {(answered || listIn) && (
+          <motion.p {...enter} className="flex items-center gap-2 text-[13px] text-fg-2">
+            <Check className="size-3.5 text-fg-3" aria-hidden />
+            {answered && listIn ? "Got your answers and your list. They go into the bet." : answered ? "Got your answers. They go into the bet." : "Got your list. I'll start with people who already know you."}
+          </motion.p>
+        )}
+        {/* Skip was for the two questions: the list drop stays until a list is in. */}
+        {!listIn && (
+          <motion.div {...enter} className="rounded-lg bg-surface p-4 shadow-xs ring-1 ring-border sm:p-5">
+            <ListDrop />
+          </motion.div>
+        )}
+      </div>
     );
   }
 
@@ -79,6 +90,10 @@ export function InlineQuestions({ ws }: { ws: Workspace }) {
         <Button type="button" variant="ghost" size="sm" onClick={() => send(undefined, true)}>
           Skip
         </Button>
+      </div>
+      {/* Warm before cold: the network import runs while the site is read (SPEC §3.2, W2 in parallel). */}
+      <div className="mt-4 border-t border-border pt-4">
+        <ListDrop />
       </div>
     </motion.form>
   );

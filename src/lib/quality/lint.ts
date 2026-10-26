@@ -1,5 +1,9 @@
 import type { DraftFrame, LintCode, LintResult } from "@/lib/domain/types";
-import { convergence, sentences, stripGreeting, type RecentDraft } from "./similarity";
+import { aOrAn } from "@/lib/moves/util";
+import { convergence, sentences, stripGreeting, tfidfSimilarities, type RecentDraft } from "./similarity";
+
+/** TF-IDF similarity above which a draft "reads like" a pasted AI-written email. */
+export const BAD_EXAMPLE_SIMILARITY = 0.45;
 
 /**
  * Deterministic outbound lint. Frame-aware, no model calls; the compose workflow runs it after
@@ -33,6 +37,8 @@ export interface LintInput {
   knownNames?: string[];
   /** Recent cold drafts, for skeleton diversity and near-duplicates. */
   recent?: RecentDraft[];
+  /** AI-written sales emails the founder pasted as what bad looks like; a draft that reads like one gets a warning. */
+  badExamples?: string[];
 }
 
 type Severity = "error" | "warn";
@@ -272,6 +278,15 @@ export function limitsFor(input: Pick<LintInput, "kind" | "frame" | "step" | "fi
   }
 }
 
+/** The resource a draft offers ("one-pager", "teardown"), lowercased, if a sentence offers one: what ASSET_MISSING checks. */
+export function offeredResource(body: string): string | null {
+  for (const s of sentences(body)) {
+    const plain = s.replace(/\bin terms of\b/gi, "");
+    if (RESOURCE.test(plain) && OFFER.test(plain)) return (plain.match(RESOURCE)?.[0] ?? "resource").toLowerCase();
+  }
+  return null;
+}
+
 export function lintDraft(input: LintInput): LintResult {
   const body = norm(input.body ?? "");
   const subject = input.subject === null ? null : norm(input.subject ?? "");
@@ -298,7 +313,7 @@ export function lintDraft(input: LintInput): LintResult {
   if (lim) {
     if (words > lim.hard) add("LEN_OVER", `${words} words. Cut to ${lim.max} or fewer.`);
     else if (words > lim.max) add("LEN_OVER", `${words} words. Aim for ${lim.max} or fewer.`, "warn");
-    else if (lim.min && words > 0 && words < lim.min) add("LEN_UNDER", `${words} words. Touches like this land best at ${lim.min}–${lim.max}.`);
+    else if (lim.min && words > 0 && words < lim.min) add("LEN_UNDER", `${words} words. ${input.kind === "post" ? "Posts" : "Touches"} like this land best at ${lim.min}–${lim.max}.`);
   }
   if (input.kind === "linkedin_note" && body.length > LIMITS.liNoteChars) add("LI_CHARS", `${body.length} characters. LinkedIn notes allow ${LIMITS.liNoteChars}.`);
   if (input.kind === "linkedin_dm" && body.length > LIMITS.liDmChars) add("LI_CHARS", `${body.length} characters. Keep the message under ${LIMITS.liDmChars}.`);
@@ -339,7 +354,6 @@ export function lintDraft(input: LintInput): LintResult {
   }
 
   // Asks
-  const sents = sentences(body);
   // A closing P.S. may carry a second, lower-stakes question ("If this isn't yours, who owns it?").
   const main = body.replace(/(^|\n)\s*p\.?\s?s\.?\s[^\n]*\s*$/i, "");
   const asks = sentences(main).filter((s) => s.endsWith("?") || ASK_CUE.test(s)).length;
@@ -390,14 +404,8 @@ export function lintDraft(input: LintInput): LintResult {
       }
     }
   }
-  for (const s of sents) {
-    const plain = s.replace(/\bin terms of\b/gi, "");
-    if (RESOURCE.test(plain) && OFFER.test(plain) && !input.assetId) {
-      const what = plain.match(RESOURCE)?.[0] ?? "a resource";
-      add("ASSET_MISSING", `Offers ${/^[aeiou]/i.test(what) ? "an" : "a"} ${what.toLowerCase()} but no asset is attached. Pick one or drop the offer.`);
-      break;
-    }
-  }
+  const offered = input.assetId ? null : offeredResource(body);
+  if (offered) add("ASSET_MISSING", `Offers ${aOrAn(offered)} ${offered} but no asset is attached. Pick one or drop the offer.`);
   if (input.requirePov && !input.povId && !input.credentialId) add("POV_MISSING", "No point of view. A cold note needs one of yours, or a credential.");
   if (input.spans?.length) {
     const bodyNorm = body.toLowerCase().replace(/\s+/g, " ");
@@ -424,6 +432,11 @@ export function lintDraft(input: LintInput): LintResult {
   }
   if (input.recent?.length && input.kind === "email" && input.step === 1) {
     for (const issue of convergence(body, input.recent)) add(issue.code, issue.detail);
+  }
+  if (input.badExamples?.length && input.kind === "email") {
+    // A founder draft scores under 0.15 against typical AI-SDR mail; a lightly reworded one scores over 0.6.
+    const worst = Math.max(...tfidfSimilarities(body, input.badExamples));
+    if (worst > BAD_EXAMPLE_SIMILARITY) add("NEAR_DUPLICATE", `Reads like one of the AI-written emails you pasted (${worst.toFixed(2)}). Say it the way you would.`, "warn");
   }
 
   const violations = sortViolations(out);
