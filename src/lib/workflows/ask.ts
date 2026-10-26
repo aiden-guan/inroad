@@ -1246,7 +1246,7 @@ export default defineWorkflow<Args>({
       citations: citations.length ? citations : undefined,
       proposals: state.proposals.length ? state.proposals : undefined,
       records: state.records.size ? [...state.records.values()].slice(0, 6) : undefined,
-      receipt: { durationMs: Date.now() - started, sources, costUsd: result.costUsd, model: tier },
+      receipt: { durationMs: Date.now() - started, sources, costUsd: result.costUsd, model: tier, ...(result.modelName ? { modelName: result.modelName } : {}), ...(result.unpriced ? { unpriced: true } : {}) },
       error: empty ? { code: "empty", message: "No answer came back. Try again." } : undefined,
     };
 

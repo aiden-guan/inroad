@@ -2,8 +2,9 @@ import "server-only";
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { getAnthropicClient } from "./client";
+import { getAnthropicClient, requireProvider } from "./client";
 import type { AgentEvent, Source } from "./events";
+import { anthropicSafe, chatTool, runOpenAITurn, type TurnHooks } from "./openai-compat";
 import { apiErrorParts, droppableFeatures, toAgentError, type CompatFeature } from "./api-errors";
 import { AgentError } from "./errors";
 import { MODEL_IDS, addUsage, emptyUsage, requestCost, webToolTypes, type ModelTier, type Usage } from "./models";
@@ -13,6 +14,9 @@ export { AgentError };
 /**
  * The agent engine: one streaming loop that every workflow and the Ask panel run through.
  *
+ * - Runs on the provider chosen in Settings (client.ts). Anthropic is native; every OpenAI-compatible
+ *   provider goes through openai-compat.ts, which speaks this file's message shape both ways. The rest of
+ *   this comment describes the Anthropic path; the loop below (tools, nudges, retries) serves both.
  * - Routed per task to Opus 5.5 / Sonnet 5.5 / Haiku 5.5 (see models.ts) with adaptive
  *   thinking (summaries surface as live "thinking" lines)
  * - Server-side web search + web fetch (Anthropic runs them; we narrate them to the UI)
@@ -122,6 +126,10 @@ export interface RunOptions {
 
 export interface RunResult<T = unknown> {
   result: T | undefined;
+  /** The provider's model has no known price, so costUsd counts nothing (it isn't free). */
+  unpriced?: boolean;
+  /** The model that did the work, on providers other than Anthropic. */
+  modelName?: string;
   /** Set when this run left out optional features the API rejected (compat mode), with what the API said. */
   compat?: { features: CompatFeature[]; reason: string };
   /** All assistant text produced across turns (for chat replies). */
@@ -191,9 +199,11 @@ function summarizeIssues(error: z.ZodError): string {
 }
 
 export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult<T>> {
-  const client = getAnthropicClient();
+  const provider = requireProvider();
+  const oa = provider.kind === "openai";
+  const client = oa ? null : getAnthropicClient(provider);
   const tier = opts.tier ?? "operator";
-  const model = MODEL_IDS[tier];
+  const model = oa ? provider.models[tier] : MODEL_IDS[tier];
   const web = webToolTypes(tier);
   // Server-side refusal fallback exists for Opus and Sonnet; Haiku has none.
   const supportsFallback = tier !== "fast";
@@ -211,7 +221,11 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
           : { name: t.name, description: t.description, input_schema: toInputSchema(t.schema, false), eager_input_streaming: true },
     ),
   ];
-  const tools: Anthropic.Beta.BetaToolUnion[] = buildTools(true);
+  const tools: Anthropic.Beta.BetaToolUnion[] = oa ? [] : buildTools(true);
+  const chatTools = oa ? appTools.map((t) => chatTool(t.name, t.description, t.schema)) : [];
+  // Web uses left in this run on the OpenAI-compatible path (Anthropic counts its own with max_uses).
+  const webBudget = { search: opts.webSearch ?? 0, fetch: opts.webFetch ?? 0 };
+  let unpriced = false;
   if ((opts.webSearch ?? 0) > 0) {
     tools.push({ type: web.search, name: "web_search", max_uses: opts.webSearch });
   }
@@ -231,8 +245,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   let answerStart = 0;
   let result: T | undefined;
   let stopReason: string | null = null;
-  const key = keyPrint(client);
-  const dropped = stillRejected(key);
+  const key = client ? keyPrint(client) : "";
+  const dropped = client ? stillRejected(key) : new Set<CompatFeature>();
   let jsonRetries = 0;
   let pauses = 0;
   let nudges = 0;
@@ -268,7 +282,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         // Longer TTLs must come first, so the tail is 1h only when no 5-minute marker sits in messages.
         cache_control: opts.cacheTtl === "1h" && !hasShorterMarker(messages) ? marker : { type: "ephemeral" },
         tools: tools.length ? (dropped.has("strict") ? [...buildTools(false), ...tools.slice(appTools.length)] : tools) : undefined,
-        messages,
+        messages: anthropicSafe(messages),
         ...(betas.length ? { betas } : {}),
         ...(fallback ? { fallbacks: "default" as const } : {}),
       };
@@ -279,125 +293,171 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
       let lastThinking = "";
 
       const textStart = text.length;
-      let message: Anthropic.Beta.BetaMessage;
-      try {
-        const stream = client.beta.messages.stream(params, { signal });
+      let message: Pick<Anthropic.Beta.BetaMessage, "stop_reason" | "content">;
+      let turnUsage: { usage: Usage; costUsd: number };
+      if (oa) {
+        const hooks: TurnHooks = {
+          text: (delta) => {
+            text += delta;
+            emit({ type: "text", text: delta });
+          },
+          thinking: (delta) => {
+            thinkingBuffer += delta;
+            const line = latestLine(thinkingBuffer);
+            if (line && line !== lastThinking) {
+              lastThinking = line;
+              emit({ type: "thinking", text: line });
+            }
+          },
+          toolStart: (name) => {
+            if (toolByName.get(name)?.terminal) emit({ type: "status", text: "Writing it up" });
+          },
+          toolInput: (name, chars) => {
+            if (toolByName.get(name)?.terminal) emit({ type: "writing", chars });
+          },
+          search: (query) => emit({ type: "search", query }),
+          read: (url) => emit({ type: "read", url, host: hostOf(url) }),
+          sources: (sources) => emit({ type: "sources", sources }),
+        };
+        const out = await runOpenAITurn({
+          provider,
+          model,
+          system: systemTexts,
+          messages,
+          tools: chatTools,
+          web: webBudget,
+          effort: opts.effort,
+          maxTokens: opts.maxTokens || roomRetried ? maxTokens : undefined,
+          seenSources,
+          hooks,
+          signal,
+        });
+        emittedAnything = true;
+        if (out.unpriced) unpriced = true;
+        message = { stop_reason: out.stopReason, content: out.content };
+        turnUsage = { usage: out.usage, costUsd: out.costUsd };
+      } else {
+        let full: Anthropic.Beta.BetaMessage;
+        try {
+          const stream = client!.beta.messages.stream(params, { signal });
 
-        for await (const event of stream) {
-          switch (event.type) {
-            case "content_block_start": {
-              const block = event.content_block;
-              if (block.type === "server_tool_use") {
-                blocks.set(event.index, { kind: "server", name: block.name, json: "" });
-                const input = block.input as Record<string, unknown> | undefined;
-                if (input && Object.keys(input).length) {
-                  announceServerTool(block.name, input);
-                  blocks.delete(event.index);
+          for await (const event of stream) {
+            switch (event.type) {
+              case "content_block_start": {
+                const block = event.content_block;
+                if (block.type === "server_tool_use") {
+                  blocks.set(event.index, { kind: "server", name: block.name, json: "" });
+                  const input = block.input as Record<string, unknown> | undefined;
+                  if (input && Object.keys(input).length) {
+                    announceServerTool(block.name, input);
+                    blocks.delete(event.index);
+                  }
+                } else if (block.type === "tool_use") {
+                  blocks.set(event.index, { kind: "client", name: block.name, json: "" });
+                  const tool = toolByName.get(block.name);
+                  if (tool?.terminal) emit({ type: "status", text: "Writing it up" });
+                } else if (block.type === "web_search_tool_result") {
+                  if (Array.isArray(block.content)) {
+                    const sources: Source[] = [];
+                    for (const r of block.content) {
+                      if (r.type === "web_search_result" && !seenSources.has(r.url)) {
+                        seenSources.add(r.url);
+                        sources.push({ title: r.title, url: r.url, host: hostOf(r.url) });
+                      }
+                    }
+                    if (sources.length) emit({ type: "sources", sources });
+                  }
+                } else if (block.type === "thinking") {
+                  thinkingBuffer = "";
                 }
-              } else if (block.type === "tool_use") {
-                blocks.set(event.index, { kind: "client", name: block.name, json: "" });
-                const tool = toolByName.get(block.name);
-                if (tool?.terminal) emit({ type: "status", text: "Writing it up" });
-              } else if (block.type === "web_search_tool_result") {
-                if (Array.isArray(block.content)) {
-                  const sources: Source[] = [];
-                  for (const r of block.content) {
-                    if (r.type === "web_search_result" && !seenSources.has(r.url)) {
-                      seenSources.add(r.url);
-                      sources.push({ title: r.title, url: r.url, host: hostOf(r.url) });
+                emittedAnything = true;
+                break;
+              }
+              case "content_block_delta": {
+                const delta = event.delta;
+                if (delta.type === "text_delta") {
+                  text += delta.text;
+                  emit({ type: "text", text: delta.text });
+                } else if (delta.type === "thinking_delta") {
+                  thinkingBuffer += delta.thinking;
+                  // Surface the latest complete sentence of the reasoning summary as a live status line.
+                  const line = latestLine(thinkingBuffer);
+                  if (line && line !== lastThinking) {
+                    lastThinking = line;
+                    emit({ type: "thinking", text: line });
+                  }
+                } else if (delta.type === "input_json_delta") {
+                  const b = blocks.get(event.index);
+                  if (b) {
+                    b.json += delta.partial_json;
+                    if (b.kind === "client" && toolByName.get(b.name)?.terminal) {
+                      emit({ type: "writing", chars: b.json.length });
                     }
                   }
-                  if (sources.length) emit({ type: "sources", sources });
                 }
-              } else if (block.type === "thinking") {
-                thinkingBuffer = "";
+                break;
               }
-              emittedAnything = true;
-              break;
-            }
-            case "content_block_delta": {
-              const delta = event.delta;
-              if (delta.type === "text_delta") {
-                text += delta.text;
-                emit({ type: "text", text: delta.text });
-              } else if (delta.type === "thinking_delta") {
-                thinkingBuffer += delta.thinking;
-                // Surface the latest complete sentence of the reasoning summary as a live status line.
-                const line = latestLine(thinkingBuffer);
-                if (line && line !== lastThinking) {
-                  lastThinking = line;
-                  emit({ type: "thinking", text: line });
-                }
-              } else if (delta.type === "input_json_delta") {
+              case "content_block_stop": {
                 const b = blocks.get(event.index);
-                if (b) {
-                  b.json += delta.partial_json;
-                  if (b.kind === "client" && toolByName.get(b.name)?.terminal) {
-                    emit({ type: "writing", chars: b.json.length });
+                if (b?.kind === "server") {
+                  try {
+                    announceServerTool(b.name, b.json ? JSON.parse(b.json) : {});
+                  } catch {
+                    announceServerTool(b.name, {});
                   }
                 }
+                blocks.delete(event.index);
+                break;
               }
-              break;
-            }
-            case "content_block_stop": {
-              const b = blocks.get(event.index);
-              if (b?.kind === "server") {
-                try {
-                  announceServerTool(b.name, b.json ? JSON.parse(b.json) : {});
-                } catch {
-                  announceServerTool(b.name, {});
-                }
-              }
-              blocks.delete(event.index);
-              break;
             }
           }
-        }
-        message = await stream.finalMessage();
-        jsonRetries = 0;
-      } catch (err) {
-        if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
-        // Retry without an optional feature only when the 400 is about that feature (never billing or size).
-        const fixable = err instanceof Anthropic.APIError && !emittedAnything ? droppableFeatures(err).filter((f) => !dropped.has(f)) : [];
-        if (fixable.length) {
-          const apiErr = err as InstanceType<typeof Anthropic.APIError>;
-          const message = apiErrorParts(apiErr).message || apiErr.message;
-          console.warn(`[agent] the API rejected ${fixable.join(" and ")}; retrying without (compat mode): ${message}`);
-          for (const f of fixable) {
-            dropped.add(f);
-            rejected.set(f, { at: new Date().toISOString(), message, key });
+          full = await stream.finalMessage();
+          jsonRetries = 0;
+        } catch (err) {
+          if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
+          // Retry without an optional feature only when the 400 is about that feature (never billing or size).
+          const fixable = err instanceof Anthropic.APIError && !emittedAnything ? droppableFeatures(err).filter((f) => !dropped.has(f)) : [];
+          if (fixable.length) {
+            const apiErr = err as InstanceType<typeof Anthropic.APIError>;
+            const message = apiErrorParts(apiErr).message || apiErr.message;
+            console.warn(`[agent] the API rejected ${fixable.join(" and ")}; retrying without (compat mode): ${message}`);
+            for (const f of fixable) {
+              dropped.add(f);
+              rejected.set(f, { at: new Date().toISOString(), message, key });
+            }
+            turn--;
+            continue;
           }
-          turn--;
-          continue;
+          // APIConnectionError (and its timeout subclass) extends APIError, so check it first.
+          if (err instanceof Anthropic.APIConnectionError) throw new AgentError("Couldn't reach Claude. Check your connection.", "network");
+          // An overload after the stream started arrives as an error event (no status, so the SDK's own
+          // retries never saw it): pause, drop what the attempt streamed, and re-issue the turn (twice at most).
+          if (err instanceof Anthropic.APIError && err.status === undefined && (err.type === "overloaded_error" || err.type === "api_error") && jsonRetries < 2) {
+            await sleep(STREAM_RETRY_MS * 2 ** jsonRetries++);
+            if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
+            text = text.slice(0, textStart);
+            emit({ type: "status", text: "Claude is busy. Retrying…" });
+            turn--;
+            continue;
+          }
+          if (err instanceof Anthropic.APIError) throw toAgentError(err, tier);
+          // SDK stream errors (unparseable tool JSON from eager input streaming, a mid-stream drop):
+          // re-issue the turn (capped) and drop the text the failed attempt streamed. Errors from our
+          // own code are not retried.
+          if (err instanceof Anthropic.AnthropicError && jsonRetries++ < 2) {
+            if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
+            text = text.slice(0, textStart);
+            console.warn("[agent] stream failed mid-turn, re-issuing the turn:", err.message);
+            turn--;
+            continue;
+          }
+          throw new AgentError(err instanceof Error ? err.message : "Something went wrong.", "unknown");
         }
-        // APIConnectionError (and its timeout subclass) extends APIError, so check it first.
-        if (err instanceof Anthropic.APIConnectionError) throw new AgentError("Couldn't reach Claude. Check your connection.", "network");
-        // An overload after the stream started arrives as an error event (no status, so the SDK's own
-        // retries never saw it): pause, drop what the attempt streamed, and re-issue the turn (twice at most).
-        if (err instanceof Anthropic.APIError && err.status === undefined && (err.type === "overloaded_error" || err.type === "api_error") && jsonRetries < 2) {
-          await sleep(STREAM_RETRY_MS * 2 ** jsonRetries++);
-          if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
-          text = text.slice(0, textStart);
-          emit({ type: "status", text: "Claude is busy. Retrying…" });
-          turn--;
-          continue;
-        }
-        if (err instanceof Anthropic.APIError) throw toAgentError(err, tier);
-        // SDK stream errors (unparseable tool JSON from eager input streaming, a mid-stream drop):
-        // re-issue the turn (capped) and drop the text the failed attempt streamed. Errors from our
-        // own code are not retried.
-        if (err instanceof Anthropic.AnthropicError && jsonRetries++ < 2) {
-          if (text.length > textStart) emit({ type: "text_reset", text: text.slice(answerStart, textStart) });
-          text = text.slice(0, textStart);
-          console.warn("[agent] stream failed mid-turn, re-issuing the turn:", err.message);
-          turn--;
-          continue;
-        }
-        throw new AgentError(err instanceof Error ? err.message : "Something went wrong.", "unknown");
+        message = full;
+        turnUsage = billedUsage(tier, full);
       }
 
       stopReason = message.stop_reason;
-      const turnUsage = billedUsage(tier, message);
       usage = addUsage(usage, turnUsage.usage);
       spent += turnUsage.costUsd;
 
@@ -513,7 +573,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
 
   const costUsd = spent;
   emit({ type: "usage", costUsd, model: tier });
-  return { result, text, messages, stopReason, usage, costUsd, compat: compatInfo() };
+  return { result, text, messages, stopReason, usage, costUsd, compat: compatInfo(), ...(unpriced ? { unpriced } : {}), ...(oa ? { modelName: model } : {}) };
 
   function compatInfo(): RunResult["compat"] {
     if (!dropped.size) return undefined;

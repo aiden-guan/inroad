@@ -1,10 +1,40 @@
 import "server-only";
 import path from "node:path";
+import type { ModelTier } from "@/lib/ai/models";
+import type { ProviderId } from "@/lib/ai/providers";
+import type { KeyStore } from "./ai-keys";
 import { readDataFile, writeDataFile } from "./data-file";
+
+/** Per-million-token prices for a model the app has no price table for (set by the founder, or read from OpenRouter). */
+export interface ModelPrice {
+  input: number;
+  output: number;
+  cacheRead?: number;
+}
+
+/**
+ * Which AI provider runs the work. Keys are never here: they live in the OS keychain or the encrypted
+ * key file (store/ai-keys.ts); `keys` only remembers that one is saved, where, and its last four characters.
+ */
+export interface AiSettings {
+  provider: ProviderId;
+  /** Custom endpoints and a non-default Ollama address. */
+  baseUrl?: string;
+  /** The model that runs everything (providers other than Anthropic). */
+  model?: string;
+  /** Per-task overrides of `model`. */
+  models?: Partial<Record<ModelTier, string>>;
+  /** The provider's chat models when the key was checked, for the picker and the quick-tier sibling. */
+  available?: string[];
+  prices?: Record<string, ModelPrice>;
+  keys?: Partial<Record<ProviderId, { hint: string; store: KeyStore; savedAt: string }>>;
+}
 
 /** Local-only settings. Lives next to the workspace data and never leaves this machine. */
 export interface Settings {
+  /** Before keys moved to the keychain. Read once, moved into the key store, then removed (client.ts). */
   anthropicApiKey?: string;
+  ai?: AiSettings;
   /**
    * Where free news signals come from. Google News RSS gives the best results but its feed terms
    * allow personal, non-commercial use only, so it is opt-in. GDELT is open but noisier.

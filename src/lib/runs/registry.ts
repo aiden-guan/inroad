@@ -177,6 +177,9 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
   let usage: Usage = emptyUsage();
   let costUsd = 0;
   let topTier: ModelTierName = "none";
+  // On providers other than Anthropic: the model behind topTier, and whether any run lacked a price.
+  let topModelName: string | undefined;
+  let unpriced = false;
   let sources = 0;
   let drafts = 0;
   let compat: RunReceipt["compat"];
@@ -227,6 +230,8 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
       usage = addUsage(usage, result.usage);
       costUsd += result.costUsd;
       noteCompat(result.compat);
+      if (result.modelName && tier === topTier) topModelName = result.modelName;
+      if (result.unpriced) unpriced = true;
       return result;
     },
   };
@@ -272,6 +277,8 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     cacheReadTokens: usage.cacheReadTokens,
     costUsd,
     model: topTier,
+    ...(topModelName ? { modelName: topModelName } : {}),
+    ...(unpriced ? { unpriced } : {}),
     ...(compat ? { compat } : {}),
   };
 

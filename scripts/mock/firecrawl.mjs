@@ -24,12 +24,31 @@ function json(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(body));
 }
 
+/** Web search (POST /v2/search), for AI providers without their own: three results built from the query. */
+async function search(req, res, DELAY) {
+  let raw = "";
+  for await (const chunk of req) raw += chunk;
+  const { query = "", limit = 8 } = JSON.parse(raw || "{}");
+  await sleep(DELAY);
+  const words = String(query).toLowerCase().match(/[a-z0-9]+/g) ?? ["acme"];
+  const name = words[0].replace(/^./, (c) => c.toUpperCase());
+  const slug = words[0];
+  const web = [
+    { url: `https://techcrunch.com/2026/09/12/${slug}-series-a`, title: `${name} raises $12M Series A to automate procurement`, description: `${name} said it will use the money to hire across finance and engineering.` },
+    { url: `https://jobs.ashbyhq.com/${slug}/123`, title: `${name} careers: Head of Finance Operations`, description: "Own month-end close and the systems behind it." },
+    { url: "https://www.forbes.com/sites/procurement-ai", title: "Why procurement teams are buying AI in 2026", description: "Finance leaders say manual reconciliation is the first thing to go." },
+  ].slice(0, limit);
+  fcCredits -= 2;
+  return json(res, 200, { success: true, data: { web }, creditsUsed: 2 });
+}
+
 export async function firecrawl(req, res, DELAY) {
   const key = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
   if (!key.startsWith("fc-")) return json(res, 401, { success: false, error: "Unauthorized: invalid token" });
   if (req.method === "GET" && req.url.startsWith("/v2/team/credit-usage")) {
     return json(res, 200, { success: true, data: { remainingCredits: fcCredits, planCredits: 5000, billingPeriodStart: null, billingPeriodEnd: null } });
   }
+  if (req.method === "POST" && req.url.startsWith("/v2/search")) return search(req, res, DELAY);
   if (req.method !== "POST" || !req.url.startsWith("/v2/scrape")) return json(res, 404, { success: false, error: "Not found" });
   let raw = "";
   for await (const chunk of req) raw += chunk;

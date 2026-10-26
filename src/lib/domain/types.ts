@@ -1366,6 +1366,10 @@ export interface RunReceipt {
   cacheReadTokens: number;
   costUsd: number;
   model: ModelTierName;
+  /** The model that did the work, on providers other than Anthropic (Anthropic's are named by `model`). */
+  modelName?: string;
+  /** No price was known for that model: costUsd is 0, not free. */
+  unpriced?: boolean;
   /**
    * Compatibility mode: the API rejected an optional feature (the refusal-fallback and thinking betas, or
    * strict tool schemas) and the run went without it. `reason` is what the API said.
@@ -1604,7 +1608,7 @@ export interface AskTurn {
   proposals?: AskProposal[];
   /** Workspace records the answer drew on: the receipt. */
   records?: { ref: EntityRef; label: string; domain?: string }[];
-  receipt?: { durationMs: number; sources: number; costUsd: number; model: ModelTierName };
+  receipt?: { durationMs: number; sources: number; costUsd: number; model: ModelTierName; modelName?: string; unpriced?: boolean };
   error?: { code: string; message: string };
   web?: boolean;
   deep?: boolean;
