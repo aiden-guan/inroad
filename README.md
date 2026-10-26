@@ -31,6 +31,10 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 **You do the selling.** Inroad never sends an email, posts a message, or modifies deal stages autonomously. Every outbound artifact is presented as a draft for founder review and one-click approval.
 
+**Studio writes the marketing.** Launch posts, homepage heroes, ads, image text, short-video scripts, Show HN and Product Hunt launches, store listings and comparison pages, for founders of any kind of company (B2B, consumer, prosumer, developer tools). It writes from the founder's own material, gives several options built on different moves from campaigns that worked (Wispr Flow, Ramp, Supabase, Linear), and checks every option in code for AI tells, unsourced numbers and platform limits before a blind reader ranks them. The research behind it is in [`docs/research/10-marketing-copy.md`](docs/research/10-marketing-copy.md).
+
+**Studio also makes the graphics.** For any option, Claude designs the graphic (LinkedIn and X images, 4:5 feed, square, 9:16 story, link previews, Product Hunt gallery) as SVG around the option's checked words. Code strips anything unsafe and checks every word against the approved copy, plus contrast, safe zones and type size, then renders the PNG on your machine. Claude looks at that render and fixes what fails. A design can sit over a real screenshot you upload, or over a photo or illustration painted by OpenAI's GPT Image if you add an OpenAI key in Settings. Without a key, Claude writes the prompt for you to paste into ChatGPT. Painted pictures never contain words, never stand in for your product's UI, and are labeled as AI imagery so you can disclose them where Meta and TikTok ask. The Claude API reads images but doesn't output them, which is why Claude designs in code.
+
 Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
 It runs on the AI provider you choose — Anthropic Claude (what it was built and tuned on), OpenAI, Google Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, a local Ollama model, or any OpenAI-compatible API — in a browser or as a [Mac app](#the-mac-app).
@@ -57,6 +61,10 @@ The sources, figures and their limits are in [`docs/research/10-consumer-gtm.md`
 | Deterministic Signal Radar | Multi-Agent Coordination Hub |
 | :--- | :--- |
 | **Free, Code-First Research Layer**<br/>Monitors job boards (Greenhouse, Lever, Ashby, Workable), tech stack indicators, news, and Hacker News via plain HTTP before any LLM inference occurs. | **Native Model Context Protocol (MCP)**<br/>Exposes workspace state, playbook positioning, and warm paths to external coding agents and tools via standard MCP tools and REST webhooks. |
+
+| Studio: Marketing Copy That Sounds Human | Copy Tools for Outside Agents |
+| :--- | :--- |
+| **Receipts, Moves, Lint, a Blind Reader**<br/>20 formats with real platform limits (each with its source and how it was verified). Every specific must trace to the founder's material or an approved claim. Deterministic lint for AI tells (Wikipedia's signs, Kobak et al. excess vocabulary, density scoring), "up to" vs "on average" drift and unproven superlatives. | **`get_copy_guide` and `check_copy`**<br/>Claude Code, Cursor or n8n get the same format specs, moves and receipts over MCP and REST, and lint their own drafts at zero token cost to Inroad. |
 
 | Event & Executive Dinner Planning | Sourced Deal Dossiers |
 | :--- | :--- |
@@ -365,7 +373,7 @@ npm run lint
 ```
 
 ### Test Suite Highlights
-- **Coverage**: 1,009 tests across 100 files (about 17 seconds in one measured run).
+- **Coverage**: 1,104 tests across 105 files (about 18 seconds in one measured run).
 - **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
 - **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
 - **Workflow Replays**: The main workflows (the first run with the discovery it starts, Find companies, research, drafts
@@ -545,9 +553,9 @@ real database; that isn't v1.
 |---|---|
 | `GTM_DATA_DIR` | The data folder (default `.data/` in this repository). |
 | `ANTHROPIC_API_KEY` | Your Anthropic key, if you'd rather not paste it in the app. A key saved in the app wins. |
-| `OPENAI_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` | Other providers' keys, the same way. |
+| `OPENAI_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` | Other providers' keys, the same way. `OPENAI_API_KEY` also paints Studio's image layers when no OpenAI key is saved under Settings → General. |
 | `INROAD_AI_PROVIDER`, `INROAD_AI_MODEL`, `INROAD_AI_BASE_URL`, `INROAD_AI_KEY` | Pick a provider without the app (servers, scripts): its id (`openai`, `gemini`, `xai`, `groq`, `openrouter`, `mistral`, `deepseek`, `together`, `ollama`, `custom`), the model, and for `custom` the base URL and key. The choice in Settings wins. |
-| `OPENAI_BASE_URL` | Send OpenAI calls somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
+| `OPENAI_BASE_URL` | Send OpenAI calls (chat and Studio images) somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
 | `INROAD_KEYCHAIN` | `off` keeps keys in the encrypted file instead of the system credential store. |
 | `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it isn't connected under Integrations. |
 | `PORT` | The port (default 3000; `-- -p` works too). |
@@ -574,7 +582,8 @@ inroad/
 │   │   ├── companies/           # Account dossiers, stage tracking, warm paths
 │   │   ├── events/              # Executive dinner and roundtable planning
 │   │   ├── intros/              # Relationship ledger and warm intro board
-│   │   └── playbook/            # Founder ICP, messaging bets, and objections
+│   │   ├── playbook/            # Founder ICP, messaging bets, and objections
+│   │   └── studio/              # Marketing and launch copy from the founder's material
 │   ├── components/              # React UI components organized by domain surface
 │   │   ├── today/               # Daily 5-move queue and scoreboard
 │   │   ├── shell/               # Navigation, command palette, and run feeds
@@ -589,7 +598,8 @@ inroad/
 │   │   ├── moves/               # Daily action generation and priority scoreboard
 │   │   ├── quality/             # Content safety gates, draft linters, sequences
 │   │   ├── signals/             # SSRF-guarded HTTP client, job board and news parsers
-│   │   └── store/               # Atomic local-first JSON database (FileDB), AI key storage
+│   │   ├── store/               # Atomic local-first JSON database (FileDB), AI key storage
+│   │   └── studio/              # Copy formats, moves, receipts, intake and marketing lint
 │   └── test/                    # Test fixtures, mock servers, and test setup
 ├── .env.example                 # Documented environment variable template
 ├── package.json                 # Dependency definitions and lifecycle scripts
@@ -602,9 +612,11 @@ inroad/
 ## Project Status & Limitations
 
 - **Maturity**: Functional MVP with complete local-first persistence, offline mock test environment, production Next.js 16 build, and a Mac app.
-- **Model Support**: Built and tuned on Anthropic Claude (Opus, Sonnet, Haiku 5.5). OpenAI, Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Ollama and any OpenAI-compatible API run the same workflows through Chat Completions; off Anthropic, web search needs a Firecrawl key and spend is counted only for models with a known price.
+- **Model Support**: Built and tuned on Anthropic Claude (Opus, Sonnet, Haiku 5.5). OpenAI, Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Ollama and any OpenAI-compatible API run the same workflows through Chat Completions; off Anthropic, web search needs a Firecrawl key and spend is counted only for models with a known price. Studio graphics can also paint an optional picture layer with OpenAI GPT Image, on a separate OpenAI key the founder saves under Settings → General.
+- **Studio graphics limits**: the image path through OpenAI was tested against a local mock of the Images API, not against OpenAI itself (the build environment couldn't reach api.openai.com). OpenAI may require organization verification before GPT Image models work. Graphics render with the fonts installed on your machine (the designs name Georgia, Inter or Helvetica, and Menlo, with fallbacks), so the same SVG can look slightly different on macOS, Windows and Linux.
 - **Single Fixed Workstation**: Data resides in the data folder on the local machine; cross-device multi-tenant cloud synchronization requires an external database adapter. See [What it can't do](#what-it-cant-do).
 - **Email Dispatch Boundary**: Inroad deliberately omits automated SMTP/IMAP senders. All outreach requires manual founder approval to prevent automated spam penalties.
+- **Studio research limits**: most campaign quotes and platform limits were read through search excerpts of the cited pages (direct fetches were blocked when the research ran), so each limit records how it was verified. B2B research beyond Ramp and the B2B effectiveness literature (95:5, Binet & Field) are not yet verified and are left out. No campaign line has controlled evidence linking it to conversion; Studio tells founders to test options against paid conversions.
 
 ---
 

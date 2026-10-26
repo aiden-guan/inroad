@@ -141,7 +141,7 @@ describe("tools", () => {
 
   it("lists only the tools a key's scopes allow, in a fixed order", async () => {
     // New tools are appended, never inserted, so callers' prompt caches over the earlier ones keep hitting.
-    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth"];
+    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth", "get_copy_guide", "check_copy", "check_graphic"];
     expect(await names(tokens.read)).toEqual(read);
     expect(await names(tokens.records)).toEqual([
       "get_icp",
@@ -158,6 +158,9 @@ describe("tools", () => {
       "get_growth",
       "log_growth_week",
       "add_partners",
+      "get_copy_guide",
+      "check_copy",
+      "check_graphic",
     ]);
     expect(await names(tokens.drafts)).toEqual([
       "get_icp",
@@ -175,6 +178,9 @@ describe("tools", () => {
       "get_growth",
       "log_growth_week",
       "add_partners",
+      "get_copy_guide",
+      "check_copy",
+      "check_graphic",
     ]);
   });
 
@@ -195,6 +201,47 @@ describe("tools", () => {
     expect(r.result?.isError).toBe(false);
     expect(r.result?.structuredContent).toEqual(expect.any(Object));
     expect(JSON.parse(r.result!.content![0].text)).toEqual(r.result?.structuredContent);
+  });
+
+  it("hands outside agents Studio's copy guide and lint", async () => {
+    const guide = (await call("get_copy_guide", { format: "product_hunt", occasion: "launch" })).result?.structuredContent as {
+      format: { parts: { key: string; limits: { max: number | null; kind: string; source: string | null }[] }[] };
+      moves: { id: string }[];
+      receipts: { id: string }[];
+    };
+    const tagline = guide.format.parts.find((p) => p.key === "tagline")!;
+    expect(tagline.limits[0]).toMatchObject({ max: 60, kind: "hard", source: expect.stringContaining("producthunt.com") });
+    expect(guide.moves.length).toBeGreaterThan(0);
+    expect(guide.receipts.length).toBeGreaterThan(0);
+
+    const bad = (await call("check_copy", { format: "product_hunt", parts: { tagline: "Unlock the power of seamless, effortless reconciliation", description: "x", first_comment: "Upvote us!" } })).result?.structuredContent as {
+      passed: boolean;
+      errors: { code: string }[];
+    };
+    expect(bad.passed).toBe(false);
+    expect(bad.errors.map((e) => e.code)).toEqual(expect.arrayContaining(["AI_TELL", "PLATFORM_RULE"]));
+
+    const good = (await call("check_copy", { format: "one_liner", parts: { line: "Close usage revenue in 6 hours instead of 4 days" } })).result?.structuredContent as { passed: boolean };
+    expect(good.passed).toBe(true); // "6 hours" is in an approved claim
+  });
+
+  it("hands outside agents the graphic sizes and rules, and checks their SVGs", async () => {
+    const guide = (await call("get_copy_guide", { format: "linkedin_post" })).result?.structuredContent as { visual: { sizes: { id: string; width: number }[]; image_prompt_rules: string[] } | null };
+    expect(guide.visual?.sizes[0]).toMatchObject({ id: "linkedin", width: 1200 });
+    expect(guide.visual?.image_prompt_rules.length).toBeGreaterThan(3);
+    const textOnly = (await call("get_copy_guide", { format: "show_hn" })).result?.structuredContent as { visual: unknown };
+    expect(textOnly.visual).toBeNull();
+
+    const line = "Close usage revenue in 6 hours instead of 4 days";
+    const svg = (extra = "") =>
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080"><rect width="1080" height="1080" fill="#F4F1EA"/><text x="80" y="400" font-size="56" fill="#14120F">${line}</text>${extra}<script>alert(1)</script></svg>`;
+    const checked = (await call("check_graphic", { format: "one_liner", preset: "square", svg: svg(), parts: { line } })).result?.structuredContent as { passed: boolean; removed: string[] };
+    expect(checked.passed).toBe(true);
+    expect(checked.removed).toContain("a script");
+    const invented = (await call("check_graphic", { format: "one_liner", preset: "square", svg: svg(`<text x="80" y="600" font-size="40" fill="#14120F">Loved by 2,000 teams</text>`), parts: { line } })).result
+      ?.structuredContent as { passed: boolean; errors: { code: string }[] };
+    expect(invented.passed).toBe(false);
+    expect(invented.errors.map((e) => e.code)).toContain("TEXT_NOT_APPROVED");
   });
 
   it("reports scope, input and lookup failures as tool results the model can read", async () => {

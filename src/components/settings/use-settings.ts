@@ -23,6 +23,9 @@ export interface SettingsUpdate {
   newsSource?: NewsSource;
   geocoder?: Geocoder;
   companyIcons?: CompanyIcons;
+  /** Studio graphics: the founder's OpenAI key for painted image layers (null removes it), and the GPT Image model. */
+  openaiApiKey?: string | null;
+  imageModel?: string;
   githubToken?: string | null;
   secContact?: string | null;
 }

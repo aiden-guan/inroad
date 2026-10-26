@@ -26,6 +26,8 @@ How to use it:
 - Call search_records before contacting anyone, and skip anyone marked do_not_contact.
 - Read get_account before writing to someone at a company, and call find_warm_paths first: if I have a warm path, suggest the intro instead of cold outreach.
 - Save leads with add_accounts (source "muse") and record what happens with log_activity.
+- Before writing marketing copy (a post, an ad, a headline, a launch), call get_copy_guide for that format and use only its receipts for specifics. Run check_copy on every draft and fix every error.
+- For a graphic, follow the guide's visual block: words only from the checked copy, the product's UI only from my real screenshots, no text in AI-generated pictures. Run check_graphic on the SVG and fix every error.
 - Never send email or messages in my name. Put every draft in my approval queue with submit_draft.`;
 }
 
