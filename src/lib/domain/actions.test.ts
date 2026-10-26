@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { computeMoves, mergeMoves } from "@/lib/moves/rules";
 import { sampleWorkspace } from "@/lib/sample";
 import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids";
+import { MATERIAL, PIECE } from "@/lib/sample/studio";
 import { NOW, TODAY, at, makeMove, makeStep, makeWorkspace } from "@/test/factories";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
@@ -176,6 +177,46 @@ const cases: Record<Action["type"], () => void> = {
   "asset.remove": () => {
     const s = apply(ws(), { type: "asset.remove", id: sample.assets[0].id });
     expect(s.assets).toHaveLength(sample.assets.length - 1);
+  },
+
+  "studio.profile.update": () => {
+    const s = apply(ws(), { type: "studio.profile.update", patch: { audience: "prosumer" } });
+    expect(s.studio.profile).toMatchObject({ audience: "prosumer", productName: "Ledgerline" });
+    // No profile yet: defaults come from the company, then the patch.
+    const fresh = apply(makeWorkspace({ company: sample.company }), { type: "studio.profile.update", patch: { reader: "a controller" } });
+    expect(fresh.studio.profile).toEqual({ audience: "b2b", reader: "a controller", productName: sample.company!.name, neverSay: [] });
+  },
+
+  "studio.material.upsert": () => {
+    const s = apply(ws(), { type: "studio.material.upsert", material: { id: "mat_new", kind: "number", text: "Closes in 6 hours", source: "Design partner, Sept 2026", createdAt: at(0), uses: 0 } });
+    expect(s.studio.material.at(-1)?.id).toBe("mat_new");
+    expect(s.studio.material).toHaveLength(sample.studio.material.length + 1);
+  },
+
+  "studio.material.remove": () => {
+    const s = apply(ws(), { type: "studio.material.remove", id: MATERIAL.demo });
+    expect(s.studio.material.some((m) => m.id === MATERIAL.demo)).toBe(false);
+  },
+
+  "studio.option.edit": () => {
+    const option = sample.studio.pieces[PIECE.hero].options[0];
+    const s = apply(ws(), { type: "studio.option.edit", pieceId: PIECE.hero, optionId: option.id, parts: { headline: "Unlock the power of seamless closes" } });
+    const edited = s.studio.pieces[PIECE.hero].options[0];
+    expect(edited).toMatchObject({ edited: true, parts: { headline: "Unlock the power of seamless closes", subhead: option.parts.subhead } });
+    // Lint follows the edit, so "Ready" can't go stale.
+    expect(option.lint.passed).toBe(true);
+    expect(edited.lint.passed).toBe(false);
+  },
+
+  "studio.option.keep": () => {
+    const option = sample.studio.pieces[PIECE.hero].options[1];
+    const s = apply(ws(), { type: "studio.option.keep", pieceId: PIECE.hero, optionId: option.id, kept: true });
+    expect(s.studio.pieces[PIECE.hero].options[1].kept).toBe(true);
+  },
+
+  "studio.piece.remove": () => {
+    const s = apply(ws(), { type: "studio.piece.remove", id: PIECE.hero });
+    expect(s.studio.pieces[PIECE.hero]).toBeUndefined();
   },
 
   "connector.upsert": () => {
@@ -695,6 +736,7 @@ describe("hrefFor", () => {
     expect(hrefFor({ kind: "meeting", id: "mtg_missing" }, s)).toBeUndefined();
     expect(hrefFor({ kind: "event", id: EVENT.dinner })).toBe(`/events/${EVENT.dinner}`);
     expect(hrefFor({ kind: "playbook", id: "fq_soc2" })).toBe("/playbook#fq_soc2");
+    expect(hrefFor({ kind: "studio", id: PIECE.hero })).toBe(`/studio?piece=${PIECE.hero}`);
     expect(hrefFor({ kind: "claim", id: "clm_1" })).toBeUndefined();
   });
 });

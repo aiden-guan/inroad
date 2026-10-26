@@ -19,6 +19,7 @@ export function emptyWorkspace(): Workspace {
     objections: [],
     povs: [],
     assets: [],
+    studio: { profile: null, material: [], pieces: {} },
     voice: null,
     sender: null,
     goal: {
@@ -58,6 +59,7 @@ function migrate(raw: unknown): Workspace {
   const ws = { ...base, ...(raw as Partial<Workspace>) } as Workspace;
   ws.goal = { ...base.goal, ...ws.goal };
   ws.caps = { ...base.caps, ...ws.caps };
+  ws.studio = { ...base.studio, ...ws.studio };
   return ws;
 }
 
