@@ -1,20 +1,23 @@
 import path from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
 import { connection } from "next/server";
 import { z } from "zod";
 import type { SettingsStatus } from "@/components/settings/types";
+import { activeProvider } from "@/lib/ai/client";
+import { PROVIDERS, type ProviderId } from "@/lib/ai/providers";
+import { aiStatus, removeAiKey, saveAiSetup } from "@/lib/ai/setup";
 import { checkGithubToken } from "@/lib/signals/github";
 import { errorResponse, readJSON } from "@/lib/server/http";
 import { DATA_DIR, dataDirInsideApp, readSettings, writeSettings } from "@/lib/store/settings";
 
 function status(): SettingsStatus {
   const settings = readSettings();
-  const saved = settings.anthropicApiKey;
-  const env = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE;
+  const active = activeProvider();
+  const ai = aiStatus();
   return {
-    hasKey: Boolean(saved || env),
-    keySource: saved ? "settings" : env ? "env" : null,
-    keyHint: saved ? `…${saved.slice(-4)}` : null,
+    hasKey: active !== null,
+    keySource: !active ? null : active.keySource === "saved" ? "settings" : "env",
+    keyHint: active ? (ai.saved[active.id]?.hint ?? null) : null,
+    ai,
     newsSource: settings.newsSource ?? "gdelt",
     geocoder: settings.geocoder ?? "osm",
     companyIcons: settings.companyIcons ?? "letters",
@@ -30,9 +33,27 @@ export async function GET() {
   return Response.json(status(), { headers: { "Cache-Control": "no-store" } });
 }
 
+const PROVIDER_IDS = PROVIDERS.map((p) => p.id) as [ProviderId, ...ProviderId[]];
+const Price = z.object({ input: z.number().min(0).max(10_000), output: z.number().min(0).max(10_000), cacheRead: z.number().min(0).max(10_000).optional() });
+const Model = z.string().trim().min(1).max(200);
+
 const Body = z.object({
-  /** A new key to validate and save; null or "" removes the saved key (an env key still applies). */
+  /** Earlier clients: an Anthropic key to validate and save; null or "" removes it (an env key still applies). */
   anthropicApiKey: z.string().max(400).nullable().optional(),
+  /** Pick a provider, and with it a key to check and save, its address (custom, Ollama), models and prices. */
+  ai: z
+    .object({
+      provider: z.enum(PROVIDER_IDS),
+      key: z.string().max(500).optional(),
+      baseUrl: z.string().max(300).optional(),
+      model: Model.optional(),
+      models: z.object({ strategist: Model.nullable(), operator: Model.nullable(), fast: Model.nullable() }).partial().optional(),
+      prices: z.record(Model, Price.nullable()).optional(),
+      refresh: z.boolean().optional(),
+    })
+    .optional(),
+  /** Forget a provider's saved key. */
+  removeKey: z.enum(PROVIDER_IDS).optional(),
   newsSource: z.enum(["gdelt", "google_news", "off"]).optional(),
   geocoder: z.enum(["osm", "off"]).optional(),
   companyIcons: z.enum(["letters", "site"]).optional(),
@@ -42,7 +63,7 @@ const Body = z.object({
   secContact: z.string().max(254).nullable().optional(),
 });
 
-/** Saves local-only settings. The API key gets a cheap validity check with Anthropic first. */
+/** Saves local-only settings. A provider key is checked with the provider (it lists the models it can use) before it's kept. */
 export async function POST(request: Request) {
   try {
     const body = Body.parse(await readJSON(request));
@@ -69,22 +90,15 @@ export async function POST(request: Request) {
       writeSettings({ secContact: contact });
     }
 
-    if (body.anthropicApiKey === null || body.anthropicApiKey === "") {
-      writeSettings({ anthropicApiKey: undefined });
-    } else if (body.anthropicApiKey !== undefined) {
-      const key = body.anthropicApiKey.trim();
-      if (!key.startsWith("sk-ant-")) {
-        return Response.json({ error: "That doesn't look like an Anthropic API key. It starts with sk-ant-." }, { status: 400 });
-      }
-      try {
-        await new Anthropic({ apiKey: key, maxRetries: 1, timeout: 10_000 }).models.list({ limit: 1 });
-      } catch (err) {
-        if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
-          return Response.json({ error: "Anthropic rejected that key. Check it and try again." }, { status: 400 });
-        }
-        // Network hiccups shouldn't block saving a plausible key.
-      }
-      writeSettings({ anthropicApiKey: key });
+    if (body.removeKey) removeAiKey(body.removeKey);
+    if (body.anthropicApiKey === null || body.anthropicApiKey === "") removeAiKey("anthropic");
+    else if (body.anthropicApiKey !== undefined) {
+      const r = await saveAiSetup({ provider: "anthropic", key: body.anthropicApiKey });
+      if (!r.ok) return Response.json({ error: r.error }, { status: 400 });
+    }
+    if (body.ai) {
+      const r = await saveAiSetup(body.ai);
+      if (!r.ok) return Response.json({ error: r.error }, { status: 400 });
     }
 
     return Response.json(status());
