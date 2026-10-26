@@ -39,6 +39,10 @@ const SIGNAL_LABEL: Record<SignalType, string> = {
   filing: "Filing",
   hiring: "Hiring",
   sensitive: "Sensitive",
+  life_event: "Life event",
+  seasonal: "Seasonal moment",
+  trend: "Trend",
+  competitor_gap: "Alternative let users down",
 };
 
 const MOVE_COPY: Record<Dossier["recommendation"]["move"], string> = {

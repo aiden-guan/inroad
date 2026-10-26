@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Consumer mode** for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. Inroad reads the market from the founder's site, and the founder can change it in onboarding or Settings.
+- A consumer playbook with an audience bet, segments, hooks and a growth model (north star, first win, retention bar, loop, first 100 users). It adds model-specific channel plans with at most three active channels and paid last, plus consumer pricing structures.
+- A weekly growth log and code-computed verdicts: week-4 retention against category bars, activation, quick ratio, CAC, payback, referral share and the 40% survey. Inroad tells you to hold paid spend until retention clears the bar.
+- **Creators** (`/partners`): a sourced creator and community list, one note and one follow-up, offers, briefs, `#ad` checks and per-partner results.
+- Experiments ranked by ICE and sized with Lehr's rule, plus a Monday growth review.
+- Consumer marketing checks in the draft linter: FTC disclosure, 16 CFR 465 reviews, app-store rating rules, health, earnings and environmental claims, "free" terms and false urgency.
+- MCP and REST tools `get_growth`, `log_growth_week` and `add_partners`.
+- Research notes: `docs/research/10-consumer-gtm.md`.
+
+---
+
 ## [v0.1.0] — 2026-10-22
 
 ### Summary

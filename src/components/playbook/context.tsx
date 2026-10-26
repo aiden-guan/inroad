@@ -11,6 +11,8 @@ export interface AssetRunArgs {
   title?: string;
   brief?: string;
   dealId?: string;
+  /** creator_brief: the creator it's for. */
+  partnerId?: string;
   assetId: string;
   /** Founder content: a debriefed call or an insight memo to start from. */
   meetingId?: string;
@@ -21,6 +23,7 @@ export interface AssetRunArgs {
 export interface ComposerState {
   kind: AssetKind;
   dealId?: string;
+  partnerId?: string;
   brief?: string;
 }
 

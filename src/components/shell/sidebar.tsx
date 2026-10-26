@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Building2, CalendarHeart, Command, Handshake, Moon, NotebookPen, Plug, Settings, Sun, Sunrise } from "lucide-react";
+import { Building2, CalendarHeart, Command, Handshake, Megaphone, Moon, NotebookPen, Plug, Settings, Sun, Sunrise } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
@@ -17,6 +17,7 @@ import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { usd } from "@/lib/client/format";
 import { monthKey } from "@/lib/domain/ids";
+import type { Workspace } from "@/lib/domain/types";
 import { goalLine } from "@/lib/moves/nav-counts";
 import { spring } from "@/lib/motion";
 import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
@@ -24,11 +25,18 @@ import { SampleBanner } from "./sample-banner";
 
 const NAV = [
   { href: "/today", label: "Today", icon: Sunrise, key: "T" },
+  { href: "/partners", label: "Creators", icon: Megaphone, key: "R" },
   { href: "/companies", label: "Companies", icon: Building2, key: "C" },
   { href: "/intros", label: "Intros", icon: Handshake, key: "N" },
   { href: "/events", label: "Events", icon: CalendarHeart, key: "E" },
   { href: "/playbook", label: "Playbook", icon: NotebookPen, key: "P" },
 ] as const;
+
+/** Creators and communities show for consumer companies (or once anyone is on the list). */
+export function navFor(ws: Workspace | null | undefined) {
+  const consumer = ws?.company?.market === "consumer" || Object.keys(ws?.partners ?? {}).length > 0;
+  return NAV.filter((n) => n.href !== "/partners" || consumer);
+}
 
 const SECONDARY = [
   { href: "/integrations", label: "Integrations", icon: Plug, key: "I" },
@@ -143,7 +151,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-0.5 px-2">
-        {NAV.map((item) => (
+        {navFor(ws).map((item) => (
           <NavLink
             key={item.href}
             href={item.href}

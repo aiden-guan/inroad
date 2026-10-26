@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
+import { isConsumer } from "@/lib/consumer/market";
 import type { Action } from "@/lib/domain/actions";
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Brief, Move, MoveKind, SkipReason, Workspace } from "@/lib/domain/types";
@@ -316,10 +317,12 @@ export function Today({ ws }: { ws: Workspace }) {
     </ul>
   );
 
-  const dayOne = Object.keys(ws.accounts).length === 0;
+  const consumer = isConsumer(ws);
+  // A consumer Today starts from its own moves (numbers, user conversations, creators), not from finding companies.
+  const dayOne = !consumer && Object.keys(ws.accounts).length === 0;
   const worth = Object.values(ws.accounts).filter((a) => a.status !== "disqualified" && a.signals.some((s) => s.strength >= 2 && daysSince(s.date, today) <= 14)).length;
   const weekReviews = Object.values(ws.briefs)
-    .filter((b) => b.review && (b.reviewKind === "monday" || b.reviewKind === "friday") && b.date >= weekStart && !visible.some((m) => m.id === `mv_review_${b.reviewKind}_${weekStart}`))
+    .filter((b) => b.review && (b.reviewKind === "monday" || b.reviewKind === "friday" || b.reviewKind === "growth") && b.date >= weekStart && !visible.some((m) => m.id === `mv_review_${b.reviewKind}_${weekStart}`))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
@@ -344,7 +347,7 @@ export function Today({ ws }: { ws: Workspace }) {
         <section className="mt-10" aria-label="Your moves">
           {dayOne && <DayOne warm={!!ws.network} networkCard={visible.some((m) => m.rule === "today.network")} />}
           {visible.length === 0 ? (
-            !dayOne && <CaughtUp worth={worth} />
+            !dayOne && (consumer ? <CaughtUpConsumer /> : <CaughtUp worth={worth} />)
           ) : (
             <div className={cn(dayOne && "mt-6")}>
               <SectionLabel right={<span className="font-mono text-[11.5px] tnum text-fg-3">about {minutes} min</span>}>{movesHeading({ dayOne, discovering })}</SectionLabel>
@@ -377,7 +380,7 @@ export function Today({ ws }: { ws: Workspace }) {
           </section>
         )}
 
-        {weekReviews[0] && <WeekCard ws={ws} review={weekReviews[0]} kind={weekReviews[0].reviewKind === "monday" ? "monday" : "friday"} />}
+        {weekReviews[0] && <WeekCard ws={ws} review={weekReviews[0]} kind={weekReviews[0].reviewKind === "monday" || weekReviews[0].reviewKind === "growth" ? weekReviews[0].reviewKind : "friday"} />}
 
         {visible.length > 0 && (
           <Keys
@@ -399,7 +402,7 @@ export function Today({ ws }: { ws: Workspace }) {
 }
 
 /** A quiet card for this week's review once it has run (the review move itself is gone). */
-function WeekCard({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "monday" | "friday" }) {
+function WeekCard({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "monday" | "friday" | "growth" }) {
   const [open, setOpen] = useState(false);
   const headline = (review.review ?? "").split("\n").find((l) => l.trim() && !l.startsWith("#")) ?? "";
   const open_ = (review.proposals ?? []).filter((p) => p.status === "open").length;
@@ -411,7 +414,7 @@ function WeekCard({ ws, review, kind }: { ws: Workspace; review: Brief; kind: "m
           <ChevronRight className={cn("mt-1 size-3.5 shrink-0 text-fg-3 transition-transform duration-150", open && "rotate-90")} />
           <span className="min-w-0 flex-1">
             <span className="block text-[13.5px] font-medium text-fg">
-              {kind === "monday" ? "Pipeline review" : "Learning review"}
+              {kind === "monday" ? "Pipeline review" : kind === "growth" ? "Growth review" : "Learning review"}
               {open_ > 0 && <span className="font-normal text-fg-3"> · {plural(open_, "proposal")} to decide</span>}
             </span>
             {headline && <span className="mt-0.5 block font-serif text-[15px] leading-[23px] text-fg-2">{headline}</span>}
@@ -464,6 +467,16 @@ function CaughtUp({ worth }: { worth: number }) {
       title="Nothing needs you right now"
       body={worth ? `${plural(worth, "company", "companies")} had a fresh signal this fortnight. Worth a look when you have time.` : "No replies, meetings or follow-ups are waiting. A good time to add a few companies to talk to."}
       action={<RunInline workflow="discovery" args={{ source: "manual" }} label="Find more companies" variant="secondary" />}
+    />
+  );
+}
+
+function CaughtUpConsumer() {
+  return (
+    <EmptyState
+      title="Nothing needs you right now"
+      body="No replies, numbers or follow-ups are waiting. A good time to talk to a user or add a few creators and communities where your users already gather."
+      action={<RunInline workflow="partners" args={{ mode: "find", count: 8, source: "founder" }} runRef={{ kind: "playbook", id: "partners" }} label="Find creators and communities" variant="secondary" />}
     />
   );
 }

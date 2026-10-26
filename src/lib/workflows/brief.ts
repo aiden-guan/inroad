@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { AgentError, defineTool } from "@/lib/ai/engine";
-import { EMBER_CORE, taskHeader } from "@/lib/ai/prompts/core";
+import { coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { todayISO } from "@/lib/domain/ids";
 import type { Brief } from "@/lib/domain/types";
 import { briefData, emitHubEvent } from "@/lib/hub";
@@ -130,7 +130,7 @@ async function writeBrief(ctx: WorkflowContext<BriefArgs>) {
       tier: "fast",
       effort: "low",
       maxTokens: 4000,
-      system: [EMBER_CORE, RULES],
+      system: [coreFor(ctx.read()), RULES],
       messages: [{ role: "user", content: message }],
       tools: [submitBrief],
       requireTerminal: true,

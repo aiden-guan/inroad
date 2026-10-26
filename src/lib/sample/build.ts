@@ -127,6 +127,10 @@ const WINDOW: Record<SignalType, number> = {
   filing: 90,
   hiring: 30,
   sensitive: 0,
+  life_event: 60,
+  seasonal: 45,
+  trend: 30,
+  competitor_gap: 60,
 };
 
 function decay(signal: Signal, today: ISODate): number {
