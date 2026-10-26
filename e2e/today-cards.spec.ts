@@ -16,6 +16,17 @@ const daysAgo = (n: number, hour = 15) => {
   return d.toISOString();
 };
 
+/** `n` weekdays back at `hour`: the booking nudge is due 2 business days after the founder's answer, whatever today is. */
+const businessDaysAgo = (n: number, hour = 15) => {
+  const d = new Date();
+  d.setHours(hour, 0, 0, 0);
+  for (let left = n; left > 0; ) {
+    d.setDate(d.getDate() - 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) left--;
+  }
+  return d.toISOString();
+};
+
 async function workspace(request: APIRequestContext): Promise<Json> {
   const body = (await (await request.get("/api/workspace")).json()) as Json;
   return (body.workspace ?? body) as Json;
@@ -25,9 +36,12 @@ async function workspace(request: APIRequestContext): Promise<Json> {
 async function seed(request: APIRequestContext) {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);
+  const replyAt = businessDaysAgo(4);
+  // The sample's own later touches to Mei would count as nudges and move the booking card's due date.
+  ws.activities = ws.activities.filter((a: Json) => !(a.personId === "per_mei_tanaka" && a.at > replyAt));
   ws.activities.push(
-    { id: "act_e2e_mei_reply", at: daysAgo(5), kind: "reply_received", personId: "per_mei_tanaka", accountDomain: "driftglass.example", channel: "email", sentiment: "positive", summary: "Mei: yes, keen to talk", body: "Thanks, this is timely. Yes, happy to talk next week." },
-    { id: "act_e2e_mei_answer", at: daysAgo(4), kind: "touch_sent", personId: "per_mei_tanaka", accountDomain: "driftglass.example", channel: "email", source: "founder", summary: "Answered Mei with times", body: "Great. Does Tue 2pm or Wed 11am work?" },
+    { id: "act_e2e_mei_reply", at: replyAt, kind: "reply_received", personId: "per_mei_tanaka", accountDomain: "driftglass.example", channel: "email", sentiment: "positive", summary: "Mei: yes, keen to talk", body: "Thanks, this is timely. Yes, happy to talk next week." },
+    { id: "act_e2e_mei_answer", at: businessDaysAgo(3), kind: "touch_sent", personId: "per_mei_tanaka", accountDomain: "driftglass.example", channel: "email", source: "founder", summary: "Answered Mei with times", body: "Great. Does Tue 2pm or Wed 11am work?" },
   );
   const m = ws.meetings.mtg_saltmarsh_discovery;
   m.debrief = { ...m.debrief, generatedAt: daysAgo(2), referralPeople: [{ name: "Hana Ito", company: "Kestrel Compute", quote: "Hana's team closes the month by hand too, ask her." }, { name: "Victor Osei" }] };
@@ -90,8 +104,8 @@ test("a booking card has no bare Done, and A marks the nudge as sent", async ({ 
   await expect(body.getByRole("button", { name: "Mark as sent" })).toBeVisible();
   // Its own ways to end it, and Skip / Tomorrow; no Done that would drop Mei without logging anything.
   await expect(body.getByRole("button", { name: /^Done/ })).toHaveCount(0);
-  // The why line already says when the founder answered; the body doesn't repeat it.
-  await expect(body.getByText(/^You answered/)).toHaveCount(0);
+  // The why line says when the founder answered; the body doesn't repeat it.
+  await expect(body.getByText(/^You answered/)).toHaveCount(1);
 
   const before = await touchesTo(request, "per_mei_tanaka");
   await header.focus();
@@ -231,10 +245,13 @@ test("research that ran out of credits says so after a reload, with Add credits 
 test("with reduced motion, holding to close as lost says to keep holding", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const ws = await workspace(request);
-  // Leo at Saltmarsh (an open deal) said yes after the call, and the founder answered with times.
+  // Leo at Saltmarsh (an open deal) said yes after the call, and the founder answered with times. Both just
+  // after the sample's last Saltmarsh activity (about five days back, so the nudge is due on any day of the week).
+  const last = Date.parse(ws.activities.filter((a: Json) => a.accountDomain === "saltmarsh.example").map((a: Json) => a.at as string).sort().at(-1));
+  const after = (minutes: number) => new Date(last + minutes * 60_000).toISOString();
   ws.activities.push(
-    { id: "act_e2e_leo_reply", at: daysAgo(5), kind: "reply_received", personId: "per_leo_marchetti", accountDomain: "saltmarsh.example", channel: "email", sentiment: "positive", summary: "Leo: yes", body: "This is relevant. Let's find a time." },
-    { id: "act_e2e_leo_answer", at: daysAgo(4), kind: "touch_sent", personId: "per_leo_marchetti", accountDomain: "saltmarsh.example", channel: "email", source: "founder", summary: "Answered Leo with times", body: "Tue 2pm or Wed 11am?" },
+    { id: "act_e2e_leo_reply", at: after(60), kind: "reply_received", personId: "per_leo_marchetti", accountDomain: "saltmarsh.example", channel: "email", sentiment: "positive", summary: "Leo: yes", body: "This is relevant. Let's find a time." },
+    { id: "act_e2e_leo_answer", at: after(120), kind: "touch_sent", personId: "per_leo_marchetti", accountDomain: "saltmarsh.example", channel: "email", source: "founder", summary: "Answered Leo with times", body: "Tue 2pm or Wed 11am?" },
   );
   expect((await request.post("/api/workspace/restore", { data: ws })).ok()).toBe(true);
   expect((await request.post("/api/today/prepare", { data: { reason: "refresh" } })).ok()).toBe(true);
