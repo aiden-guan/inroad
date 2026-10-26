@@ -12,9 +12,9 @@ import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { CommandPalette } from "./command-palette";
 import { ShortcutsDialog } from "./shortcuts";
-import { NAV, SECONDARY, Sidebar } from "./sidebar";
+import { SECONDARY, Sidebar, navFor } from "./sidebar";
 
-const GO: Record<string, string> = { t: "/today", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
+const GO: Record<string, string> = { t: "/today", r: "/partners", c: "/companies", n: "/intros", e: "/events", p: "/playbook", i: "/integrations", s: "/settings" };
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -47,9 +47,10 @@ function useGoKeys() {
 /** Reads the pathname, so it renders under Suspense (dynamic routes can't resolve it while prerendering). */
 function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
+  const { ws } = useWorkspace();
   return (
     <nav className="sticky top-12 z-40 grid grid-cols-2 gap-1 border-b border-border bg-bg p-2 md:hidden">
-      {[...NAV, ...SECONDARY].map((n) => (
+      {[...navFor(ws), ...SECONDARY].map((n) => (
         <Link
           key={n.href}
           href={n.href}

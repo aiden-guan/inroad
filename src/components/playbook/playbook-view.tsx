@@ -27,7 +27,8 @@ function hashAsset(): string | null {
 /**
  * Playbook: what the agent believes about the business, editable in place.
  * URL: `#who|why|how|voice|journal` (or any subsection id), `?asset=<id>` opens an asset,
- * `?new=<kind>&deal=<dealId>` opens the new-asset panel (e.g. a pilot proposal from a debrief).
+ * `?new=<kind>&deal=<dealId>` opens the new-asset panel (e.g. a pilot proposal from a debrief);
+ * `?new=creator_brief&partner=<id>` opens it for one creator.
  */
 export function PlaybookView() {
   const { ws, loading, error, dispatch, refresh } = useWorkspace();
@@ -39,7 +40,7 @@ export function PlaybookView() {
   const [openAsset, setOpenAsset] = useState<string | null>(() => params.get("asset") ?? hashAsset());
   const [composer, setComposer] = useState<PlaybookContextValue["composer"]>(() => {
     const kind = params.get("new");
-    return isKind(kind) ? { kind, dealId: params.get("deal") ?? undefined } : null;
+    return isKind(kind) ? { kind, dealId: params.get("deal") ?? undefined, partnerId: params.get("partner") ?? undefined } : null;
   });
 
   // Arriving from a link: bring the target into view once, as soon as the document exists.

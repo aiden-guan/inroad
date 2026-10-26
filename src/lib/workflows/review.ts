@@ -1,11 +1,12 @@
 import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { addDays, newId, todayISO, weekOf } from "@/lib/domain/ids";
-import { STAGE_LABELS, type LossReason, type ReviewProposal, type Workspace } from "@/lib/domain/types";
+import { STAGE_LABELS, type LossReason, type ReviewKind, type ReviewProposal, type Workspace } from "@/lib/domain/types";
 import { learningData, pct, pipelineData, type DealFact, type LearningData, type PipelineData } from "@/lib/moves/review-data";
 import { clip, first, plural, shortDay } from "@/lib/moves/util";
+import { growthData, growthPrompt, growthProposals, growthSummary, growthSystem, renderGrowth, submitGrowth } from "./growth-review";
 import { defineWorkflow } from "./types";
 
 /**
@@ -370,7 +371,7 @@ function learningProposals(ws: Workspace, data: LearningData, out: LearningOut |
  * Each review gets its own record, one per kind per week, so a Monday and a Friday review run on the same day don't
  * overwrite each other. Running it again keeps what the founder already decided (an applied bet stays the active bet).
  */
-function save(ws: Workspace, today: string, kind: "monday" | "friday", review: string, proposals: ReviewProposal[], runId: string, now: Date) {
+function save(ws: Workspace, today: string, kind: ReviewKind, review: string, proposals: ReviewProposal[], runId: string, now: Date) {
   const key = `${weekOf(today)}:${kind}`;
   const decided = (ws.briefs[key]?.proposals ?? []).filter((p) => p.status !== "open");
   const merged = [
@@ -386,8 +387,8 @@ function save(ws: Workspace, today: string, kind: "monday" | "friday", review: s
 
 export default defineWorkflow({
   id: "review",
-  args: z.object({ kind: z.enum(["monday", "friday"]) }),
-  title: (a) => (a.kind === "monday" ? "Monday pipeline review" : "Friday learning review"),
+  args: z.object({ kind: z.enum(["monday", "friday", "growth"]) }),
+  title: (a) => (a.kind === "monday" ? "Monday pipeline review" : a.kind === "growth" ? "Monday growth review" : "Friday learning review"),
   // One ref per kind, so the Monday and Friday cards each follow only their own run.
   ref: (a) => ({ kind: "playbook", id: `review:${a.kind}` }),
   heavy: false,
@@ -395,6 +396,31 @@ export default defineWorkflow({
     const now = new Date();
     const today = todayISO(now);
     const ws = ctx.read();
+
+    if (ctx.args.kind === "growth") {
+      ctx.emit({ type: "status", text: "Reading last week's numbers" });
+      const data = growthData(ws, today);
+      ctx.emit({ type: "action", text: growthSummary(data) });
+      let out: Parameters<typeof renderGrowth>[1];
+      // With nothing logged and no partners or conversations, code writes the review; no model call.
+      if (data.numbers.length || data.partners.length || data.talksThisWeek) {
+        ctx.emit({ type: "status", text: "Finding the leakiest stage" });
+        const res = await ctx.agent<NonNullable<typeof out>>({
+          tier: "operator",
+          effort: "medium",
+          maxTokens: 8000,
+          system: growthSystem(ws),
+          messages: [{ role: "user", content: growthPrompt(today, data) }],
+          tools: [submitGrowth],
+          requireTerminal: true,
+        });
+        out = res.result;
+      }
+      const review = renderGrowth(data, out, data.read.latest?.signups ?? 0);
+      const proposals = growthProposals(out);
+      await ctx.mutate((draft) => save(draft, today, "growth", review, proposals, ctx.runId, now));
+      return { kind: "growth", proposals: proposals.length, weeks: data.read.weeks.length };
+    }
 
     if (ctx.args.kind === "monday") {
       ctx.emit({ type: "status", text: "Scoring every open deal" });
@@ -408,7 +434,7 @@ export default defineWorkflow({
           tier: "operator",
           effort: "medium",
           maxTokens: 12000,
-          system: [EMBER_CORE, PIPELINE_RULES, companyContext(ws)],
+          system: [coreFor(ws), PIPELINE_RULES, companyContext(ws)],
           messages: [{ role: "user", content: pipelinePrompt(ws, data) }],
           tools: [submitPipeline],
           requireTerminal: true,
@@ -439,7 +465,7 @@ export default defineWorkflow({
         tier: "operator",
         effort: "medium",
         maxTokens: 14000,
-        system: [EMBER_CORE, LEARNING_RULES, companyContext(ws)],
+        system: [coreFor(ws), LEARNING_RULES, companyContext(ws)],
         messages: [{ role: "user", content: learningPrompt(ws, data) }],
         tools: [submitLearning],
         requireTerminal: true,

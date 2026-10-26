@@ -44,6 +44,7 @@ export function Masthead({
   const reduce = useReducedMotion();
   const [conversations, target] = scoreboard.conversations;
   const [wins, goal] = scoreboard.goalProgress;
+  const consumer = ws.company?.market === "consumer";
   // Numbers roll from zero on the reveal only.
   const [rolled, setRolled] = useState(!reveal);
   useEffect(() => {
@@ -144,12 +145,12 @@ export function Masthead({
         <Num value={rolled ? conversations : 0} className="font-medium text-fg" />
         <span>of</span>
         <Num value={target} className="font-medium text-fg" />
-        <span>conversations this week</span>
+        <span>{consumer ? "user conversations this week" : "conversations this week"}</span>
         <span className="text-fg-3">·</span>
         <Num value={rolled ? wins : 0} className="font-medium text-fg" />
         <span>of</span>
         <Num value={goal} className="font-medium text-fg" />
-        <span>pilots</span>
+        <span>{consumer ? ws.goal.targetLabel : "pilots"}</span>
       </Link>
 
       {error && (

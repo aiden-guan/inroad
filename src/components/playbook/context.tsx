@@ -11,6 +11,8 @@ export interface AssetRunArgs {
   title?: string;
   brief?: string;
   dealId?: string;
+  /** creator_brief: the creator it's for. */
+  partnerId?: string;
   assetId: string;
 }
 
@@ -31,8 +33,8 @@ export interface PlaybookContextValue {
   openAsset: string | null;
   setOpenAsset: (id: string | null) => void;
   /** The "new asset" panel (also driven by `?new=<kind>&deal=<id>`). */
-  composer: { kind: AssetKind; dealId?: string } | null;
-  setComposer: (next: { kind: AssetKind; dealId?: string } | null) => void;
+  composer: { kind: AssetKind; dealId?: string; partnerId?: string } | null;
+  setComposer: (next: { kind: AssetKind; dealId?: string; partnerId?: string } | null) => void;
 }
 
 export const PlaybookContext = createContext<PlaybookContextValue | null>(null);

@@ -2,7 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { computeMoves, mergeMoves } from "@/lib/moves/rules";
 import { sampleWorkspace } from "@/lib/sample";
 import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids";
-import { NOW, TODAY, at, makeMove, makeStep, makeWorkspace } from "@/test/factories";
+import { NOW, TODAY, at, consumerWorkspace, day, makeMove, makePartner, makeStep, makeWeek, makeWorkspace } from "@/test/factories";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
 
@@ -660,6 +660,135 @@ const cases: Record<Action["type"], () => void> = {
   "run.markSeen": () => {
     const s = apply(ws(), { type: "run.markSeen", id: "run_prep_lumenwire" }, { type: "run.markSeen", id: "run_missing" });
     expect(s.runs.find((r) => r.id === "run_prep_lumenwire")?.seen).toBe(true);
+  },
+
+  /* Consumer companies */
+
+  "company.setMarket": () => {
+    const s = apply(ws(), { type: "company.setMarket", market: "consumer", consumerModel: "dtc" });
+    expect(s.company).toMatchObject({ market: "consumer", consumerModel: "dtc", marketSource: "founder" });
+    // The goal follows what a consumer company counts.
+    expect(s.goal).toMatchObject({ metric: "paying", targetLabel: "customers", target: 100 });
+    apply(s, { type: "company.setMarket", market: "b2b" });
+    expect(s.company?.consumerModel).toBeUndefined();
+    expect(s.goal).toMatchObject({ metric: "deals", target: 5, targetLabel: "paid pilots or design partners" });
+    expect(() => apply(makeWorkspace(), { type: "company.setMarket", market: "consumer" })).toThrow("Company not found");
+  },
+
+  "growth.log": () => {
+    const s = consumerWorkspace();
+    apply(s, { type: "growth.log", week: makeWeek(day(-7), { signups: 40 }) }, { type: "growth.log", week: makeWeek(day(-14), { signups: 30 }) });
+    expect(s.growthLog?.map((w) => w.weekOf)).toEqual([day(-14), day(-7)]);
+    // The same week replaces, it doesn't duplicate.
+    apply(s, { type: "growth.log", week: makeWeek(day(-7), { signups: 45 }) });
+    expect(s.growthLog?.map((w) => w.signups)).toEqual([30, 45]);
+  },
+
+  "growth.remove": () => {
+    const s = apply(consumerWorkspace(), { type: "growth.log", week: makeWeek(day(-7)) }, { type: "growth.remove", weekOf: day(-7) });
+    expect(s.growthLog).toEqual([]);
+  },
+
+  "partner.upsert": () => {
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner: makePartner("ptn_maya") });
+    expect(s.partners?.ptn_maya.stage).toBe("shortlist");
+  },
+
+  "partner.update": () => {
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner: makePartner("ptn_maya") }, { type: "partner.update", id: "ptn_maya", patch: { trackingCode: "MAYA10" }, at: at(0) });
+    expect(s.partners?.ptn_maya).toMatchObject({ trackingCode: "MAYA10", updatedAt: at(0) });
+    expect(() => apply(s, { type: "partner.update", id: "ptn_missing", patch: {}, at: at(0) })).toThrow("Partner not found");
+  },
+
+  "partner.setStage": () => {
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner: makePartner("ptn_maya") }, { type: "partner.setStage", id: "ptn_maya", stage: "replied", at: at(0) });
+    // Setting the same stage again is a no-op.
+    apply(s, { type: "partner.setStage", id: "ptn_maya", stage: "replied", at: at(0) });
+    expect(s.partners?.ptn_maya.stageHistory.map((h) => h.stage)).toEqual(["shortlist", "replied"]);
+  },
+
+  "partner.markSent": () => {
+    const partner = makePartner("ptn_maya", { outreach: { channel: "dm", subject: null, body: "Hi", followUp: "Hi again", draftedAt: at(-1) } });
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner }, { type: "partner.markSent", id: "ptn_maya", what: "outreach", at: at(0), activityId: "act_p1" });
+    expect(s.partners?.ptn_maya).toMatchObject({ stage: "contacted", outreach: { sentOn: TODAY } });
+    expect(s.activities.at(-1)).toMatchObject({ id: "act_p1", kind: "partner_contacted", partnerId: "ptn_maya" });
+    // Marking it twice doesn't log a second touch.
+    apply(s, { type: "partner.markSent", id: "ptn_maya", what: "outreach", at: at(0), activityId: "act_p2" });
+    expect(s.activities.filter((a) => a.kind === "partner_contacted")).toHaveLength(1);
+    apply(s, { type: "partner.markSent", id: "ptn_maya", what: "follow_up", at: at(7), activityId: "act_p3" });
+    expect(s.partners?.ptn_maya.outreach?.followedUpOn).toBe(day(7));
+  },
+
+  "partner.unmark": () => {
+    const partner = makePartner("ptn_maya", { outreach: { channel: "dm", subject: null, body: "Hi", draftedAt: at(-1) } });
+    const s = apply(
+      consumerWorkspace(),
+      { type: "partner.upsert", partner },
+      { type: "partner.markSent", id: "ptn_maya", what: "outreach", at: at(0), activityId: "act_p1" },
+      { type: "partner.unmark", id: "ptn_maya", what: "outreach", activityId: "act_p1" },
+    );
+    expect(s.partners?.ptn_maya.stage).toBe("shortlist");
+    expect(s.partners?.ptn_maya.stageHistory.map((h) => h.stage)).toEqual(["shortlist"]);
+    expect(s.partners?.ptn_maya.outreach?.sentOn).toBeUndefined();
+    expect(s.activities.some((a) => a.id === "act_p1")).toBe(false);
+  },
+
+  "partner.editOutreach": () => {
+    const partner = makePartner("ptn_maya", { outreach: { channel: "email", subject: "Hi", body: "Old", draftedAt: at(-1) } });
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner }, { type: "partner.editOutreach", id: "ptn_maya", body: "New" });
+    expect(s.partners?.ptn_maya.outreach).toMatchObject({ subject: "Hi", body: "New", edited: true });
+    expect(() => apply(s, { type: "partner.editOutreach", id: "ptn_missing", body: "x" })).toThrow("Partner not found");
+  },
+
+  "partner.logResult": () => {
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner: makePartner("ptn_maya") }, { type: "partner.logResult", id: "ptn_maya", result: { at: at(0), signups: 12, costUsd: 200 } });
+    expect(s.partners?.ptn_maya.results).toEqual([{ at: at(0), signups: 12, costUsd: 200 }]);
+  },
+
+  "partner.remove": () => {
+    const s = apply(consumerWorkspace(), { type: "partner.upsert", partner: makePartner("ptn_maya") }, { type: "partner.remove", id: "ptn_maya" });
+    expect(s.partners).toEqual({});
+  },
+
+  "experiment.upsert": () => {
+    const s = apply(consumerWorkspace(), {
+      type: "experiment.upsert",
+      experiment: { id: "exp_1", stage: "activation", hypothesis: "Shorter onboarding", change: "Two screens", metric: "First win", status: "idea", createdAt: at(0), updatedAt: at(0) },
+    });
+    expect(s.experiments?.exp_1.status).toBe("idea");
+  },
+
+  "experiment.update": () => {
+    const s = apply(
+      consumerWorkspace(),
+      { type: "experiment.upsert", experiment: { id: "exp_1", stage: "activation", hypothesis: "h", change: "c", metric: "m", status: "idea", createdAt: at(0), updatedAt: at(0) } },
+      { type: "experiment.update", id: "exp_1", patch: { status: "running", startedOn: TODAY }, at: at(1) },
+    );
+    expect(s.experiments?.exp_1).toMatchObject({ status: "running", startedOn: TODAY, updatedAt: at(1) });
+    expect(() => apply(s, { type: "experiment.update", id: "exp_missing", patch: {}, at: at(1) })).toThrow("Experiment not found");
+  },
+
+  "experiment.remove": () => {
+    const s = apply(
+      consumerWorkspace(),
+      { type: "experiment.upsert", experiment: { id: "exp_1", stage: "activation", hypothesis: "h", change: "c", metric: "m", status: "idea", createdAt: at(0), updatedAt: at(0) } },
+      { type: "experiment.remove", id: "exp_1" },
+    );
+    expect(s.experiments).toEqual({});
+  },
+
+  "pmf.log": () => {
+    const s = apply(
+      consumerWorkspace(),
+      { type: "pmf.log", survey: { id: "pmf_2", on: TODAY, answers: 50, veryDisappointed: 22 } },
+      { type: "pmf.log", survey: { id: "pmf_1", on: day(-30), answers: 40, veryDisappointed: 12 } },
+    );
+    expect(s.pmfSurveys?.map((x) => x.id)).toEqual(["pmf_1", "pmf_2"]);
+  },
+
+  "pmf.remove": () => {
+    const s = apply(consumerWorkspace(), { type: "pmf.log", survey: { id: "pmf_1", on: TODAY, answers: 40, veryDisappointed: 12 } }, { type: "pmf.remove", id: "pmf_1" });
+    expect(s.pmfSurveys).toEqual([]);
   },
 };
 

@@ -106,7 +106,7 @@ export interface TitleMatch {
   how: "exact" | "core" | "function";
 }
 
-const ROLE_RANK: Record<PersonaRole, number> = { economic_buyer: 0, champion: 1, technical_approver: 2, user: 3, blocker: 4 };
+const ROLE_RANK: Record<PersonaRole, number> = { economic_buyer: 0, champion: 1, technical_approver: 2, user: 3, blocker: 4, early_adopter: 5, payer: 6, influencer: 7 };
 
 /** Builds a matcher from the playbook's personas. Returns null for everyone when there are no personas yet. */
 export function buyerTitleMatcher(ws: Pick<Workspace, "foundation">): (position: string) => TitleMatch | null {

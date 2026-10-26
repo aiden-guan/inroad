@@ -9,6 +9,9 @@ import { Input, Label } from "@/components/ui/field";
 import type { Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 
+/** The founder's pick, else what the site read said so far. */
+const consumerish = (ws: Workspace) => (ws.company?.market ?? ws.onboarding.market) === "consumer";
+
 const enter = { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, transition: { duration: 0.12 } }, transition: { duration: 0.28, ease: ease.out } };
 
 /**
@@ -20,6 +23,7 @@ export function InlineQuestions({ ws }: { ws: Workspace }) {
   const o = ws.onboarding;
   const [last3, setLast3] = useState(o.answers?.last3 ?? "");
   const [before, setBefore] = useState(o.answers?.before ?? "");
+  const consumer = consumerish(ws);
 
   if (o.questionsDone) {
     const answered = !!(o.answers?.last3 || o.answers?.before);
@@ -50,12 +54,14 @@ export function InlineQuestions({ ws }: { ws: Workspace }) {
       </h2>
       <div className="mt-4 space-y-4">
         <div>
-          <Label htmlFor="onb-last3">Who are your last 3 users or design partners? Names or websites.</Label>
+          <Label htmlFor="onb-last3">
+            {consumer ? "Who are 3 of your most engaged users? First names and what they have in common." : "Who are your last 3 users or design partners? Names or websites."}
+          </Label>
           <Input
             id="onb-last3"
             value={last3}
             onChange={(e) => setLast3(e.target.value)}
-            placeholder="acme.com, northwind.io, Dana at Globex"
+            placeholder={consumer ? "Maya, Tom and Ines: new parents, all found us on r/beyondthebump" : "acme.com, northwind.io, Dana at Globex"}
             maxLength={400}
             className="h-9 text-[16px] sm:text-[13.5px]"
           />
@@ -66,7 +72,7 @@ export function InlineQuestions({ ws }: { ws: Workspace }) {
             id="onb-before"
             value={before}
             onChange={(e) => setBefore(e.target.value)}
-            placeholder="Spreadsheets and a script the CTO wrote"
+            placeholder={consumer ? "A notes app and a free tracker they deleted" : "Spreadsheets and a script the CTO wrote"}
             maxLength={400}
             className="h-9 text-[16px] sm:text-[13.5px]"
           />
@@ -89,6 +95,7 @@ export function WhoBuysPrompt({ ws }: { ws: Workspace }) {
   const { dispatch } = useWorkspace();
   const o = ws.onboarding;
   const [who, setWho] = useState("");
+  const consumer = consumerish(ws);
   const n = o.pagesRead ?? 0;
   const pages = `${n} page${n === 1 ? "" : "s"}`;
   if (o.answers?.who) {
@@ -110,15 +117,15 @@ export function WhoBuysPrompt({ ws }: { ws: Workspace }) {
     >
       <Label htmlFor="onb-who" className="mb-3 block text-pretty text-[13.5px] font-normal leading-5 text-fg">
         {o.site === "spa"
-          ? `Your site is mostly JavaScript, so I could only read ${pages}. One sentence on who buys from you will make this much better.`
-          : `I could only read ${pages} on your site. One sentence on who buys from you will make this much better.`}
+          ? `Your site is mostly JavaScript, so I could only read ${pages}. One sentence on who ${consumer ? "uses it, and when" : "buys from you"} will make this much better.`
+          : `I could only read ${pages} on your site. One sentence on who ${consumer ? "uses it, and when" : "buys from you"} will make this much better.`}
       </Label>
       <div className="flex gap-2">
         <Input
           id="onb-who"
           value={who}
           onChange={(e) => setWho(e.target.value)}
-          placeholder="Heads of platform at Series B fintechs who reconcile payments by hand"
+          placeholder={consumer ? "New parents in the first three months, tracking night feeds on their phone" : "Heads of platform at Series B fintechs who reconcile payments by hand"}
           maxLength={300}
           className="h-9 min-w-0 flex-1 text-[16px] sm:text-[13.5px]"
         />

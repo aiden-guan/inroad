@@ -4,7 +4,10 @@
  * Sources: First Round on Sierra's design-partner program (https://review.firstround.com/sierra-design-partnership/),
  * Blomfield/Koomen on paid pilots and one-page proposals, the objection patterns in docs/research/01 §5.5.
  */
-import type { Asset, Deal, ObjectionCard, Workspace } from "@/lib/domain/types";
+import { APP_STORE, REFERRALS } from "@/lib/consumer/benchmarks";
+import { INTERVIEW_QUESTIONS } from "@/lib/consumer/partners";
+import { growthDefaults } from "@/lib/consumer/plan";
+import type { Asset, Deal, ObjectionCard, Partner, Workspace } from "@/lib/domain/types";
 import { ASSET_KINDS, PRICE_BANDS, parts, pilotDays, priceBand, themeNeedsProof, usdRange, type AssetKind } from "./model";
 
 export const SIERRA_URL = "https://review.firstround.com/sierra-design-partnership/";
@@ -394,8 +397,180 @@ function caseStudy(ws: Workspace): Draft {
 }
 
 /** A starting document for any kind, built from the playbook. */
-export function templateFor(kind: AssetKind, ws: Workspace, opts: { deal?: Deal; calls?: number } = {}): Draft {
+/* ───────────────────────────── Consumer documents (free, no model) ───────────────────────────── */
+
+function creatorBrief(ws: Workspace, partner?: Partner): Draft {
+  const { company } = ctx(ws);
+  const hooks = ws.foundation?.messaging.hooks ?? [];
+  const words = ws.foundation?.messaging.customerWords.map((w) => w.phrase) ?? [];
+  const offer = partner?.offer;
+  const pay = offer
+    ? [offer.amountUsd ? `$${offer.amountUsd}` : null, offer.commissionPct ? `${offer.commissionPct}% commission on sales through your code` : null, offer.type === "gifted" ? "the product, free" : null].filter(Boolean).join(" plus ") || "[[what you get]]"
+    : "[[what you get: the product, a fee or a commission]]";
+  return {
+    title: `Brief for ${partner?.name ?? "[[creator]]"}`,
+    body: lines(
+      `# Brief for ${partner?.name ?? "[[creator]]"}`,
+      "",
+      "## Why you",
+      partner?.fit ?? "[[why their audience is ours]]",
+      "",
+      "## The product in one line",
+      ws.foundation?.messaging.oneLiner || ws.company?.plainOneLiner || `[[what ${company} does, in one line]]`,
+      "",
+      "## What we'd love",
+      "- [[format and platform, e.g. one 30–60 second video on TikTok]]",
+      "- [[how many posts, and by when]]",
+      "",
+      "## Hooks to try",
+      "Use one, or write your own. You know your audience better than we do.",
+      ...(hooks.length ? hooks.slice(0, 6).map((h) => `- ${h}`) : ["- [[a first line from a real pain or moment]]"]),
+      "",
+      "## Key points",
+      ...(words.length ? words.slice(0, 4).map((w) => `- In our users' words: “${w}”`) : ["- [[the outcome, in users' words]]"]),
+      "",
+      "## Please don't",
+      "- Promise results, or say it cures, treats or guarantees anything.",
+      "- Say it's free if it renews, or add a deadline that isn't real.",
+      "",
+      "## Disclosure (required)",
+      "Start the caption with “#ad” or “Ad”, and say it and show it in the video. Turn on the platform's paid-partnership label too. “#sp”, “#collab” or a line in your bio don't count. We check the post before it counts.",
+      "",
+      "## Your honest take",
+      "Say what you actually think. There's no script, and we'd rather hear a real criticism than a fake rave.",
+      "",
+      "## What you get",
+      `- ${pay}`,
+      "- Paid within [[number]] days of the post going live",
+      "- Usage: organic posting on your account only. Using it in our ads (whitelisting) is priced separately.",
+      "",
+      "## Timeline",
+      "- Product arrives: [[date]]",
+      "- Draft or concept (optional): [[date]]",
+      "- Live: [[date]]",
+      "",
+      "## How we count results",
+      `Your code or link: ${partner?.trackingCode ?? "[[unique code or link]]"}. We'll share the numbers with you after a week.`,
+    ),
+  };
+}
+
+function launchPlan(ws: Workspace): Draft {
+  const { company } = ctx(ws);
+  const g = growthDefaults(ws);
+  const app = ws.company?.consumerModel === "app" || ws.company?.consumerModel === "social";
+  return {
+    title: `${company} launch plan`,
+    body: lines(
+      `# ${company} launch plan`,
+      "",
+      `**Goal:** [[number]] ${g.northStar.metric.toLowerCase()} in the launch week.`,
+      "",
+      "## Who hears first",
+      "- The waitlist and current users, a day before everyone else",
+      "- The communities where our users gather (check each one's rules first)",
+      "- Creators who already have the product (paid or gifted posts carry #ad)",
+      "",
+      "## Countdown",
+      "| Date | Task | Owner |",
+      "|---|---|---|",
+      "| [[launch − 21 days]] | Creators get the product | Founder |",
+      ...(app ? [`| [[launch − ${APP_STORE.featuringLeadWeeks * 7} days]] | Featuring nomination in App Store Connect | Founder |`] : []),
+      "| [[launch − 14 days]] | Pitch 5 reporters who covered the alternatives this year | Founder |",
+      "| [[launch − 7 days]] | Line up 20 people who'll try it on day one | Founder |",
+      "| [[launch day]] | Post to the list, communities and socials; answer every comment | Founder |",
+      "",
+      "## Launch day",
+      "- Morning: the list and current users",
+      "- Midday: communities (where the rules allow), founder post",
+      "- All day: answer every comment and question yourself",
+      "- On Product Hunt: ask people to try it and share honest feedback. Never ask outright for upvotes.",
+      "",
+      "## The week after",
+      "- Thank everyone who helped, by name",
+      "- Log the numbers: signups, first wins, where they came from",
+      "- Talk to 5 of the new users",
+    ),
+  };
+}
+
+function referralProgram(ws: Workspace): Draft {
+  const { company } = ctx(ws);
+  const g = growthDefaults(ws);
+  return {
+    title: `${company} referral program`,
+    body: lines(
+      `# ${company} referral program`,
+      "",
+      "## Who gets what",
+      "- The friend: [[reward, in the product's own currency where possible: credit, free months]]",
+      "- The person who invited them: [[the same reward]]",
+      `- Paid only when the friend reaches the first win: ${g.activation.event.toLowerCase()}.`,
+      "- Cap: [[number]] rewards per person per year.",
+      "",
+      "## When we ask",
+      "Right after the first win, never at signup. One ask, easy to dismiss.",
+      "",
+      "## Rules",
+      "- No self-referrals; one reward per person and payment method.",
+      "- The user picks each person to invite. Never “select all” contacts, and they see the message before it's sent.",
+      "- We never reward reviews or ratings.",
+      "",
+      "## How we'll know",
+      `Share of new users who came from a referral. Where programs work it's about ${REFERRALS.shareWhereItWorksLow.value}–${REFERRALS.shareWhereItWorksHigh.value}%, and fewer than ${REFERRALS.referrersShare.value}% of users ever refer, so design for the few who do.`,
+      "",
+      "## Terms",
+      "[[link to the full terms]]",
+    ),
+  };
+}
+
+function interviewGuide(ws: Workspace): Draft {
+  const { company } = ctx(ws);
+  return {
+    title: `${company} user interview guide`,
+    body: lines(
+      `# ${company} user interview guide`,
+      "",
+      "**Goal:** learn what people did, not what they say they'd do.",
+      "",
+      "## Who",
+      "- New users in their first week",
+      "- Active users who come back every week",
+      "- People who stopped using it",
+      "",
+      "## How to invite",
+      "A short note, 15 minutes, nothing to prepare. A thank-you gift is optional and never depends on what they say.",
+      "",
+      "## Questions",
+      ...INTERVIEW_QUESTIONS.map((q) => `- ${q}`),
+      "",
+      "## Avoid",
+      "- “Would you use…?” or “Would you pay…?”: opinions about the future are guesses.",
+      "- Pitching. If you're explaining, you're not learning.",
+      "",
+      "## After each call",
+      "- Their exact words for the problem",
+      "- The moment right before they looked for a fix",
+      "- What they used before",
+      "- Their first win, or where they got stuck",
+      "",
+      "## Once 40+ people are active",
+      "Ask people who used it twice in the last two weeks: “How would you feel if you could no longer use it?” Very, somewhat or not disappointed. 40% or more “very” is the line.",
+    ),
+  };
+}
+
+export function templateFor(kind: AssetKind, ws: Workspace, opts: { deal?: Deal; calls?: number; partner?: Partner } = {}): Draft {
   switch (kind) {
+    case "creator_brief":
+      return creatorBrief(ws, opts.partner);
+    case "launch_plan":
+      return launchPlan(ws);
+    case "referral_program":
+      return referralProgram(ws);
+    case "interview_guide":
+      return interviewGuide(ws);
     case "one_pager":
       return onePager(ws);
     case "demo_script":
@@ -419,6 +594,7 @@ export function templateFor(kind: AssetKind, ws: Workspace, opts: { deal?: Deal;
 
 /** The objections early-stage founders hear most, with the response pattern that works. Drafts until approved. */
 export function starterObjections(ws: Workspace, ids: () => string): ObjectionCard[] {
+  if (ws.company?.market === "consumer") return consumerObjections(ids);
   const { days, obstacle } = ctx(ws);
   const rows: Omit<ObjectionCard, "id" | "approved" | "timesHeard">[] = [
     {
@@ -492,6 +668,61 @@ export function starterObjections(ws: Workspace, ids: () => string): ObjectionCa
       clarifyingQ: "Of course. Who's on the team, and what will they ask?",
       response: "Offer to join that conversation, or send a one-pager they can forward. Book the follow-up before you hang up.",
       walkAwayIf: "They won't name who decides.",
+    },
+  ];
+  return rows.map((r) => ({ ...r, id: ids(), approved: false, timesHeard: 0 }));
+}
+
+/** What people say before they try or pay for a consumer product, and the honest answer. Drafts until approved. */
+function consumerObjections(ids: () => string): ObjectionCard[] {
+  const rows: Omit<ObjectionCard, "id" | "approved" | "timesHeard">[] = [
+    {
+      objection: "Not another subscription.",
+      category: "budget",
+      underlyingConcern: "Paying every month for something they'll stop using.",
+      clarifyingQ: "What did you stop paying for last time, and why?",
+      response: "Show the first win before the paywall, make cancelling one tap, and say the renewal date up front.",
+      walkAwayIf: "They need it once a year.",
+    },
+    {
+      objection: "I'll forget to use it.",
+      category: "priority",
+      underlyingConcern: "It won't fit into their day.",
+      clarifyingQ: "When during the day would you have needed this last week?",
+      response: "Tie it to a moment they already have (a feed, a run, a payday) and remind them then, not at random.",
+      walkAwayIf: "The need doesn't come back often enough to form a habit.",
+    },
+    {
+      objection: "I can do this with a free app.",
+      category: "competitor",
+      underlyingConcern: "The free option is good enough.",
+      clarifyingQ: "What does the free one get wrong for you?",
+      response: "Credit the free option. If the gap they name is the one you close, show exactly that, nothing else.",
+      walkAwayIf: "They're happy with it and the gap doesn't matter to them.",
+    },
+    {
+      objection: "Is my data safe?",
+      category: "security",
+      underlyingConcern: "Their personal data, or their kids', ending up somewhere.",
+      clarifyingQ: "What would you not want us to keep?",
+      response: "Say in one plain line what you collect, why, and how to delete it. Don't collect what you don't need.",
+      walkAwayIf: "The product can't work without data they won't share.",
+    },
+    {
+      objection: "Will it work for someone like me?",
+      category: "startup_risk",
+      underlyingConcern: "They've tried things that didn't.",
+      clarifyingQ: "What did you try before, and where did it stop working?",
+      response: "Point to people like them, in their words, with permission. A free trial or a refund window beats a promise.",
+      walkAwayIf: "They need a result you can't honestly promise.",
+    },
+    {
+      objection: "Maybe later.",
+      category: "timing",
+      underlyingConcern: "No moment that makes it urgent.",
+      clarifyingQ: "What would make this matter to you?",
+      response: "Let them go, and be there at the moment: the season, the life event, the next time the problem shows up.",
+      walkAwayIf: "No moment is coming.",
     },
   ];
   return rows.map((r) => ({ ...r, id: ids(), approved: false, timesHeard: 0 }));

@@ -16,7 +16,7 @@ import { usePlaybook } from "./context";
 import { plural } from "./model";
 import { FieldLabel, Section, Sub } from "./ui";
 
-const REVIEW_LABELS: Record<Brief["kind"], string> = { monday: "Pipeline review", friday: "Learning review", daily: "Daily brief" };
+const REVIEW_LABELS: Record<Brief["kind"], string> = { monday: "Pipeline review", friday: "Learning review", growth: "Growth review", daily: "Daily brief" };
 const VERDICTS: Record<NonNullable<SegmentBet["verdict"]>, string> = { keep: "Kept", adjust: "Adjusted", switch: "Switched" };
 const AFFECTS: Record<FounderQuestion["affects"][number], string> = { icp: "ICP", positioning: "Positioning", pricing: "Pricing", channel_plan: "Channels" };
 

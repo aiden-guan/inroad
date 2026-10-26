@@ -1,4 +1,8 @@
 import "server-only";
+import { CONSUMER_RULES_FOR_PROMPT } from "@/lib/consumer/compliance";
+import { readGrowth } from "@/lib/consumer/growth";
+import { CONSUMER_MODEL_LABELS, consumerModelOf, isConsumer, marketOf } from "@/lib/consumer/market";
+import { partnerNext } from "@/lib/consumer/partners";
 import { todayISO } from "@/lib/domain/ids";
 import { themeNeedsProof } from "@/components/playbook/model";
 import { STAGE_LABELS, type Move, type Persona, type Workspace } from "@/lib/domain/types";
@@ -142,6 +146,15 @@ export function playbookView(ws: Workspace, args: { channel?: Channel; persona?:
       note: "Fewer, better conversations. Never exceed these, whatever tool sends.",
     },
     writing_rules: writingRules(channel, ws),
+    market: marketOf(ws),
+    ...(isConsumer(ws)
+      ? {
+          consumer_model: CONSUMER_MODEL_LABELS[consumerModelOf(ws)].label,
+          hooks: f.messaging.hooks ?? [],
+          growth: growthModelView(ws),
+          consumer_rules: CONSUMER_RULES_FOR_PROMPT,
+        }
+      : {}),
     approval: "Inroad never sends. Use submit_draft for anything written in the founder's name; it waits for their approval.",
     ...(ids.size !== f.personas.length ? { personas_total: f.personas.length } : {}),
   };
@@ -335,5 +348,57 @@ function draftView(packageId: string, step: Workspace["outreach"][string]["steps
     subject: approved ? step.subject : null,
     body: approved ? step.body : null,
     thread: step.thread,
+  };
+}
+
+function growthModelView(ws: Workspace) {
+  const m = readGrowth(ws, todayISO()).model;
+  return {
+    north_star: m.northStar.metric,
+    activation_event: m.activation.event,
+    activation_within_days: m.activation.withinDays,
+    retention_bar: { metric: m.retention.metric, target_pct: m.retention.target, strong_pct: m.retention.good, source: m.retention.source },
+    primary_loop: m.primaryLoop,
+  };
+}
+
+/** Consumer growth state, computed in code: the numbers, what they say, and whether paid can scale yet. */
+export function growthView(ws: Workspace, base: string) {
+  if (!ws.foundation) return notReady(ws);
+  const today = todayISO();
+  const g = readGrowth(ws, today);
+  const partners = Object.values(ws.partners ?? {});
+  return {
+    ready: true,
+    market: marketOf(ws),
+    model: growthModelView(ws),
+    weeks: g.weeks.slice(-8).map((w) => ({
+      week_of: w.weekOf,
+      signups: w.signups,
+      activated: w.activated ?? null,
+      active: w.active ?? null,
+      retained_pct: w.retainedPct ?? null,
+      paying: w.paying ?? null,
+      revenue_usd: w.revenueUsd ?? null,
+      spend_usd: w.spendUsd ?? null,
+      referred: w.referred ?? null,
+      source: w.source,
+    })),
+    read: {
+      focus_stage: g.focus,
+      activation_rate_pct: g.activationRate ?? null,
+      retention_pct: g.retention ?? null,
+      retention_trend: g.retentionTrend,
+      retention_holds: g.retentionHolds,
+      paid_allowed: g.paidAllowed,
+      quick_ratio: g.quickRatio ?? null,
+      referred_share_pct: g.referredShare ?? null,
+      cac_usd: g.cac ?? null,
+      payback_months: g.paybackMonths ?? null,
+      verdicts: g.verdicts.map((v) => ({ id: v.id, severity: v.severity, title: v.title, detail: v.detail, source: v.source ?? null })),
+    },
+    partners: partners.slice(0, 50).map((p) => ({ id: p.id, kind: p.kind, name: p.name, platform: p.platform ?? null, handle: p.handle ?? null, stage: p.stage, next: partnerNext(p, today).line })),
+    note: g.paidAllowed ? "Retention clears the bar." : "Paid acquisition is on hold until retention clears the bar. Don't propose scaling paid spend.",
+    review_url: `${base}/playbook#numbers`,
   };
 }

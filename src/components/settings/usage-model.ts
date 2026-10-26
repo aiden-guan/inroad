@@ -21,6 +21,7 @@ export const WORKFLOW_META: Record<WorkflowId, { label: string; tiers: ModelTier
   brief: { label: "Today's brief", tiers: ["fast"] },
   network: { label: "Network screen", tiers: ["fast"] },
   enrich: { label: "Free signals", tiers: ["none"] },
+  partners: { label: "Creators and communities", tiers: ["operator"] },
 };
 
 export function workflowLabel(id: WorkflowId): string {

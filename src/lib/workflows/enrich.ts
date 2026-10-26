@@ -39,6 +39,10 @@ export const SIGNAL_WINDOW: Record<SignalType, number> = {
   filing: 90,
   hiring: 45,
   sensitive: 90,
+  life_event: 60,
+  seasonal: 45,
+  trend: 30,
+  competitor_gap: 60,
 };
 
 export function signalAge(s: Pick<Signal, "date">, today: string): number {

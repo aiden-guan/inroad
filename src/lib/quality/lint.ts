@@ -1,3 +1,4 @@
+import { consumerChecks } from "@/lib/consumer/compliance";
 import type { DraftFrame, LintCode, LintResult } from "@/lib/domain/types";
 import { convergence, sentences, stripGreeting, type RecentDraft } from "./similarity";
 
@@ -12,7 +13,7 @@ export interface LintInput {
   body: string;
   frame: DraftFrame;
   step: number; // 1 = first touch
-  kind: "email" | "linkedin_note" | "linkedin_dm" | "recap" | "invite" | "intro_wrapper" | "intro_forwardable" | "post";
+  kind: LintKind;
   /** Words the founder's ICP legitimately uses ("platform team"), exempt from hype rules. */
   allowWords?: string[];
   /** Numbers/claims that are sourced (from evidence quotes or approved claims). */
@@ -33,7 +34,16 @@ export interface LintInput {
   knownNames?: string[];
   /** Recent cold drafts, for skeleton diversity and near-duplicates. */
   recent?: RecentDraft[];
+  /** Consumer marketing rules (disclosure, reviews, claims) on top of the writing rules. On for every consumer kind. */
+  consumer?: boolean;
+  /** Paid, gifted or affiliate content: needs a clear disclosure. */
+  sponsored?: boolean;
 }
+
+/** Consumer kinds: outreach to creators and partners, creator briefs, and public posts. */
+export const CONSUMER_KINDS = ["partner_dm", "partner_email", "creator_brief", "community_post", "social_post"] as const;
+export type LintKind = "email" | "linkedin_note" | "linkedin_dm" | "recap" | "invite" | "intro_wrapper" | "intro_forwardable" | "post" | (typeof CONSUMER_KINDS)[number];
+const isConsumerKind = (k: LintKind): k is (typeof CONSUMER_KINDS)[number] => (CONSUMER_KINDS as readonly string[]).includes(k);
 
 type Severity = "error" | "warn";
 type Violation = LintResult["violations"][number];
@@ -51,6 +61,11 @@ export const LIMITS = {
   invite: 120,
   intro: { wrapper: 60, forwardable: 120 },
   post: { min: 120, max: 250 },
+  /** Creator outreach: under about 200 words, with the offer, deliverables, rights and timeline (research, section 2). */
+  partnerEmail: { min: 50, max: 160, hard: 200 },
+  partnerDm: { min: 25, max: 90, hard: 120 },
+  communityPost: { min: 40, max: 250, hard: 320 },
+  socialPost: { min: 0, max: 150, hard: 220 },
   fkEmail: 8,
   fkPost: 9,
   questionMarks: 2,
@@ -66,6 +81,18 @@ const FRAME_EXEMPT: Partial<Record<DraftFrame, LintCode[]>> = {
   intro: ["I_OPENER", "YOU_RATIO"],
   reply: ["I_OPENER", "YOU_RATIO"],
   recap: ["I_OPENER", "YOU_RATIO"],
+};
+
+/**
+ * Consumer kinds keep the writing rules that make outreach read like a person (open with them, one ask, no template
+ * tells) and relax the ones that don't fit: posts may start with "I" and carry an emoji; outreach may link the product.
+ */
+const CONSUMER_RELAX: Record<(typeof CONSUMER_KINDS)[number], { skip: LintCode[]; warn: LintCode[] }> = {
+  partner_dm: { skip: [], warn: ["EXCLAMATION", "EMOJI", "CALENDAR_LINK"] },
+  partner_email: { skip: [], warn: ["EXCLAMATION", "EMOJI", "CALENDAR_LINK"] },
+  community_post: { skip: ["I_OPENER", "YOU_RATIO", "MULTI_CTA"], warn: ["EXCLAMATION", "EMOJI"] },
+  social_post: { skip: ["I_OPENER", "YOU_RATIO", "MULTI_CTA", "SUBJECT_WORDS"], warn: ["EXCLAMATION", "EMOJI", "ALL_CAPS"] },
+  creator_brief: { skip: ["I_OPENER", "YOU_RATIO", "MULTI_CTA", "LINK_T1", "FK_GRADE", "EM_DASH", "LEN_OVER", "LEN_UNDER"], warn: ["EXCLAMATION", "EMOJI"] },
 };
 
 /** Case-insensitive; any hit fails. The label is what the founder sees. */
@@ -137,6 +164,12 @@ const STARTERS = new Set(
 const MONTHS = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*$/i;
 
 const PRIORITY: LintCode[] = [
+  // Consumer rules that carry legal risk come before writing style.
+  "DISCLOSURE_MISSING",
+  "REVIEW_INCENTIVE",
+  "FAKE_SOCIAL_PROOF",
+  "HEALTH_CLAIM",
+  "EARNINGS_CLAIM",
   "PLACEHOLDER",
   "FAKE_REPLY_SUBJECT",
   "SPAN_UNSUPPORTED",
@@ -165,6 +198,12 @@ const PRIORITY: LintCode[] = [
   "SUBJECT_WORDS",
   "EM_DASH",
   "ALL_CAPS",
+  "OFFER_MISSING",
+  "FREE_TERMS",
+  "FALSE_URGENCY",
+  "GUARANTEE_CLAIM",
+  "ENV_CLAIM",
+  "SCRIPTED_OPINION",
 ];
 
 /** True when lint would flag this word as hype or AI vocabulary (used to build the ICP allowlist). */
@@ -267,6 +306,14 @@ export function limitsFor(input: Pick<LintInput, "kind" | "frame" | "step" | "fi
       return { min: 0, max: LIMITS.invite, hard: LIMITS.invite + 15 };
     case "post":
       return { min: LIMITS.post.min, max: LIMITS.post.max, hard: LIMITS.post.max + 30 };
+    case "partner_email":
+      return LIMITS.partnerEmail;
+    case "partner_dm":
+      return LIMITS.partnerDm;
+    case "community_post":
+      return LIMITS.communityPost;
+    case "social_post":
+      return LIMITS.socialPost;
     default:
       return null;
   }
@@ -281,9 +328,11 @@ export function lintDraft(input: LintInput): LintResult {
   const isLinkedIn = input.kind === "linkedin_note" || input.kind === "linkedin_dm";
   const thread = input.thread ?? (input.step > 1 ? "reply" : "new");
   const out: Violation[] = [];
+  const relax = isConsumerKind(input.kind) ? CONSUMER_RELAX[input.kind] : null;
   const add = (code: LintCode, detail: string, severity?: Severity) => {
-    if (exempt.has(code)) return;
-    out.push({ code, detail, severity: severity ?? (WARN_ONLY.includes(code) ? "warn" : "error") });
+    if (exempt.has(code) || relax?.skip.includes(code)) return;
+    const base = severity ?? (WARN_ONLY.includes(code) ? "warn" : "error");
+    out.push({ code, detail, severity: relax?.warn.includes(code) ? "warn" : base });
   };
 
   const words = countWords(body);
@@ -353,6 +402,8 @@ export function lintDraft(input: LintInput): LintResult {
   }
   if (links > 0 && input.frame !== "reply" && (isLinkedIn || (input.kind === "email" && input.step === 1))) {
     if (!calendar) add("LINK_T1", isLinkedIn ? "No links in a LinkedIn note or first message." : "No links in a first touch. They hurt delivery and read as marketing.");
+  } else if (input.kind === "community_post" && links > 0) {
+    add("LINK_T1", "Most communities remove posts with links from new or promotional accounts. Check this one's rules first.", "warn");
   } else if (links > 1 && input.frame !== "reply") {
     add("LINK_T1", `${links} links. One at most after the first touch.`, "warn");
   }
@@ -424,6 +475,11 @@ export function lintDraft(input: LintInput): LintResult {
   }
   if (input.recent?.length && input.kind === "email" && input.step === 1) {
     for (const issue of convergence(body, input.recent)) add(issue.code, issue.detail);
+  }
+  if (input.consumer || isConsumerKind(input.kind)) {
+    const where = input.kind === "creator_brief" ? "brief" : input.kind === "social_post" || input.kind === "community_post" || input.kind === "post" ? "post" : "message";
+    const partnerOutreach = input.kind === "partner_dm" || input.kind === "partner_email";
+    for (const v of consumerChecks({ text: all, sponsored: input.sponsored, where, partnerOutreach })) add(v.code, v.detail, v.severity);
   }
 
   const violations = sortViolations(out);

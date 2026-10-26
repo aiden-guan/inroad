@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Building2, CalendarHeart, Command, Handshake, Moon, NotebookPen, Plug, Settings, Sun, Sunrise } from "lucide-react";
+import { Building2, CalendarHeart, Command, Handshake, Megaphone, Moon, NotebookPen, Plug, Settings, Sun, Sunrise } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useSyncExternalStore } from "react";
@@ -16,17 +16,26 @@ import { Receipt } from "@/components/ui/work-log";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { usd } from "@/lib/client/format";
+import { partnerNext } from "@/lib/consumer/partners";
 import { monthKey, todayISO } from "@/lib/domain/ids";
+import type { Workspace } from "@/lib/domain/types";
 import { yourMoves } from "@/lib/intros/rules";
 import { spring } from "@/lib/motion";
 
 const NAV = [
   { href: "/today", label: "Today", icon: Sunrise, key: "T" },
+  { href: "/partners", label: "Creators", icon: Megaphone, key: "R" },
   { href: "/companies", label: "Companies", icon: Building2, key: "C" },
   { href: "/intros", label: "Intros", icon: Handshake, key: "N" },
   { href: "/events", label: "Events", icon: CalendarHeart, key: "E" },
   { href: "/playbook", label: "Playbook", icon: NotebookPen, key: "P" },
 ] as const;
+
+/** Creators and communities show for consumer companies (or once anyone is on the list). */
+export function navFor(ws: Workspace | null | undefined) {
+  const consumer = ws?.company?.market === "consumer" || Object.keys(ws?.partners ?? {}).length > 0;
+  return NAV.filter((n) => n.href !== "/partners" || consumer);
+}
 
 const SECONDARY = [
   { href: "/integrations", label: "Integrations", icon: Plug, key: "I" },
@@ -152,6 +161,7 @@ export function Sidebar() {
   const counts: Record<string, number | undefined> = {
     "/today": Object.values(ws?.moves ?? {}).filter((m) => m.status === "open" && m.dueOn <= todayISO()).length || undefined,
     "/intros": (ws ? yourMoves(ws, todayISO()).length : 0) || undefined,
+    "/partners": Object.values(ws?.partners ?? {}).filter((p) => partnerNext(p, todayISO()).action).length || undefined,
   };
 
   return (
@@ -171,7 +181,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-0.5 px-2">
-        {NAV.map((item) => (
+        {navFor(ws).map((item) => (
           <NavLink
             key={item.href}
             href={item.href}

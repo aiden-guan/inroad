@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { dealContext } from "@/lib/deals/context";
 import { cleanDate, firstAttemptOnly, normUrl, seenWebUrls } from "@/lib/deals/ledger";
 import { CALL_TYPE_LABEL, detectCallType, type CallType } from "@/lib/deals/rules";
@@ -282,7 +282,7 @@ export default defineWorkflow({
     const res = await ctx.agent<BriefSubmit>({
       tier: "operator",
       effort: "medium",
-      system: [EMBER_CORE, PREP_RULES, companyContext(ws)],
+      system: [coreFor(ws), PREP_RULES, companyContext(ws)],
       messages: [{ role: "user", content: message }],
       tools: [submit],
       webSearch,

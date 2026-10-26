@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { defineTool } from "@/lib/ai/engine";
 import { AgentError } from "@/lib/ai/errors";
-import { EMBER_CORE, companyContext, taskHeader } from "@/lib/ai/prompts/core";
+import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, DiscoverySource, Enrichment, ICPCriterion, Signal, Workspace } from "@/lib/domain/types";
 import { knownDomains } from "@/lib/hub/store";
@@ -505,7 +505,7 @@ async function searchFallback(ctx: WorkflowContext<Args>, ws: Workspace, crits: 
       webFetch: 0,
       maxTokens: 8000,
       requireTerminal: true,
-      system: [EMBER_CORE, SEARCH_RULES, companyContext(ws)],
+      system: [coreFor(ws), SEARCH_RULES, companyContext(ws)],
       messages: [{ role: "user", content }],
       tools: [candidatesTool],
     });
@@ -587,7 +587,7 @@ ${batch.map((c, i) => card(c, i + 1)).join("\n")}`;
           effort: "low",
           maxTokens: 8000,
           requireTerminal: true,
-          system: [EMBER_CORE, SCREEN_RULES, companyContext(ws)],
+          system: [coreFor(ws), SCREEN_RULES, companyContext(ws)],
           messages: [{ role: "user", content }],
           tools: [screenTool],
         });
