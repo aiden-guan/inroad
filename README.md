@@ -333,7 +333,20 @@ saying Inroad was blocked, and choose **Open Anyway**. Or, in Terminal: `xattr -
 
 **Day to day.** Closing the window keeps Inroad in the Dock; quitting stops its server. **Inroad → Settings…** (⌘,)
 opens Settings; **Help** opens the data folder and the server log (`~/Library/Application Support/Inroad/Logs`).
-To update, download the new version and replace the app: your work stays where it is.
+**Inroad → Open at Login** starts it when you log in, so hooks, the public URL and agents keep reaching it. Opened
+from the disk image or Downloads, Inroad offers to move itself to Applications. If its server quits after running a
+while, the app starts it again by itself (once in ten minutes) and puts you back on the page you were on.
+
+**Updates, in one click.** Every 6 hours (and from **Inroad → Check for Updates…** or Settings → General → Updates)
+the app asks GitHub for the latest release. A newer one downloads in the background, is checked against the SHA-256
+GitHub publishes for it (or the release's `SHA256SUMS.txt`), and then by macOS: a valid signature, from the same
+developer as the copy you have when that copy is signed, and the version it claims. When it's ready, the sidebar says
+so: **Restart to update** backs up your workspace, quits, swaps the new app in where the old one was and opens it. If
+the swap fails, the old app is put back and opened. Your data and Keychain key aren't touched. This works for ad hoc
+builds too (Electron's own updater only installs into apps signed with a Developer ID). It needs Inroad in a folder
+your account can change (Applications, for an admin account); otherwise Settings says why and links the download.
+Automatic checks can be turned off in Settings. A check tells GitHub your IP address and which version you run,
+as any download would, and nothing about your work.
 
 **Build it yourself on a Mac:**
 
@@ -349,8 +362,14 @@ npm run desktop:test                                       # check the shell (on
 Add these repository secrets and the Mac app workflow signs every build and has Apple notarize it, so it opens like any
 app from the internet: `MAC_CERTIFICATE` (the certificate exported as .p12, base64), `MAC_CERTIFICATE_PASSWORD`,
 `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. Before the first release, change `appId` in
-`desktop/electron-builder.yml` to a reverse-DNS name you own, and the version in `desktop/app/package.json`. The Mac
-App Store would need App Sandbox, which this build doesn't use.
+`desktop/electron-builder.yml` to a reverse-DNS name you own. The Mac App Store would need App Sandbox, which this
+build doesn't use.
+
+**Publishing an update.** `npm run release -- 0.2.0` sets the version in `package.json`, `package-lock.json` and
+`desktop/app/package.json`, moves the changelog's Unreleased notes under `v0.2.0`, commits and tags. Pushing the tag
+(`git push origin main v0.2.0`) runs the Mac app workflow, which refuses a tag that doesn't match those versions,
+builds both chips and publishes the release with `SHA256SUMS.txt`. Installed apps find it within 6 hours. Keep signing
+the same way from release to release: an app signed with a Developer ID only accepts updates signed by the same team.
 
 ---
 
@@ -373,7 +392,7 @@ npm run lint
 ```
 
 ### Test Suite Highlights
-- **Coverage**: 1,104 tests across 105 files (about 18 seconds in one measured run).
+- **Coverage**: 1,146 tests across 109 files (about 27 seconds in one measured run).
 - **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
 - **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
 - **Workflow Replays**: The main workflows (the first run with the discovery it starts, Find companies, research, drafts
@@ -456,7 +475,7 @@ your prospects, notes and keys never sit on someone else's server.
 ### The production server
 
 ```bash
-npm run build      # once, and again after each update
+npm run build      # once (an update from Settings builds again by itself)
 npm start          # http://localhost:3000; `npm start -- -p 3001` for another port
 ```
 
@@ -465,6 +484,27 @@ folder) a login item: a LaunchAgent on macOS, a Task Scheduler task "at log on" 
 Linux. Webhooks, the public URL and remote agents only reach Inroad while the computer is awake and Inroad is running;
 while it's open, connected sequencers, booking tools and CRMs are also polled every few minutes, so nothing is lost
 when a webhook can't get through.
+
+### Updating
+
+Settings → General → Updates shows the commits on GitHub that this copy doesn't have yet, and the sidebar says when
+there are some. **Update now** does the rest:
+
+1. It backs up the workspace (Settings → Data → Backups lists it as "Before an update").
+2. The launcher (`scripts/serve.mjs`) stops the server and shows an "Updating Inroad" page on the same port, which the
+   open tab follows step by step.
+3. It fast-forwards the branch this copy follows (`git merge --ff-only`), runs `npm ci` when `package-lock.json` or
+   `package.json` changed, and `next build` under `npm start`.
+4. It starts Inroad again, and the tab reloads into the new version.
+
+If installing or building fails, it puts the commit it was on back (`git reset --hard` to it), installs and builds
+that again and starts it, so you're back where you were; Settings and a message say what failed. It only ever moves
+forward: it won't update while one of Inroad's own tracked files is changed on this computer, or when this copy has
+commits that aren't on GitHub, and says what to do instead (untracked files, like `.data/`, are never touched).
+Anything running when you update (research, drafts) stops, so the button asks first. A check is a `git fetch` of
+the branch this copy follows, every 6 hours while Inroad runs; turn it off in Settings. Started without the launcher
+(a bare `next start`), Inroad can't restart itself, so it shows the commands instead: `git pull`, `npm ci`,
+`npm run build`. A new version of the launcher itself takes effect the next time you run `npm start`.
 
 ### Only this computer
 
@@ -504,13 +544,15 @@ export.
 
 **What leaves your machine:** calls to your AI provider with the context a task needs (none with Ollama); free public
 lookups that carry company names and domains (company websites, job boards, news, Hacker News, DNS); place names to
-OpenStreetMap (can be turned off) and map tiles from OpenFreeMap; and what you push to the tools you connect. Company
+OpenStreetMap (can be turned off) and map tiles from OpenFreeMap; update checks to GitHub (a `git fetch`, or the Mac
+app reading the latest release; nothing about your work, and they can be turned off); and what you push to the tools
+you connect. Company
 icons are first letters unless you turn on fetching each company's icon from its own site (Settings → General); no
 favicon service ever sees your list.
 
 ### Backups
 
-- **Automatic:** a copy of every workspace file each day you open Inroad and before every reset, sample or restore,
+- **Automatic:** a copy of every workspace file each day you open Inroad and before every reset, sample, restore or update,
   gzipped in `backups/` inside the data folder. Each is kept for 14 days at most (and no more than the last 14 daily
   and 10 others), so someone whose details you delete is gone from them within 14 days.
 - **Download:** Settings → Data → **Download backup** gives one JSON file with everything: playbook, companies,
@@ -557,6 +599,7 @@ real database; that isn't v1.
 | `INROAD_AI_PROVIDER`, `INROAD_AI_MODEL`, `INROAD_AI_BASE_URL`, `INROAD_AI_KEY` | Pick a provider without the app (servers, scripts): its id (`openai`, `gemini`, `xai`, `groq`, `openrouter`, `mistral`, `deepseek`, `together`, `ollama`, `custom`), the model, and for `custom` the base URL and key. The choice in Settings wins. |
 | `OPENAI_BASE_URL` | Send OpenAI calls (chat and Studio images) somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
 | `INROAD_KEYCHAIN` | `off` keeps keys in the encrypted file instead of the system credential store. |
+| `INROAD_UPDATE_CHECK` | `off` stops this server from asking GitHub for updates by itself; Settings → Updates → Check now still asks. |
 | `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it isn't connected under Integrations. |
 | `PORT` | The port (default 3000; `-- -p` works too). |
 | `INROAD_HOST` | The address to listen on (default 127.0.0.1). |
@@ -569,13 +612,13 @@ real database; that isn't v1.
 
 ```text
 inroad/
-├── desktop/                     # The Mac app: Electron shell, electron-builder config, its tests
+├── desktop/                     # The Mac app: Electron shell and its updater, electron-builder config, its tests
 ├── docs/                        # Architecture specs and GTM research notes
 │   ├── SPEC.md                  # Comprehensive product specification
 │   └── research/                # Operator interviews, API evaluations, token studies
 ├── e2e/                         # Playwright browser tests, offline against the mock
 ├── public/                      # Static brand and icon assets
-├── scripts/                     # Launcher (serve.mjs), mock AI APIs, live smoke, tape recorder, evals, desktop build
+├── scripts/                     # Launcher (serve.mjs) and its updater, mock AI APIs, live smoke, tape recorder, evals, desktop build, release
 ├── src/
 │   ├── app/                     # Next.js 16 App Router pages and API routes
 │   │   ├── api/                 # Endpoints: companies, deals, intros, mcp, settings
