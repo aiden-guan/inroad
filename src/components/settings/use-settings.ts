@@ -28,6 +28,7 @@ export interface SettingsUpdate {
   imageModel?: string;
   githubToken?: string | null;
   secContact?: string | null;
+  updateCheck?: "on" | "off";
 }
 
 export function useSettingsStatus() {

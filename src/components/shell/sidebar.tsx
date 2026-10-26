@@ -20,6 +20,7 @@ import { monthKey } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
 import { goalLine } from "@/lib/moves/nav-counts";
 import { spring } from "@/lib/motion";
+import { UpdateNotice } from "@/components/updates/update-notice";
 import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
 import { SampleBanner } from "./sample-banner";
 
@@ -166,6 +167,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-0.5 px-2 pb-2">
+        <UpdateNotice />
         <GoalLine />
         <button
           onClick={() => window.dispatchEvent(new Event("inroad:palette"))}

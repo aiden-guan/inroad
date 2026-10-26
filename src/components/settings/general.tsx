@@ -13,6 +13,7 @@ import { setCompanyIcons } from "@/lib/client/icons";
 import { AiProviderGroup } from "./ai-provider";
 import { CONSUMER_MODEL_LABELS, MARKET_LABELS } from "@/lib/consumer/market";
 import type { ConsumerModel, Market } from "@/lib/domain/types";
+import { UpdatesGroup } from "@/components/updates/updates-group";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
 import { IMAGE_MODELS } from "@/lib/studio/visuals";
 import type { CompanyIcons, Geocoder, NewsSource } from "./types";
@@ -22,7 +23,11 @@ type Settings = ReturnType<typeof useSettingsStatus>;
 
 export function GeneralSection({ settings }: { settings: Settings }) {
   return (
-    <SettingsSection id="general" title="General" description="The AI I run on, who you sell to, how the app looks, and what may leave this computer for news, places, icons and public records.">
+    <SettingsSection
+      id="general"
+      title="General"
+      description="The AI I run on, who you sell to, how the app looks, what may leave this computer for news, places, icons and public records, and updates."
+    >
       <AiProviderGroup settings={settings} />
       <ImagesGroup settings={settings} />
       <MarketGroup />
@@ -33,6 +38,7 @@ export function GeneralSection({ settings }: { settings: Settings }) {
       <PlacesGroup settings={settings} />
       <IconsGroup settings={settings} />
       <PublicDataGroup settings={settings} />
+      <UpdatesGroup />
     </SettingsSection>
   );
 }

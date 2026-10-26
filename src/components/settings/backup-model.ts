@@ -3,7 +3,7 @@
  * holds before it's sent. Types mirror src/lib/store/backup.ts; nothing here touches the server.
  */
 
-export type BackupReason = "daily" | "before_reset" | "before_sample" | "before_restore" | "export";
+export type BackupReason = "daily" | "before_reset" | "before_sample" | "before_restore" | "before_update" | "export";
 
 export interface BackupEntry {
   name: string;
@@ -31,6 +31,7 @@ export const REASON_LABEL: Record<BackupReason, string> = {
   before_reset: "Before a reset",
   before_sample: "Before the sample",
   before_restore: "Before a restore",
+  before_update: "Before an update",
   export: "Downloaded",
 };
 
