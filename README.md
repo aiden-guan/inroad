@@ -26,17 +26,54 @@ npm run dev
 Open http://localhost:3000, paste your website, and in about two minutes you'll have three real companies to talk to,
 each with a dated reason why now.
 
-Inroad runs on your Anthropic API key. Paste it on the first screen (it's saved only in `settings.json` in your data
-folder, readable by you alone), or set `ANTHROPIC_API_KEY` before starting. Want to look around first? Choose
+Inroad runs on the AI provider you choose: paste a key on the first screen (or in Settings → General → AI provider)
+and the provider follows the key. See [Choosing your AI provider](#choosing-your-ai-provider). Want to look around first? Choose
 **Explore a sample workspace**; it's labelled as made up everywhere, and **Start with my company** leaves it in one
 click.
 
 For using Inroad every day (a production server, where your data lives, backups, a public URL that doesn't change),
 see [Running Inroad day to day](#running-inroad-day-to-day).
 
+### Choosing your AI provider
+
+| Provider | Key looks like | Notes |
+|---|---|---|
+| Anthropic (Claude) | `sk-ant-…` | What Inroad was built and tuned on: built-in web search, prompt caching, the best results. |
+| OpenAI | `sk-proj-…` | |
+| Google Gemini | `AIza…` | A Google AI Studio key. |
+| xAI (Grok) | `xai-…` | |
+| Groq | `gsk_…` | Open models (Llama, Qwen, gpt-oss) on fast hardware. |
+| OpenRouter | `sk-or-…` | Hundreds of models from one key; its model list includes prices, so spend is counted. |
+| Mistral, DeepSeek, Together AI | | |
+| Ollama | no key | Models running on your own computer, free and private. Pick one that supports tools. |
+| Other | | Any OpenAI-compatible API: paste its base URL (https, or http on this computer) and key. |
+
+Everything but Anthropic goes through the OpenAI-compatible Chat Completions API. When you connect, Inroad checks the
+key by reading the models it can use, picks one to run everything (and its smaller sibling, like `…-mini`, for quick
+sorting and rewrites), and lets you change it or split models by task in Settings.
+
+Two differences off Anthropic:
+
+- **Web search** runs through your Firecrawl key (Integrations → Firecrawl). Without one, research reads company sites,
+  filings and public records but can't search the web. Pages are always read by this app.
+- **Spend** is counted only for models with a known price. Anthropic's are built in and OpenRouter publishes its own;
+  for the rest, add the price per million tokens under Settings → AI provider → Prices, or the receipts and monthly
+  budget can't count real money (they say so instead of showing $0 as free). Set a spend limit with your provider too.
+
+The prompts were written and tested on Claude. Other capable models (with tool calling) work through the same
+workflows; small local models may need a retry now and then.
+
+**Where your key is kept.** In your computer's credential store: macOS Keychain, Windows Credential Manager, or the
+Secret Service (GNOME Keyring, KWallet) on Linux. Where there's none (a headless server, a container), it's an
+AES-256-GCM encrypted file (`ai-keys.json`, with its own random key in `ai-keys.secret`, both readable by your user
+only). Either way the key is never sent to the browser after you save it (you see the provider and the last four
+characters), never in a backup or an export, and sent only to the provider you chose. A key saved by an earlier version
+of Inroad in `settings.json` is moved into the credential store the first time Inroad reads it.
+
 ### Try it without an API key
 
-A mock of the Anthropic API ships with the repo, so you can click through every workflow for free:
+A mock of the AI APIs (Anthropic's and the OpenAI-compatible one) ships with the repo, so you can click through every
+workflow for free. In mock mode, choosing OpenAI in Settings talks to the mock too, with any key:
 
 ```bash
 npm run mock:anthropic   # terminal 1 — fake Claude (and fake Firecrawl) on :4010
@@ -199,9 +236,10 @@ $env:GTM_DATA_DIR = "$env:APPDATA\Inroad"; npm start                # Windows Po
 
 Settings → Data shows which folder is in use. The files are readable by your user only (0600, folder 0700), and
 Inroad's own older files are tightened when it starts (anything else in the folder is left alone). That keeps other accounts from reading them on disk; while Inroad is
-running, the app itself answers anyone on this computer (see "Only this computer" above). Your Anthropic key is in `settings.json`, connector keys and the named
-tunnel's token in `secrets.json`, agent keys (hashed) in `keys.json`: those three belong to this computer and are
-never in a backup or an export.
+running, the app itself answers anyone on this computer (see "Only this computer" above). Your AI provider key is in
+the system credential store (or `ai-keys.json`, encrypted), connector keys and the named tunnel's token in
+`secrets.json`, agent keys (hashed) in `keys.json`: those belong to this computer and are never in a backup or an
+export.
 
 ### Backups
 
@@ -248,6 +286,11 @@ real database; that isn't v1.
 |---|---|
 | `GTM_DATA_DIR` | The data folder (default `.data/` in this repository). |
 | `ANTHROPIC_API_KEY` | Your Anthropic key, if you'd rather not paste it in the app. A key saved in the app wins. |
+| `OPENAI_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` | Other providers' keys, the same way. |
+| `INROAD_AI_PROVIDER`, `INROAD_AI_MODEL`, `INROAD_AI_BASE_URL`, `INROAD_AI_KEY` | Pick a provider without the app (servers, scripts): its id (`openai`, `gemini`, `xai`, `groq`, `openrouter`, `mistral`, `deepseek`, `together`, `ollama`, `custom`), the model, and for `custom` the base URL and key. The choice in Settings wins. |
+| `OPENAI_BASE_URL` | Send OpenAI calls somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
+| `INROAD_KEYCHAIN` | `off` keeps keys in the encrypted file instead of the system credential store. |
+| `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it isn't connected under Integrations. |
 | `PORT` | The port (default 3000; `-- -p` works too). |
 | `INROAD_HOST` | The address to listen on (default 127.0.0.1). |
 | `ANTHROPIC_BASE_URL`, `FIRECRAWL_API_URL` | Where those APIs are; `npm run dev:mock` points both at the mock. |
@@ -297,7 +340,7 @@ free lookups done in code, and a monthly budget cap.
   keep their receipt and steps.
 - **Local-first data** (`src/lib/store`): one JSON workspace with atomic, owner-only writes in the data folder, daily and
   pre-change backups, and restore. Integration secrets live in `secrets.json` and never reach the browser. What leaves
-  your machine: calls to the Anthropic API with the context a task needs; free public lookups that carry company
+  your machine: calls to your AI provider with the context a task needs (none with Ollama); free public lookups that carry company
   names and domains (company websites, job boards, news, Hacker News, DNS); place names to OpenStreetMap (can be
   turned off) and map tiles from OpenFreeMap; and what you push to the tools you connect. Company icons are first
   letters unless you turn on fetching each company's icon from its own site (Settings → General); no favicon service
