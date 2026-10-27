@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.0] — 2026-10-27
+
 ### Added
 - **Updates in one click.** Settings → General → Updates and a sidebar notice show what a new version brings; one click installs it. Every update backs up the workspace first ("Before an update" in Backups), and the button asks first when research or drafting would be stopped.
 - From a git checkout (`npm start`, `npm run dev`): the launcher stops the server, shows an "Updating Inroad" page the open tab follows, fast-forwards the branch, runs `npm ci` when dependencies changed and `next build` for `npm start`, and starts Inroad again. A failed install or build puts the old commit back and builds it again. It never updates over local changes or commits that aren't on GitHub, and says what to do instead.
