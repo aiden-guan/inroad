@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.6] — 2026-10-27
+
 ### Fixed
 - Copy prompt, Copy key, and other copy actions work in the Mac app: only Inroad's own main window can write to the clipboard, while clipboard reads and other permissions remain denied.
 - Copy buttons show an error when the browser refuses clipboard access instead of failing silently.
