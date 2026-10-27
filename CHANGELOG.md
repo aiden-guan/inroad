@@ -7,7 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.0] — 2026-10-27
+
 ### Added
+- **Updates in one click.** Settings → General → Updates and a sidebar notice show what a new version brings; one click installs it. Every update backs up the workspace first ("Before an update" in Backups), and the button asks first when research or drafting would be stopped.
+- From a git checkout (`npm start`, `npm run dev`): the launcher stops the server, shows an "Updating Inroad" page the open tab follows, fast-forwards the branch, runs `npm ci` when dependencies changed and `next build` for `npm start`, and starts Inroad again. A failed install or build puts the old commit back and builds it again. It never updates over local changes or commits that aren't on GitHub, and says what to do instead.
+- The Mac app updates itself from GitHub's releases: it downloads in the background, checks the SHA-256 and the code signature (same developer, same version), and "Restart to update" swaps the new app in, putting the old one back if the swap fails. It works for ad hoc builds as well as Developer ID ones. **Inroad → Check for Updates…** in the menu.
+- Automatic update checks every 6 hours, which can be turned off in Settings.
+- Mac app: offers to move itself to Applications, **Open at Login** in the Inroad menu, and a server that quits after running a while is started again by itself (once in ten minutes), back on the page you were on.
+- `npm run release -- <version>` sets the version everywhere, dates the changelog, commits and tags. The Mac app workflow refuses a tag that doesn't match the app's version and publishes `SHA256SUMS.txt` with each release.
 - **Consumer mode** for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. Inroad reads the market from the founder's site, and the founder can change it in onboarding or Settings.
 - A consumer playbook with an audience bet, segments, hooks and a growth model (north star, first win, retention bar, loop, first 100 users). It adds model-specific channel plans with at most three active channels and paid last, plus consumer pricing structures.
 - A weekly growth log and code-computed verdicts: week-4 retention against category bars, activation, quick ratio, CAC, payback, referral share and the 40% survey. Inroad tells you to hold paid spend until retention clears the bar.

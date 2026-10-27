@@ -1,6 +1,6 @@
 {
   "name": "inroad",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "node": ">=20.9.0"
@@ -24,7 +24,8 @@
     "desktop:server": "node scripts/desktop/build-server.mjs",
     "desktop:dev": "electron desktop/app",
     "desktop:test": "playwright test -c desktop/playwright.config.ts",
-    "desktop:dist": "electron-builder --config desktop/electron-builder.yml --mac --publish never"
+    "desktop:dist": "electron-builder --config desktop/electron-builder.yml --mac --publish never",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

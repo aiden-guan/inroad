@@ -1,7 +1,9 @@
 name: Mac app
 
 # Builds Inroad for Mac (Apple silicon and Intel) on GitHub's Mac runners, opens the Apple silicon build and checks
-# it works, and keeps the .dmg and .zip as downloads on the run. A tag like v0.2.0 also publishes them as a release.
+# it works, and keeps the .dmg and .zip as downloads on the run. A tag like v0.2.0 also publishes them as a release,
+# with SHA256SUMS.txt, and installed copies of the app update themselves from it (desktop/app/updater.cjs).
+# `npm run release -- 0.2.0` sets the version everywhere and makes the tag.
 # Runs when the app's shell or this workflow changes, on a tag, or by hand (Actions → Mac app → Run workflow).
 on:
   push:
@@ -42,6 +44,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      # Installed apps compare the tag with their own version, so a release must be the version it says it is.
+      - name: Check the tag matches the app's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          app=$(node -p "require('./desktop/app/package.json').version")
+          web=$(node -p "require('./package.json').version")
+          if [ "v$app" != "$GITHUB_REF_NAME" ] || [ "$app" != "$web" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME, but desktop/app/package.json says $app and package.json says $web. Run npm run release -- <version> to set them together."
+            exit 1
+          fi
 
       - name: Install
         run: npm ci
@@ -95,6 +108,9 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # The app checks each download against GitHub's own digest of it, or this file when that's missing.
+      - name: Checksums
+        run: cd dist && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Create the release with the Mac downloads
         run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Inroad $GITHUB_REF_NAME" --generate-notes
         env:

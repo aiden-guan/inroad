@@ -59,6 +59,8 @@ export interface SettingsStatus {
   dataDirInApp: boolean;
   /** OpenAI, used only to paint the picture layer of Studio graphics. Same rules: the key never leaves the server. */
   openai: { hasKey: boolean; keySource: "settings" | "env" | null; keyHint: string | null; imageModel: string };
+  /** Inroad asks GitHub for a new version by itself (a git checkout; the Mac app keeps its own setting). */
+  updateCheck: "on" | "off";
 }
 
 export type CheckStatus = "pass" | "warn" | "fail";

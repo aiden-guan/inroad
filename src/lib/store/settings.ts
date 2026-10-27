@@ -65,6 +65,11 @@ export interface Settings {
   openaiApiKey?: string;
   /** Which GPT Image model paints them. */
   imageModel?: string;
+  /**
+   * Whether Inroad asks GitHub for a new version by itself (every 6 hours while it runs; a git fetch from
+   * the repository this copy came from). "off" leaves checking to Settings → General → Updates.
+   */
+  updateCheck?: "on" | "off";
 }
 
 export const DATA_DIR = process.env.GTM_DATA_DIR ?? path.join(process.cwd(), ".data");

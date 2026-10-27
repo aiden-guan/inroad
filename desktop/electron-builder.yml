@@ -8,9 +8,11 @@ directories:
   app: desktop/app
   output: desktop/dist
   buildResources: desktop/build
-# The shell is three files and has no dependencies: none of the web app's node_modules belong in it.
+# The shell is a few files and has no dependencies: none of the web app's node_modules belong in it.
 files:
   - main.cjs
+  - updater.cjs
+  - preload.cjs
   - loading.html
   - package.json
   - "!**/node_modules/**"
@@ -49,4 +51,5 @@ dmg:
       y: 190
       type: link
       path: /Applications
+# Releases are published by .github/workflows/desktop.yml, and the app updates itself from them (app/updater.cjs).
 publish: null
