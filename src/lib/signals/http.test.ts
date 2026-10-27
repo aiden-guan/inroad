@@ -137,6 +137,24 @@ describe("fetchText SSRF guard", () => {
 });
 
 describe("fetchText redirects", () => {
+  it("keeps credentials on same-origin redirects, then drops all custom headers on an origin change", async () => {
+    undiciFetch.mockResolvedValueOnce(redirect("/moved"))
+      .mockResolvedValueOnce(redirect("https://other.com/"))
+      .mockResolvedValueOnce(redirect("https://api.github.com/back"));
+    await fetchText("https://api.github.com/start", { headers: { authorization: "Bearer private-token", "X-API-Key": "private-key" } });
+    for (const index of [0, 1]) expect(undiciFetch.mock.calls[index][1].headers).toMatchObject({ authorization: "Bearer private-token", "X-API-Key": "private-key" });
+    for (const index of [2, 3]) {
+      expect(undiciFetch.mock.calls[index][1].headers).not.toHaveProperty("authorization");
+      expect(undiciFetch.mock.calls[index][1].headers).not.toHaveProperty("X-API-Key");
+    }
+  });
+
+  it("drops credentials when redirected from HTTPS to HTTP", async () => {
+    undiciFetch.mockResolvedValueOnce(redirect("http://api.github.com/moved"));
+    await fetchText("https://api.github.com/start", { headers: { Authorization: "Bearer private-token" } });
+    expect(undiciFetch.mock.calls[1][1].headers).not.toHaveProperty("Authorization");
+  });
+
   it("checks every hop and stops at a private target", async () => {
     undiciFetch.mockResolvedValueOnce(redirect("http://127.0.0.1:80/admin"));
     expect(await fetchText("https://acme.com/")).toBeNull();

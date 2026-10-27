@@ -7,6 +7,7 @@ import { resetStarted } from "@/lib/server/startup";
 import { cached } from "@/lib/signals/cache";
 import { DIR_MODE, FILE_MODE, readDataFile, secureDataDir, writeDataFile } from "./data-file";
 import { DATA_DIR, dataDirInsideApp, writeSettings } from "./settings";
+import { saveStudioFile, STUDIO_DIR } from "@/lib/studio/files";
 import { mutateWorkspace, setSecrets } from "./workspace";
 
 /**
@@ -40,6 +41,14 @@ describe.runIf(posix)("owner-only data files", () => {
       expect(modeOf(path.join(DATA_DIR, f)), f).toBe(FILE_MODE);
     }
     expect(modeOf(path.join(DATA_DIR, "cache"))).toBe(DIR_MODE);
+    const previousUmask = process.umask(0o022);
+    try {
+      saveStudioFile("img_private001.png", "private screenshot");
+    } finally {
+      process.umask(previousUmask);
+    }
+    expect(modeOf(path.join(STUDIO_DIR, "img_private001.png"))).toBe(FILE_MODE);
+    expect(modeOf(STUDIO_DIR)).toBe(DIR_MODE);
   });
 
   it("keeps the copy of a corrupt file owner-only too", () => {
@@ -61,6 +70,10 @@ describe.runIf(posix)("owner-only data files", () => {
     const outside = path.join(DATA_DIR, "outside.txt");
     fs.writeFileSync(outside, "x", { mode: 0o644 });
     fs.symlinkSync(outside, path.join(dir, "link.txt"));
+    // Emulate old permissions explicitly: creation modes alone are masked by the host's umask.
+    for (const file of ["workspace.json", "cache/page.json"]) fs.chmodSync(path.join(dir, file), 0o644);
+    fs.chmodSync(path.join(dir, "cache"), 0o755);
+    fs.chmodSync(outside, 0o644);
 
     expect(secureDataDir(dir)).toEqual({ changed: 4, foreign: 0 });
     expect(modeOf(dir)).toBe(DIR_MODE);
@@ -83,6 +96,9 @@ describe.runIf(posix)("owner-only data files", () => {
     fs.writeFileSync(path.join(dir, "workspace.json.corrupt-123"), "{", { mode: 0o644 });
     fs.mkdirSync(path.join(dir, "backups"), { mode: 0o755 });
     fs.writeFileSync(path.join(dir, "backups", "x.json.gz"), "", { mode: 0o644 });
+    for (const folder of ["tools", "tools/bin", "backups"]) fs.chmodSync(path.join(dir, folder), 0o755);
+    for (const file of ["readme.txt", "workspace.json", "workspace.json.corrupt-123", "backups/x.json.gz"]) fs.chmodSync(path.join(dir, file), 0o644);
+    fs.chmodSync(path.join(dir, "tools/bin/run.sh"), 0o755);
 
     expect(secureDataDir(dir)).toEqual({ changed: 4, foreign: 2 });
     expect(modeOf(path.join(dir, "tools", "bin", "run.sh"))).toBe(0o755);
@@ -91,6 +107,24 @@ describe.runIf(posix)("owner-only data files", () => {
     expect(modeOf(dir)).toBe(0o755);
     for (const own of ["workspace.json", "workspace.json.corrupt-123", path.join("backups", "x.json.gz")]) expect(modeOf(path.join(dir, own)), own).toBe(FILE_MODE);
     expect(modeOf(path.join(dir, "backups"))).toBe(DIR_MODE);
+  });
+
+  it("secures old Studio images and encrypted AI keys inside a shared data folder", () => {
+    const dir = fs.mkdtempSync(path.join(DATA_DIR, "studio-shared-"));
+    fs.chmodSync(dir, 0o755);
+    fs.mkdirSync(path.join(dir, "studio"));
+    fs.chmodSync(path.join(dir, "studio"), 0o755);
+    const own = ["ai-keys.json", "ai-keys.secret", "ai-keys.json.corrupt-123", "ai-keys.secret.123.tmp", "studio/img_private001.png"];
+    for (const file of [...own, "unrelated.txt"]) {
+      fs.writeFileSync(path.join(dir, file), "private");
+      fs.chmodSync(path.join(dir, file), 0o644);
+    }
+    expect(secureDataDir(dir)).toEqual({ changed: own.length + 1, foreign: 1 });
+    for (const file of own) expect(modeOf(path.join(dir, file)), file).toBe(FILE_MODE);
+    expect(modeOf(path.join(dir, "studio"))).toBe(DIR_MODE);
+    expect(modeOf(path.join(dir, "unrelated.txt"))).toBe(0o644);
+    expect(modeOf(dir)).toBe(0o755);
+    expect(secureDataDir(dir).changed).toBe(0);
   });
 
   it("tightens the data folder once per server, when the launcher reports the server is up", async () => {

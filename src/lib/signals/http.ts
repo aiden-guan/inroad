@@ -100,19 +100,25 @@ async function fetchGuarded(url: string, { timeoutMs, maxBytes, accept, headers,
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let current = url;
+    let extraHeaders = headers;
     let res: Response | null = null;
     for (let hop = 0; hop < 6; hop++) {
       if (!(await isPublicUrl(current))) return null;
       // undici's own fetch (not Next's patched global one, so no data cache) with the guarded dispatcher.
       res = await fetch(current, {
-        headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9", ...headers },
+        headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9", ...extraHeaders },
         redirect: "manual",
         signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
         dispatcher,
       });
       const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
       if (!location) break;
-      current = new URL(location, current).toString();
+      await res.body?.cancel();
+      const next = new URL(location, current);
+      // A public redirect is still another trust boundary: never forward an API token or custom
+      // authentication header to a different origin (including an HTTPS → HTTP downgrade).
+      if (next.origin !== new URL(current).origin) extraHeaders = undefined;
+      current = next.toString();
       res = null;
     }
     if (!res || (!res.ok && !allowErrors)) return null;

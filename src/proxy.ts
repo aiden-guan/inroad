@@ -43,6 +43,7 @@ export function proxy(request: NextRequest) {
   const isLocal = isLocalRequest(request);
 
   // Agent endpoints authenticate every call with a bearer key or path secret; they may be public.
+  // The matcher also excludes them so Next doesn't buffer their uploads before their byte limits run.
   if (AGENT_ROUTES.test(pathname)) return NextResponse.next();
 
   if (!peerGuarded()) {
@@ -81,5 +82,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/mcp$|api/v1(?:/|$)|api/hooks/).*)"],
 };

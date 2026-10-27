@@ -2,6 +2,7 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import type { Workspace } from "@/lib/domain/types";
+import { writeFileAtomic } from "@/lib/store/data-file";
 import { DATA_DIR } from "@/lib/store/settings";
 
 /**
@@ -19,11 +20,7 @@ export function isSafeName(name: string): boolean {
 
 export function saveStudioFile(name: string, data: Buffer | string): void {
   if (!isSafeName(name)) throw new Error(`Unsafe file name: ${name}`);
-  fs.mkdirSync(STUDIO_DIR, { recursive: true });
-  const target = path.join(STUDIO_DIR, name);
-  const tmp = `${target}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, data);
-  fs.renameSync(tmp, target);
+  writeFileAtomic(path.join(STUDIO_DIR, name), data);
 }
 
 export function readStudioFile(name: string): Buffer | null {

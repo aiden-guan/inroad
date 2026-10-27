@@ -7,6 +7,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+- Update Electron to 44.10.0, Undici to 7.30.1, and Vitest to 4.1.12 to address published dependency advisories.
+- Save Studio media with owner-only permissions and repair existing Studio files and encrypted AI key material on startup, including in shared data folders.
+- Enforce public MCP, REST, and webhook upload limits in UTF-8 bytes while reading the stream.
+- Drop custom API headers across research redirects and reject Studio provider redirects, preventing off-endpoint credential forwarding and prompt replay.
+- Prevent framing of the app and add content-type and referrer protections.
+
+### Fixed
+- Permission-migration tests now create explicit legacy permissions, so they work with restrictive host umasks.
+- Give desktop and phone orb transitions distinct names to prevent duplicate-name animation errors during resizing and hydration.
+- Exclude generated browser reports and coverage from linting so concurrent browser checks cannot race ESLint's directory scan.
+
+### Changed
+- Dependency security auditing is part of CI. Mac releases wait for typechecking, linting, tests, the production build, browser workflows, and both Mac packages before publication.
+- Document supported deployment and security boundaries in SECURITY.md.
+
 ---
 
 ## [v0.2.3] — 2026-10-27

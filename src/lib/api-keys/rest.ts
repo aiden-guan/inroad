@@ -1,5 +1,6 @@
 import "server-only";
 import { appOrigin, authorize } from "./auth";
+import { BodyTooLargeError, readTextBody } from "@/lib/server/http";
 import { callTool, getTool, inputSchema, TOOLS } from "./tools";
 
 /**
@@ -39,8 +40,13 @@ export function restHandler(toolName: string) {
     if (request.method === "GET") {
       input = fromQuery(new URL(request.url).searchParams, toolName);
     } else {
-      const raw = await request.text();
-      if (raw.length > MAX_BYTES) return json({ ok: false, error: "Request too large (1 MB max). Send fewer records per call." }, 413);
+      let raw: string;
+      try {
+        raw = await readTextBody(request, MAX_BYTES);
+      } catch (err) {
+        if (err instanceof BodyTooLargeError) return json({ ok: false, error: "Request too large (1 MB max). Send fewer records per call." }, 413);
+        throw err;
+      }
       try {
         input = raw.trim() ? JSON.parse(raw) : {};
       } catch {

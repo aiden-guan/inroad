@@ -75,6 +75,10 @@ for (const market of ["b2b", "consumer"] as const) {
 }
 
 test("optional integrations expand from saved links and remain usable on a phone", async ({ page }) => {
+  const transitionErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && /ViewTransition.*same name/.test(message.text())) transitionErrors.push(message.text());
+  });
   await page.goto("/integrations");
   const more = page.locator("#more-tools");
   await expect(more).not.toHaveAttribute("open", "");
@@ -92,4 +96,5 @@ test("optional integrations expand from saved links and remain usable on a phone
   await expect(page.locator("#instantly")).toContainText("Not connected");
   await expect(page.locator("#instantly").getByText("Not connected").first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  expect(transitionErrors).toEqual([]);
 });

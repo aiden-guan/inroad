@@ -89,6 +89,7 @@ describe("auth and transport", () => {
     expect((await post([])).status).toBe(400);
     expect((await post({ jsonrpc: "2.0", id: 1, method: "ping" }, { headers: { "content-length": "2000000" } })).status).toBe(413);
     expect((await post(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping", params: { pad: "x".repeat(1_000_001) } }))).status).toBe(413);
+    expect((await post({ jsonrpc: "2.0", id: 1, method: "ping", params: { pad: "é".repeat(500_001) } })).status).toBe(413);
   });
 
   it("rate-limits each key", async () => {

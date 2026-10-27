@@ -28,7 +28,7 @@ function base(): string {
 /** A cheap validity check (list models). Network trouble returns "unknown" so it doesn't block saving a plausible key. */
 export async function checkOpenAIKey(key: string): Promise<"ok" | "rejected" | "unknown"> {
   try {
-    const res = await fetch(`${base()}/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(`${base()}/models`, { headers: { Authorization: `Bearer ${key}` }, redirect: "error", signal: AbortSignal.timeout(10_000) });
     if (res.status === 401) return "rejected";
     return res.ok ? "ok" : "unknown";
   } catch {
@@ -58,6 +58,7 @@ export async function generateImage(opts: { prompt: string; w: number; h: number
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, prompt: opts.prompt, size, quality, n: 1, output_format: "png" }),
+      redirect: "error",
       signal,
     });
   } catch (err) {

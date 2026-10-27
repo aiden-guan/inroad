@@ -23,6 +23,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate:
+    name: Release checks
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
   mac:
     name: Mac app (${{ matrix.arch }})
     runs-on: macos-15
@@ -99,7 +105,7 @@ jobs:
   release:
     name: Publish the release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: mac
+    needs: [mac, validate]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

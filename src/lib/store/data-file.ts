@@ -79,13 +79,13 @@ export function writeDataFile(file: string, value: unknown) {
 }
 
 /** The files Inroad keeps at the top of its data folder (with their temp files and corrupt copies). */
-const OWN_FILE = /^(workspace|threads|connections|network|desk|runs|hub|settings|secrets|keys|opt-outs|calibration|references|geo-cache|automation)\.json(\.corrupt-\d+|\.\d+\.tmp)?$/;
+const OWN_FILE = /^(?:(workspace|threads|connections|network|desk|runs|hub|settings|secrets|keys|opt-outs|calibration|references|geo-cache|automation|ai-keys)\.json|ai-keys\.secret)(\.corrupt-\d+|\.\d+\.tmp)?$/;
 /** Its folders there; everything inside them is Inroad's. */
-const OWN_DIRS = new Set(["backups", "cache"]);
+const OWN_DIRS = new Set(["backups", "cache", "studio"]);
 
 /**
  * Tightens what an older version (or a umask) left readable to others: Inroad's own files to 0600 and its
- * own folders (backups/, cache/ and what's in them) to 0700. Nothing else is touched: GTM_DATA_DIR may point
+ * own folders (backups/, cache/, studio/ and what's in them) to 0700. Nothing else is touched: GTM_DATA_DIR may point
  * at a folder that holds other things too (a script keeps its execute bit), and then the folder itself is
  * left as it is and `foreign` says how many entries aren't Inroad's. Run once when the server starts.
  * Best-effort, and never follows a symlink.

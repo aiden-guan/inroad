@@ -131,7 +131,7 @@ function MobileHeader({ navOpen, onToggleNav, menuRef }: { navOpen: boolean; onT
       </Popover>
       {/* The sidebar's "Ask or jump to…" for touch: the palette, with Ask as its first row. */}
       <button aria-label="Ask or jump to" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new Event("inroad:palette"))} className="-mr-1.5 shrink-0 rounded-full p-1.5">
-        <OrbMorph on={!wide}>
+        <OrbMorph on={!wide} layout="phone">
           <Orb state={status.state} size={20} tick={status.ticks} />
         </OrbMorph>
       </button>

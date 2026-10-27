@@ -327,10 +327,10 @@ export function WelcomeFlow() {
           >
             <aside className="md:sticky md:top-12 md:self-start">
               {/* When the founder says go, this orb flies into the sidebar (or the phone header). */}
-              <OrbMorph on={wide}>
+              <OrbMorph on={wide} layout="desktop">
                 <Orb state={orb} size={96} tick={tick} className="hidden md:inline-flex" />
               </OrbMorph>
-              <OrbMorph on={!wide}>
+              <OrbMorph on={!wide} layout="phone">
                 <Orb state={orb} size={36} tick={tick} className="md:hidden" />
               </OrbMorph>
             </aside>

@@ -106,7 +106,7 @@ function AgentBlock() {
       className="w-72 p-2"
       trigger={
         <button className="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-subtle">
-          <OrbMorph on={wide}>
+          <OrbMorph on={wide} layout="desktop">
             <Orb state={status.state} size={22} tick={status.ticks} />
           </OrbMorph>
           <span className="min-w-0 flex-1">

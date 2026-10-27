@@ -38,7 +38,7 @@ test("from the welcome screen to a rendered dossier", async ({ page }) => {
   });
   await cta.click();
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb)")))).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb-desktop)")))).toBe(true);
 
   // The goal stays in view: paid pilots against the goal, customers against the long arc.
   const goal = page.getByTitle("Your goal, from the plan").first();

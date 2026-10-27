@@ -1,5 +1,6 @@
 import "server-only";
 import { appOrigin, authorize } from "./auth";
+import { BodyTooLargeError, readTextBody } from "@/lib/server/http";
 import { noteClient, type ApiKey } from "./store";
 import { callTool, getTool, inputSchema, toolsFor } from "./tools";
 
@@ -121,10 +122,13 @@ export async function handleMcpPost(request: Request): Promise<Response> {
     });
   }
 
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > MAX_BYTES) return json(rpcError(null, -32600, "Request too large (1 MB max)."), 413);
-  const raw = await request.text();
-  if (raw.length > MAX_BYTES) return json(rpcError(null, -32600, "Request too large (1 MB max)."), 413);
+  let raw: string;
+  try {
+    raw = await readTextBody(request, MAX_BYTES);
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) return json(rpcError(null, -32600, "Request too large (1 MB max)."), 413);
+    throw err;
+  }
   let body: unknown;
   try {
     body = JSON.parse(raw);

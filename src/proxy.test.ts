@@ -149,9 +149,9 @@ describe("proxy: tunnel routes", () => {
     expect(passes(proxy(request(path, { method: "POST", host: tunnel, headers: { "ngrok-trace-id": "t" } })))).toBe(false);
   });
 
-  it("runs on everything but static assets", () => {
+  it("protects internal routes but leaves public API streaming bodies to their own authenticated handlers", () => {
     const matcher = new RegExp(`^${config.matcher[0]}$`);
-    expect(["/", "/today", "/api/mcp", "/_next/data/x.json"].every((p) => matcher.test(p))).toBe(true);
-    expect(["/_next/static/chunks/a.js", "/_next/image", "/favicon.ico"].some((p) => matcher.test(p))).toBe(false);
+    expect(["/", "/today", "/api/mcp/keys", "/api/v10", "/api/hooks", "/_next/data/x.json"].every((p) => matcher.test(p))).toBe(true);
+    expect(["/_next/static/chunks/a.js", "/_next/image", "/favicon.ico", "/api/mcp", "/api/v1", "/api/v1/accounts", "/api/hooks/generic/secret"].some((p) => matcher.test(p))).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { connection } from "next/server";
 import { receiveInbound } from "@/lib/hub/inbound";
 import { verifyInbound } from "@/lib/hub/secrets";
+import { BodyTooLargeError, readTextBody } from "@/lib/server/http";
 
 /**
  * Inbound webhook for any tool: POST /api/hooks/{source}/{secret}.
@@ -18,10 +19,13 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hooks/[sour
   if (!SOURCE.test(source)) return Response.json({ error: "Unknown source." }, { status: 404 });
   if (!verifyInbound(secret)) return Response.json({ error: "This hook URL isn't valid. Copy it again from Inroad → Integrations." }, { status: 401 });
 
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > MAX_BYTES) return Response.json({ error: "Payload too large (1 MB max). Send fewer rows per request." }, { status: 413 });
-  const raw = await request.text();
-  if (raw.length > MAX_BYTES) return Response.json({ error: "Payload too large (1 MB max). Send fewer rows per request." }, { status: 413 });
+  let raw: string;
+  try {
+    raw = await readTextBody(request, MAX_BYTES);
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) return Response.json({ error: "Payload too large (1 MB max). Send fewer rows per request." }, { status: 413 });
+    throw err;
+  }
 
   let payload: unknown;
   const type = request.headers.get("content-type") ?? "";

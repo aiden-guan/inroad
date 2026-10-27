@@ -3,6 +3,17 @@ import type { NextConfig } from "next";
 const desktop = process.env.INROAD_DESKTOP === "1";
 
 const nextConfig: NextConfig = {
+  headers: async () => [
+    {
+      source: "/:path*",
+      headers: [
+        { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Referrer-Policy", value: "no-referrer" },
+      ],
+    },
+  ],
   // The Mac app (desktop/) runs the self-contained server.js; `npm start` keeps using `next start`.
   ...(desktop
     ? {
