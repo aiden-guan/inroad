@@ -7,6 +7,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Research workspace for finding companies and researching the web, with domain/date filters, ranked and deduplicated sources, saved sessions, caching, cancellation, and daily request limits.
+- Independent search providers: DeepSeek, TinyFish, Tavily, Exa, Brave, Firecrawl, custom HTTP endpoints, and mapped MCP/OpenAPI connections. Optional TinyFish browser research has separate limits and isolated sessions.
+- Read-only MCP and OpenAPI connections, reusable field mappings and import profiles, CRM import presets, and n8n starter workflows for connecting existing tools.
+- Persistent topic and page monitors with baselines, unseen-source detection, retry backoff, and pause controls. Monitors run while the server is awake.
+- Research provenance and outcome tracking for replies, meetings, and wins. Automation data participates in backups, restores, resets, and privacy erasure.
+- Any number of saved AI connections, including multiple accounts per provider, each with separate credentials and model settings.
+- Per-task model selection, a model override for each Ask message, and optional automatic routing by task fit and known costs.
+- Vercel AI Gateway and Cloudflare AI Gateway integrations, including Cloudflare named dynamic routes, gateway selection, and request-log controls.
+
+### Changed
+- Company discovery and web research share configurable search providers and source-quality improvements.
+- AI receipts report serving model IDs and flag unknown prices; gateway routing does not price an unknown fallback using the requested alias's rates.
+- Connection credentials remain in the system credential store or machine-local encrypted storage and are excluded from workspace exports.
+
+### Validation
+- 1,218 unit and integration tests pass across 119 files. Browser checks cover provider switching, multiple accounts, task and message overrides, web research, monitors, connections, mappings, and outcomes.
+- Typecheck, lint, and production build pass. Live gateway calls require configured credentials and billing.
+
 ---
 
 ## [v0.2.1] — 2026-10-26

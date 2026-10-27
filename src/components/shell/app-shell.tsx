@@ -20,7 +20,7 @@ import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
 import { AgentLine, GoalLine, SECONDARY, Sidebar, navFor } from "./sidebar";
 
-const GO: Record<string, string> = { t: "/today", r: "/partners", c: "/companies", n: "/intros", e: "/events", p: "/playbook", m: "/studio", i: "/integrations", s: "/settings" };
+const GO: Record<string, string> = { t: "/today", r: "/partners", c: "/companies", f: "/research", n: "/intros", e: "/events", p: "/playbook", m: "/studio", i: "/integrations", s: "/settings" };
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;

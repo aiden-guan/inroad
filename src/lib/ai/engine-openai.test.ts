@@ -1,10 +1,13 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { seenWebUrls } from "@/lib/deals/ledger";
 import { startMock, type MockServer } from "@/test/mock-anthropic";
 import { AgentError, defineTool, runAgent, type RunOptions } from "./engine";
 import type { AgentEvent } from "./events";
 import { anthropicSafe, EMULATED } from "./openai-compat";
+import { saveSearchSetup } from "@/lib/search/search";
+import { writeSettings } from "@/lib/store/settings";
+import { setSecrets } from "@/lib/store/workspace";
 
 /**
  * The same agent loop on an OpenAI-compatible provider: scripts/mock-anthropic.mjs answers Chat Completions
@@ -30,6 +33,8 @@ afterAll(() => {
 });
 
 beforeEach(async () => {
+  writeSettings({ search: undefined });
+  setSecrets("hub", { search_deepseek: null, search_tinyfish: null });
   await mock.reset();
   process.env.INROAD_AI_MODEL = "mock-large";
   process.env.FIRECRAWL_API_KEY = "fc-mocktestkey";
@@ -89,6 +94,26 @@ describe("a run on an OpenAI-compatible provider", () => {
     expect(out.usage.webSearches).toBe(1);
     // The same conversation can move to Anthropic: its search becomes text there.
     expect(JSON.stringify(anthropicSafe(out.messages))).not.toContain(EMULATED);
+  });
+
+  it.each(["deepseek", "tinyfish"] as const)("uses %s search with the same model loop and citation ledger", async (id) => {
+    saveSearchSetup({ provider: id, key: "search-test-key-123456" });
+    const originalFetch = globalThis.fetch;
+    const searchCalls: string[] = [];
+    vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.hostname === "api.deepseek.com" || url.hostname === "api.search.tinyfish.ai") {
+        searchCalls.push(url.hostname);
+        return Promise.resolve(Response.json({ results: [{ url: "https://example.com/company-news", title: "Company news", snippet: "Northwind hired a sales leader" }] }));
+      }
+      return originalFetch(input, init);
+    });
+    const out = await run({ system: ["You are Inroad."], messages: [{ role: "user", content: "Research northwind.io (northwind.io) for outreach" }], tools, requireTerminal: true, webSearch: 2 });
+    expect(out.result).toBeDefined();
+    expect(searchCalls).toHaveLength(1);
+    expect(out.of("sources").flatMap((e) => e.sources)).toContainEqual({ url: "https://example.com/company-news", title: "Company news", host: "example.com" });
+    expect([...seenWebUrls(out.messages)]).toContain("example.com/company-news");
+    expect(out.usage.webSearches).toBe(1);
   });
 
   it("offers no search without a Firecrawl key, and still finishes", async () => {

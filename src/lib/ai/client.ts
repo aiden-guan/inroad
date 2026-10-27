@@ -5,6 +5,7 @@ import { readSettings, writeSettings, type AiSettings, type ModelPrice } from "@
 import { AgentError } from "./errors";
 import { MODEL_IDS, type ModelTier } from "./models";
 import { cleanBaseUrl, isProviderId, providerById, PROVIDERS, tierModels, type ProviderId, type ProviderPreset } from "./providers";
+import type { AiConnection } from "./routing-types";
 
 /**
  * Which provider runs the work, with its key and models. Resolved in this order:
@@ -14,6 +15,8 @@ import { cleanBaseUrl, isProviderId, providerById, PROVIDERS, tierModels, type P
  *  4. the first provider whose key is in the environment
  */
 export interface ActiveProvider {
+  connectionId?: string;
+  headers?: Record<string, string>;
   preset: ProviderPreset;
   id: ProviderId;
   kind: "anthropic" | "openai";
@@ -90,7 +93,7 @@ function build(preset: ProviderPreset, ai: AiSettings | undefined, fromEnv: bool
   };
 }
 
-export function activeProvider(): ActiveProvider | null {
+export function legacyProvider(): ActiveProvider | null {
   const ai = migrateLegacyKey();
   const chosen = providerById(ai?.provider);
   if (chosen) return build(chosen, ai, false);
@@ -105,6 +108,38 @@ export function activeProvider(): ActiveProvider | null {
     }
   }
   return null;
+}
+
+/** Each saved connection has a separate credential, including multiple accounts at the same vendor. */
+export function connectionProvider(connection: AiConnection): ActiveProvider | null {
+  if (!connection.enabled) return null;
+  const preset = providerById(connection.provider);
+  if (!preset) return null;
+  const saved = connection.key ? readAiKey(`connection:${connection.id}`) : undefined;
+  const apiKey = saved ?? envKey(preset);
+  if (preset.needsKey && !apiKey) return null;
+  const headers: Record<string, string> = {};
+  if (connection.cloudflare) {
+    headers["cf-aig-gateway-id"] = connection.cloudflare.gatewayId;
+    headers["cf-aig-skip-cache"] = "true";
+    headers["cf-aig-collect-log"] = String(connection.cloudflare.collectLogs);
+  }
+  return {
+    preset, id: preset.id, connectionId: connection.id, kind: preset.kind, name: connection.name,
+    apiKey, keySource: saved ? "saved" : apiKey ? "env" : "none", baseUrl: connection.baseUrl,
+    models: { strategist: connection.model, operator: connection.model, fast: connection.model, ...connection.models },
+    prices: connection.prices, headers,
+  };
+}
+
+export function activeProvider(): ActiveProvider | null {
+  const ai = readSettings().ai;
+  const id = ai?.routing?.defaultConnectionId;
+  if (id && id !== "legacy") {
+    const connection = ai?.connections?.find((c) => c.id === id);
+    return connection ? connectionProvider(connection) : null;
+  }
+  return legacyProvider();
 }
 
 /** The provider, or a plain-words error saying what's missing. */
@@ -122,7 +157,11 @@ export function requireProvider(): ActiveProvider {
 /** Anthropic's client, with the saved key or the SDK's own credentials (env, `ant auth login`). */
 export function getAnthropicClient(provider: ActiveProvider | null = activeProvider()): Anthropic {
   if (provider?.kind === "anthropic") {
-    return provider.apiKey && provider.keySource === "saved" ? new Anthropic({ apiKey: provider.apiKey, maxRetries: 3 }) : new Anthropic({ maxRetries: 3 });
+    if (!provider.connectionId) return provider.apiKey && provider.keySource === "saved" ? new Anthropic({ apiKey: provider.apiKey, maxRetries: 3 }) : new Anthropic({ maxRetries: 3 });
+    if (provider.keySource === "env" && !process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_AUTH_TOKEN) {
+      return new Anthropic({ apiKey: null, authToken: process.env.ANTHROPIC_AUTH_TOKEN, baseURL: provider.baseUrl, maxRetries: 3 });
+    }
+    return new Anthropic({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 3 });
   }
   const saved = readAiKey("anthropic");
   if (saved) return new Anthropic({ apiKey: saved, maxRetries: 3 });

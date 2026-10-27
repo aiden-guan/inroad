@@ -473,6 +473,7 @@ export function CommandPalette() {
                 <Item value="log a call debrief notes transcript" icon={<Phone className="size-4" />} onSelect={() => run(() => router.push("/companies?view=talking&log=1"))}>
                   Log a call
                 </Item>
+                <Item value="research search web sources companies" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research"))}>Search the web and research companies</Item>
                 <Item value="find new companies discover accounts prospects" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
                   Find new companies to talk to
                 </Item>

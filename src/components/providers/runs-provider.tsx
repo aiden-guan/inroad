@@ -37,6 +37,7 @@ export interface RunState {
 }
 
 interface StartOptions {
+  route?: import("@/lib/ai/routing-types").ModelTarget;
   /** Toast when finished (default true). A function is asked at the end, e.g. "unless that sheet is still open". */
   notify?: boolean | (() => boolean);
   /** Called once with the run's result. */
@@ -185,7 +186,7 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         const res = await fetch("/api/runs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workflow, args }),
+          body: JSON.stringify({ workflow, args, route: opts?.route }),
         });
         const body = await res.json();
         if (!res.ok) throw Object.assign(new Error(body?.error ?? "Couldn't start that."), { code: body?.code as string | undefined });

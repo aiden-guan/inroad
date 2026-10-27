@@ -17,6 +17,7 @@ interface Optimistic {
 }
 
 export interface SendOptions {
+  route?: import("@/lib/ai/routing-types").ModelTarget;
   web?: boolean;
   deep?: boolean;
 }
@@ -160,6 +161,7 @@ export function useConversation(opts: {
       // Why a run didn't start (budget used up, invalid message) belongs on the turn, not in a passing toast.
       let failure: { message: string; code?: string } | undefined;
       const startOpts = {
+        route: o.route,
         notify: false,
         onError: (e: { message: string; code?: string }) => {
           failure = e;

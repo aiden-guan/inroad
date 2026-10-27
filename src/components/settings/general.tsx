@@ -11,6 +11,8 @@ import { FieldError, Input } from "@/components/ui/field";
 import { Segmented, Skeleton } from "@/components/ui/misc";
 import { setCompanyIcons } from "@/lib/client/icons";
 import { AiProviderGroup } from "./ai-provider";
+import { SearchProviderGroup } from "./search-provider";
+import { AiRoutingGroup } from "./ai-routing";
 import { CONSUMER_MODEL_LABELS, MARKET_LABELS } from "@/lib/consumer/market";
 import type { ConsumerModel, Market } from "@/lib/domain/types";
 import { UpdatesGroup } from "@/components/updates/updates-group";
@@ -29,6 +31,8 @@ export function GeneralSection({ settings }: { settings: Settings }) {
       description="AI, company preferences and app settings."
     >
       <AiProviderGroup settings={settings} />
+      <AiRoutingGroup reload={settings.reload} revision={settings.status?.ai} />
+      <SearchProviderGroup settings={settings} />
       <ImagesGroup settings={settings} />
       <MarketGroup />
       <Group title="Appearance">

@@ -5,7 +5,8 @@ import { deleteAiKey, keyHint, readAiKey, saveAiKey } from "@/lib/store/ai-keys"
 import { readSettings, writeSettings, type AiSettings, type ModelPrice } from "@/lib/store/settings";
 import { activeProvider } from "./client";
 import type { ModelTier } from "./models";
-import { listModels, webSearchKey } from "./openai-compat";
+import { listModels } from "./openai-compat";
+import { activeSearch } from "@/lib/search/search";
 import { cleanBaseUrl, cleanModelId, detectProvider, PROVIDERS, providerById, rankModels, type ProviderId, type ProviderPreset } from "./providers";
 
 /**
@@ -22,7 +23,7 @@ export function aiStatus(): AiStatus {
   if (process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE) if (!env.includes("anthropic")) env.push("anthropic");
   const inUse = active && active.kind === "openai" ? [...new Set(Object.values(active.models))] : [];
   return {
-    active: active ? { id: active.id, name: active.name, kind: active.kind, models: active.models, billingUrl: active.preset.billingUrl } : null,
+    active: active ? { id: active.id, ...(active.connectionId ? { connectionId: active.connectionId } : {}), name: active.name, kind: active.kind, models: active.models, billingUrl: active.preset.billingUrl } : null,
     chosen: ai?.provider ?? null,
     baseUrl: ai?.baseUrl ?? null,
     model: ai?.model ?? null,
@@ -33,7 +34,7 @@ export function aiStatus(): AiStatus {
     keychain: process.platform === "darwin" ? "your Mac's Keychain" : process.platform === "win32" ? "Windows Credential Manager" : "your system keyring",
     env,
     unpriced: inUse.some((m) => !active?.prices[m]),
-    webSearch: active?.kind === "anthropic" ? "built_in" : webSearchKey() ? "firecrawl" : "none",
+    webSearch: active?.kind === "anthropic" ? "built_in" : (activeSearch()?.id ?? "none"),
   };
 }
 
@@ -81,6 +82,7 @@ async function checkAnthropic(key: string): Promise<string | null> {
 
 export async function saveAiSetup(input: AiSetupInput): Promise<SetupResult> {
   const preset = providerById(input.provider);
+  if (preset?.id === "cloudflare") return fail("Add Cloudflare under AI connections, including your account and gateway IDs.");
   if (!preset) return fail("Pick a provider.");
   const settings = readSettings();
   const prev: AiSettings | undefined = settings.ai;
@@ -92,7 +94,7 @@ export async function saveAiSetup(input: AiSetupInput): Promise<SetupResult> {
     if (wrong) return fail(wrong);
   }
 
-  const next: AiSettings = { ...(same ? prev : {}), provider: preset.id, keys: prev?.keys };
+  const next: AiSettings = { ...(same ? prev : {}), provider: preset.id, keys: prev?.keys, connections: prev?.connections, routing: prev?.routing ? { ...prev.routing, defaultConnectionId: undefined } : undefined };
   delete next.baseUrl;
 
   if (preset.kind === "anthropic") {
@@ -104,7 +106,7 @@ export async function saveAiSetup(input: AiSetupInput): Promise<SetupResult> {
     }
     if (key) next.keys = { ...next.keys, anthropic: { hint: keyHint(key), store: saveAiKey("anthropic", key), savedAt: new Date().toISOString() } };
     for (const field of ["model", "models", "available", "prices"] as const) delete next[field];
-    writeSettings({ ai: next, anthropicApiKey: undefined });
+    writeSettings({ ai: { ...next, connections: readSettings().ai?.connections, routing: readSettings().ai?.routing ? { ...readSettings().ai!.routing!, defaultConnectionId: undefined } : undefined }, anthropicApiKey: undefined });
     return { ok: true };
   }
 
@@ -167,7 +169,7 @@ export async function saveAiSetup(input: AiSetupInput): Promise<SetupResult> {
     }
     next.prices = prices;
   }
-  writeSettings({ ai: next, anthropicApiKey: undefined });
+  writeSettings({ ai: { ...next, connections: readSettings().ai?.connections, routing: readSettings().ai?.routing ? { ...readSettings().ai!.routing!, defaultConnectionId: undefined } : undefined }, anthropicApiKey: undefined });
   return { ok: true };
 }
 

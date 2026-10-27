@@ -2,6 +2,7 @@
 
 import type { ModelTier } from "@/lib/ai/models";
 import type { ProviderId } from "@/lib/ai/providers";
+import type { SearchProviderId, SearchStatus } from "@/lib/search/providers";
 
 export type NewsSource = "gdelt" | "google_news" | "off";
 export type Geocoder = "osm" | "off";
@@ -16,7 +17,7 @@ export interface ModelPrice {
 /** The AI provider setup. Keys never leave the server: only which providers have one, its last 4, and where it's kept. */
 export interface AiStatus {
   /** The provider doing the work, or null when none is set up yet. */
-  active: { id: ProviderId; name: string; kind: "anthropic" | "openai"; models: Record<ModelTier, string>; billingUrl: string } | null;
+  active: { id: ProviderId; connectionId?: string; name: string; kind: "anthropic" | "openai"; models: Record<ModelTier, string>; billingUrl: string } | null;
   /** The provider picked in Settings, even before it works (no key or no model yet). */
   chosen: ProviderId | null;
   baseUrl: string | null;
@@ -33,8 +34,8 @@ export interface AiStatus {
   env: ProviderId[];
   /** No price is known for a model in use, so spend can't be counted in dollars. */
   unpriced: boolean;
-  /** How web research runs: Anthropic's own search, the founder's Firecrawl key, or not at all. */
-  webSearch: "built_in" | "firecrawl" | "none";
+  /** How web research runs: Anthropic search or an independently selected search provider. */
+  webSearch: "built_in" | SearchProviderId | "none";
 }
 
 /** GET/POST /api/settings. The key itself never leaves the server; only where it came from and its last 4. */
@@ -44,6 +45,7 @@ export interface SettingsStatus {
   keySource: "settings" | "env" | null;
   keyHint: string | null;
   ai: AiStatus;
+  search: SearchStatus;
   newsSource: NewsSource;
   /** Whether places outside the built-in city list are looked up on OpenStreetMap. */
   geocoder: Geocoder;

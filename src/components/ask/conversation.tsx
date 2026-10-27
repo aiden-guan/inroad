@@ -1,5 +1,7 @@
 "use client";
 
+import { RunModelPicker } from "@/components/ai/run-model-picker";
+
 import { ArrowUp, Globe, History, Sparkles, SquarePen, Square, X, Zap } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -482,6 +484,7 @@ function Composer({
   onSent: () => void;
 }) {
   const [text, setText] = useState("");
+  const [route, setRoute] = useState<import("@/lib/ai/routing-types").ModelTarget>();
   const [web, setWeb] = useState(false);
   const [deep, setDeep] = useState(false);
   // Keep an over-long paste in the box instead of clearing it for a request the server will refuse.
@@ -495,11 +498,11 @@ function Composer({
   const deepUsd = costOf("strategist", { ...emptyUsage(), cacheWriteTokens: threadTokens + 13_000, outputTokens: 2_000 });
   const deepModel = other ? other.models.strategist : MODEL_LABELS.strategist;
   // Prices here are Anthropic's; on another provider the cost depends on prices this app may not know.
-  const deepHint = `For this message only: ${deepModel} with more thinking. Re-reads this conversation on ${deepModel}${other ? "" : `, about ${usd(deepUsd)}`}.${threadTokens > 30_000 ? " Start fresh first to keep it cheap." : ""}`;
+  const deepHint = route ? "For this message only: more thinking on the selected model, if it supports reasoning effort." : `For this message only: ${deepModel} with more thinking. Re-reads this conversation on ${deepModel}${other ? "" : `, about ${usd(deepUsd)}`}.${threadTokens > 30_000 ? " Start fresh first to keep it cheap." : ""}`;
 
   const submit = () => {
     if (!text.trim() || conv.busy || tooLong) return;
-    const o: SendOptions = { web, deep };
+    const o: SendOptions = { web, deep, route };
     setText("");
     setWeb(false);
     setDeep(false);
@@ -555,6 +558,7 @@ function Composer({
           </Tooltip>
         )}
       </div>
+      <RunModelPicker value={route} onChange={setRoute} disabled={conv.busy} />
       {tooLong && (
         <p className="px-3 pb-2 text-[12px] text-danger">
           That&apos;s {text.length.toLocaleString()} characters; Ask takes up to {MAX_MESSAGE.toLocaleString()}. Paste the part of the call that matters.

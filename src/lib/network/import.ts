@@ -45,7 +45,7 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
   if (input.mapping.domain === null && input.mapping.email === null) throw new ActionError("Choose the column with the company website or a work email. I match companies by domain.");
 
   const preset = presetById(input.preset);
-  const rows = readListRows(parsed.rows, input.mapping);
+  const rows = readListRows(parsed.rows, input.mapping, parsed.headers);
   const at = nowISO();
   const matched: { email?: string; linkedin?: string; tag: RelationshipTag }[] = [];
   const fileName = input.fileName.slice(0, 120) || "import.csv";
@@ -53,6 +53,10 @@ export async function applyListImport(input: ListImportInput): Promise<ImportBat
 
   const batch = (
     await mutateWorkspace((ws) => {
+      for (const row of rows) if (row.optOut && row.email && !ws.suppression.some((s) => s.email === row.email)) {
+        ws.suppression.push({ id: newId("sup"), email: row.email, reason: "unsubscribe", at });
+        for (const person of Object.values(ws.people)) if (person.email?.toLowerCase() === row.email) person.doNotContact = true;
+      }
       const plan = planImport(ws, rows);
       const b: ImportBatch = {
         id: newId("imp"),

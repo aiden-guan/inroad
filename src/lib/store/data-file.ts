@@ -79,7 +79,7 @@ export function writeDataFile(file: string, value: unknown) {
 }
 
 /** The files Inroad keeps at the top of its data folder (with their temp files and corrupt copies). */
-const OWN_FILE = /^(workspace|threads|connections|network|desk|runs|hub|settings|secrets|keys|opt-outs|calibration|references|geo-cache)\.json(\.corrupt-\d+|\.\d+\.tmp)?$/;
+const OWN_FILE = /^(workspace|threads|connections|network|desk|runs|hub|settings|secrets|keys|opt-outs|calibration|references|geo-cache|automation)\.json(\.corrupt-\d+|\.\d+\.tmp)?$/;
 /** Its folders there; everything inside them is Inroad's. */
 const OWN_DIRS = new Set(["backups", "cache"]);
 

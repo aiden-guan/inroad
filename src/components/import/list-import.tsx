@@ -116,7 +116,7 @@ export function ListImport({ initial, onLinkedIn, onDone }: { initial?: FileIn |
   const mapping = sel?.mapping ?? null;
   const presetId = sel?.presetId ?? "generic";
   const setMapping = (m: Mapping) => sel && setSel({ ...sel, mapping: m });
-  const plan = useMemo(() => (ws && parsed && mapping ? planImport(ws, readListRows(parsed.rows, mapping)) : null), [ws, parsed, mapping]);
+  const plan = useMemo(() => (ws && parsed && mapping ? planImport(ws, readListRows(parsed.rows, mapping, parsed.headers)) : null), [ws, parsed, mapping]);
   const preset = presetById(presetId);
   const detected = parsed ? detectPreset(parsed.headers).id : "generic";
   const keyed = mapping && (mapping.domain !== null || mapping.email !== null);

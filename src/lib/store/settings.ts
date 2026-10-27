@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ModelTier } from "@/lib/ai/models";
 import type { ProviderId } from "@/lib/ai/providers";
 import type { KeyStore } from "./ai-keys";
+import type { SearchSettings } from "@/lib/search/providers";
 import { readDataFile, writeDataFile } from "./data-file";
 
 /** Per-million-token prices for a model the app has no price table for (set by the founder, or read from OpenRouter). */
@@ -17,6 +18,8 @@ export interface ModelPrice {
  * key file (store/ai-keys.ts); `keys` only remembers that one is saved, where, and its last four characters.
  */
 export interface AiSettings {
+  connections?: import("@/lib/ai/routing-types").AiConnection[];
+  routing?: import("@/lib/ai/routing-types").AiRouting;
   provider: ProviderId;
   /** Custom endpoints and a non-default Ollama address. */
   baseUrl?: string;
@@ -35,6 +38,10 @@ export interface Settings {
   /** Before keys moved to the keychain. Read once, moved into the key store, then removed (client.ts). */
   anthropicApiKey?: string;
   ai?: AiSettings;
+  search?: SearchSettings;
+  /** Machine-local started-request counters survive history pruning and workspace restores. */
+  researchRequests?: Record<string, number>;
+  browserRequests?: Record<string, number>;
   /**
    * Where free news signals come from. Google News RSS gives the best results but its feed terms
    * allow personal, non-commercial use only, so it is opt-in. GDELT is open but noisier.

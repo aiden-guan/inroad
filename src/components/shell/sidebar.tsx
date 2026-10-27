@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Building2, CalendarHeart, Command, Handshake, Megaphone, Moon, NotebookPen, PenTool, Plug, Settings, Sun, Sunrise } from "lucide-react";
+import { Building2, CalendarHeart, Command, Handshake, Megaphone, Moon, NotebookPen, PenTool, Plug, Search, Settings, Sun, Sunrise } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
@@ -28,6 +28,7 @@ const NAV = [
   { href: "/today", label: "Today", icon: Sunrise, key: "T" },
   { href: "/partners", label: "Creators", icon: Megaphone, key: "R" },
   { href: "/companies", label: "Companies", icon: Building2, key: "C" },
+  { href: "/research", label: "Research", icon: Search, key: "F" },
   { href: "/intros", label: "Intros", icon: Handshake, key: "N" },
   { href: "/events", label: "Events", icon: CalendarHeart, key: "E" },
   { href: "/playbook", label: "Playbook", icon: NotebookPen, key: "P" },
