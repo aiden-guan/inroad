@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [v0.2.3] — 2026-10-27
+
+### Fixed
+- The Mac app opens again: its server now includes playwright-core, which v0.2.2's research reader needs. v0.2.2 was never published.
+
+---
+
 ## [v0.2.2] — 2026-10-27
 
 ### Added
