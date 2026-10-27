@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.7] — 2026-10-27
+
 ### Fixed
 - Publish the clipboard fix from the unpublished v0.2.6 after correcting the app test to accept an existing workspace opening on Today.
 
