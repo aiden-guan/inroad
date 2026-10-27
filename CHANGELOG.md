@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.1] — 2026-10-26
+
 ### Changed
 - Clearer setup fields, AI connection guidance, and a single “Build my GTM plan” action. Connection checks can be retried, and a sample workspace is available without an API key.
 - Shorter plan review with optional profile details and one action to start the workflow. Business and consumer workspaces can open Today while prospect research continues.
