@@ -25,7 +25,7 @@ export const FIELDS: { key: FieldKey; label: string; group: "company" | "person"
 export type Mapping = Record<FieldKey, number | null>;
 
 const ALIASES: Record<FieldKey, string[]> = {
-  domain: ["website", "domain", "companydomain", "companywebsite", "websiteurl", "companyurl", "companywebsiteurl", "organizationdomain", "primarydomain", "companydomainname", "webaddress", "site", "url"],
+  domain: ["website", "domain", "companydomain", "companywebsite", "websiteurl", "companyurl", "companywebsiteurl", "organizationdomain", "primarydomain", "companydomainname", "webaddress", "accountwebsite", "organizationwebsite", "site", "url"],
   company: ["company", "companyname", "organization", "organizationname", "account", "accountname", "employer", "associatedcompany", "companynameforemails", "currentcompany", "business", "businessname"],
   email: ["email", "workemail", "emailaddress", "businessemail", "leademail", "personemail", "contactemail", "primaryemail", "emailaddresses", "findworkemail"],
   first: ["firstname", "first", "givenname"],
@@ -38,7 +38,7 @@ const ALIASES: Record<FieldKey, string[]> = {
   notes: ["notes", "note", "whynow", "reason", "personalization", "icebreaker", "comments", "why", "firstline"],
 };
 
-export type PresetId = "apollo" | "clay" | "sales_navigator" | "hubspot" | "instantly" | "smartlead" | "muse" | "stripe" | "signups" | "generic";
+export type PresetId = "apollo" | "clay" | "sales_navigator" | "hubspot" | "instantly" | "smartlead" | "muse" | "stripe" | "signups" | "salesforce" | "pipedrive" | "attio" | "generic";
 
 /** What the rows are. Customers are never prospected; signups are people who already know the product. */
 export type ListKind = "prospects" | "customers" | "signups";
@@ -58,6 +58,21 @@ export interface Preset {
 }
 
 export const PRESETS: Preset[] = [
+  {
+    id: "salesforce", label: "Salesforce export", detected: "Looks like a Salesforce export", kind: "prospects",
+    signature: ["accountid", "contactid", "leadid", "accountwebsite", "hasoptedoutofemail"],
+    aliases: { domain: ["accountwebsite", "website"], company: ["accountname", "company"] },
+  },
+  {
+    id: "pipedrive", label: "Pipedrive export", detected: "Looks like a Pipedrive export", kind: "prospects",
+    signature: ["organizationname", "organizationwebsite", "personemail", "personname", "personid"],
+    aliases: { domain: ["organizationwebsite"], company: ["organizationname"], name: ["personname"], email: ["personemail"] },
+  },
+  {
+    id: "attio", label: "Attio export", detected: "Looks like an Attio export", kind: "prospects",
+    signature: ["recordid", "domains", "emailaddresses", "recordcreatedat", "companyrecordid"],
+    aliases: { domain: ["domains", "domain"], email: ["emailaddresses", "email"], company: ["companyname"] },
+  },
   {
     id: "apollo",
     label: "Apollo export",

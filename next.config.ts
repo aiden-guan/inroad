@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   // Native modules with per-platform binaries, loaded with Node's require at runtime, never bundled:
   // the keychain (@napi-rs/keyring) and the renderer for Studio graphics (SVG → PNG).
-  serverExternalPackages: ["@napi-rs/keyring", "@resvg/resvg-js"],
+  serverExternalPackages: ["@napi-rs/keyring", "@resvg/resvg-js", "playwright-core"],
   partialPrefetching: true,
   turbopack: {
     rules: {

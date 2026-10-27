@@ -1,5 +1,6 @@
 import "server-only";
 import { runAgent, type RunResult } from "@/lib/ai/engine";
+import { targetProvider } from "@/lib/ai/routing";
 import { AgentError } from "@/lib/ai/errors";
 import type { AgentEvent } from "@/lib/ai/events";
 import { addUsage, emptyUsage, type ModelTier, type Usage } from "@/lib/ai/models";
@@ -137,6 +138,7 @@ export function committedSpend(): number {
 }
 
 export interface StartOptions {
+  route?: import("@/lib/ai/routing-types").ModelTarget;
   /**
    * Started by Inroad itself (Today's brief, briefs and drafts prepared ahead, a network screen), not by the
    * founder: it only starts when its whole reservation fits under the budget, so a burst of them can't
@@ -147,6 +149,7 @@ export interface StartOptions {
 
 export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: StartOptions = {}): Promise<RunSummary> {
   const args = def.args.parse(rawArgs);
+  if (opts.route) targetProvider(opts.route);
   const ws = readWorkspace();
   const budget = ws.caps.monthlyBudgetUsd;
   const hold = RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
@@ -167,11 +170,11 @@ export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: S
   if (budget > 0) reserved.set(summary.id, hold);
   await saveSummary(summary);
 
-  void execute(def, args, live);
+  void execute(def, args, live, opts.route);
   return summary;
 }
 
-async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
+async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: import("@/lib/ai/routing-types").ModelTarget) {
   const started = Date.now();
   const steps: RunStep[] = [];
   let usage: Usage = emptyUsage();
@@ -205,6 +208,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
     signal: live.abort.signal,
     read: readWorkspace,
     mutate: async (fn) => (await mutateWorkspace(fn)).value,
+    noteExternalSearch: (count = 1) => { usage.webSearches += count; },
     noteFreeSignals: (count = 1) => {
       void mutateWorkspace((ws) => {
         const key = monthKey();
@@ -217,7 +221,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun) {
       if (TIER_RANK[tier] > TIER_RANK[topTier]) topTier = tier;
       let result: RunResult<T>;
       try {
-        result = await runAgent<T>({ ...opts, emit, signal: live.abort.signal });
+        result = await runAgent<T>({ ...opts, task: def.id, route: route ?? opts.route, emit, signal: live.abort.signal });
       } catch (err) {
         // Turns billed before a failure, Stop or truncation still count toward the receipt and budget.
         if (err instanceof AgentError && err.usage) {

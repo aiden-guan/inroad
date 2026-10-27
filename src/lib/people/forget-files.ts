@@ -1,4 +1,6 @@
 import "server-only";
+import { updateAutomation } from "@/lib/automation/store";
+import { clearSearchCache } from "@/lib/search/search";
 import type { ID, Person, RunStep, Workspace } from "@/lib/domain/types";
 import { mutateHub, readHub } from "@/lib/hub/store";
 import { mutateNetwork, readConnections, readNetwork, updateConnections } from "@/lib/network/store";
@@ -62,6 +64,18 @@ export async function forgetInFiles({ person, company, runIds, namesake }: Forgo
   );
   const refs = hubRefsOf(readHub().refs, person);
   if (refs.length) await mutateHub((h) => refs.forEach((k) => delete h.refs[k]));
+  await updateAutomation((data) => {
+    const mentions = (value: unknown) => {
+      const text = JSON.stringify(value).toLowerCase();
+      return (!namesake && namesPerson(text, person)) || (!!person.email && text.includes(person.email.toLowerCase())) || (!!person.linkedinUrl && text.includes(person.linkedinUrl.toLowerCase()));
+    };
+    const removed = new Set(data.monitors.filter(mentions).map((m) => m.id));
+    data.monitors = data.monitors.filter((m) => !removed.has(m.id));
+    data.observations = data.observations.filter((o) => !removed.has(o.monitorId) && !mentions(o));
+    data.receipts = data.receipts.filter((r) => !mentions(r));
+    data.sessions = data.sessions.filter((session) => !mentions(session));
+  });
+  clearSearchCache();
   forgetCachedLookups(person, company);
   return { connections, threads };
 }

@@ -2,7 +2,9 @@ import "server-only";
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { getAnthropicClient, requireProvider } from "./client";
+import { getAnthropicClient } from "./client";
+import { routeProvider } from "./routing";
+import type { AiTask, ModelTarget } from "./routing-types";
 import type { AgentEvent, Source } from "./events";
 import { anthropicSafe, chatTool, runOpenAITurn, type TurnHooks } from "./openai-compat";
 import { apiErrorParts, droppableFeatures, toAgentError, type CompatFeature } from "./api-errors";
@@ -90,6 +92,10 @@ export function defineTool<S extends z.ZodType>(tool: AgentTool<S>): AgentTool {
 }
 
 export interface RunOptions {
+  task?: AiTask;
+  route?: ModelTarget;
+  /** An explicitly selected native Anthropic search source, independent of synthesis routing. */
+  nativeSearch?: boolean;
   /** Which model does the work. Defaults to the operator tier (Sonnet 5.5). */
   tier?: ModelTier;
   /**
@@ -199,15 +205,20 @@ function summarizeIssues(error: z.ZodError): string {
 }
 
 export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult<T>> {
-  const provider = requireProvider();
+  const tier = opts.tier ?? "operator";
+  const route = routeProvider({ task: opts.task, tier, route: opts.route, nativeSearch: opts.nativeSearch,
+    promptTokens: Math.ceil(JSON.stringify([opts.system, opts.messages, opts.tools?.map((t) => t.description)]).length / 3) + (opts.maxTokens ?? 16_384) });
+  const provider = route.provider;
   const oa = provider.kind === "openai";
   const client = oa ? null : getAnthropicClient(provider);
-  const tier = opts.tier ?? "operator";
-  const model = oa ? provider.models[tier] : MODEL_IDS[tier];
-  const web = webToolTypes(tier);
+  const model = provider.models[tier];
+  const adaptive = Object.values(MODEL_IDS).includes(model) || /(?:opus|sonnet)-(?:4-[6-9]|[5-9])|fable-/i.test(model);
+  const web = webToolTypes(!oa && (/haiku/i.test(model) || !adaptive) ? "fast" : tier);
   // Server-side refusal fallback exists for Opus and Sonnet; Haiku has none.
-  const supportsFallback = tier !== "fast";
+  const supportsFallback = tier !== "fast" && !route.explicit && !provider.connectionId;
   const { emit, signal } = opts;
+  if (route.explicit || provider.connectionId) emit({ type: "status", text: `Using ${provider.name} · ${model} (${route.reason})` });
+  const servedModels = new Set<string>();
   const appTools = opts.tools ?? [];
   const toolByName = new Map(appTools.map((t) => [t.name, t]));
 
@@ -266,15 +277,15 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
 
       // Each optional feature goes with its own beta, so one rejected never takes the other with it.
       const fallback = supportsFallback && !dropped.has("fallback");
-      const binding = !dropped.has("binding");
+      const binding = adaptive && !dropped.has("binding");
       const betas = [...(fallback ? [FALLBACK_BETA] : []), ...(binding ? [BINDING_BETA] : [])];
       const params: Anthropic.Beta.Messages.MessageCreateParams = {
         model,
         max_tokens: maxTokens,
-        thinking: binding
+        thinking: !adaptive ? undefined : binding
           ? { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } }
           : { type: "adaptive", display: "summarized" },
-        output_config: { effort: opts.effort ?? "medium" },
+        output_config: adaptive ? { effort: opts.effort ?? "medium" } : undefined,
         system: systemBlocks,
         // Automatic caching: the breakpoint follows the last block each turn, so turn N reads what
         // turn N-1 wrote. Never mark `messages` itself: it is returned and persisted, and markers
@@ -334,6 +345,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         });
         emittedAnything = true;
         if (out.unpriced) unpriced = true;
+        servedModels.add(out.model);
         message = { stop_reason: out.stopReason, content: out.content };
         turnUsage = { usage: out.usage, costUsd: out.costUsd };
       } else {
@@ -455,6 +467,16 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
         }
         message = full;
         turnUsage = billedUsage(tier, full);
+        servedModels.add(full.model);
+        if (provider.connectionId) {
+          const p = provider.prices[full.model] ?? provider.prices[model];
+          const known = Object.values(MODEL_IDS).some((id) => full.model === id || full.model.startsWith(`${id}-`));
+          if (p || !known) {
+            const u = turnUsage.usage;
+            turnUsage.costUsd = u.webSearches * 0.01 + (p ? (u.inputTokens * p.input + u.outputTokens * p.output + u.cacheReadTokens * (p.cacheRead ?? p.input) + (u.cacheWriteTokens - u.cacheWrite1hTokens) * p.input * 1.25 + u.cacheWrite1hTokens * p.input * 2) / 1_000_000 : 0);
+            if (!p) unpriced = true;
+          }
+        }
       }
 
       stopReason = message.stop_reason;
@@ -573,7 +595,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
 
   const costUsd = spent;
   emit({ type: "usage", costUsd, model: tier });
-  return { result, text, messages, stopReason, usage, costUsd, compat: compatInfo(), ...(unpriced ? { unpriced } : {}), ...(oa ? { modelName: model } : {}) };
+  return { result, text, messages, stopReason, usage, costUsd, compat: compatInfo(), ...(unpriced ? { unpriced } : {}), ...(oa || route.explicit || provider.connectionId ? { modelName: [...servedModels].join(", ") || model } : {}) };
 
   function compatInfo(): RunResult["compat"] {
     if (!dropped.size) return undefined;

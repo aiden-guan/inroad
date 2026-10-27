@@ -4,6 +4,8 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { ProviderId } from "@/lib/ai/providers";
+
+export type AiKeyId = ProviderId | `connection:${string}`;
 import { readDataFile, writeDataFile, writeFileAtomic } from "./data-file";
 import { DATA_DIR } from "./settings";
 
@@ -25,7 +27,7 @@ import { DATA_DIR } from "./settings";
 export type KeyStore = "keychain" | "file";
 
 const SERVICE = "Inroad";
-const account = (provider: ProviderId) => `ai-key:${provider}`;
+const account = (provider: AiKeyId) => `ai-key:${provider}`;
 
 const KEYS_FILE = () => path.join(DATA_DIR, "ai-keys.json");
 const DATA_KEY_FILE = () => path.join(DATA_DIR, "ai-keys.secret");
@@ -37,13 +39,13 @@ interface Sealed {
 }
 interface KeysFile {
   v: 1;
-  keys: Partial<Record<ProviderId, Sealed>>;
+  keys: Partial<Record<AiKeyId, Sealed>>;
 }
 
 type Keyring = typeof import("@napi-rs/keyring");
 
 const cache = (() => {
-  const g = globalThis as unknown as { __inroadAiKeys?: Map<ProviderId, string | null> };
+  const g = globalThis as unknown as { __inroadAiKeys?: Map<AiKeyId, string | null> };
   g.__inroadAiKeys ??= new Map();
   return g.__inroadAiKeys;
 })();
@@ -66,7 +68,7 @@ function keyring(): Keyring | null {
 }
 
 /** Linux: the Secret Service only. The kernel keyring it would fall back to forgets everything at reboot. */
-function entry(k: Keyring, provider: ProviderId) {
+function entry(k: Keyring, provider: AiKeyId) {
   return new k.Entry(SERVICE, account(provider), { linux: { store: "secret-service" } });
 }
 
@@ -93,7 +95,7 @@ function readFile(): KeysFile {
   });
 }
 
-function seal(key: Buffer, plain: string, provider: ProviderId): Sealed {
+function seal(key: Buffer, plain: string, provider: AiKeyId): Sealed {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   // The provider is bound in as associated data: a sealed OpenAI key can't be moved under another name.
@@ -102,7 +104,7 @@ function seal(key: Buffer, plain: string, provider: ProviderId): Sealed {
   return { iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
 }
 
-function open(key: Buffer, sealed: Sealed, provider: ProviderId): string | null {
+function open(key: Buffer, sealed: Sealed, provider: AiKeyId): string | null {
   try {
     const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(sealed.iv, "base64"));
     decipher.setAAD(Buffer.from(account(provider)));
@@ -114,20 +116,20 @@ function open(key: Buffer, sealed: Sealed, provider: ProviderId): string | null 
   }
 }
 
-function writeToFile(provider: ProviderId, value: string) {
+function writeToFile(provider: AiKeyId, value: string) {
   const file = readFile();
   file.keys[provider] = seal(dataKey(true)!, value, provider);
   writeDataFile(KEYS_FILE(), file);
 }
 
-function removeFromFile(provider: ProviderId) {
+function removeFromFile(provider: AiKeyId) {
   const file = readFile();
   if (!file.keys[provider]) return;
   delete file.keys[provider];
   writeDataFile(KEYS_FILE(), file);
 }
 
-function readFromFile(provider: ProviderId): string | null {
+function readFromFile(provider: AiKeyId): string | null {
   const sealed = readFile().keys[provider];
   if (!sealed) return null;
   const key = dataKey(false);
@@ -137,7 +139,7 @@ function readFromFile(provider: ProviderId): string | null {
 /* ───────────── Public API ───────────── */
 
 /** Saves a provider's key, in the keychain when one works (checked by reading it back), else the encrypted file. */
-export function saveAiKey(provider: ProviderId, value: string): KeyStore {
+export function saveAiKey(provider: AiKeyId, value: string): KeyStore {
   const k = keyring();
   let where: KeyStore = "file";
   if (k) {
@@ -156,7 +158,7 @@ export function saveAiKey(provider: ProviderId, value: string): KeyStore {
 }
 
 /** A provider's saved key, or undefined. The keychain is asked first, then the file. */
-export function readAiKey(provider: ProviderId): string | undefined {
+export function readAiKey(provider: AiKeyId): string | undefined {
   if (cache.has(provider)) return cache.get(provider) ?? undefined;
   let value: string | null = null;
   const k = keyring();
@@ -173,7 +175,7 @@ export function readAiKey(provider: ProviderId): string | undefined {
 }
 
 /** Forgets a provider's key everywhere it might be. */
-export function deleteAiKey(provider: ProviderId) {
+export function deleteAiKey(provider: AiKeyId) {
   const k = keyring();
   if (k) {
     try {

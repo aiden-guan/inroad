@@ -1,4 +1,5 @@
 import "server-only";
+import { startMonitorScheduler } from "@/lib/automation/monitors";
 import { pruneCache } from "@/lib/signals/cache";
 import { secureDataDir } from "@/lib/store/data-file";
 import { DATA_DIR } from "@/lib/store/settings";
@@ -17,6 +18,7 @@ export function ensureStarted(): Promise<void> {
 }
 
 async function onServerStart() {
+  startMonitorScheduler();
   try {
     // Files written before owner-only writes (or copied in with a loose umask) become readable by you alone.
     const { changed, foreign } = secureDataDir(DATA_DIR);

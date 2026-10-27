@@ -10,6 +10,8 @@ import { errorResponse, readJSON } from "@/lib/server/http";
 import { DATA_DIR, dataDirInsideApp, readSettings, writeSettings } from "@/lib/store/settings";
 import { checkOpenAIKey } from "@/lib/studio/openai";
 import { DEFAULT_IMAGE_MODEL, IMAGE_MODELS } from "@/lib/studio/visuals";
+import { SEARCH_CHOICES } from "@/lib/search/providers";
+import { saveSearchSetup, searchStatus } from "@/lib/search/search";
 
 function status(): SettingsStatus {
   const settings = readSettings();
@@ -18,8 +20,9 @@ function status(): SettingsStatus {
   return {
     hasKey: active !== null,
     keySource: !active ? null : active.keySource === "saved" ? "settings" : "env",
-    keyHint: active ? (ai.saved[active.id]?.hint ?? null) : null,
+    keyHint: active ? (active.connectionId ? settings.ai?.connections?.find((c) => c.id === active.connectionId)?.key?.hint ?? null : ai.saved[active.id]?.hint ?? null) : null,
     ai,
+    search: searchStatus(),
     newsSource: settings.newsSource ?? "gdelt",
     geocoder: settings.geocoder ?? "osm",
     companyIcons: settings.companyIcons ?? "letters",
@@ -63,6 +66,7 @@ const Body = z.object({
     .optional(),
   /** Forget a provider's saved key. */
   removeKey: z.enum(PROVIDER_IDS).optional(),
+  search: z.object({ provider: z.enum(SEARCH_CHOICES), key: z.string().max(500).nullable().optional(), endpoint: z.string().max(2000).optional(), connectionId: z.string().uuid().optional(), dailyLimit: z.number().int().min(1).max(10000).optional(), browser: z.enum(["off", "tinyfish"]).optional(), browserDailyLimit: z.number().int().min(1).max(100).optional(), browserKey: z.string().max(500).nullable().optional(), pageConnectionId: z.union([z.string().uuid(), z.literal("")]).optional() }).optional(),
   newsSource: z.enum(["gdelt", "google_news", "off"]).optional(),
   geocoder: z.enum(["osm", "off"]).optional(),
   companyIcons: z.enum(["letters", "site"]).optional(),
@@ -81,6 +85,11 @@ const Body = z.object({
 export async function POST(request: Request) {
   try {
     const body = Body.parse(await readJSON(request));
+
+    if (body.search) {
+      const error = saveSearchSetup(body.search);
+      if (error) return Response.json({ error }, { status: 400 });
+    }
 
     if (body.newsSource) writeSettings({ newsSource: body.newsSource });
     if (body.geocoder) writeSettings({ geocoder: body.geocoder });

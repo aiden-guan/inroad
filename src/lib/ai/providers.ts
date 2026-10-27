@@ -13,7 +13,7 @@
 
 import type { ModelTier } from "./models";
 
-export type ProviderId = "anthropic" | "openai" | "gemini" | "xai" | "groq" | "openrouter" | "mistral" | "deepseek" | "together" | "ollama" | "custom";
+export type ProviderId = "anthropic" | "openai" | "gemini" | "xai" | "groq" | "openrouter" | "mistral" | "deepseek" | "together" | "ollama" | "custom" | "vercel" | "cloudflare";
 
 /** Optional request fields a provider is known to accept. Anything not listed is left out (compat mode drops a rejected one). */
 export interface ProviderCaps {
@@ -53,6 +53,22 @@ export interface ProviderPreset {
 const NONE: ProviderCaps = { reasoningEffort: false, streamUsage: false, tokenParam: "max_tokens" };
 
 export const PROVIDERS: ProviderPreset[] = [
+  {
+    id: "vercel", name: "Vercel AI Gateway", kind: "openai",
+    baseUrl: "https://ai-gateway.vercel.sh/v1", needsKey: true,
+    keyUrl: "https://vercel.com/d?to=/~/ai/api-keys", billingUrl: "https://vercel.com/d?to=/~/ai",
+    placeholder: "AI Gateway API key", env: ["AI_GATEWAY_API_KEY"],
+    caps: { ...NONE, streamUsage: true }, prefer: [],
+    blurb: "Many providers through one gateway. Add it under AI connections.",
+  },
+  {
+    id: "cloudflare", name: "Cloudflare AI Gateway", kind: "openai",
+    baseUrl: "", needsKey: true,
+    keyUrl: "https://dash.cloudflare.com/profile/api-tokens", billingUrl: "https://dash.cloudflare.com/",
+    placeholder: "Cloudflare API token", env: ["CLOUDFLARE_API_TOKEN"],
+    caps: { ...NONE, streamUsage: true }, prefer: [],
+    blurb: "Account-scoped inference and gateway routes. Add it under AI connections.",
+  },
   {
     id: "anthropic",
     name: "Anthropic (Claude)",

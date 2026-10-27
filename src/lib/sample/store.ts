@@ -1,4 +1,9 @@
 import "server-only";
+import { readAutomation } from "@/lib/automation/store";
+import { getSecret } from "@/lib/store/workspace";
+import type { AutomationData } from "@/lib/automation/types";
+import { stopAutomationRuns } from "@/lib/automation/monitors";
+import { clearSearchCache } from "@/lib/search/search";
 import fs from "node:fs";
 import path from "node:path";
 import { newId, nowISO } from "@/lib/domain/ids";
@@ -21,7 +26,7 @@ export { holdsRealWork };
  * and keys.json belong to the machine and are never touched; the signal cache holds public web data and
  * is kept. Each replacement saves a backup first when there's real work to lose (src/lib/store/backup.ts).
  */
-const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json"] as const;
+const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json", "automation.json"] as const;
 
 const stepsDB = () =>
   singletonDB<Record<string, RunStep[]>>("runs.json", () => new FileDB<Record<string, RunStep[]>>("runs.json", () => ({})));
@@ -53,6 +58,8 @@ async function replaceRunSteps(steps: Record<string, RunStep[]>) {
  * each has made its last write (thread, usage, summary, steps), so those land in the old files and get replaced.
  */
 async function stopLiveRuns(timeoutMs = 15_000) {
+  await stopAutomationRuns();
+  clearSearchCache();
   const ids = liveRunIds();
   for (const id of ids) stopRun(id);
   const until = Date.now() + timeoutMs;
@@ -121,8 +128,20 @@ export async function restoreWorkspace(bundle: BackupBundle): Promise<{ ws: Work
   const ws = await replaceWorkspace(next);
   const files = ["workspace.json"];
   if (!bundle.legacy) {
+    let currentConnections: AutomationData["connections"] = [];
+    try { currentConnections = readAutomation().connections; } catch { /* a restore can replace corrupt auxiliary data */ }
     for (const name of WORKSPACE_FILES) {
-      resetDataFile(name, bundle.files[name] ?? null);
+      let contents = bundle.files[name] ?? null;
+      if (name === "automation.json" && contents && typeof contents === "object") {
+        const restoredTools = structuredClone(contents) as AutomationData;
+        for (const connection of restoredTools.connections ?? []) {
+          const current = currentConnections.find((c) => c.id === connection.id);
+          if (getSecret("hub", `tool_${connection.id}`) && (!current || current.endpoint !== connection.endpoint || current.authHeader !== connection.authHeader || current.authScheme !== connection.authScheme || current.kind !== connection.kind)) connection.enabled = false;
+        }
+        for (const monitor of restoredTools.monitors ?? []) monitor.leaseUntil = undefined;
+        contents = restoredTools;
+      }
+      resetDataFile(name, contents);
       if (bundle.files[name] !== undefined) files.push(name);
     }
     if (bundle.files["hub.json"] !== undefined) {

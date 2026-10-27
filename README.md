@@ -37,7 +37,25 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
-It runs on the AI provider you choose — Anthropic Claude (what it was built and tuned on), OpenAI, Google Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, a local Ollama model, or any OpenAI-compatible API — in a browser or as a [Mac app](#the-mac-app).
+It runs on the AI provider you choose — Anthropic Claude (what it was built and tuned on), OpenAI, Google Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Vercel AI Gateway, Cloudflare AI Gateway, a local Ollama model, or any OpenAI-compatible API — in a browser or as a [Mac app](#the-mac-app). Save multiple accounts, select models per task or Ask message, and enable automatic task routing in Settings. See [AI connections and routing](docs/AI-ROUTING.md) for setup and gateway requirements.
+
+### Research and existing tools
+
+**Research** in the sidebar brings web search, evidence, connections, monitors and outcomes together. Search with
+source/date filters, inspect the actual queries and pages, reopen recent searches, track useful websites, or run
+playbook-based company qualification. Results share ranking, deduplication, caching, cancellation and daily request
+limits across providers. Missing dates and provider failures remain visible.
+
+Connect read-only MCP tools or OpenAPI GET operations, map their inputs and results, preview nested JSON records,
+and import them through the existing dedupe and suppression rules. Source opt-outs survive imports and undo.
+Salesforce, Pipedrive and Attio CSV presets are included, along with n8n starter workflows and the existing
+Zapier/Make/REST routes. Optional TinyFish browser rendering handles pages that ordinary fetches cannot read.
+
+Saved topic/page monitors include leadership, dormant-deal and meeting-preparation recipes, catch-up after restarts,
+change deduplication, visible errors and pause controls. They run while this computer and Inroad run. Outcomes link
+retained research provenance to accepted accounts, replies, meetings and wins, with unknown costs labeled.
+
+See the [Research guide](docs/RESEARCH.md) for setup, supported protocol scope, templates and verification limits.
 
 ### Consumer companies
 
@@ -261,11 +279,19 @@ sorting and rewrites), and lets you change it or split models by task in Setting
 
 Two differences off Anthropic:
 
-- **Web search** runs through your Firecrawl key (Integrations → Firecrawl). Without one, research reads company sites,
-  filings and public records but can't search the web. Pages are always read by this app.
+- **Web search** is chosen independently under Settings → General → Web search: Firecrawl, DeepSeek, TinyFish,
+  Tavily, Exa, Brave Search, or a custom HTTP search adapter. Existing Firecrawl connections keep working. Without
+  a search connection, research reads company sites, filings and public records but cannot search the web. Pages
+  are read by this app. Search charges are separate from model token usage.
 - **Spend** is counted only for models with a known price. Anthropic's are built in and OpenRouter publishes its own;
   for the rest, add the price per million tokens under Settings → AI provider → Prices, or the receipts and monthly
   budget can't count real money (they say so instead of showing $0 as free). Set a spend limit with your provider too.
+
+Web search keys saved in Settings use the existing local integration secret store (`secrets.json`), separate from
+workspace exports and backups. **Test search** makes one request and may use provider credits. Choosing **Off**
+disables external search for compatible models; Claude retains its built-in search. See the
+[provider contracts, competitor research, and compatibility roadmap](docs/research/frontrunner-tinyfish-compatibility.md)
+for the custom adapter format and the limits of connecting arbitrary tools.
 
 The prompts were written and tested on Claude. Other capable models (with tool calling) work through the same
 workflows; small local models may need a retry now and then.
@@ -600,7 +626,11 @@ real database; that isn't v1.
 | `OPENAI_BASE_URL` | Send OpenAI calls (chat and Studio images) somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
 | `INROAD_KEYCHAIN` | `off` keeps keys in the encrypted file instead of the system credential store. |
 | `INROAD_UPDATE_CHECK` | `off` stops this server from asking GitHub for updates by itself; Settings → Updates → Check now still asks. |
-| `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it isn't connected under Integrations. |
+| `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it is not saved under Web search or connected under Integrations. |
+| `INROAD_SEARCH_PROVIDER` | External search provider: `auto` (default), `off`, `firecrawl`, `deepseek`, `tinyfish`, `tavily`, `exa`, `brave`, `custom`, or `connected`. A saved selection wins. DeepSeek requires an explicit choice. |
+| `TINYFISH_API_KEY`, `TAVILY_API_KEY`, `EXA_API_KEY`, `BRAVE_SEARCH_API_KEY` | Search provider keys; DeepSeek search uses `DEEPSEEK_API_KEY` or the saved DeepSeek model key. |
+| `INROAD_SEARCH_CONNECTION_ID` | Id of an enabled MCP/OpenAPI connection with a mapped search capability, when using `connected` without saved settings. |
+| `INROAD_SEARCH_URL`, `INROAD_SEARCH_KEY` | Full custom search adapter URL and optional bearer key. Receives `{query, limit}` and returns `{results: [{url, title, description}]}`. HTTPS, or HTTP on loopback. |
 | `PORT` | The port (default 3000; `-- -p` works too). |
 | `INROAD_HOST` | The address to listen on (default 127.0.0.1). |
 | `ANTHROPIC_BASE_URL`, `FIRECRAWL_API_URL` | Where those APIs are; `npm run dev:mock` points both at the mock. |
@@ -655,7 +685,7 @@ inroad/
 ## Project Status & Limitations
 
 - **Maturity**: Functional MVP with complete local-first persistence, offline mock test environment, production Next.js 16 build, and a Mac app.
-- **Model Support**: Built and tuned on Anthropic Claude (Opus, Sonnet, Haiku 5.5). OpenAI, Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Ollama and any OpenAI-compatible API run the same workflows through Chat Completions; off Anthropic, web search needs a Firecrawl key and spend is counted only for models with a known price. Studio graphics can also paint an optional picture layer with OpenAI GPT Image, on a separate OpenAI key the founder saves under Settings → General.
+- **Model Support**: Built and tuned on Anthropic Claude (Opus, Sonnet, Haiku 5.5). OpenAI, Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Ollama and any OpenAI-compatible API run the same workflows through Chat Completions; off Anthropic, web search uses the independently selected search provider and model spend is counted only for models with a known price. External search charges are billed separately by the search provider. Studio graphics can also paint an optional picture layer with OpenAI GPT Image, on a separate OpenAI key the founder saves under Settings → General.
 - **Studio graphics limits**: the image path through OpenAI was tested against a local mock of the Images API, not against OpenAI itself (the build environment couldn't reach api.openai.com). OpenAI may require organization verification before GPT Image models work. Graphics render with the fonts installed on your machine (the designs name Georgia, Inter or Helvetica, and Menlo, with fallbacks), so the same SVG can look slightly different on macOS, Windows and Linux.
 - **Single Fixed Workstation**: Data resides in the data folder on the local machine; cross-device multi-tenant cloud synchronization requires an external database adapter. See [What it can't do](#what-it-cant-do).
 - **Email Dispatch Boundary**: Inroad deliberately omits automated SMTP/IMAP senders. All outreach requires manual founder approval to prevent automated spam penalties.

@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowUpRight, KeyRound, RotateCw } from "lucide-react";
-import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useKeyForm } from "@/components/onboarding/key-block";
@@ -63,6 +62,8 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
   let summary: ReactNode;
   if (!status || !ai) {
     summary = loadError ? <span className="text-danger">{loadError}</span> : <Skeleton className="mt-1 h-4 w-48" />;
+  } else if (active?.connectionId) {
+    summary = `${active.models.operator}. Manage this account and its credentials under AI connections and task routing.`;
   } else if (active && status.keySource === "settings") {
     summary = (
       <>
@@ -102,7 +103,8 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
         }
         hint={summary}
       >
-        {active && !open && (
+        {active?.connectionId && <a className="text-[13px] text-accent-text underline" href="#ai-routing">Manage connection</a>}
+        {active && !active.connectionId && !open && (
           <div className="flex justify-start gap-1.5 sm:justify-end">
             {confirmRemove ? (
               <>
@@ -151,20 +153,16 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
           }}
         />
       )}
-      {!open && active?.kind === "openai" && ai && <ModelRows ai={ai} run={run} busy={busy} />}
+      {!open && active?.kind === "openai" && !active.connectionId && ai && <ModelRows ai={ai} run={run} busy={busy} />}
       {!open && active && active.kind === "openai" && ai && (
         <Row
           label="Web research"
           hint={
-            ai.webSearch === "firecrawl" ? (
-              "Searches go through your Firecrawl key; pages are read by this app."
+            ai.webSearch !== "none" ? (
+              "Searches use the provider selected under Web search below; pages are read by this app."
             ) : (
               <>
-                Web search needs a Firecrawl key (
-                <Link href="/integrations" className="underline-offset-2 hover:text-fg-2 hover:underline">
-                  Integrations
-                </Link>
-                ). Until then I read company sites, filings and public records, but can&apos;t search.
+                Choose a provider under Web search below. Until then I read company sites, filings and public records, but can&apos;t search.
               </>
             )
           }
@@ -226,7 +224,7 @@ function ConnectForm({ ai, save, canCancel, onCancel, onSaved }: { ai: AiStatus;
     >
       <div className="grid gap-2 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
         <select id={`${id}-p`} aria-label="AI provider" value={form.provider} onChange={(e) => form.setProvider(e.target.value as ProviderId)} className={selectClass}>
-          {PROVIDERS.map((p) => (
+          {PROVIDERS.filter((p) => p.id !== "cloudflare" && p.id !== "vercel").map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
               {ai.saved[p.id] ? ` · saved ${ai.saved[p.id]!.hint}` : ""}

@@ -52,7 +52,7 @@ const dispatcher = new Agent({ connect: { lookup: guardedLookup } });
  * machine or the local network (SSRF). Checked on every redirect hop, after DNS resolution, and
  * again at connect time by `guardedLookup`.
  */
-async function isPublicUrl(raw: string): Promise<boolean> {
+export async function isPublicUrl(raw: string): Promise<boolean> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -91,10 +91,11 @@ interface GuardedOptions {
   headers?: Record<string, string>;
   /** Hand back 4xx/5xx answers too, so a caller can tell a rate limit from a failure. */
   allowErrors?: boolean;
+  signal?: AbortSignal;
 }
 
 /** The guarded fetch behind fetchText and fetchBytes: public addresses only, on every hop, with a size cap. */
-async function fetchGuarded(url: string, { timeoutMs, maxBytes, accept, headers, allowErrors }: GuardedOptions): Promise<Fetched | null> {
+async function fetchGuarded(url: string, { timeoutMs, maxBytes, accept, headers, allowErrors, signal }: GuardedOptions): Promise<Fetched | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -106,7 +107,7 @@ async function fetchGuarded(url: string, { timeoutMs, maxBytes, accept, headers,
       res = await fetch(current, {
         headers: { "User-Agent": UA, Accept: accept, "Accept-Language": "en-US,en;q=0.9", ...headers },
         redirect: "manual",
-        signal: controller.signal,
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
         dispatcher,
       });
       const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
@@ -152,9 +153,10 @@ export async function fetchText(
     headers,
     allowErrors,
     responseHeaders,
-  }: { timeoutMs?: number; maxBytes?: number; accept?: string; headers?: Record<string, string>; allowErrors?: boolean; responseHeaders?: string[] } = {},
+    signal,
+  }: { timeoutMs?: number; maxBytes?: number; accept?: string; headers?: Record<string, string>; allowErrors?: boolean; responseHeaders?: string[]; signal?: AbortSignal } = {},
 ): Promise<{ url: string; status: number; body: string; headers?: Record<string, string> } | null> {
-  const res = await fetchGuarded(url, { timeoutMs, maxBytes, accept, headers, allowErrors });
+  const res = await fetchGuarded(url, { timeoutMs, maxBytes, accept, headers, allowErrors, signal });
   if (!res) return null;
   const out: { url: string; status: number; body: string; headers?: Record<string, string> } = { url: res.url, status: res.status, body: new TextDecoder().decode(res.bytes) };
   if (responseHeaders?.length) {

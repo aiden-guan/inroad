@@ -1,6 +1,6 @@
 import type { Workspace } from "@/lib/domain/types";
 import { companyDomainOf, findPerson, isFreeMail, normalizeDomain, normalizeEmail } from "@/lib/hub/records";
-import { linkedinKey } from "./csv";
+import { headerKey, linkedinKey } from "./csv";
 import type { Mapping } from "./presets";
 
 /**
@@ -22,6 +22,7 @@ export interface ListRow {
   description?: string;
   notes?: string;
   person: boolean;
+  optOut?: boolean;
 }
 
 export type SkipReason = "no_domain" | "personal_email" | "suppressed" | "own_company" | "duplicate";
@@ -39,16 +40,17 @@ const clip = (s: string | undefined, n: number) => {
   return t ? t.slice(0, n) : undefined;
 };
 
-export function readListRows(rows: string[][], mapping: Mapping): ListRow[] {
+export function readListRows(rows: string[][], mapping: Mapping, headers: string[] = []): ListRow[] {
   const get = (r: string[], k: keyof Mapping) => {
     const i = mapping[k];
     return i === null || i === undefined ? undefined : r[i]?.trim() || undefined;
   };
+  const optOutColumn = headers.findIndex((h) => /^(optout|unsubscribed|donotcontact|emailoptout|hasoptedoutofemail|optedout)$/.test(headerKey(h)));
   return rows.map((r, idx) => {
-    const email = normalizeEmail(get(r, "email")) ?? undefined;
+    const email = (get(r, "email") ?? "").split(/[;,]/).map((value) => normalizeEmail(value.trim())).find(Boolean) ?? undefined;
     const rawLinkedin = get(r, "linkedin");
     const linkedin = rawLinkedin && /linkedin\.com\//i.test(rawLinkedin) ? clip(rawLinkedin, 300) : undefined;
-    let domain = normalizeDomain(get(r, "domain")) ?? undefined;
+    let domain = (get(r, "domain") ?? "").split(/[;,]/).map((value) => normalizeDomain(value.trim())).find(Boolean) ?? undefined;
     if (domain && /(^|\.)linkedin\.com$/.test(domain)) domain = undefined;
     domain ??= companyDomainOf(email) ?? undefined;
     const name = clip([get(r, "first"), get(r, "last")].filter(Boolean).join(" ") || get(r, "name"), 120);
@@ -65,6 +67,7 @@ export function readListRows(rows: string[][], mapping: Mapping): ListRow[] {
       description: clip(get(r, "description"), 200),
       notes: clip(get(r, "notes"), 300),
       person: Boolean(email || name || linkedin || title),
+      ...(optOutColumn >= 0 && /^(true|yes|1|unsubscribed|opted out)$/i.test(r[optOutColumn]?.trim() ?? "") ? { optOut: true } : {}),
     };
   });
 }
@@ -97,7 +100,9 @@ export function planImport(ws: PlanWorkspace, rows: ListRow[]): ImportPlan {
   let newPeople = 0;
   let existingPeople = 0;
 
+  for (const row of rows) if (row.optOut && row.email) suppressedEmails.add(row.email);
   for (const row of rows) {
+    if (row.optOut) { skipped.push({ line: row.line, reason: "suppressed" }); continue; }
     if (!row.domain) {
       skipped.push({ line: row.line, reason: row.email && isFreeMail(row.email.split("@")[1] ?? "") ? "personal_email" : "no_domain" });
       continue;

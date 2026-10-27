@@ -43,6 +43,7 @@
     "motion": "^14.4.0",
     "next": "16.4.2",
     "node-html-parser": "^9.0.5",
+    "playwright-core": "1.56.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",

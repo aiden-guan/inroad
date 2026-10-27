@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ModelTier } from "@/lib/ai/models";
 import type { ProviderId } from "@/lib/ai/providers";
+import type { SearchChoice } from "@/lib/search/providers";
 import type { CompanyIcons, Geocoder, ModelPrice, NewsSource, SettingsStatus } from "./types";
 
 /* ───────────── Local settings (GET/POST /api/settings) ───────────── */
@@ -20,6 +21,7 @@ export interface SettingsUpdate {
     refresh?: boolean;
   };
   removeKey?: ProviderId;
+  search?: { provider: SearchChoice; key?: string | null; endpoint?: string; connectionId?: string; dailyLimit?: number; browser?: "off" | "tinyfish"; browserDailyLimit?: number; pageConnectionId?: string; browserKey?: string | null };
   newsSource?: NewsSource;
   geocoder?: Geocoder;
   companyIcons?: CompanyIcons;

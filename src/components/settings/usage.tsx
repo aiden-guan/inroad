@@ -472,7 +472,7 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
 
 function HowCostStaysLow({ report }: { report: UsageReport }) {
   const ai = useAiStatus();
-  // On another provider the table names its models and the prices set for them; web search runs on Firecrawl credits.
+  // On another provider the table names its models and the prices set for them; web search is billed separately by the selected search provider.
   const other = ai?.active?.kind === "openai" ? ai.active : null;
   const routing = ROUTING.map((r) => (other && r.tier !== "none" ? { ...r, model: other.models[r.tier], price: ai?.prices[other.models[r.tier]] } : r));
   const byTier = new Map<ModelTierName, { runs: number; costUsd: number }>(report.byModel.map((m) => [m.tier, m]));
@@ -486,7 +486,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
       title: "Web search is a capped fallback.",
       body: (
         <>
-          Only when free sources come back thin, and at most 3 to 5 searches a run{other ? ", on your Firecrawl credits" : ` at ${cost(SEARCH_PRICE)} each`}. This month: <span className="font-mono tnum">{report.searches}</span>.
+          Only when free sources come back thin, and at most 3 to 5 searches a run{other ? ", billed separately by your search provider" : ` at ${cost(SEARCH_PRICE)} each`}. This month: <span className="font-mono tnum">{report.searches}</span>.
         </>
       ),
     },

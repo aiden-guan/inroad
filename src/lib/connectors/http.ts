@@ -21,6 +21,7 @@ export interface RequestOptions {
   retries?: number;
   /** Strings to scrub from any message (API keys, webhook URLs). */
   secrets?: string[];
+  signal?: AbortSignal;
   /** A non-idempotent create: retrying after a timeout or 5xx could make a duplicate. */
   createsRecord?: boolean;
 }
@@ -101,10 +102,10 @@ export async function request<T = unknown>(o: RequestOptions): Promise<Result<T>
         body: hasBody ? (typeof o.body === "string" ? o.body : JSON.stringify(o.body)) : undefined,
         redirect: "manual",
         cache: "no-store",
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: o.signal ? AbortSignal.any([o.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
-      if (attempt < retries && !o.createsRecord) {
+      if (attempt < retries && !o.createsRecord && !o.signal?.aborted) {
         await sleep(backoff(attempt));
         continue;
       }

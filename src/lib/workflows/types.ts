@@ -18,6 +18,7 @@ export interface WorkflowContext<A> {
   /** Serialized write to the workspace. */
   mutate: <R = void>(fn: (ws: Workspace) => R) => Promise<R>;
   /** Count lookups done in code (job boards, news, crawl) that cost zero tokens; shown on the usage page. */
+  noteExternalSearch?: (count?: number) => void;
   noteFreeSignals: (count?: number) => void;
 }
 

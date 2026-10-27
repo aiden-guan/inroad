@@ -179,6 +179,7 @@ export function IntegrationsHub() {
         <Link href="/today" className="mt-3 inline-flex min-h-9 items-center rounded-sm px-3 text-[13px] font-medium text-fg ring-1 ring-border-strong transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">Go to Today →</Link>
       </div>
 
+      <div className="my-6 rounded-lg border border-border bg-surface p-4"><p className="text-[14px] font-medium">Connect another research tool</p><p className="mt-2 text-[13px] leading-5 text-fg-2">MCP servers, OpenAPI read operations, JSON field mapping and reusable monitors now live in Research.</p><Link href="/research?tab=tools" className="mt-3 inline-block text-[13px] underline underline-offset-2">Open connections and mapping</Link></div>
       <Group id="leads" question="Import leads" note="Already have a list? Import it here. Inroad handles duplicates.">
         <LinkRow
           id="linkedin"

@@ -2,11 +2,9 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { firecrawlSearch } from "@/lib/connectors/firecrawl";
-import { fetchText } from "@/lib/signals/http";
-import { digestPage } from "@/lib/signals/website";
+import { activeSearch, searchWeb, type ActiveSearch } from "@/lib/search/search";
+import { readResearchPage } from "@/lib/search/pages";
 import { redactKeys } from "@/lib/store/ai-keys";
-import { getSecret, readWorkspace } from "@/lib/store/workspace";
 import type { ActiveProvider } from "./client";
 import { AgentError, type AgentErrorCode } from "./errors";
 import type { Source } from "./events";
@@ -22,7 +20,7 @@ import { addUsage, emptyUsage, type Usage } from "./models";
  *  - in: the streamed reply becomes Anthropic-shaped blocks (text, tool_use)
  *
  * Web search and web fetch, which Anthropic runs server-side, run here as function tools: search through
- * the founder's Firecrawl key (left out when there is none), fetch through the app's guarded fetcher. They
+ * the selected search provider (left out when none is configured), fetch through the app's guarded fetcher. They
  * resolve inside the turn and are recorded as server_tool_use + web_*_tool_result blocks, exactly where
  * Anthropic would put them, so seenWebUrls, citations and receipts work unchanged.
  */
@@ -221,7 +219,7 @@ const WEB_SEARCH_TOOL: ChatTool = {
   type: "function",
   function: {
     name: "web_search",
-    description: "Search the web. Returns result titles, URLs and short snippets. Search in English, one specific query at a time.",
+    description: "Search the web. Returns result titles, URLs and short snippets. Search in English, one specific query at a time, at most 128 characters.",
     parameters: { type: "object", properties: { query: { type: "string", description: "The search query" } }, required: ["query"] },
   },
 };
@@ -233,19 +231,6 @@ const WEB_FETCH_TOOL: ChatTool = {
     parameters: { type: "object", properties: { url: { type: "string", description: "The full https:// URL" } }, required: ["url"] },
   },
 };
-
-/** The founder's Firecrawl key (Integrations), or a FIRECRAWL_API_KEY on a server; null means no web search off Anthropic. */
-export function webSearchKey(): string | null {
-  try {
-    if (readWorkspace().integrations.firecrawl?.enabled) {
-      const k = getSecret("firecrawl", "key");
-      if (k) return k;
-    }
-  } catch {
-    // no workspace yet
-  }
-  return process.env.FIRECRAWL_API_KEY || null;
-}
 
 /* ───────────── Compat: optional fields a provider rejected ───────────── */
 
@@ -260,7 +245,7 @@ const rejected = (() => {
 const COMPAT_MS = 60 * 60_000;
 
 function compatKey(p: ActiveProvider, model: string): string {
-  return createHash("sha256").update(`${p.id}|${p.baseUrl}|${p.apiKey ?? ""}|${model}`).digest("hex").slice(0, 16);
+  return createHash("sha256").update(`${p.id}|${p.connectionId ?? ""}|${JSON.stringify(p.headers ?? {})}|${p.baseUrl}|${p.apiKey ?? ""}|${model}`).digest("hex").slice(0, 16);
 }
 
 function dropped(key: string): Set<Optional> {
@@ -368,10 +353,12 @@ async function openStream(provider: ActiveProvider, body: Json, signal?: AbortSi
           "content-type": "application/json",
           accept: "text/event-stream",
           ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+          ...provider.headers,
         },
         body: JSON.stringify(body),
         signal,
         cache: "no-store",
+        redirect: "error",
       });
     } catch {
       if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
@@ -447,7 +434,10 @@ async function callOnce(provider: ActiveProvider, body: Json, hooks: TurnHooks, 
   const res = await openStream(provider, body, signal);
   let text = "";
   let finish: string | null = null;
-  let model = String(body.model);
+  const gatewayModel = res.headers.get("cf-aig-model");
+  const gatewayProvider = res.headers.get("cf-aig-provider");
+  const reportedModel = gatewayModel && gatewayProvider && !gatewayModel.includes("/") ? `${gatewayProvider}/${gatewayModel}` : gatewayModel;
+  let model = reportedModel || String(body.model);
   let usage: Usage | null = null;
   const calls = new Map<string, { id: string; name: string; args: string }>();
   let n = 0;
@@ -456,7 +446,7 @@ async function callOnce(provider: ActiveProvider, body: Json, hooks: TurnHooks, 
       const e = chunk.error as Json;
       throw new ProviderHttpError(Number(e.code) || 500, chunk, String(e.message ?? "The stream failed."));
     }
-    if (typeof chunk.model === "string") model = chunk.model;
+    if (typeof chunk.model === "string" && !(reportedModel && chunk.model.startsWith("dynamic/"))) model = chunk.model;
     const u = (chunk.usage ?? (chunk.x_groq as Json | undefined)?.usage) as Json | undefined;
     if (u && typeof u.prompt_tokens === "number") {
       const cached = Number((u.prompt_tokens_details as Json | undefined)?.cached_tokens ?? 0);
@@ -507,11 +497,11 @@ async function callOnce(provider: ActiveProvider, body: Json, hooks: TurnHooks, 
 
 /* ───────────── Web tools ───────────── */
 
-async function runSearch(query: string, key: string | null, seen: Set<string>, hooks: TurnHooks): Promise<Json | Json[]> {
+async function runSearch(query: string, provider: ActiveSearch | null, seen: Set<string>, hooks: TurnHooks, signal?: AbortSignal): Promise<Json | Json[]> {
   hooks.search(query);
-  if (!key) return { type: "web_search_tool_result_error", error_code: "unavailable" };
-  const r = await firecrawlSearch(key, query, 8);
-  if (!r.ok) return { type: "web_search_tool_result_error", error_code: "unavailable", message: r.error.message };
+  if (!provider) return { type: "web_search_tool_result_error", error_code: "unavailable" };
+  const r = await searchWeb(provider, query, 8, { signal });
+  if (!r.ok) return { type: "web_search_tool_result_error", error_code: r.error.code === "validation" ? "invalid_input" : "unavailable", message: r.error.message };
   const fresh: Source[] = [];
   for (const x of r.value) {
     if (seen.has(x.url)) continue;
@@ -521,22 +511,22 @@ async function runSearch(query: string, key: string | null, seen: Set<string>, h
   if (fresh.length) hooks.sources(fresh);
   // `text` isn't part of Anthropic's block (its snippet is encrypted); this path reads it back when the
   // conversation continues (webResultText), and nothing sends these blocks to Anthropic (anthropicSafe).
-  return r.value.map((x) => ({ type: "web_search_result", url: x.url, title: x.title, page_age: null, encrypted_content: "", text: x.description }));
+  return r.value.map((x) => ({ type: "web_search_result", url: x.url, title: x.title, page_age: x.publishedAt ?? null, encrypted_content: "", text: x.description }));
 }
 
-async function runFetch(url: string, hooks: TurnHooks): Promise<Json> {
+async function runFetch(url: string, hooks: TurnHooks, signal?: AbortSignal): Promise<Json> {
   if (!/^https?:\/\//i.test(url)) return { type: "web_fetch_tool_error", error_code: "invalid_input" };
   hooks.read(url);
-  const res = await fetchText(url, { timeoutMs: 15_000, maxBytes: 2_000_000, accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5" });
-  if (!res || res.status >= 400) return { type: "web_fetch_tool_error", error_code: "url_not_accessible" };
-  const html = /<html|<body|<head/i.test(res.body.slice(0, 2000));
-  const page = html ? digestPage(res.url, res.body, 12_000) : null;
-  const text = page ? [page.description, page.text].filter(Boolean).join("\n\n") : res.body.slice(0, 12_000);
+  let page;
+  try { page = await readResearchPage(url, { signal }); }
+  catch (error) { return { type: "web_fetch_tool_error", error_code: "url_not_accessible", message: error instanceof Error ? error.message : "Page unavailable." }; }
+  const text = page.text;
+
   return {
     type: "web_fetch_result",
-    url: res.url,
+    url: page.url,
     retrieved_at: new Date().toISOString(),
-    content: { type: "document", title: page?.title || null, source: { type: "text", media_type: "text/plain", data: text } },
+    content: { type: "document", title: page.title || null, source: { type: "text", media_type: "text/plain", data: text } },
   };
 }
 
@@ -582,16 +572,16 @@ const MAX_WEB_ROUNDS = 8;
 export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
   const { provider, model, hooks, signal } = input;
   const idOf = toolIdFor(provider);
-  const searchKey = webSearchKey();
+  const searchProvider = activeSearch();
   const content: Json[] = [];
   let usage = emptyUsage();
   let costUsd = 0;
   let servedBy = model;
-  const price = provider.prices[model];
+  let unpriced = false;
   const ck = compatKey(provider, model);
 
   for (let round = 0; round <= MAX_WEB_ROUNDS; round++) {
-    const offerSearch = !!searchKey && input.web.search > 0 && round < MAX_WEB_ROUNDS;
+    const offerSearch = !!searchProvider && input.web.search > 0 && round < MAX_WEB_ROUNDS;
     const offerFetch = input.web.fetch > 0 && round < MAX_WEB_ROUNDS;
     const tools = [...input.tools, ...(offerSearch ? [WEB_SEARCH_TOOL] : []), ...(offerFetch ? [WEB_FETCH_TOOL] : [])];
     const history = content.length ? [...input.messages, { role: "assistant", content } as unknown as Msg] : input.messages;
@@ -636,6 +626,9 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
 
     usage = addUsage(usage, result.usage);
     servedBy = result.model || servedBy;
+    const sameModel = servedBy === model || model.endsWith(`/${servedBy}`);
+    const price = provider.prices[servedBy] ?? (sameModel ? provider.prices[model] : undefined);
+    if (!price) unpriced = true;
     if (price) costUsd += (result.usage.inputTokens * price.input + result.usage.cacheReadTokens * (price.cacheRead ?? price.input) + result.usage.outputTokens * price.output) / 1_000_000;
     if (result.text) content.push({ type: "text", text: result.text, citations: null });
 
@@ -654,11 +647,11 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
         const query = String(args.query ?? "").trim();
         input.web.search--;
         usage.webSearches++;
-        content.push({ type: "web_search_tool_result", tool_use_id: id, content: query ? await runSearch(query, searchKey, input.seenSources, hooks) : { type: "web_search_tool_result_error", error_code: "invalid_input" } });
+        content.push({ type: "web_search_tool_result", tool_use_id: id, content: query ? await runSearch(query, searchProvider, input.seenSources, hooks, signal) : { type: "web_search_tool_result_error", error_code: "invalid_input" } });
       } else {
         input.web.fetch--;
         usage.webFetches++;
-        content.push({ type: "web_fetch_tool_result", tool_use_id: id, content: await runFetch(String(args.url ?? "").trim(), hooks) });
+        content.push({ type: "web_fetch_tool_result", tool_use_id: id, content: await runFetch(String(args.url ?? "").trim(), hooks, signal) });
       }
     }
     for (const c of app) {
@@ -675,14 +668,14 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
       stopReason,
       usage,
       costUsd,
-      unpriced: !price,
+      unpriced,
       model: servedBy,
     });
     if (app.length) return done("tool_use");
     if (web.length) continue;
     return done(result.finish === "length" ? "max_tokens" : result.finish === "content_filter" ? "refusal" : "end_turn");
   }
-  return { content: content as unknown as Anthropic.Beta.BetaContentBlock[], stopReason: "end_turn", usage, costUsd, unpriced: !price, model: servedBy };
+  return { content: content as unknown as Anthropic.Beta.BetaContentBlock[], stopReason: "end_turn", usage, costUsd, unpriced, model: servedBy };
 }
 
 /* ───────────── Key check and model list ───────────── */
@@ -691,7 +684,7 @@ export interface ModelListing {
   ok: true;
   models: string[];
   /** Per-million-token prices the provider published with the list (OpenRouter does). */
-  prices: Record<string, { input: number; output: number }>;
+  prices: Record<string, { input: number; output: number; cacheRead?: number }>;
 }
 
 /** Lists the models a key can use, which also proves the key works. */
@@ -701,6 +694,7 @@ export async function listModels(baseUrl: string, apiKey: string | undefined, na
     res = await fetch(`${baseUrl}/models`, {
       headers: { accept: "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
       cache: "no-store",
+      redirect: "error",
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
@@ -717,9 +711,11 @@ export async function listModels(baseUrl: string, apiKey: string | undefined, na
     if (!id) continue;
     models.push(id);
     const p = r.pricing as Json | undefined;
-    const input = Number(p?.prompt);
-    const output = Number(p?.completion);
-    if (Number.isFinite(input) && Number.isFinite(output) && (input > 0 || output > 0)) prices[id] = { input: input * 1_000_000, output: output * 1_000_000 };
+    const rate = (value: unknown): number => (typeof value === "number" || typeof value === "string" && value.trim() !== "") && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : NaN;
+    const input = rate(p?.prompt ?? p?.input);
+    const output = rate(p?.completion ?? p?.output);
+    const cacheRead = rate(p?.input_cache_read ?? p?.cachedInputTokens);
+    if (Number.isFinite(input) && Number.isFinite(output)) prices[id] = { input: input * 1_000_000, output: output * 1_000_000, ...(Number.isFinite(cacheRead) ? { cacheRead: cacheRead * 1_000_000 } : {}) };
   }
   return { ok: true, models, prices };
 }

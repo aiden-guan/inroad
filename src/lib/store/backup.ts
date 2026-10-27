@@ -24,7 +24,7 @@ export const BACKUP_FORMAT = "inroad-backup";
 export const BACKUP_DIR = () => path.join(DATA_DIR, "backups");
 
 /** Every file a workspace is made of. A bundle holds the ones that exist; a restore replaces all of them. */
-export const WORKSPACE_FILES = ["workspace.json", "threads.json", "connections.json", "network.json", "desk.json", "runs.json", "hub.json"] as const;
+export const WORKSPACE_FILES = ["workspace.json", "threads.json", "connections.json", "network.json", "desk.json", "runs.json", "hub.json", "automation.json"] as const;
 export type WorkspaceFile = (typeof WORKSPACE_FILES)[number];
 
 export type BackupReason = "daily" | "before_reset" | "before_sample" | "before_restore" | "before_update" | "export";
