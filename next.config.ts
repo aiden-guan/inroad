@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
         outputFileTracingExcludes: {
           // Reads under the data folder look like project-wide file access to the tracer. Nothing here runs from
           // source, and a data folder must never end up inside an app build.
-          "/*": ["./src/**/*", "./docs/**/*", "./e2e/**/*", "./scripts/**/*", "./desktop/**/*", "./.data*/**/*", "./test-results/**/*", "./playwright-report/**/*", "./*.md", "./tsconfig*", "./vitest*", "./eslint*", "./playwright*"],
+          "/*": ["./src/**/*", "./docs/**/*", "./e2e/**/*", "./scripts/**/*", "./desktop/**/*", "./.data*/**/*", "./test-results/**/*", "./playwright-report/**/*", "./*.md", "./tsconfig*", "./vitest*", "./eslint*", "./playwright.config.ts"],
         },
       }
     : {}),
