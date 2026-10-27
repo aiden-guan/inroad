@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+- Clearer setup fields, AI connection guidance, and a single “Build my GTM plan” action. Connection checks can be retried, and a sample workspace is available without an API key.
+- Shorter plan review with optional profile details and one action to start the workflow. Business and consumer workspaces can open Today while prospect research continues.
+- Simpler first-day guidance from finding prospects to reviewing drafts and sending outreach.
+- Optional integrations grouped by imports, outreach and CRM sync. People lookup, meetings, alerts and automation expand under “More tools”; saved links still open the right tool.
+- Shorter settings and connector descriptions, keyboard-accessible customer selection, and readable integration statuses on mobile.
+
+### Fixed
+- Pressing Enter in setup descriptions now adds a line instead of starting a workflow. Ctrl/Cmd+Enter still submits.
+- Setup waits for the AI connection check instead of starting a run with an unknown connection state.
+
 ---
 
 ## [v0.2.0] — 2026-10-27

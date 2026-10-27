@@ -441,18 +441,18 @@ function DayOne({ warm, networkCard }: { warm: boolean; networkCard: boolean }) 
   return (
     <EmptyState
       icon={<Compass className="size-6" />}
-      title="Let's find your first three companies"
+      title="Find your first prospects"
       body={
         warm
-          ? "I'll look for companies with a dated reason to talk to you now, and rank first the ones where people you know work. Then I research each one before you write a word."
-          : `I'll look for companies with a dated reason to talk to you now, then research each one before you write a word.${askImport ? " Import your LinkedIn connections and I'll start with people who already know you." : ""}`
+          ? "Start with companies where you have a connection. Inroad researches each prospect and prepares outreach for your review."
+          : "Find companies, review outreach drafts, then send from your inbox."
       }
       action={
         <div className="flex flex-col items-center gap-3">
-          <RunInline workflow="discovery" args={{ count: 3, source: "manual" }} label="Find three companies" hint="Free sources first · a few minutes" />
+          <RunInline workflow="discovery" args={{ count: 3, source: "manual" }} label="Find my first prospects" hint="About 2 minutes" />
           {askImport && (
             <Link href="/integrations?import=linkedin" className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
-              Or import your LinkedIn connections first
+              Import LinkedIn connections
             </Link>
           )}
         </div>
@@ -475,7 +475,7 @@ function CaughtUpConsumer() {
   return (
     <EmptyState
       title="Nothing needs you right now"
-      body="No replies, numbers or follow-ups are waiting. A good time to talk to a user or add a few creators and communities where your users already gather."
+      body="Your growth actions are up to date. Find creators and communities to reach more users."
       action={<RunInline workflow="partners" args={{ mode: "find", count: 8, source: "founder" }} runRef={{ kind: "playbook", id: "partners" }} label="Find creators and communities" variant="secondary" />}
     />
   );

@@ -220,10 +220,10 @@ test("day one asks for the LinkedIn import once, in the card for it", async ({ p
   expect((await request.post("/api/today/prepare", { data: { reason: "refresh" } })).ok()).toBe(true);
 
   await page.goto("/today");
-  await expect(page.getByText("Let's find your first three companies")).toBeVisible();
+  await expect(page.getByText("Find your first prospects", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Bring in your network/ })).toBeVisible();
   await expect(page.getByText(/Import your LinkedIn connections and I'll start/)).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Or import your LinkedIn connections first" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Import LinkedIn connections", exact: true })).toHaveCount(0);
 });
 
 test("research that ran out of credits says so after a reload, with Add credits first", async ({ page, request }) => {
@@ -277,7 +277,7 @@ test("on a phone: skipping the two questions keeps the list drop, and the orb fl
   await page.goto("/welcome");
   await page.locator("#site").fill("acme.com");
   await page.locator("#note").fill("We reconcile usage data with invoices so finance teams close the month in hours.");
-  await page.getByRole("button", { name: /^Start/ }).click();
+  await page.getByRole("button", { name: "Build my GTM plan" }).click();
   await expect(page.getByRole("heading", { name: /Two quick ones while I read/ })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("Got a list? Drop it here")).toBeVisible();
   await page.getByRole("button", { name: "Skip", exact: true }).click();
@@ -285,7 +285,7 @@ test("on a phone: skipping the two questions keeps the list drop, and the orb fl
   await expect(page.getByText("Got a list? Drop it here")).toBeVisible();
 
   // The offer card is long on a phone and its button at the bottom, far below the orb at the top.
-  const cta = page.getByRole("button", { name: /^(Go to Today|Research these \d|Research this one)/ });
+  const cta = page.getByRole("button", { name: /^(Go to Today|Start my workflow)/ });
   await expect(cta).toBeEnabled({ timeout: 180_000 });
   await page.locator("#founder-name").fill("Priya");
   await page.evaluate(() => {

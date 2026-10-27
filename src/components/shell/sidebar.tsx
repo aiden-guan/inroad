@@ -245,6 +245,7 @@ function NavLink({
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex h-8 items-center gap-2.5 rounded-sm px-2 text-[13px] transition-colors duration-150",
         active ? "font-medium text-fg" : "text-fg-2 hover:bg-surface/60 hover:text-fg",

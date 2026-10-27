@@ -53,6 +53,7 @@ export default defineConfig({
     { name: "today", testMatch: "today-cards.spec.ts", dependencies: ["sample"], use: { ...devices["Desktop Chrome"] } },
     // Then switch the AI provider to OpenAI (the mock speaks Chat Completions) and back.
     { name: "provider", testMatch: "provider.spec.ts", dependencies: ["today"], use: { ...devices["Desktop Chrome"] } },
+    { name: "usability", testMatch: "usability.spec.ts", dependencies: ["provider"], use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: [
     {

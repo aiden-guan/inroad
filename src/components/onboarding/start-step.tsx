@@ -28,46 +28,38 @@ const NOTE_PLACEHOLDER: Record<Market | "auto", string> = {
 };
 
 const SUBTITLE: Record<Market | "auto", string> = {
-  auto: "Paste your website. In about two minutes, I’ll show you who to talk to first, and why now.",
-  b2b: "Paste your website. In about two minutes, I’ll show you the first three companies worth talking to, and why now.",
-  consumer: "Paste your website. In about two minutes, I’ll show you where your first users already gather, and how to reach them.",
+  auto: "Add your website. Get a GTM plan and your first prospects in about two minutes.",
+  b2b: "Add your website. Get a sales plan and your first companies to contact.",
+  consumer: "Add your website. Get a growth plan and places to find your first users.",
 };
 
 const MARKET_OPTIONS: { value: Market | "auto"; label: string }[] = [
-  { value: "auto", label: "Read my site" },
+  { value: "auto", label: "Auto-detect" },
   { value: "b2b", label: "Businesses" },
   { value: "consumer", label: "Consumers" },
 ];
 
-/** "Who buys from you?" Buttons, not a Segmented control: inside the form they must never submit it. */
+/** Native radios support arrow keys as well as touch, without submitting the form. */
 function MarketPick({ value, onChange }: { value: Market | "auto"; onChange: (v: Market | "auto") => void }) {
   return (
-    <div className="mt-5">
-      <p id="market-label" className="mb-1.5 text-[13px] font-medium text-fg">
-        Who buys from you?
-      </p>
-      <div role="radiogroup" aria-labelledby="market-label" className="inline-flex h-8 items-center gap-0.5 rounded-md bg-bg-subtle p-0.5 ring-1 ring-border">
+    <fieldset className="mt-5">
+      <legend className="mb-1.5 text-[13px] font-medium text-fg">Who are your customers?</legend>
+      <div className="inline-flex items-center gap-0.5 rounded-md bg-bg-subtle p-0.5 ring-1 ring-border">
         {MARKET_OPTIONS.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={value === o.value}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              "inline-flex h-7 items-center rounded-[6px] px-3 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+          <label key={o.value} className="relative cursor-pointer">
+            <input type="radio" name="market" value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} className="peer sr-only" />
+            <span className={cn(
+              "inline-flex min-h-10 items-center rounded-[6px] px-3 text-[13px] font-medium transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring)] sm:min-h-8",
               value === o.value ? "bg-surface text-fg shadow-xs" : "text-fg-3 hover:text-fg-2",
-            )}
-          >
-            {o.label}
-          </button>
+            )}>{o.label}</span>
+          </label>
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
-/** Step 0: one column, one field, one action. The key block appears only when there's no key. */
+/** One setup form. The provider block appears only when an AI connection is needed. */
 export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (args: StartArgs) => Promise<boolean>; starting: boolean }) {
   const o = ws.onboarding;
   const router = useRouter();
@@ -79,20 +71,24 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
   const [market, setMarket] = useState<Market | "auto">(o.market ?? "auto");
   const [error, setError] = useState<string | null>(null);
   const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null);
+  const [keyCheckError, setKeyCheckError] = useState(false);
+  const [keyCheck, setKeyCheck] = useState(0);
   const [sampleBusy, setSampleBusy] = useState(false);
   const keyForm = useKeyForm();
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/settings", { cache: "no-store" })
-      .then((r) => r.json() as Promise<KeyStatus>)
+      .then((r) => {
+        if (!r.ok) throw new Error("Couldn't check your AI connection.");
+        return r.json() as Promise<KeyStatus>;
+      })
       .then((s) => !cancelled && setKeyStatus(s))
-      // If settings can't be read, let the run itself report a missing key.
-      .catch(() => !cancelled && setKeyStatus({ hasKey: true, keyHint: null }));
+      .catch(() => !cancelled && setKeyCheckError(true));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [keyCheck]);
 
   const needsKey = keyStatus !== null && !keyStatus.hasKey;
 
@@ -107,7 +103,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (starting || keyForm.saving) return;
+    if (starting || keyForm.saving || !keyStatus) return;
     const domain = domainOf(url);
     if (mode === "site" && !domain) {
       setError("That doesn't look like a website. Try something like acme.com.");
@@ -130,7 +126,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
   };
 
   const submitOnEnter = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void submit();
     }
@@ -179,10 +175,16 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
           Let&rsquo;s find your first customers.
         </motion.h1>
         <motion.p variants={listItem} custom={1} className="mt-3 text-pretty text-[15px] leading-[23px] text-fg-2">
-          {SUBTITLE[market]}
+          {mode === "describe" ? "Describe your product. Get a GTM plan and a place to start." : SUBTITLE[market]}
         </motion.p>
 
         <motion.form variants={listItem} custom={2} onSubmit={submit} className="mt-8" noValidate>
+          {keyCheckError && (
+            <div role="alert" className="mb-5 flex flex-wrap items-center gap-2 text-[13px] text-danger">
+              Couldn&apos;t check your AI connection.
+              <Button type="button" size="sm" variant="secondary" onClick={() => { setKeyCheckError(false); setKeyCheck((n) => n + 1); }}>Try again</Button>
+            </div>
+          )}
           {needsKey && (
             <div className="mb-5">
               <KeyBlock form={keyForm} />
@@ -191,9 +193,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
 
           {mode === "site" ? (
             <>
-              <label htmlFor="site" className="sr-only">
-                Your website
-              </label>
+              <Label htmlFor="site">Your website</Label>
               <input
                 id="site"
                 autoFocus={!unreachable}
@@ -220,7 +220,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
               </div>
               <div className="mt-5">
                 <Label htmlFor="note" hint={unreachable ? undefined : "optional"}>
-                  {unreachable ? "What do you sell, in one sentence?" : "Anything your website won’t tell me?"}
+                  What do you sell, and to whom?
                 </Label>
                 <Textarea
                   id="note"
@@ -236,7 +236,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
             </>
           ) : (
             <>
-              <Label htmlFor="describe">No website yet? Describe what you&rsquo;re building in two sentences.</Label>
+              <Label htmlFor="describe">What are you building, and who is it for?</Label>
               <Textarea
                 id="describe"
                 autoFocus
@@ -248,9 +248,11 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
                 onKeyDown={submitOnEnter}
                 placeholder="We help clinics get insurance pre-authorizations approved in hours, not weeks. Two design partners, no revenue yet."
                 maxLength={2000}
+                aria-invalid={!!error}
+                aria-describedby="describe-error"
                 className="min-h-[96px] text-[16px] leading-6 sm:text-[14px] sm:leading-[21px]"
               />
-              <div aria-live="polite">
+              <div id="describe-error" aria-live="polite">
                 <FieldError>{error}</FieldError>
               </div>
             </>
@@ -259,8 +261,8 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
           <MarketPick value={market} onChange={setMarket} />
 
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <Button type="submit" variant="agent" size="lg" kbd="↵" loading={starting || keyForm.saving}>
-              Start
+            <Button type="submit" variant="agent" size="lg" loading={starting || keyForm.saving} disabled={!keyStatus}>
+              {keyForm.saving ? "Connecting AI…" : starting ? "Building your plan…" : !keyStatus && !keyCheckError ? "Checking setup…" : "Build my GTM plan"}
             </Button>
             <button
               type="button"
@@ -273,11 +275,12 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
               {mode === "site" ? "No website yet?" : "I have a website"}
             </button>
           </div>
+          <p className="mt-3 text-[12px] text-fg-3">No CRM or email connection needed.</p>
         </motion.form>
 
         <motion.footer variants={listItem} custom={3} className="mt-14 border-t border-border pt-4">
           <p className="text-pretty text-[12px] leading-[18px] text-fg-3">
-            I read public pages and search the web. I never send anything, and your workspace stays on this computer.
+            Your workspace stays on this computer. You review and send every message.
           </p>
           <button
             type="button"
@@ -285,7 +288,7 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
             disabled={sampleBusy}
             className="mt-2 rounded-xs text-[12px] text-fg-3 underline decoration-border-strong underline-offset-4 transition-colors duration-150 hover:text-fg-2 disabled:opacity-60"
           >
-            {sampleBusy ? "Opening the sample…" : "Explore a sample workspace"}
+              {sampleBusy ? "Opening the sample…" : "Try a sample · no API key needed"}
           </button>
         </motion.footer>
     </motion.main>

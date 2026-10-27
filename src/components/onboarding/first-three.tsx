@@ -7,7 +7,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { SectionLabel } from "@/components/ui/card";
 import { Favicon } from "@/components/ui/favicon";
 import { Input, Label } from "@/components/ui/field";
 import { SourceChip } from "@/components/ui/source";
@@ -148,6 +147,8 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
     if (busy) return;
     setBusy(true);
     onLeave();
+    // The founder can open the workspace immediately; the first search continues in the background.
+    if (to === "/today" && !dId) await findCompanies();
     const ids: string[] = [];
     for (const a of research) {
       const r = await start("dossier", { domain: a.domain }, { notify: false });
@@ -176,26 +177,10 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
 
   const n = found.length;
   const empty = n === 0 && !searching;
-  // Nothing looked for yet (or the search was stopped): finding the first three is the next step, not leaving.
   const idle = empty && (!dId || dStatus === "stopped");
-  const cta = idle
-    ? "Find the first 3"
-    : n === 3
-      ? "Research these 3"
-      : n === 2
-        ? "Research these 2"
-        : n === 1
-          ? "Research this one"
-          : searching
-            ? "Research these 3"
-            : "Go to Today";
+  const cta = n > 0 ? "Start my workflow" : "Go to Today";
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (idle) {
-      void findCompanies();
-      return;
-    }
-    if (n === 0 && searching) return;
     void hire("/today", found);
   };
 
@@ -214,20 +199,17 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               ? "I couldn’t finish the search"
               : idle
                 ? "Next: your first three companies"
-                : "No one with a dated reason to talk this month"}
+                : "Your GTM plan is ready"}
         </h1>
 
         {f?.icp.hypothesis.sentence && (
           <div className="mt-4">
             <p className="prose-agent text-pretty">
-              <span className="text-fg-3">My bet: </span>
+              <span className="text-fg-3">Your starting plan: </span>
               {f.icp.hypothesis.sentence}
             </p>
             <p className="mt-2 font-mono text-[11px] leading-4 text-fg-3">
-              Bet · {provenance.charAt(0).toLowerCase() + provenance.slice(1)} ·{" "}
-              <button type="button" onClick={() => void hire("/playbook", [])} className="rounded-xs underline decoration-fg-4 underline-offset-2 hover:text-fg-2">
-                Edit
-              </button>
+              {provenance}
             </p>
           </div>
         )}
@@ -261,14 +243,13 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
                 </>
               ) : idle ? (
                 <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
-                  {dId ? "I stopped looking before I found anyone." : "I haven’t looked for companies yet."} I’ll find three with a dated reason to talk
-                  this month.
+                  Open Today to find your first prospects and review your next actions.
                 </p>
               ) : (
                 <>
                   <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
                     {(dLive?.result as { note?: string } | undefined)?.note ??
-                      "I didn’t find any in the free sources I checked. They lean toward venture-backed startups that hire in public, so they can miss buyers who don’t."}
+                      "No matches in the sources checked. Try a broader search or import people you already know."}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="secondary" size="sm" onClick={() => void findCompanies(true)}>
@@ -276,7 +257,7 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
                     </Button>
                     {/* A list dropped while reading is already in: start from it on Today rather than ask for it again. */}
                     <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire(net ? "/today" : "/integrations?import=linkedin", [])}>
-                      {net ? "Start from the people you know" : "Start from your network: drop your LinkedIn export"}
+                      {net ? "Use my network" : "Import LinkedIn connections"}
                     </Button>
                   </div>
                 </>
@@ -300,9 +281,9 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
           </div>
         )}
 
-        <div className="mt-6">
-          <SectionLabel>How I work</SectionLabel>
-          <ul className="space-y-1.5">
+        <details className="mt-5 text-[13px] text-fg-3">
+          <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">How Inroad works</summary>
+          <ul className="mt-3 space-y-1.5">
             {AGREEMENT.map((line) => (
               <li key={line} className="flex gap-2.5 text-pretty text-[13.5px] leading-5 text-fg-2">
                 <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-fg-4" />
@@ -310,10 +291,10 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               </li>
             ))}
           </ul>
-        </div>
+        </details>
 
         <form onSubmit={submit} className="mt-7">
-          <Label htmlFor="founder-name">What should I call you?</Label>
+          <Label htmlFor="founder-name" hint="optional">Your name</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id="founder-name"
@@ -337,11 +318,9 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Button
               type="submit"
-              variant={idle || n > 0 || searching ? "agent" : "secondary"}
-              size={empty && !idle ? "md" : "lg"}
-              kbd="↵"
-              loading={busy || (idle && finding)}
-              disabled={n === 0 && searching}
+              variant="agent"
+              size="lg"
+              loading={busy}
             >
               {cta}
             </Button>
@@ -351,9 +330,12 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               disabled={busy}
               className="rounded-xs text-[13px] text-fg-2 underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline disabled:opacity-50"
             >
-              Not yet — let me edit the plan
+              Edit plan
             </button>
           </div>
+          <p className="mt-3 text-pretty text-[12px] leading-[18px] text-fg-3">
+            {n > 0 ? "Research runs in the background. Review your outreach drafts on Today." : searching ? "The search will keep running. Your next actions appear on Today." : "Start with your daily actions. You can add prospects or import a list any time."}
+          </p>
         </form>
       </motion.div>
 
@@ -366,7 +348,7 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
             aria-expanded={showBet}
             className="inline-flex items-center gap-1 rounded-xs text-[12.5px] text-fg-3 transition-colors hover:text-fg-2"
           >
-            {showBet ? "Hide the full bet" : "Read the full bet"}
+            {showBet ? "Hide GTM plan" : "View full GTM plan"}
             <ChevronDown className={`size-3.5 transition-transform duration-200 ${showBet ? "rotate-180" : ""}`} aria-hidden />
           </button>
         )}

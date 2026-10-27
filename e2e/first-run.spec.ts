@@ -15,14 +15,14 @@ test("from the welcome screen to a rendered dossier", async ({ page }) => {
 
   await page.locator("#site").fill("acme.com");
   await page.locator("#note").fill("We reconcile usage data with invoices so finance teams at usage-priced SaaS companies close the month in hours.");
-  await page.getByRole("button", { name: /^Start/ }).click();
+  await page.getByRole("button", { name: "Build my GTM plan" }).click();
 
   // The bet is written section by section, then the offer card with the one-sentence bet.
-  await expect(page.getByText("My bet:")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("Your starting plan:")).toBeVisible({ timeout: 120_000 });
   await expect(page.getByText(/where the .+ still owns .+ by hand/)).toBeVisible();
 
   // Offline, discovery can't read anyone's job board: the card says so instead of padding the list.
-  const cta = page.getByRole("button", { name: /^(Go to Today|Research these \d|Research this one)/ });
+  const cta = page.getByRole("button", { name: /^(Go to Today|Start my workflow)/ });
   await expect(cta).toBeEnabled({ timeout: 120_000 });
   await page.locator("#founder-name").fill("Priya");
   // Record what the navigation's view transition animates: the orb should fly into the sidebar.

@@ -100,7 +100,7 @@ export const KeyBlock = forwardRef<
     onSave?: () => void;
     autoFocus?: boolean;
   }
->(function KeyBlock({ form, title = "I run on your AI provider's key.", onSave, autoFocus }, ref) {
+>(function KeyBlock({ form, title = "Connect your AI provider", onSave, autoFocus }, ref) {
   const id = useId();
   const preset = providerById(form.provider)!;
   if (form.saved?.hasKey) {
@@ -118,9 +118,9 @@ export const KeyBlock = forwardRef<
     <div className="rounded-lg bg-surface p-4 shadow-xs ring-1 ring-border">
       <div className="flex items-start gap-2.5">
         <KeyRound className="mt-0.5 size-4 shrink-0 text-fg-3" aria-hidden />
-        <label htmlFor="anthropic-key" className="min-w-0 flex-1 text-[13px] font-medium leading-5 text-fg">
+        <p className="min-w-0 flex-1 text-[13px] font-medium leading-5 text-fg">
           {title}
-        </label>
+        </p>
         {preset.keyUrl && (
           <a href={preset.keyUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-0.5 rounded-xs text-[12px] text-accent-text underline-offset-4 hover:underline">
             {preset.needsKey ? "Get a key" : "Get Ollama"} <ArrowUpRight className="size-3" aria-hidden />
@@ -139,6 +139,7 @@ export const KeyBlock = forwardRef<
           <Input
             ref={ref}
             id="anthropic-key"
+            aria-label={`${preset.name.replace(/ \(.*\)$/, "")} API key`}
             type="password"
             autoFocus={autoFocus}
             autoComplete="off"
@@ -146,7 +147,7 @@ export const KeyBlock = forwardRef<
             placeholder={preset.placeholder}
             value={form.key}
             aria-invalid={!!form.error}
-            aria-describedby="anthropic-key-help"
+            aria-describedby={`anthropic-key-help${form.error ? " anthropic-key-error" : ""}`}
             onChange={(e) => form.setKey(e.target.value)}
             onKeyDown={(e) => {
               if (onSave && e.key === "Enter") {
@@ -177,10 +178,10 @@ export const KeyBlock = forwardRef<
       )}
       <p id="anthropic-key-help" className="mt-1.5 text-pretty text-[12px] text-fg-3">
         {preset.needsKey
-          ? `Kept in your computer's keychain (or an encrypted file only you can read) and sent only to ${preset.name.replace(/ \(.*\)$/, "")}.`
+          ? "Uses your provider’s API credits. Your key is stored securely on this computer."
           : preset.blurb}
       </p>
-      <FieldError>{form.error}</FieldError>
+      <div id="anthropic-key-error" role="alert"><FieldError>{form.error}</FieldError></div>
     </div>
   );
 });

@@ -50,7 +50,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "HubSpot",
     domain: "hubspot.com",
     kind: "crm",
-    blurb: "Deals you create or move here show up in HubSpot, with their company and contacts.",
+    blurb: "Sync companies, contacts and deals with HubSpot.",
     secretLabel: "Access token",
     placeholder: "pat-na1-…",
     where: {
@@ -73,7 +73,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Attio",
     domain: "attio.com",
     kind: "crm",
-    blurb: "Companies, people and deals in Attio stay in step with your pipeline here.",
+    blurb: "Keep contacts and deals in sync with Attio.",
     secretLabel: "Access token",
     placeholder: "Paste your Attio access token",
     where: {
@@ -89,7 +89,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Instantly",
     domain: "instantly.ai",
     kind: "sequencer",
-    blurb: "Approved drafts land in your campaign as leads, with the copy already filled in.",
+    blurb: "Add approved drafts to your email campaigns.",
     secretLabel: "API key (v2)",
     placeholder: "Paste your Instantly v2 API key",
     where: {
@@ -105,7 +105,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Smartlead",
     domain: "smartlead.ai",
     kind: "sequencer",
-    blurb: "Approved drafts land in your campaign as leads, with the copy already filled in.",
+    blurb: "Add approved drafts to your email campaigns.",
     secretLabel: "API key",
     placeholder: "Paste your Smartlead API key",
     where: {
@@ -121,7 +121,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "lemlist",
     domain: "lemlist.com",
     kind: "sequencer",
-    blurb: "Approved drafts land in your campaign as leads, with the copy already filled in.",
+    blurb: "Add approved drafts to your email campaigns.",
     secretLabel: "API key",
     placeholder: "Paste your lemlist API key",
     where: {
@@ -136,7 +136,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Slack",
     domain: "slack.com",
     kind: "notify",
-    blurb: "A daily brief, and an alert the moment an interested reply lands. Nothing else.",
+    blurb: "Get your daily brief and alerts for interested replies.",
     secretLabel: "Incoming webhook URL",
     placeholder: "https://hooks.slack.com/services/…",
     where: {
@@ -152,7 +152,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Firecrawl",
     domain: "firecrawl.dev",
     kind: "data",
-    blurb: "Look up who works at a company and their work email, from Apollo and FullEnrich, with one key.",
+    blurb: "Find people and work email addresses.",
     secretLabel: "API key",
     placeholder: "fc-…",
     where: {
@@ -168,7 +168,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Calendly",
     domain: "calendly.com",
     kind: "booking",
-    blurb: "New bookings become a meeting on the deal and a prep move on the day.",
+    blurb: "Turn new bookings into meetings and call prep.",
     secretLabel: "Personal access token",
     placeholder: "Paste your Calendly personal access token",
     where: {
@@ -184,7 +184,7 @@ export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
     name: "Cal.com",
     domain: "cal.com",
     kind: "booking",
-    blurb: "New bookings become a meeting on the deal and a prep move on the day.",
+    blurb: "Turn new bookings into meetings and call prep.",
     secretLabel: "API key",
     placeholder: "cal_live_…",
     where: {

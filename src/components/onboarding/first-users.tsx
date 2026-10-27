@@ -96,6 +96,7 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
     if (busy) return;
     setBusy(true);
     onLeave();
+    if (to === "/today" && !dId) await find();
     const actions: Action[] = [];
     if (name.trim() !== (ws.founder.name ?? "") || title.trim() !== (ws.founder.title ?? "")) {
       actions.push({ type: "founder.update", patch: { name: name.trim(), title: title.trim() || undefined } });
@@ -113,11 +114,6 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
   const idle = n === 0 && !searching && (!dId || dStatus === "stopped");
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (idle) {
-      void find();
-      return;
-    }
-    if (n === 0 && searching) return;
     void hire("/today");
   };
 
@@ -136,14 +132,11 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
         {f?.icp.hypothesis.sentence && (
           <div className="mt-4">
             <p className="prose-agent text-pretty">
-              <span className="text-fg-3">My bet: </span>
+              <span className="text-fg-3">Your starting plan: </span>
               {f.icp.hypothesis.sentence}
             </p>
             <p className="mt-2 font-mono text-[11px] leading-4 text-fg-3">
-              Bet · {provenance.charAt(0).toLowerCase() + provenance.slice(1)} ·{" "}
-              <button type="button" onClick={() => void hire("/playbook")} className="rounded-xs underline decoration-fg-4 underline-offset-2 hover:text-fg-2">
-                Edit
-              </button>
+              {provenance}
             </p>
           </div>
         )}
@@ -187,9 +180,9 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
           </div>
         )}
 
-        <div className="mt-6">
-          <SectionLabel>How I work</SectionLabel>
-          <ul className="space-y-1.5">
+        <details className="mt-5 text-[13px] text-fg-3">
+          <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">How Inroad works</summary>
+          <ul className="mt-3 space-y-1.5">
             {AGREEMENT.map((line) => (
               <li key={line} className="flex gap-2.5 text-pretty text-[13.5px] leading-5 text-fg-2">
                 <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-fg-4" />
@@ -197,10 +190,10 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               </li>
             ))}
           </ul>
-        </div>
+        </details>
 
         <form onSubmit={submit} className="mt-7">
-          <Label htmlFor="founder-name">What should I call you?</Label>
+          <Label htmlFor="founder-name" hint="optional">Your name</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input id="founder-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" maxLength={80} className="h-9 text-[16px] sm:flex-1 sm:text-[13.5px]" />
             <Input
@@ -214,8 +207,8 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
             />
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <Button type="submit" variant="agent" size="lg" kbd="↵" loading={busy || (idle && finding)} disabled={n === 0 && searching}>
-              {idle ? "Find where they gather" : "Start with these"}
+            <Button type="submit" variant="agent" size="lg" loading={busy}>
+              {n > 0 ? "Start my workflow" : "Go to Today"}
             </Button>
             <button
               type="button"
@@ -223,9 +216,12 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               disabled={busy}
               className="rounded-xs text-[13px] text-fg-2 underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline disabled:opacity-50"
             >
-              Not yet — let me edit the plan
+              Edit plan
             </button>
           </div>
+          <p className="mt-3 text-pretty text-[12px] leading-[18px] text-fg-3">
+            {searching ? "The search will keep running. Your next actions appear on Today." : "Review your growth actions and outreach drafts on Today."}
+          </p>
         </form>
       </motion.div>
 
@@ -237,7 +233,7 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
             aria-expanded={showBet}
             className="inline-flex items-center gap-1 rounded-xs text-[12.5px] text-fg-3 transition-colors hover:text-fg-2"
           >
-            {showBet ? "Hide the full bet" : "Read the full bet"}
+            {showBet ? "Hide GTM plan" : "View full GTM plan"}
             <ChevronDown className={`size-3.5 transition-transform duration-200 ${showBet ? "rotate-180" : ""}`} aria-hidden />
           </button>
         )}

@@ -26,7 +26,7 @@ export function GeneralSection({ settings }: { settings: Settings }) {
     <SettingsSection
       id="general"
       title="General"
-      description="The AI I run on, who you sell to, how the app looks, what may leave this computer for news, places, icons and public records, and updates."
+      description="AI, company preferences and app settings."
     >
       <AiProviderGroup settings={settings} />
       <ImagesGroup settings={settings} />

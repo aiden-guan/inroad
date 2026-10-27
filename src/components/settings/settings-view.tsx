@@ -149,7 +149,7 @@ export function SettingsView() {
         <div className="mx-auto w-full min-w-0 max-w-[720px] @min-[960px]/page:mx-0">
           <header className="mb-8">
             <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em] text-fg [font-variation-settings:'opsz'_72]">Settings</h1>
-            <p className="mt-2 max-w-[58ch] text-[14px] leading-[21px] text-fg-2">Everything here saves as you go and stays on this computer.</p>
+            <p className="mt-2 max-w-[58ch] text-[14px] leading-[21px] text-fg-2">Manage your AI provider, sender details and workspace.</p>
           </header>
 
           <nav
