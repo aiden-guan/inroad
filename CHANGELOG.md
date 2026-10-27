@@ -7,9 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+- Publish the clipboard fix from the unpublished v0.2.6 after correcting the app test to accept an existing workspace opening on Today.
+
 ---
 
 ## [v0.2.6] — 2026-10-27
+
+This version was not published. The clipboard regression test incorrectly expected a fresh workspace after earlier app tests had created one. Its changes ship in v0.2.7.
 
 ### Fixed
 - Copy prompt, Copy key, and other copy actions work in the Mac app: only Inroad's own main window can write to the clipboard, while clipboard reads and other permissions remain denied.

@@ -142,7 +142,8 @@ test("checks GitHub's releases from Settings and says what's new, through the sh
   await expect(updates).toContainText("What’s new in 9.9.9");
   await expect(updates).toContainText("Updates install in one click");
   // A run from the repository checks but never installs; a built app tries the download, which has no checksum here.
-  await expect(updates).toContainText(packaged ? /no checksum|can't|isn't|Downloading/ : "This is a development run of Inroad");
+  const installed = await app.evaluate(({ app }) => app.isPackaged);
+  await expect(updates).toContainText(installed ? /no checksum|can't|isn't|Downloading/ : "This is a development run of Inroad");
   await app.close();
 });
 
@@ -150,7 +151,7 @@ test("copies the Muse setup prompt to the system clipboard without allowing clip
   const app = await launch();
   try {
     const page = await app.firstWindow();
-    await expect(page).toHaveURL(/\/welcome$/, { timeout: 120_000 });
+    await expect(page).toHaveURL(/^http:\/\/127\.0\.0\.1:\d+\/(welcome|today)$/, { timeout: 120_000 });
     await page.evaluate(() => fetch("/api/workspace/sample", { method: "POST", headers: { "content-type": "application/json" }, body: '{"replace":true}' }));
     expect(await page.evaluate(async () => (await fetch("/api/mcp/keys", {
       method: "POST", headers: { "content-type": "application/json" },
