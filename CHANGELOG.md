@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.4] — 2026-10-27
+
 ### Security
 - Update Electron to 44.10.0, Undici to 7.30.1, and Vitest to 4.1.12 to address published dependency advisories.
 - Save Studio media with owner-only permissions and repair existing Studio files and encrypted AI key material on startup, including in shared data folders.
