@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.2] — 2026-10-27
+
 ### Added
 - Research workspace for finding companies and researching the web, with domain/date filters, ranked and deduplicated sources, saved sessions, caching, cancellation, and daily request limits.
 - Independent search providers: DeepSeek, TinyFish, Tavily, Exa, Brave, Firecrawl, custom HTTP endpoints, and mapped MCP/OpenAPI connections. Optional TinyFish browser research has separate limits and isolated sessions.
