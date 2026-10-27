@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.5] — 2026-10-27
+
 ### Fixed
 - Publish the security and correctness changes from the unpublished v0.2.4 after updating the phone orb-transition browser assertion to its new layout-specific name.
 
