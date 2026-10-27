@@ -98,3 +98,31 @@ test("optional integrations expand from saved links and remain usable on a phone
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   expect(transitionErrors).toEqual([]);
 });
+
+test("copy prompt copies the complete Muse prompt and reports clipboard failures", async ({ page, request, context }) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  expect((await request.post("/api/mcp/keys", { data: { name: "Clipboard test", client: "muse", access: "read" } })).ok()).toBe(true);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/integrations#agents");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
+  const agents = page.locator("#agents");
+  await agents.getByRole("button", { name: /Clipboard test/ }).click();
+  const prompt = agents.locator("pre").filter({ hasText: "Create a custom connector for Inroad" });
+  await expect(prompt).toBeVisible();
+  const expected = await prompt.innerText();
+  await agents.getByRole("button", { name: "Copy prompt", exact: true }).click();
+  await expect(agents.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(expected);
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: () => Promise.reject(new DOMException("Clipboard access denied", "NotAllowedError")),
+    });
+  });
+  await agents.getByRole("button", { name: "Copy prompt", exact: true }).click();
+  await expect(page.getByText("Couldn't copy. Select the text and copy it manually.", { exact: true })).toBeVisible();
+  await expect(agents.getByRole("button", { name: "Copy prompt", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});

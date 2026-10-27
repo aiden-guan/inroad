@@ -6,6 +6,7 @@ import { Check, Copy } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import { cn } from "@/lib/client/cn";
 import { spring } from "@/lib/motion";
 
@@ -71,8 +72,14 @@ export function CopyButton({ text, label = "Copy", className, onCopied }: { text
   const [copied, setCopied] = useState(false);
   return (
     <button
+      type="button"
       onClick={async () => {
-        await navigator.clipboard.writeText(text);
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          toast.error("Couldn't copy. Select the text and copy it manually.");
+          return;
+        }
         setCopied(true);
         onCopied?.();
         setTimeout(() => setCopied(false), 1500);

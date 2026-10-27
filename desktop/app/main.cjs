@@ -21,6 +21,7 @@ const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { createUpdater } = require("./updater.cjs");
+const { allowClipboardWrite } = require("./permissions.cjs");
 
 const PRODUCT = "Inroad";
 const HOST = "127.0.0.1";
@@ -503,8 +504,16 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     app.setAboutPanelOptions({ applicationName: PRODUCT, applicationVersion: app.getVersion(), copyright: "Your AI Head of GTM", website: REPO_URL });
-    // The app asks for nothing a page might want (camera, microphone, location, notifications).
-    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    // Copy buttons need clipboard writes. Everything else, including clipboard reads, stays denied.
+    const permissionAllowed = (contents, permission, details) => allowClipboardWrite({
+      permission,
+      requestingUrl: details.requestingUrl,
+      serverUrl,
+      isMainFrame: details.isMainFrame,
+      isAppWindow: !!win && contents === win.webContents,
+    });
+    session.defaultSession.setPermissionCheckHandler((contents, permission, _origin, details) => permissionAllowed(contents, permission, details));
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => callback(permissionAllowed(contents, permission, details)));
     if (await offerMoveToApplications()) return;
     startUpdater();
     buildMenu();

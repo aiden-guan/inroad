@@ -11,6 +11,7 @@ directories:
 # The shell is a few files and has no dependencies: none of the web app's node_modules belong in it.
 files:
   - main.cjs
+  - permissions.cjs
   - updater.cjs
   - preload.cjs
   - loading.html

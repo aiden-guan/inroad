@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+- Copy prompt, Copy key, and other copy actions work in the Mac app: only Inroad's own main window can write to the clipboard, while clipboard reads and other permissions remain denied.
+- Copy buttons show an error when the browser refuses clipboard access instead of failing silently.
+
+### Validation
+- Add a packaged-app test that copies the Muse setup prompt, checks the system clipboard, and verifies that page scripts still cannot read it.
+
 ---
 
 ## [v0.2.5] — 2026-10-27

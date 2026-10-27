@@ -145,3 +145,32 @@ test("checks GitHub's releases from Settings and says what's new, through the sh
   await expect(updates).toContainText(packaged ? /no checksum|can't|isn't|Downloading/ : "This is a development run of Inroad");
   await app.close();
 });
+
+test("copies the Muse setup prompt to the system clipboard without allowing clipboard reads", async () => {
+  const app = await launch();
+  try {
+    const page = await app.firstWindow();
+    await expect(page).toHaveURL(/\/welcome$/, { timeout: 120_000 });
+    await page.evaluate(() => fetch("/api/workspace/sample", { method: "POST", headers: { "content-type": "application/json" }, body: '{"replace":true}' }));
+    expect(await page.evaluate(async () => (await fetch("/api/mcp/keys", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Clipboard test", client: "muse", access: "read" }),
+    })).status)).toBe(200);
+    await page.goto(new URL("/integrations#agents", page.url()).href);
+    const agents = page.locator("#agents");
+    await agents.getByRole("button", { name: /Clipboard test/ }).click();
+    const prompt = agents.locator("pre").filter({ hasText: "Create a custom connector for Inroad" });
+    await expect(prompt).toBeVisible();
+    const expected = await prompt.innerText();
+    await app.evaluate(({ clipboard }) => clipboard.writeText("before-copy"));
+    await agents.getByRole("button", { name: "Copy prompt", exact: true }).click();
+    await expect(agents.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe(expected);
+    expect(await page.evaluate(async () => {
+      try { await navigator.clipboard.readText(); return "allowed"; }
+      catch { return "denied"; }
+    })).toBe("denied");
+  } finally {
+    await app.close();
+  }
+});
