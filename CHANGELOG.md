@@ -7,9 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+- Publish the security and correctness changes from the unpublished v0.2.4 after updating the phone orb-transition browser assertion to its new layout-specific name.
+
 ---
 
 ## [v0.2.4] — 2026-10-27
+
+This version was not published; the browser release gate caught a stale phone animation assertion. Its changes ship in v0.2.5.
 
 ### Security
 - Update Electron to 44.10.0, Undici to 7.30.1, and Vitest to 4.1.12 to address published dependency advisories.

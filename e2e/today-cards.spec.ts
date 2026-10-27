@@ -302,6 +302,6 @@ test("on a phone: skipping the two questions keeps the list drop, and the orb fl
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await cta.click();
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb)")))).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb-phone)")))).toBe(true);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });

@@ -1,6 +1,6 @@
 # Security and functionality review, 2026-10-27
 
-This review started at `4d2e2b2` and produced the v0.2.4 update. It combined source review of security boundaries, dependency and secret scans, regression tests, browser workflows, a production build, and HTTP smoke checks. Dedicated Codex Security scan tooling was unavailable; this is a manual review record, not a generated Codex Security scan or a claim of exhaustive vulnerability detection.
+This review started at `4d2e2b2` and produced the v0.2.5 update. It combined source review of security boundaries, dependency and secret scans, regression tests, browser workflows, a production build, and HTTP smoke checks. Dedicated Codex Security scan tooling was unavailable; this is a manual review record, not a generated Codex Security scan or a claim of exhaustive vulnerability detection.
 
 ## Findings addressed
 
