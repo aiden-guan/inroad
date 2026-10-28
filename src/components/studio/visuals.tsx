@@ -16,6 +16,7 @@ import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
 import type { StudioImage, StudioOption, StudioPiece, StudioVisual, VisualLayout, Workspace } from "@/lib/domain/types";
 import { FORMATS } from "@/lib/studio/formats";
+import { ART_DIRECTIONS, CREATIVE_ENERGIES, VISUAL_REFERENCE_COUNT, visualReferencesFor, type ArtDirectionId, type CreativeEnergy } from "@/lib/studio/art-direction";
 import { LAYOUTS, aspectLabel, presetById, presetsFor } from "@/lib/studio/visuals";
 import { ChatGptConnection, useChatGptConnection } from "./chatgpt-connection";
 import { useStudioAI } from "./studio-ai";
@@ -111,6 +112,8 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   const [imageId, setImageId] = useState<string | null>(null);
   const [layout, setLayout] = useState<VisualLayout | "auto">("auto");
   const [direction, setDirection] = useState("");
+  const [artDirection, setArtDirection] = useState<ArtDirectionId>("auto");
+  const [energy, setEnergy] = useState<CreativeEnergy>("bold");
   const [runId, setRunId] = useState<string | null>(null);
   const [promptRunId, setPromptRunId] = useState<string | null>(null);
 
@@ -155,6 +158,8 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
         imageProvider: picture === "paint" ? imageProvider : undefined,
         variants: 2,
         direction: direction.trim() || undefined,
+        artDirection,
+        energy,
       },
       { notify: false, onError: (e) => toast.error(e.message) },
     );
@@ -162,7 +167,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   };
 
   const writePrompt = async () => {
-    const r = await start("visual", { pieceId: piece.id, optionId: option.id, preset: presetId, mode: "prompt", agentProvider: studioAI.provider, direction: direction.trim() || undefined }, { notify: false, onError: (e) => toast.error(e.message) });
+    const r = await start("visual", { pieceId: piece.id, optionId: option.id, preset: presetId, mode: "prompt", agentProvider: studioAI.provider, direction: direction.trim() || undefined, artDirection, energy }, { notify: false, onError: (e) => toast.error(e.message) });
     if (r) setPromptRunId(r.id);
   };
 
@@ -170,6 +175,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
     const r = await start("visual", {
       pieceId: piece.id, optionId: option.id, preset: presetId,
       generate: true, imageProvider: "chatgpt", mode: "image", direction: direction.trim() || undefined,
+      artDirection, energy,
     }, {
       notify: false,
       onError: (error) => toast.error(error.message),
@@ -182,6 +188,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   };
 
   const preset = presetById(presetId);
+  const inspiration = visualReferencesFor(`${Object.values(option.parts).join(" ")} ${piece.brief ?? ""} ${direction}`, artDirection, option.id);
 
   return (
     <div className="mt-3 rounded-md bg-bg-subtle/60 p-3 ring-1 ring-border">
@@ -204,7 +211,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           value={picture}
           onChange={setPicture}
           options={[
-            { value: "none", label: studioAI.provider === "claude_plan" ? "Draw in code" : "Words only" },
+            { value: "none", label: "Type & illustration" },
             { value: "mine", label: "Your image" },
             { value: "paint", label: "AI image" },
           ]}
@@ -225,6 +232,38 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="mt-4 border-t border-border pt-3">
+        <label htmlFor={`art-direction-${option.id}`} className="block text-[12px] font-medium text-fg">Art direction</label>
+        <select
+          id={`art-direction-${option.id}`}
+          value={artDirection}
+          onChange={(e) => setArtDirection(e.target.value as ArtDirectionId)}
+          className="mt-1.5 h-9 w-full rounded-md bg-surface px-2 text-[12.5px] text-fg ring-1 ring-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {ART_DIRECTIONS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+        </select>
+        <p className="mt-1.5 text-[11.5px] leading-4 text-fg-3">{ART_DIRECTIONS.find((d) => d.id === artDirection)?.detail}</p>
+        <fieldset className="mt-3">
+          <legend className="mb-1.5 text-[12px] font-medium text-fg">Creative range</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {CREATIVE_ENERGIES.map((e) => (
+              <button key={e.id} type="button" aria-pressed={energy === e.id} onClick={() => setEnergy(e.id)}
+                className={cn("rounded-md px-3 py-1.5 text-[12px] ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent", energy === e.id ? "bg-surface text-fg ring-accent" : "text-fg-3 ring-border hover:bg-surface hover:text-fg")}>
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <p className="mt-2 text-[11.5px] leading-4 text-fg-3">One clear visual idea, explored through different concepts. Your specific direction takes priority.</p>
+        <details className="mt-2 text-[11.5px] leading-4 text-fg-3">
+          <summary className="w-fit cursor-pointer rounded-sm text-fg-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Techniques from {VISUAL_REFERENCE_COUNT} brand studies</summary>
+          <ul className="mt-2 space-y-2">
+            {inspiration.map((r) => <li key={r.id}><a href={r.url} target="_blank" rel="noreferrer" className="font-medium text-accent-text underline-offset-2 hover:underline">{r.brand}</a><span> · {r.transfer}</span></li>)}
+          </ul>
+          <p className="mt-2">The brief draws on relevant techniques from this collection. References guide the idea; the image uses your own subject and brand.</p>
+        </details>
       </div>
 
       {picture === "none" && studioAI.provider === "claude_plan" && <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Claude draws illustrations, shapes and type in SVG. Inroad renders the finished PNG; no image API is needed.</p>}
@@ -275,6 +314,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           )}
           </p>
           )}
+          <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Design 2 graphics includes a visual review and up to one image refinement. Generate image in ChatGPT makes one image without a separate review.</p>
         </div>
       )}
 
@@ -300,7 +340,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           value={direction}
           onChange={(e) => setDirection(e.target.value)}
           maxLength={600}
-          placeholder="What it should show or feel like (optional)"
+          placeholder="A specific scene, material or visual idea (optional)"
           aria-label="Direction for the graphic"
           className="h-8 text-[12.5px] sm:flex-1"
         />
@@ -309,7 +349,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
             Generate image in ChatGPT
           </Button>
         )}
-        <Tooltip content={designCannot ?? "Two designs. Code checks every word, contrast and safe zone; Claude looks at each render and fixes what fails."}>
+        <Tooltip content={designCannot ?? "Two distinct compositions. Checks cover approved words, readability, visual concept, originality and finish, with one revision for weak designs."}>
           <span>
             <Button variant="agent" size="sm" className="h-8" icon={<Paintbrush className="size-3.5" />} loading={!!running} disabled={!!designCannot} onClick={() => void design()}>
               Design 2 graphics
@@ -321,12 +361,12 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
       {run && running && <WorkLog run={run} className="mt-3" />}
       {run?.status === "error" && run.error && <p className="mt-2 text-[12px] text-danger">{run.error.message}</p>}
 
-      {picture === "mine" && chosen?.source === "chatgpt" && (
+      {picture === "mine" && chosen && chosen.source !== "upload" && (
         <figure className="mt-3 overflow-hidden rounded-md bg-surface ring-1 ring-border">
           {/* eslint-disable-next-line @next/next/no-img-element -- local image served by Inroad */}
           <img src={fileUrl(chosen.file)} width={chosen.width} height={chosen.height} alt={chosen.alt || "Image generated in ChatGPT"} className="max-h-[420px] w-full object-contain" />
           <figcaption className="flex items-center justify-between gap-2 p-3 text-[12px] text-fg-2">
-            <span>Generated in ChatGPT · AI imagery</span>
+            <span>{chosen.source === "chatgpt" ? "Generated in ChatGPT" : "Generated with OpenAI"} · {chosen.generated?.review ? `Visual review: ${chosen.generated.review.score}/10` : "Visual review not run"} · AI imagery</span>
             <a href={fileUrl(chosen.file, true)} className="inline-flex items-center gap-1 text-accent-text hover:underline"><Download aria-hidden className="size-3.5" />Download image</a>
           </figcaption>
         </figure>
@@ -376,15 +416,15 @@ function VisualTile({ visual, headline }: { visual: StudioVisual; headline: stri
             </Tooltip>
           )}
           {visual.review && (
-            <Tooltip content="Claude's look at the actual render, where 7 means it would post it.">
+            <Tooltip content={`Visual review: 8+ overall and 7+ for concept, originality and finish.${visual.review.concept !== undefined ? ` Concept ${visual.review.concept}/10 · Originality ${visual.review.distinctiveness}/10 · Finish ${visual.review.craft}/10.` : ""}`}>
               <span className="ml-auto font-mono text-[11px] tnum text-fg-3">{visual.review.score}/10</span>
             </Tooltip>
           )}
         </div>
         <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-1.5 flex w-full items-center gap-2 text-left text-[12px] leading-[17px]">
-          <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", errors.length ? "bg-warning" : "bg-success")} />
-          <span className={cn("min-w-0 flex-1 truncate", errors.length ? "text-warning" : "text-fg-2")}>
-            {errors.length ? errors[0].detail : warns.length ? `Ready · ${warns.length} to consider` : "Ready: approved words only, readable, in the safe zone"}
+          <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", errors.length || warns.length ? "bg-warning" : "bg-success")} />
+          <span className={cn("min-w-0 flex-1 truncate", errors.length || warns.length ? "text-warning" : "text-fg-2")}>
+            {errors.length ? errors[0].detail : warns.length ? `Needs review · ${warns.length} ${warns.length === 1 ? "note" : "notes"}` : "Copy, layout and visual review passed"}
           </span>
         </button>
         {open && (

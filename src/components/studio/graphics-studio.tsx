@@ -54,8 +54,8 @@ export function GraphicsStudio({
             Make the finished image.
           </h2>
           <p className="mt-2 text-[14px] leading-6 text-fg-2">
-            Design around a saved message with typography, your own image or AI imagery.
-            Review the designs, then download PNG or SVG.
+            Turn your message into a visual idea. Explore surreal metaphors, tactile collage,
+            expressive illustration or art-directed photography, then download the finished graphic.
           </p>
         </div>
         {piece && (

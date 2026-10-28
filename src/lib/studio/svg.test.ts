@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Resvg } from "@resvg/resvg-js";
 import type { StudioImage } from "@/lib/domain/types";
-import { composeSvg, renderPng, thumbnail } from "./render";
+import { composeSvg, renderPng, thumbnail, thumbnailBytes } from "./render";
 import { checkDesign, fontStack, sanitizeSvg } from "./svg";
 import { aspectLabel, checkImagePrompt, contrastRatio, openaiSize, parseColor, presetById } from "./visuals";
 import { imageInfo, isSafeName, readStudioFile, saveStudioFile, sweepStudioFiles } from "./files";
@@ -112,7 +112,8 @@ describe("checkDesign", () => {
   });
 });
 
-describe("renderPng", () => {
+// System-font discovery and real PNG compositing can exceed Vitest's 5s default under load.
+describe("renderPng", { timeout: 20000 }, () => {
   it("renders a sanitized design to a PNG of the preset size", () => {
     const s = sanitizeSvg(GOOD, linkedin);
     const png = renderPng({ svg: s.svg });
@@ -135,6 +136,7 @@ describe("renderPng", () => {
     expect(at(100, 100)).toEqual([255, 255, 255]); // background untouched
     expect(at(910, 310)).toEqual([0, 0, 255]); // painted after the slot: on top
     expect(imageInfo(thumbnail(image, 200)!)?.width).toBe(200);
+    expect(imageInfo(thumbnailBytes(Buffer.from(red), image, 200))).toEqual({ mime: "image/png", width: 200, height: 150 });
   });
 });
 

@@ -45,7 +45,12 @@ export function renderPng(input: RenderInput): Buffer {
 export function thumbnail(image: StudioImage, width: number): Buffer | null {
   const data = readStudioFile(image.file);
   if (!data) return null;
+  return thumbnailBytes(data, image, width);
+}
+
+/** Review an in-memory image without persisting a rejected candidate or sending a full-size PNG. */
+export function thumbnailBytes(data: Buffer, image: Pick<StudioImage, "mime" | "width" | "height">, width: number): Buffer {
   const href = `data:${image.mime};base64,${data.toString("base64")}`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}" viewBox="0 0 ${image.width} ${image.height}"><image href="${href}" width="${image.width}" height="${image.height}"/></svg>`;
-  return new Resvg(svg, { fitTo: { mode: "width", value: Math.min(width, image.width) } }).render().asPng();
+  return new Resvg(svg, { fitTo: { mode: "width", value: Math.min(width, image.width) }, font: { loadSystemFonts: false } }).render().asPng();
 }
