@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.9] — 2026-10-27
+
 ### Added
 - Studio campaign library with 15 sourced records, audience and evidence filters, campaign details, and direct use in a new piece.
 - Automatic campaign recommendations matched to the format, audience, occasion and available material; optional custom examples remain supported.
