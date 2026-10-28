@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Choose Claude plan in Studio for copy, code-rendered SVG/PNG graphics, prompt writing, visual review and repair through the official local Claude runtime.
+- Claude subscription connection, managed browser sign-in, cancellation and disconnect controls, with persistent creator choice and no API-key fallback.
+- Independent subscription-budget handling, including Claude composition around ChatGPT-generated images, with explicit API image billing kept separate.
+
 ---
 
 ## [v0.2.13] — 2026-10-28

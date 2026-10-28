@@ -57,7 +57,7 @@ export function ChatGptConnection({ connection }: { connection: ReturnType<typeo
       </div>
       <p className="mt-1.5 text-[12px] leading-[18px] text-fg-2">
         Image generation uses your ChatGPT allowance through local Codex. No OpenAI API key or API image charges.
-        Copy, layout and review still use your selected AI provider. Availability and limits depend on your plan.
+        Copy, layout and review use your Create with choice above. Availability and limits depend on your plan.
       </p>
       {!status.connected && !status.pending && (
         <p className="mt-1.5 text-[12px] leading-[18px] text-fg-3">

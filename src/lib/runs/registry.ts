@@ -9,6 +9,11 @@ import type { ModelTierName, RunReceipt, RunStep, RunSummary, WorkflowId } from 
 import { FileDB, singletonDB } from "@/lib/store/file-db";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import type { WorkflowContext, WorkflowDef } from "@/lib/workflows/types";
+import { runClaudePlan } from "@/lib/studio/claude-plan";
+
+function usesClaudePlan(workflow: WorkflowId, args: unknown): boolean {
+  return (workflow === "studio" || workflow === "visual") && !!args && typeof args === "object" && (args as { agentProvider?: string }).agentProvider === "claude_plan";
+}
 
 /**
  * Runs outlive the HTTP request that started them. The registry keeps each live run's event
@@ -149,12 +154,14 @@ export interface StartOptions {
 
 export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: StartOptions = {}): Promise<RunSummary> {
   const args = def.args.parse(rawArgs);
-  if (opts.route) targetProvider(opts.route);
+  const claudePlan = usesClaudePlan(def.id, args);
+  if (opts.route && !claudePlan) targetProvider(opts.route);
   const ws = readWorkspace();
   const budget = ws.caps.monthlyBudgetUsd;
-  const imageArgs = args as { mode?: string; imageProvider?: string };
+  const imageArgs = args as { mode?: string; imageProvider?: string; generate?: boolean };
   const subscriptionImage = def.id === "visual" && imageArgs.mode === "image" && imageArgs.imageProvider === "chatgpt";
-  const hold = subscriptionImage ? 0 : RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
+  const subscriptionStudio = claudePlan && !(def.id === "visual" && imageArgs.generate && imageArgs.imageProvider !== "chatgpt");
+  const hold = subscriptionImage || subscriptionStudio ? 0 : RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
   if (hold > 0 && budget > 0 && (committedSpend() >= budget || (opts.automatic && committedSpend() + hold > budget))) {
     throw new AgentError(`This month's AI budget ($${budget}) is used up. Raise it in Settings → Usage to keep going.`, "rate_limit");
   }
@@ -177,6 +184,7 @@ export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: S
 }
 
 async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: import("@/lib/ai/routing-types").ModelTarget) {
+  const claudePlan = usesClaudePlan(def.id, args);
   const started = Date.now();
   const steps: RunStep[] = [];
   let usage: Usage = emptyUsage();
@@ -223,7 +231,9 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: i
       if (TIER_RANK[tier] > TIER_RANK[topTier]) topTier = tier;
       let result: RunResult<T>;
       try {
-        result = await runAgent<T>({ ...opts, task: def.id, route: route ?? opts.route, emit, signal: live.abort.signal });
+        result = claudePlan
+          ? await runClaudePlan<T>({ ...opts, task: def.id, emit, signal: live.abort.signal })
+          : await runAgent<T>({ ...opts, task: def.id, route: route ?? opts.route, emit, signal: live.abort.signal });
       } catch (err) {
         // Turns billed before a failure, Stop or truncation still count toward the receipt and budget.
         if (err instanceof AgentError && err.usage) {

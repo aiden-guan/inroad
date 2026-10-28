@@ -4,6 +4,49 @@ import type { Workspace } from "../src/lib/domain/types";
 const studioNav = (page: Page) =>
   page.getByRole("navigation", { name: "Studio views" });
 
+test("Claude plan is a persistent creator choice for copy and finished graphics without an API key", async ({ page, request }) => {
+  const settings = await (await request.get("/api/settings")).json();
+  await page.route("**/api/settings", (route) => route.fulfill({ json: { ...settings, hasKey: false } }));
+  let connected = false;
+  await page.route("**/api/studio/claude", (route) => {
+    if (route.request().method() === "POST") connected = true;
+    if (route.request().method() === "DELETE") connected = false;
+    return route.fulfill({ json: { available: true, connected, plan: connected ? "max" : undefined } });
+  });
+  const calls: Record<string, unknown>[] = [];
+  await page.route("**/api/runs", (route) => {
+    calls.push(route.request().postDataJSON());
+    return route.fulfill({ json: { run: { id: `run_claude_ui_${calls.length}`, workflow: calls.at(-1)!.workflow, title: "Claude plan", status: "running", startedAt: new Date().toISOString() } } });
+  });
+  await page.route("**/api/runs/run_claude_ui_*/stream", (route) => route.fulfill({ contentType: "text/event-stream", body: 'data: {"type":"done"}\n\n' }));
+  await page.goto("/studio");
+  await page.getByLabel("Create with", { exact: true }).selectOption("claude_plan");
+  await expect(page.getByRole("button", { name: /^Write \d+ options$/ })).toBeDisabled();
+  await page.getByRole("button", { name: "Connect Claude", exact: true }).click();
+  await expect(page.getByText("Claude connected · Max", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Write \d+ options$/ }).click();
+  await expect.poll(() => calls.length).toBe(1);
+  expect(calls[0]).toMatchObject({ workflow: "studio", args: { agentProvider: "claude_plan" } });
+  await page.goto("/studio?view=graphics&graphicPiece=stu_ll_hero&graphicOption=opt_ll_hours");
+  await expect(page.getByLabel("Create with", { exact: true })).toHaveValue("claude_plan");
+  const controls = page.getByRole("region", { name: "Graphic design controls", exact: true });
+  await expect(controls.getByRole("tab", { name: "Draw in code", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeEnabled();
+  await controls.getByLabel("Direction for the graphic", { exact: true }).fill("A striking code-rendered illustration and bold type.");
+  await controls.getByRole("button", { name: "Design 2 graphics", exact: true }).click();
+  await expect.poll(() => calls.length).toBe(2);
+  expect(calls[1]).toMatchObject({ workflow: "visual", args: { agentProvider: "claude_plan", generate: false, direction: "A striking code-rendered illustration and bold type." } });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.reload();
+  await expect(page.getByLabel("Create with", { exact: true })).toHaveValue("claude_plan");
+  await page.getByRole("button", { name: "Disconnect Claude", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Create with", { exact: true })).toHaveValue("claude_plan");
+  await page.getByLabel("Create with", { exact: true }).selectOption("api");
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeDisabled();
+});
+
 test("ChatGPT connects, generates and downloads an image without choosing the API route", async ({ page, request }) => {
   const settings = await (await request.get("/api/settings")).json();
   await page.route("**/api/settings", (route) => route.fulfill({ json: { ...settings, hasKey: false } }));

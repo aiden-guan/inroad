@@ -24,6 +24,7 @@ import { defineWorkflow, type WorkflowContext } from "./types";
  */
 
 const Args = z.object({
+  agentProvider: z.enum(["api", "claude_plan"]).optional(),
   format: z.enum(FORMAT_IDS as [StudioFormatId, ...StudioFormatId[]]),
   occasion: z.enum(Object.keys(OCCASIONS) as [StudioOccasion, ...StudioOccasion[]]).optional(),
   audience: z.enum(["b2b", "b2c", "prosumer", "developer"]).optional(),

@@ -24,6 +24,7 @@ import {
 } from "@/lib/studio/receipts";
 import { CampaignDetails } from "./campaign-library";
 import { VISUAL_FORMATS } from "@/lib/studio/visuals";
+import { useStudioAI } from "./studio-ai";
 
 export interface NewPieceArgs {
   format: StudioFormatId;
@@ -61,6 +62,7 @@ export function NewPiece({
   onMaterial: () => void;
   onGraphics: () => void;
 }) {
+  const studioAI = useStudioAI();
   const audience = audienceFor(ws);
   const ordered = useMemo(() => formatsFor(audience), [audience]);
   const spec = FORMATS[format];
@@ -335,7 +337,7 @@ export function NewPiece({
             variant="agent"
             size="lg"
             icon={<Sparkles aria-hidden className="size-4" />}
-            disabled={!!blocked}
+            disabled={!!blocked || !studioAI.ready}
             loading={busy}
             onClick={() =>
               onWrite({

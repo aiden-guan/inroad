@@ -18,6 +18,7 @@ import type { StudioImage, StudioOption, StudioPiece, StudioVisual, VisualLayout
 import { FORMATS } from "@/lib/studio/formats";
 import { LAYOUTS, aspectLabel, presetById, presetsFor } from "@/lib/studio/visuals";
 import { ChatGptConnection, useChatGptConnection } from "./chatgpt-connection";
+import { useStudioAI } from "./studio-ai";
 
 /**
  * Graphics for an option: Claude designs them around the option's approved words (SVG, rendered to
@@ -102,6 +103,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   const { runs, start } = useRuns();
   const { status } = useSettingsStatus();
   const chatgpt = useChatGptConnection();
+  const studioAI = useStudioAI();
   const [imageProvider, setImageProvider] = useState<"chatgpt" | "openai">("chatgpt");
   const presets = presetsFor(piece.format);
   const [presetId, setPresetId] = useState(presets[0]?.id ?? "linkedin");
@@ -137,7 +139,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   const cannot = picture === "mine" && !chosen ? "Pick or upload an image first."
     : picture === "paint" && imageProvider === "chatgpt" && !chatgpt.status.connected ? "Connect ChatGPT first."
     : picture === "paint" && imageProvider === "openai" && !hasOpenAI ? "Add an OpenAI key, or use your ChatGPT plan." : null;
-  const designCannot = cannot ?? (status && !status.hasKey ? "Connect an AI provider in Settings for checked typography and layout. ChatGPT image generation works independently." : null);
+  const designCannot = cannot ?? (studioAI.provider === "claude_plan" ? !studioAI.ready ? "Connect your Claude plan to design graphics." : null : status && !status.hasKey ? "Connect an AI provider in Settings, or choose Claude plan, for checked typography and layout." : null);
 
   const design = async () => {
     const r = await start(
@@ -149,6 +151,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
         layout: layoutValue,
         imageId: picture === "mine" ? imageId : undefined,
         generate: picture === "paint",
+        agentProvider: studioAI.provider,
         imageProvider: picture === "paint" ? imageProvider : undefined,
         variants: 2,
         direction: direction.trim() || undefined,
@@ -159,7 +162,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   };
 
   const writePrompt = async () => {
-    const r = await start("visual", { pieceId: piece.id, optionId: option.id, preset: presetId, mode: "prompt", direction: direction.trim() || undefined }, { notify: false, onError: (e) => toast.error(e.message) });
+    const r = await start("visual", { pieceId: piece.id, optionId: option.id, preset: presetId, mode: "prompt", agentProvider: studioAI.provider, direction: direction.trim() || undefined }, { notify: false, onError: (e) => toast.error(e.message) });
     if (r) setPromptRunId(r.id);
   };
 
@@ -201,7 +204,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           value={picture}
           onChange={setPicture}
           options={[
-            { value: "none", label: "Words only" },
+            { value: "none", label: studioAI.provider === "claude_plan" ? "Draw in code" : "Words only" },
             { value: "mine", label: "Your image" },
             { value: "paint", label: "AI image" },
           ]}
@@ -223,6 +226,8 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           ))}
         </select>
       </div>
+
+      {picture === "none" && studioAI.provider === "claude_plan" && <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Claude draws illustrations, shapes and type in SVG. Inroad renders the finished PNG; no image API is needed.</p>}
 
       {picture === "mine" && (
         <div className="mt-3">
@@ -275,7 +280,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
 
       {picture !== "none" && !(picture === "paint" && imageProvider === "chatgpt") && chosen?.source !== "chatgpt" && (
         <div className="mt-2">
-          <Button size="sm" variant="ghost" icon={<Wand2 className="size-3.5" />} loading={!!writingPrompt} onClick={() => void writePrompt()}>
+          <Button size="sm" variant="ghost" icon={<Wand2 className="size-3.5" />} loading={!!writingPrompt} disabled={!studioAI.ready} onClick={() => void writePrompt()}>
             Write a ChatGPT prompt
           </Button>
           {option.imagePrompt && !writingPrompt && (

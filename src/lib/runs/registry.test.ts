@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineTool, resetCompat } from "@/lib/ai/engine";
 import { monthKey } from "@/lib/domain/ids";
@@ -8,6 +8,9 @@ import { makeWorkspace } from "@/test/factories";
 import { startMock, type MockServer } from "@/test/mock-anthropic";
 import { defineWorkflow } from "@/lib/workflows/types";
 import { startRun, subscribe } from "./registry";
+import * as claudePlan from "@/lib/studio/claude-plan";
+import * as engine from "@/lib/ai/engine";
+import { emptyUsage } from "@/lib/ai/models";
 
 /**
  * A run end to end against the mock: what reaches the receipt, the monthly usage and the run's error,
@@ -114,6 +117,28 @@ describe("the monthly budget", () => {
     await new Promise<void>((resolve) => subscribe(run.id, (event) => event.type === "done" && resolve()));
     expect(readWorkspace().usage[monthKey()].costUsd).toBe(2);
     await expect(startRun(def, { mode: "design", imageProvider: "chatgpt" })).rejects.toThrow("budget");
+  });
+
+  it("routes Claude-plan Studio work without API calls or dollar-budget holds, including combined ChatGPT images", async () => {
+    await over(2, 2);
+    const plan = vi.spyOn(claudePlan, "runClaudePlan").mockResolvedValue({ result: { ok: true }, text: "", messages: [], stopReason: "tool_use", costUsd: 0, usage: emptyUsage(), modelName: "Claude plan · Sonnet" });
+    const api = vi.spyOn(engine, "runAgent");
+    try {
+      for (const id of ["studio", "visual"] as const) {
+        const def = defineWorkflow({ id, title: () => "Plan probe", args: z.object({ agentProvider: z.string(), generate: z.boolean().optional(), imageProvider: z.string().optional() }), run: (ctx) => probe.run({ ...ctx, args: {} }) });
+        const run = await startRun(def, { agentProvider: "claude_plan", ...(id === "visual" ? { generate: true, imageProvider: "chatgpt" } : {}) });
+        await new Promise<void>((resolve) => subscribe(run.id, (event) => event.type === "done" && resolve()));
+        expect(readWorkspace().runs.find((entry) => entry.id === run.id)).toMatchObject({ status: "done", receipt: { costUsd: 0, modelName: "Claude plan · Sonnet" } });
+        expect(readWorkspace().usage[monthKey()].costUsd).toBe(2);
+        if (id === "visual") {
+          await expect(startRun(def, { agentProvider: "claude_plan", generate: true, imageProvider: "openai" })).rejects.toThrow("budget");
+          await expect(startRun(def, { agentProvider: "claude_plan", generate: true })).rejects.toThrow("budget");
+        }
+        await expect(startRun(def, { agentProvider: "api" })).rejects.toThrow("budget");
+      }
+      expect(plan).toHaveBeenCalledTimes(2);
+      expect(api).not.toHaveBeenCalled();
+    } finally { plan.mockRestore(); api.mockRestore(); }
   });
 
   it("holds what runs in flight may cost, so a burst of automatic runs stops before it can pass the budget", async () => {

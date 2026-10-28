@@ -43,6 +43,7 @@ import { NewPiece, type NewPieceArgs } from "./new-piece";
 import { OptionCard } from "./option-card";
 import { ImagesCard } from "./visuals";
 import { GraphicsStudio } from "./graphics-studio";
+import { StudioAIChoice, StudioAIProvider, useStudioAI } from "./studio-ai";
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -55,6 +56,11 @@ function isTyping(target: EventTarget | null) {
 
 /** Separate creation, campaign research and saved work; keep drafts mounted between views. */
 export function StudioPage() {
+  return <StudioAIProvider><StudioContent /></StudioAIProvider>;
+}
+
+function StudioContent() {
+  const studioAI = useStudioAI();
   const { ws, loading, error } = useWorkspace();
   const { runs, start } = useRuns();
   const params = useSearchParams();
@@ -132,12 +138,13 @@ export function StudioPage() {
   };
 
   const write = async (args: NewPieceArgs) => {
+    if (!studioAI.ready) return;
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     try {
       const pieceId = newId("stu");
-      const run = await start("studio", { ...args, pieceId });
+      const run = await start("studio", { ...args, pieceId, agentProvider: studioAI.provider });
       if (!run) return;
       setRequested(pieceId);
       select(pieceId);
@@ -148,7 +155,7 @@ export function StudioPage() {
   };
 
   const writeMore = (piece: StudioPiece) =>
-    void start("studio", { format: piece.format, pieceId: piece.id });
+    studioAI.ready && void start("studio", { format: piece.format, pieceId: piece.id, agentProvider: studioAI.provider });
 
   if (!ws) {
     return (
@@ -200,6 +207,8 @@ export function StudioPage() {
           Campaign ideas, copy and graphics. Made from your own material.
         </p>
       </header>
+
+      <div hidden={view === "campaigns"}><StudioAIChoice /></div>
 
       <nav
         aria-label="Studio views"
@@ -361,6 +370,7 @@ function PieceView({
   onRemoved: () => void;
   onGraphics: (pieceId: string, optionId: string) => void;
 }) {
+  const studioAI = useStudioAI();
   const { dispatch } = useWorkspace();
   const spec = FORMATS[piece.format];
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -395,6 +405,7 @@ function PieceView({
           size="sm"
           icon={<Sparkles className="size-3.5" />}
           loading={busy}
+          disabled={!studioAI.ready}
           onClick={onMore}
         >
           Write more

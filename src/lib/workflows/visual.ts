@@ -31,6 +31,7 @@ import { defineWorkflow, type WorkflowContext } from "./types";
 const LAYOUT_IDS = Object.keys(LAYOUTS) as [VisualLayout, ...VisualLayout[]];
 
 const Args = z.object({
+  agentProvider: z.enum(["api", "claude_plan"]).optional(),
   pieceId: z.string().max(40),
   optionId: z.string().max(40),
   preset: z.string().max(30),
@@ -177,6 +178,7 @@ function designTask(plan: Plan, layouts: VisualLayout[], image: StudioImage | un
     `<approved_text>\n${approvedBlock(plan)}\n</approved_text>`,
     `<layouts>\n${layouts.map((l) => `- ${l}: ${LAYOUTS[l].blurb}`).join("\n")}\n</layouts>`,
     `<brand>Colors (first is the background unless an image fills the frame): ${plan.palette.join(", ")}.</brand>`,
+    !image && "Draw supporting illustrations or visual metaphors directly with SVG paths and shapes when the direction calls for them. A separate raster image is not required. Keep the approved message readable and the composition deliberate.",
     image &&
       `<image width="${image.width}" height="${image.height}">${
         image.source !== "upload"
