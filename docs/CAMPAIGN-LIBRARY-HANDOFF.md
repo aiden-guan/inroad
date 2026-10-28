@@ -2,6 +2,8 @@
 
 This branch preserves the campaign library redesign from the cloud workspace so work can continue on the user's Mac. The user requested the move to local and asked to avoid an outdated checkout. Do not discard local edits, reset their checkout, or replace their application data to make it match this branch.
 
+**Local continuation:** the media, source-ledger and visual QA work below has now been completed in a separate Mac worktree. See [local verification](CAMPAIGN-LIBRARY-VERIFICATION.md) for checkout/app versions, asset replacements, live playback and test results. The remaining-work section below records the historical cloud handoff, rather than the final collection's current state. Release publication and installation are separate verification steps.
+
 ## Version baseline
 
 As checked on 2026-10-28, GitHub `main` and the latest published release `v0.2.10` point to `d2174d93556e63317638173feeaea0e0aeab7971`. This branch, `codex/campaign-library-casebook`, contains newer, **unreleased** work on top of that release. Its package version is intentionally still `0.2.10`; the version number alone does not identify the redesign.

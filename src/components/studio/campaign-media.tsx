@@ -16,13 +16,11 @@ function PreviewImage({
   id,
   index = 0,
   media,
-  cover = false,
   fallback,
 }: {
   id: string;
   index?: number;
   media: CampaignMedia;
-  cover?: boolean;
   fallback: string;
 }) {
   const [failed, setFailed] = useState(false);
@@ -39,7 +37,7 @@ function PreviewImage({
       fill
       src={mediaPreviewUrl(id, index)}
       alt={media.alt}
-      className={cover ? "object-cover" : "object-contain"}
+      className="object-contain"
       sizes="(max-width: 640px) 100vw, 600px"
       onError={() => setFailed(true)}
     />
@@ -66,10 +64,15 @@ export function CampaignPreview({
       aria-label={`Preview ${brand} campaign creative`}
       className="group relative block aspect-[16/9] w-full overflow-hidden rounded-t-lg bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ring)]"
     >
-      <PreviewImage id={id} media={media} cover fallback={title ?? brand} />
-      <span className="absolute right-3 top-3 rounded-full bg-surface-raised/95 px-2.5 py-1 text-[10px] font-medium tracking-wide text-fg shadow-sm">
-        {media.kind === "youtube" ? "Film study" : "Original creative"}
-      </span>
+      <PreviewImage id={id} media={media} fallback={title ?? brand} />
+      {media.kind === "youtube" && (
+        <span
+          aria-hidden
+          className="absolute bottom-3 right-3 rounded-full bg-surface-raised/95 p-2.5 text-fg shadow-sm"
+        >
+          <Play className="size-4" />
+        </span>
+      )}
     </button>
   );
 }
@@ -91,7 +94,7 @@ function MediaStage({
     setState("checking");
     try {
       const response = await fetch(
-        `${mediaPreviewUrl(id, index)}?check=video`,
+        `${mediaPreviewUrl(id, index)}&check=video`,
         { signal: AbortSignal.timeout(7000) },
       );
       const body = response.ok ? await response.json() : null;

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA_DIR } from "@/lib/store/settings";
+import * as mediaRegistry from "./campaign-media";
 import {
   campaignPoster,
   campaignVideoAvailability,
@@ -22,7 +23,13 @@ const imageResponse = (width = 640, height = 360) =>
     headers: { "Content-Type": "image/png" },
   });
 let fetchMock: ReturnType<typeof vi.fn>;
+const registeredMedia = mediaRegistry.campaignMedia;
 beforeEach(() => {
+  vi.restoreAllMocks();
+  // Keep exercising the publisher/cache path independently of the shipped previews.
+  vi.spyOn(mediaRegistry, "campaignMedia").mockImplementation((id) =>
+    registeredMedia(id).map((item) => ({ ...item, preview: undefined })),
+  );
   fs.rmSync(path.join(DATA_DIR, "cache", "campaign-media"), {
     recursive: true,
     force: true,
@@ -33,6 +40,29 @@ beforeEach(() => {
 });
 
 describe("campaign media availability", () => {
+  it("serves every bundled preview on a first launch without a network or existing cache", async () => {
+    vi.mocked(mediaRegistry.campaignMedia).mockRestore();
+    fetchMock.mockRejectedValue(new Error("Offline"));
+    for (const [id, items] of Object.entries(mediaRegistry.CAMPAIGN_MEDIA)) {
+      for (let index = 0; index < items.length; index++) {
+        const poster = await campaignPoster(id, index);
+        expect(poster?.mime, `${id}[${index}]`).toBe("image/webp");
+        expect(poster!.bytes.length).toBeGreaterThan(1000);
+      }
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("can recover from a missing bundled file using the validated publisher path", async () => {
+    vi.mocked(mediaRegistry.campaignMedia).mockImplementation((id) =>
+      registeredMedia(id).map((item) => ({
+        ...item,
+        preview: "/campaign-library/missing-test-preview.webp",
+      })),
+    );
+    fetchMock.mockResolvedValueOnce(imageResponse());
+    expect((await campaignPoster("spotify-wrapped", 0))?.bytes).toEqual(png());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("only fetches a curated asset, never an arbitrary URL or archived clip", async () => {
     expect(await campaignPoster("https://example.com/attack", 0)).toBeNull();
     expect(await campaignPoster("cider-shorts", 0)).toBeNull();

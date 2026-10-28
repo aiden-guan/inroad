@@ -46,7 +46,7 @@ function study(input: Input): Campaign {
     adaptation: input.blueprint
       .map((step) => `${step.title}: ${step.detail}`)
       .join(" "),
-    reviewedAt: "2026-10-28",
+    reviewedAt: "2026-10-27",
     source: { label: input.sources[0].label, url: input.sources[0].url },
     study: input,
   };

@@ -374,6 +374,17 @@ for (const width of [390, 850]) {
       .click();
     const dialog = page.getByRole("dialog", { name: /^Wispr Flow/ });
     await expect(dialog).toBeVisible();
+    const tabs = dialog.getByRole("tablist", { name: "Campaign study sections" });
+    expect(await tabs.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await dialog.getByText(/^Sources & measurement/).scrollIntoViewIfNeeded();
+    await dialog.getByRole("tab", { name: "Make it yours", exact: true }).click();
+    await expect(
+      dialog.getByRole("heading", { name: "A starting point for your brief.", exact: true }),
+    ).toBeInViewport();
+    await dialog.getByText(/^Sources & measurement/).scrollIntoViewIfNeeded();
+    await dialog.getByRole("tab", { name: "Make it yours", exact: true }).press("Home");
+    await expect(dialog.getByRole("tab", { name: "The campaign", exact: true })).toBeFocused();
+    await expect(dialog.getByRole("region", { name: "Original campaign creative" })).toBeInViewport();
     await dialog
       .getByRole("button", { name: "Create with this approach", exact: true })
       .click();
@@ -503,7 +514,7 @@ test("unavailable campaign images retain the original source and usable actions"
   page,
 }) => {
   await page.route(
-    /\/api\/studio\/campaign-media\/wispr-old-way\/0$/,
+    /\/api\/studio\/campaign-media\/wispr-old-way\/0\?v=casebook-1$/,
     (route) => route.abort(),
   );
   await page.goto("/studio?view=campaigns");
@@ -532,7 +543,7 @@ test("a removed video never opens a broken player", async ({
   page,
 }) => {
   await page.route(
-    /\/api\/studio\/campaign-media\/wispr-old-way\/0\?check=video$/,
+    /\/api\/studio\/campaign-media\/wispr-old-way\/0\?v=casebook-1&check=video$/,
     (route) => route.fulfill({ json: { status: "unavailable" } }),
   );
   await page.goto("/studio?view=campaigns&campaign=wispr-old-way");

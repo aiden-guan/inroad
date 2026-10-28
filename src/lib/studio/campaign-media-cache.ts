@@ -101,6 +101,16 @@ export async function campaignPoster(
 ): Promise<Poster | null> {
   const media = campaignMedia(id)[index];
   if (!media) return null;
+  if (media.preview) {
+    try {
+      const bundled = validate(
+        fs.readFileSync(path.join(process.cwd(), "public", media.preview)),
+      );
+      if (bundled) return bundled;
+    } catch {
+      /* A missing bundle can still use the publisher and last-good cache below. */
+    }
+  }
   const url = mediaPoster(media);
   if (!url.startsWith("https://")) return null;
   const key = createHash("sha256").update(url).digest("hex");

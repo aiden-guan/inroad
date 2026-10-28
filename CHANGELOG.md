@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Twenty campaign studies with execution breakdowns, creative analysis, adaptation briefs, source details and measurement limits.
+- Twenty-two verified, full-frame local creative previews, including offline first-launch coverage and three click-to-play official campaign films.
+
+### Changed
+- Streamline discovery with compact cards, audience and approach filters, deep-linked study tabs and a persistent creation action.
+- Preserve brief and optional example input through studies and browser history; retain archived IDs for older saved pieces.
+- Replace black, unrelated and broken previews, correct captions and attribution, and keep campaign outcomes separate from product evidence.
+
+### Fixed
+- Open each study section at its beginning when switching tabs after scrolling, and fit all three tabs on a 390px phone viewport.
+
 ---
 
 ## [v0.2.10] — 2026-10-28

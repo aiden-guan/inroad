@@ -2,7 +2,7 @@
 
 import { ArrowRight, ArrowUpRight, Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/field";
@@ -178,9 +178,11 @@ export function CampaignLibrary({
                       {EVIDENCE_LABELS[campaign.evidence]}
                     </p>
                     <p className="text-[13px] leading-5 text-fg">
-                      <span className="mr-1.5 text-[18px] font-semibold tracking-tight">
-                        {campaign.result.value}
-                      </span>
+                      {campaign.evidence !== "reference" && (
+                        <span className="mr-1.5 text-[18px] font-semibold tracking-tight">
+                          {campaign.result.value}
+                        </span>
+                      )}
                       {campaign.evidence === "reference"
                         ? "Public performance not available"
                         : campaign.result.label}
@@ -318,6 +320,13 @@ function StudyBody({
   onUse?: (campaign: Campaign) => void;
 }) {
   const [tab, setTab] = useState("campaign");
+  const tabList = useRef<HTMLDivElement>(null);
+  const selectTab = (next: string) => {
+    setTab(next);
+    // The sheet owns the scrolling viewport; each section should open at its beginning.
+    if (tabList.current?.parentElement)
+      tabList.current.parentElement.scrollTop = 0;
+  };
   const study = campaign.study;
   if (!study)
     return (
@@ -355,7 +364,8 @@ function StudyBody({
   return (
     <>
       <div
-        className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-border bg-surface-raised px-4 py-2"
+        ref={tabList}
+        className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-border bg-surface-raised px-2 py-2 sm:px-4"
         role="tablist"
         aria-label="Campaign study sections"
       >
@@ -368,7 +378,7 @@ function StudyBody({
             aria-controls={`study-panel-${item.id}`}
             aria-selected={tab === item.id}
             tabIndex={tab === item.id ? 0 : -1}
-            onClick={() => setTab(item.id)}
+            onClick={() => selectTab(item.id)}
             onKeyDown={(event) => {
               if (
                 !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
@@ -385,11 +395,11 @@ function StudyBody({
                         (event.key === "ArrowRight" ? 1 : -1) +
                         tabs.length) %
                       tabs.length;
-              setTab(tabs[next].id);
+              selectTab(tabs[next].id);
               document.getElementById(`study-tab-${tabs[next].id}`)?.focus();
             }}
             className={cn(
-              "shrink-0 rounded-md px-3 py-2 text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+              "shrink-0 rounded-md px-2 py-2 text-[12px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:px-3 sm:text-[13px]",
               tab === item.id
                 ? "bg-bg-subtle text-fg"
                 : "text-fg-3 hover:text-fg",
@@ -453,7 +463,7 @@ function StudyBody({
               <Button
                 variant="ghost"
                 className="-ml-3 mt-6"
-                onClick={() => setTab("why")}
+                onClick={() => selectTab("why")}
               >
                 {campaign.evidence === "reference"
                   ? "Understand the creative logic"
@@ -497,7 +507,7 @@ function StudyBody({
               <Button
                 variant="ghost"
                 className="-ml-3 mt-6"
-                onClick={() => setTab("adapt")}
+                onClick={() => selectTab("adapt")}
               >
                 Build your own brief
                 <ArrowRight aria-hidden className="size-4" />

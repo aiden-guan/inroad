@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { campaignById, campaignContext } from "./campaigns";
 import {
@@ -8,8 +9,32 @@ import {
   mediaOriginal,
   mediaPoster,
 } from "./campaign-media";
+import { campaignImageInfo } from "./campaign-media-cache";
 
 describe("campaign creative sources", () => {
+  it("ships the reviewed full-frame previews and their provenance in sync", () => {
+    const manifest = JSON.parse(
+      fs.readFileSync("docs/research/campaign-media-manifest.json", "utf8"),
+    );
+    expect(manifest.assets).toHaveLength(
+      Object.values(CAMPAIGN_MEDIA).flat().length,
+    );
+    for (const asset of manifest.assets) {
+      const media = campaignMedia(asset.campaign)[asset.index];
+      expect(media.preview).toBe(asset.preview);
+      expect(mediaPoster(media)).toBe(asset.original);
+      expect(media.sourceUrl).toBe(asset.source);
+      expect(media.credit).toBe(asset.credit);
+      const bytes = fs.readFileSync(path.join("public", asset.preview));
+      expect(campaignImageInfo(bytes)).toEqual({
+        mime: "image/webp",
+        width: asset.width,
+        height: asset.height,
+      });
+      expect(bytes.length).toBe(asset.bytes);
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(asset.sha256);
+    }
+  });
   it("connects original assets to known campaigns with attribution and valid player targets", () => {
     expect(Object.keys(CAMPAIGN_MEDIA)).toHaveLength(20);
     for (const [id, items] of Object.entries(CAMPAIGN_MEDIA)) {
