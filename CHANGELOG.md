@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.10] — 2026-10-28
+
 ### Fixed
 - Stop repeated Next.js server Keychain password prompts in ad hoc Mac builds by importing saved keys once into the existing owner-only AES-256-GCM encrypted store. Developer ID builds retain Keychain, and deletion cannot restore an older Keychain value.
 
