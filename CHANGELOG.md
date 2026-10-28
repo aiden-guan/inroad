@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.12] — 2026-10-28
+
 ### Added
 - A visible Graphics workspace in Studio for choosing a saved message, designing with typography, uploaded images or AI imagery, and reviewing and downloading PNG/SVG graphics.
 
