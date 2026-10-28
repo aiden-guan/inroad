@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.13] — 2026-10-28
+
 ### Added
 - Connect ChatGPT in Studio Graphics through local Codex and generate downloadable images using the ChatGPT plan, with no OpenAI API key or API fallback.
 - A direct image generation action that skips API prompt-writing, layout and review calls, with independent API-budget handling.
