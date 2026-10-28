@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.11] — 2026-10-28
+
 ### Added
 - Twenty campaign studies with execution breakdowns, creative analysis, adaptation briefs, source details and measurement limits.
 - Twenty-two verified, full-frame local creative previews, including offline first-launch coverage and three click-to-play official campaign films.
