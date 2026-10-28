@@ -152,8 +152,10 @@ export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: S
   if (opts.route) targetProvider(opts.route);
   const ws = readWorkspace();
   const budget = ws.caps.monthlyBudgetUsd;
-  const hold = RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
-  if (budget > 0 && (committedSpend() >= budget || (opts.automatic && committedSpend() + hold > budget))) {
+  const imageArgs = args as { mode?: string; imageProvider?: string };
+  const subscriptionImage = def.id === "visual" && imageArgs.mode === "image" && imageArgs.imageProvider === "chatgpt";
+  const hold = subscriptionImage ? 0 : RESERVE_USD[def.id] ?? RESERVE_DEFAULT_USD;
+  if (hold > 0 && budget > 0 && (committedSpend() >= budget || (opts.automatic && committedSpend() + hold > budget))) {
     throw new AgentError(`This month's AI budget ($${budget}) is used up. Raise it in Settings → Usage to keep going.`, "rate_limit");
   }
 
@@ -281,7 +283,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: i
     cacheReadTokens: usage.cacheReadTokens,
     costUsd,
     model: topTier,
-    ...(topModelName ? { modelName: topModelName } : {}),
+    ...(def.id === "visual" && (args as { mode?: string }).mode === "image" ? { modelName: "ChatGPT plan" } : topModelName ? { modelName: topModelName } : {}),
     ...(unpriced ? { unpriced } : {}),
     ...(compat ? { compat } : {}),
   };

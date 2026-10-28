@@ -107,6 +107,15 @@ describe("the monthly budget", () => {
   const over = (spent: number, budget: number) =>
     replaceWorkspace({ ...makeWorkspace(), caps: { ...makeWorkspace().caps, monthlyBudgetUsd: budget }, usage: { [monthKey()]: { costUsd: spent, runs: 1, byWorkflow: {}, freeSignals: 0 } } });
 
+  it("does not charge or block ChatGPT image-only work against the API budget", async () => {
+    await over(2, 2);
+    const def = defineWorkflow({ id: "visual", args: z.object({ mode: z.string(), imageProvider: z.string() }), title: () => "ChatGPT image", run: async () => ({ imageId: "test" }) });
+    const run = await startRun(def, { mode: "image", imageProvider: "chatgpt" });
+    await new Promise<void>((resolve) => subscribe(run.id, (event) => event.type === "done" && resolve()));
+    expect(readWorkspace().usage[monthKey()].costUsd).toBe(2);
+    await expect(startRun(def, { mode: "design", imageProvider: "chatgpt" })).rejects.toThrow("budget");
+  });
+
   it("holds what runs in flight may cost, so a burst of automatic runs stops before it can pass the budget", async () => {
     await over(1.5, 2);
     const { def, release } = held();

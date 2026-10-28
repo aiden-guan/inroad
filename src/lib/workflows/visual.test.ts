@@ -7,6 +7,7 @@ import { sampleWorkspace } from "@/lib/sample";
 import { PIECE } from "@/lib/sample/studio";
 import { readStudioFile } from "@/lib/studio/files";
 import { generateImage } from "@/lib/studio/openai";
+import { generateChatGptImage } from "@/lib/studio/chatgpt";
 import { NOW } from "@/test/factories";
 import type { WorkflowContext } from "./types";
 import { runVisual } from "./visual";
@@ -17,6 +18,7 @@ import { runVisual } from "./visual";
  */
 
 vi.mock("@/lib/studio/openai", () => ({ generateImage: vi.fn(), imageModel: () => "gpt-image-2.5-sunburst" }));
+vi.mock("@/lib/studio/chatgpt", () => ({ generateChatGptImage: vi.fn() }));
 
 type Opts = Omit<RunOptions, "emit" | "signal">;
 type Step = (opts: Opts) => unknown;
@@ -61,6 +63,25 @@ const reviews = (...scores: number[]) => (opts: Opts) => {
 };
 
 describe("runVisual", () => {
+  it("generates and saves a ChatGPT image with zero prompt, copy, layout or API image calls", async () => {
+    const png = Buffer.from(new Resvg(svg('<rect width="1200" height="630" fill="#aabbcc"/>')).render().asPng());
+    vi.mocked(generateChatGptImage).mockResolvedValue({ png, width: 1200, height: 630, model: "ChatGPT plan", size: "1200x630", quality: "auto" });
+    const apiCalls = vi.mocked(generateImage).mock.calls.length;
+    const { ctx, calls, state } = harness(sample, { ...base, generate: true, imageProvider: "chatgpt", mode: "image" }, []);
+    const result = await runVisual(ctx);
+    expect(calls).toHaveLength(0);
+    expect(vi.mocked(generateImage).mock.calls).toHaveLength(apiCalls);
+    expect(state.ws.studio.images[result.imageId!]).toMatchObject({ source: "chatgpt", generated: { model: "ChatGPT plan" } });
+    expect(readStudioFile(state.ws.studio.images[result.imageId!].file)).toEqual(png);
+    expect(result.visualIds).toEqual([]);
+  });
+
+  it("keeps ChatGPT generated images out of screenshot layouts", async () => {
+    const ws = structuredClone(sample);
+    ws.studio.images.img_chatgpt01 = { id: "img_chatgpt01", source: "chatgpt", file: "img_chatgpt01.png", mime: "image/png", width: 1200, height: 630, alt: "A generated illustration", createdAt: NOW.toISOString() };
+    await expect(runVisual(harness(ws, { ...base, imageId: "img_chatgpt01", layout: "screenshot" }, []).ctx)).rejects.toThrow("can't stand in for a screenshot");
+  });
+
   it("designs, checks, renders, has Claude look at the renders, fixes what failed, and saves real PNGs", async () => {
     const { ctx, calls, state } = harness(sample, { ...base, variants: 2 }, [
       designs({ layout: "statement", svg: GOOD }, { layout: "stat", svg: INVENTED }),

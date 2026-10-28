@@ -1811,7 +1811,7 @@ export interface StudioProfile {
  */
 export interface StudioImage {
   id: ID;
-  source: "upload" | "openai";
+  source: "upload" | "openai" | "chatgpt";
   file: string;
   mime: "image/png" | "image/jpeg";
   width: number;

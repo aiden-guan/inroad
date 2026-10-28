@@ -4,6 +4,50 @@ import type { Workspace } from "../src/lib/domain/types";
 const studioNav = (page: Page) =>
   page.getByRole("navigation", { name: "Studio views" });
 
+test("ChatGPT connects, generates and downloads an image without choosing the API route", async ({ page, request }) => {
+  const settings = await (await request.get("/api/settings")).json();
+  await page.route("**/api/settings", (route) => route.fulfill({ json: { ...settings, hasKey: false } }));
+  let connected = false;
+  await page.route("**/api/studio/chatgpt", (route) => {
+    if (route.request().method() === "POST") connected = true;
+    if (route.request().method() === "DELETE") connected = false;
+    return route.fulfill({ json: { available: true, connected, plan: connected ? "plus" : undefined } });
+  });
+  const ws: Workspace = await (await request.get("/api/workspace")).json();
+  await page.route("**/api/workspace", (route) => route.fulfill({ json: ws }));
+  let args: Record<string, unknown> | undefined;
+  await page.route("**/api/runs", (route) => {
+    args = route.request().postDataJSON().args;
+    ws.studio.images.img_chatgptui = { id: "img_chatgptui", source: "chatgpt", file: "img_chatgptui.png", mime: "image/png", width: 1024, height: 1024, alt: "A campaign illustration", createdAt: new Date().toISOString() };
+    return route.fulfill({ json: { run: { id: "run_chatgpt_ui", workflow: "visual", title: "Generating an image in ChatGPT", status: "running", startedAt: new Date().toISOString() } } });
+  });
+  await page.route("**/api/runs/run_chatgpt_ui/stream", (route) => route.fulfill({ contentType: "text/event-stream", body: 'data: {"type":"result","data":{"imageId":"img_chatgptui","visualIds":[]}}\n\ndata: {"type":"done"}\n\n' }));
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6S8AAAAASUVORK5CYII=", "base64");
+  await page.route("**/api/studio/files/img_chatgptui.png*", (route) => route.fulfill({ contentType: "image/png", body: png, headers: { "Content-Disposition": 'attachment; filename="img_chatgptui.png"' } }));
+  await page.goto("/studio?view=graphics&graphicPiece=stu_ll_hero&graphicOption=opt_ll_hours");
+  const controls = page.getByRole("region", { name: "Graphic design controls", exact: true });
+  await controls.getByRole("tab", { name: "AI image", exact: true }).click();
+  await expect(controls.getByRole("tab", { name: "ChatGPT plan", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(controls.getByRole("button", { name: "Generate image in ChatGPT", exact: true })).toBeDisabled();
+  await controls.getByRole("button", { name: "Connect ChatGPT", exact: true }).click();
+  await expect(controls.getByText("ChatGPT connected · plus", { exact: true })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeDisabled();
+  await controls.getByLabel("Direction for the graphic", { exact: true }).fill("A ceramic sphere with soft light.");
+  await controls.getByRole("button", { name: "Generate image in ChatGPT", exact: true }).click();
+  await expect(controls.getByRole("link", { name: "Download image", exact: true })).toBeVisible();
+  expect(args).toMatchObject({ imageProvider: "chatgpt", generate: true, mode: "image", direction: "A ceramic sphere with soft light." });
+  await expect(controls.getByText("Generated in ChatGPT · AI imagery", { exact: true })).toBeVisible();
+  const download = page.waitForEvent("download");
+  await controls.getByRole("link", { name: "Download image", exact: true }).click();
+  expect((await download).suggestedFilename()).toBe("img_chatgptui.png");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await controls.getByRole("tab", { name: "AI image", exact: true }).click();
+  await controls.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Generate image in ChatGPT", exact: true })).toBeDisabled();
+  await expect(controls.getByRole("tab", { name: "ChatGPT plan", exact: true })).toHaveAttribute("aria-selected", "true");
+});
+
 test("Graphics is visible from Create and preserves an unfinished brief", async ({ page }) => {
   await page.goto("/studio");
   await page.getByLabel("Format", { exact: true }).selectOption("image");
@@ -30,6 +74,7 @@ test("a labeled copy action opens the selected message and the graphics controls
   await expect(controls.getByRole("button", { name: "Upload", exact: true })).toBeVisible();
   await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeDisabled();
   await controls.getByRole("tab", { name: "AI image", exact: true }).click();
+  await controls.getByRole("tab", { name: "OpenAI API", exact: true }).click();
   await expect(controls.getByRole("button", { name: "Write a ChatGPT prompt", exact: true })).toBeVisible();
   await controls.getByRole("tab", { name: "Words only", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });

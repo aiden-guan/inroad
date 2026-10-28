@@ -10,6 +10,7 @@ import type { StudioImage, StudioOption, StudioPiece, StudioVisual, VisualLayout
 import { removeStudioFile, saveStudioFile } from "@/lib/studio/files";
 import { FORMATS } from "@/lib/studio/formats";
 import { generateImage, imageModel } from "@/lib/studio/openai";
+import { generateChatGptImage } from "@/lib/studio/chatgpt";
 import { receiptsFor, type Receipt } from "@/lib/studio/receipts";
 import { renderPng, thumbnail } from "@/lib/studio/render";
 import { checkDesign, sanitizeSvg, type SanitizedSvg } from "@/lib/studio/svg";
@@ -38,14 +39,16 @@ const Args = z.object({
   imageId: z.string().max(40).optional(),
   /** Paint a new image layer with OpenAI first (needs an OpenAI key). */
   generate: z.boolean().optional(),
+  /** Explicit image billing route. ChatGPT never falls back to an API key. */
+  imageProvider: z.enum(["openai", "chatgpt"]).optional(),
   quality: z.enum(["low", "medium", "high"]).optional(),
   /** How many designs, 1–3. */
   variants: z.number().int().min(1).max(3).optional(),
   /** "prompt" writes the image prompt (to paste into ChatGPT) and stops there. */
-  mode: z.enum(["design", "prompt"]).optional(),
+  mode: z.enum(["design", "prompt", "image"]).optional(),
   /** The founder's note on what the picture should show or how the graphic should feel. */
   direction: z.string().max(600).optional(),
-});
+}).refine((a) => a.mode !== "image" || (a.imageProvider === "chatgpt" && a.generate === true), "Image-only generation requires the ChatGPT plan route.");
 type VisualArgs = z.infer<typeof Args>;
 
 /** Unkept graphics kept per option; older ones (and their files) are removed. */
@@ -160,7 +163,7 @@ function canvasBlock(p: VisualPreset): string {
 /** Layouts the designer may use: image layouts only with an image (and never "screenshot" for a painted one), "stat" only with a number. */
 function allowedLayouts(plan: Plan, image: StudioImage | undefined, asked: VisualArgs["layout"]): VisualLayout[] {
   if (asked && asked !== "auto") return [asked];
-  if (image) return image.source === "openai" ? ["photo"] : ["screenshot", "photo"];
+  if (image) return image.source !== "upload" ? ["photo"] : ["screenshot", "photo"];
   const hasNumber = /\d/.test(plan.approved.join(" "));
   return LAYOUT_IDS.filter((l) => !LAYOUTS[l].needsImage && (l !== "stat" || hasNumber));
 }
@@ -176,7 +179,7 @@ function designTask(plan: Plan, layouts: VisualLayout[], image: StudioImage | un
     `<brand>Colors (first is the background unless an image fills the frame): ${plan.palette.join(", ")}.</brand>`,
     image &&
       `<image width="${image.width}" height="${image.height}">${
-        image.source === "openai"
+        image.source !== "upload"
           ? "A generated picture (attached). It goes in the slot, cropped to fill it. Never present it as the product or a customer."
           : "The founder's own image (attached). If it is a screenshot of the product, use the screenshot layout: it is shown whole in the slot. If it's a photo, use the photo layout: it fills the slot, cropped."
       } Look at it: put text where it is calm, and pick colors that work with it.</image>`,
@@ -358,7 +361,19 @@ export async function runVisual(ctx: WorkflowContext<VisualArgs>) {
   let prompt: string | undefined;
   if (a.mode === "prompt" || a.generate) {
     ctx.emit({ type: "status", text: "Writing the image prompt" });
-    const written = await writeImagePrompt(ctx, plan);
+    // The subscription path prepares its brief in code; it needs no prompt-writing API call.
+    const written = a.generate && a.imageProvider === "chatgpt"
+      ? {
+          prompt: lines(
+            "Create one carefully composed photograph or illustration supporting this campaign. Use the campaign message only as context, never as text in the image.",
+            `<message>\n${approvedBlock(plan)}\n</message>`,
+            `<direction>\n${clip(plan.direction || plan.piece.brief || "Choose a concrete visual metaphor from the message.", 1800)}\n</direction>`,
+            `Palette: ${plan.palette.join(", ")}. Leave calm space for words to be added later.`,
+            "No text, letters, numbers or logos. Do not invent the product's interface, a real person's likeness, a customer or a testimonial.",
+          ),
+          alt: clip(plan.direction || plan.headline || "Campaign image", 200),
+        }
+      : await writeImagePrompt(ctx, plan);
     prompt = forChatGpt(written.prompt, preset);
     const text = prompt;
     await ctx.mutate((w) => {
@@ -369,12 +384,14 @@ export async function runVisual(ctx: WorkflowContext<VisualArgs>) {
       ctx.emit({ type: "action", text: "Prompt ready to paste into ChatGPT" });
       return { visualIds: [] as string[], imageId: undefined, prompt };
     }
-    ctx.emit({ type: "status", text: `Painting the image with OpenAI (${imageModel()})` });
-    const painted = await generateImage({ prompt: written.prompt, w: preset.w, h: preset.h, quality: a.quality, signal: ctx.signal });
+    ctx.emit({ type: "status", text: a.imageProvider === "chatgpt" ? "Generating the image with your ChatGPT plan" : `Painting the image with OpenAI (${imageModel()})` });
+    const painted = a.imageProvider === "chatgpt"
+      ? await generateChatGptImage({ prompt: written.prompt, w: preset.w, h: preset.h, signal: ctx.signal })
+      : await generateImage({ prompt: written.prompt, w: preset.w, h: preset.h, quality: a.quality, signal: ctx.signal });
     const id = newId("img");
     const record: StudioImage = {
       id,
-      source: "openai",
+      source: a.imageProvider === "chatgpt" ? "chatgpt" : "openai",
       file: `${id}.png`,
       mime: "image/png",
       width: painted.width,
@@ -389,12 +406,13 @@ export async function runVisual(ctx: WorkflowContext<VisualArgs>) {
     });
     ctx.emit({ type: "action", text: `Painted ${painted.size} with ${painted.model}` });
     image = record;
+    if (a.mode === "image") return { visualIds: [] as string[], imageId: record.id, prompt };
   }
   plan.image = image;
 
   const layouts = allowedLayouts(plan, image, a.layout);
   if (layouts.some((l) => LAYOUTS[l].needsImage) && !image) throw new AgentError("That layout needs an image. Upload a screenshot or paint one first.", "bad_request");
-  if (image?.source === "openai" && layouts.includes("screenshot")) throw new AgentError("A painted image can't stand in for a screenshot of your product. Upload a real one.", "bad_request");
+  if (!!image && image.source !== "upload" && layouts.includes("screenshot")) throw new AgentError("A painted image can't stand in for a screenshot of your product. Upload a real one.", "bad_request");
 
   ctx.emit({ type: "status", text: plan.variants === 1 ? "Designing the graphic" : `Designing ${plan.variants} graphics` });
   const thumb = image ? thumbnail(image, 1024) : null;
@@ -459,7 +477,7 @@ export async function runVisual(ctx: WorkflowContext<VisualArgs>) {
       why: c.why,
       checks,
       review: r ? { score: r.score, issues: r.issues.slice(0, 4), fix: r.fix } : undefined,
-      aiImagery: image?.source === "openai",
+      aiImagery: !!image && image.source !== "upload",
       createdAt: at,
       runId: ctx.runId,
     };
@@ -491,7 +509,7 @@ export async function runVisual(ctx: WorkflowContext<VisualArgs>) {
 export default defineWorkflow({
   id: "visual",
   args: Args,
-  title: (a) => (a.mode === "prompt" ? "Writing an image prompt" : a.generate ? "Painting a picture and designing graphics" : "Designing graphics"),
+  title: (a) => (a.mode === "image" ? "Generating an image in ChatGPT" : a.mode === "prompt" ? "Writing an image prompt" : a.generate ? "Painting a picture and designing graphics" : "Designing graphics"),
   ref: (a) => ({ kind: "studio", id: a.pieceId }),
   heavy: false,
   run: runVisual,

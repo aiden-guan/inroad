@@ -17,6 +17,7 @@ import { cn } from "@/lib/client/cn";
 import type { StudioImage, StudioOption, StudioPiece, StudioVisual, VisualLayout, Workspace } from "@/lib/domain/types";
 import { FORMATS } from "@/lib/studio/formats";
 import { LAYOUTS, aspectLabel, presetById, presetsFor } from "@/lib/studio/visuals";
+import { ChatGptConnection, useChatGptConnection } from "./chatgpt-connection";
 
 /**
  * Graphics for an option: Claude designs them around the option's approved words (SVG, rendered to
@@ -78,12 +79,12 @@ function UploadButton({ onUploaded, children, className }: { onUploaded?: (image
 
 function Thumb({ image, selected, onSelect }: { image: StudioImage; selected?: boolean; onSelect?: () => void }) {
   return (
-    <Tooltip content={`${image.source === "openai" ? "Painted by OpenAI" : "Uploaded"} · ${image.width}×${image.height}${image.alt ? ` · ${image.alt}` : ""}`}>
+    <Tooltip content={`${image.source === "chatgpt" ? "Generated in ChatGPT" : image.source === "openai" ? "Painted by OpenAI" : "Uploaded"} · ${image.width}×${image.height}${image.alt ? ` · ${image.alt}` : ""}`}>
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
-        aria-label={image.alt || (image.source === "openai" ? "Painted image" : "Uploaded image")}
+        aria-label={image.alt || (image.source !== "upload" ? "Painted image" : "Uploaded image")}
         className={cn(
           "relative size-14 shrink-0 overflow-hidden rounded-md bg-bg-subtle ring-1 transition-shadow duration-150",
           selected ? "ring-2 ring-accent" : "ring-border hover:ring-border-strong",
@@ -91,7 +92,7 @@ function Thumb({ image, selected, onSelect }: { image: StudioImage; selected?: b
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- local files served by our own route */}
         <img src={fileUrl(image.file)} alt="" className="size-full object-cover" />
-        {image.source === "openai" && <span className="absolute bottom-0.5 right-0.5 rounded-[3px] bg-black/60 px-1 font-mono text-[9px] text-white">AI</span>}
+        {image.source !== "upload" && <span className="absolute bottom-0.5 right-0.5 rounded-[3px] bg-black/60 px-1 font-mono text-[9px] text-white">AI</span>}
       </button>
     </Tooltip>
   );
@@ -100,6 +101,8 @@ function Thumb({ image, selected, onSelect }: { image: StudioImage; selected?: b
 export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: StudioPiece; option: StudioOption }) {
   const { runs, start } = useRuns();
   const { status } = useSettingsStatus();
+  const chatgpt = useChatGptConnection();
+  const [imageProvider, setImageProvider] = useState<"chatgpt" | "openai">("chatgpt");
   const presets = presetsFor(piece.format);
   const [presetId, setPresetId] = useState(presets[0]?.id ?? "linkedin");
   const [picture, setPicture] = useState<Picture>("none");
@@ -127,11 +130,14 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   const layouts = (Object.keys(LAYOUTS) as VisualLayout[]).filter((l) => {
     if (picture === "none") return !LAYOUTS[l].needsImage;
     // A painted picture is never shown as the product's screenshot.
-    if (picture === "paint" || chosen?.source === "openai") return l === "photo";
+    if (picture === "paint" || (chosen && chosen.source !== "upload")) return l === "photo";
     return !!LAYOUTS[l].needsImage;
   });
   const layoutValue = layout !== "auto" && layouts.includes(layout) ? layout : "auto";
-  const cannot = picture === "mine" && !chosen ? "Pick or upload an image first." : picture === "paint" && !hasOpenAI ? "Add an OpenAI key, or use a ChatGPT prompt." : null;
+  const cannot = picture === "mine" && !chosen ? "Pick or upload an image first."
+    : picture === "paint" && imageProvider === "chatgpt" && !chatgpt.status.connected ? "Connect ChatGPT first."
+    : picture === "paint" && imageProvider === "openai" && !hasOpenAI ? "Add an OpenAI key, or use your ChatGPT plan." : null;
+  const designCannot = cannot ?? (status && !status.hasKey ? "Connect an AI provider in Settings for checked typography and layout. ChatGPT image generation works independently." : null);
 
   const design = async () => {
     const r = await start(
@@ -143,6 +149,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
         layout: layoutValue,
         imageId: picture === "mine" ? imageId : undefined,
         generate: picture === "paint",
+        imageProvider: picture === "paint" ? imageProvider : undefined,
         variants: 2,
         direction: direction.trim() || undefined,
       },
@@ -154,6 +161,21 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
   const writePrompt = async () => {
     const r = await start("visual", { pieceId: piece.id, optionId: option.id, preset: presetId, mode: "prompt", direction: direction.trim() || undefined }, { notify: false, onError: (e) => toast.error(e.message) });
     if (r) setPromptRunId(r.id);
+  };
+
+  const generateInChatGpt = async () => {
+    const r = await start("visual", {
+      pieceId: piece.id, optionId: option.id, preset: presetId,
+      generate: true, imageProvider: "chatgpt", mode: "image", direction: direction.trim() || undefined,
+    }, {
+      notify: false,
+      onError: (error) => toast.error(error.message),
+      onResult: (result) => {
+        const imageId = (result as { imageId?: string }).imageId;
+        if (imageId) { setImageId(imageId); setPicture("mine"); }
+      },
+    });
+    if (r) setRunId(r.id);
   };
 
   const preset = presetById(presetId);
@@ -216,12 +238,22 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
               <Thumb key={img.id} image={img} selected={img.id === imageId} onSelect={() => setImageId(img.id === imageId ? null : img.id)} />
             ))}
           </div>
-          <p className="mt-1 text-[11.5px] leading-4 text-fg-3">A real screenshot of your product, or a photo you have the rights to. Claude looks at it and designs around it.</p>
+          <p className="mt-1 text-[11.5px] leading-4 text-fg-3">
+            {chosen && chosen.source !== "upload" ? "A generated image layer. Download it below, or add checked typography with Design 2 graphics." : "A real screenshot of your product, or a photo you have the rights to. Claude looks at it and designs around it."}
+          </p>
         </div>
       )}
 
       {picture === "paint" && (
-        <p className="mt-3 text-[12px] leading-[17px] text-fg-2">
+        <div className="mt-3">
+          <Segmented<"chatgpt" | "openai">
+            layoutId={`image-provider-${option.id}`}
+            value={imageProvider}
+            onChange={setImageProvider}
+            options={[{ value: "chatgpt", label: "ChatGPT plan" }, { value: "openai", label: "OpenAI API" }]}
+          />
+          {imageProvider === "chatgpt" ? <ChatGptConnection connection={chatgpt} /> : (
+          <p className="mt-3 text-[12px] leading-[17px] text-fg-2">
           {hasOpenAI ? (
             <>
               Claude writes the prompt and OpenAI&apos;s GPT Image paints it, with no words in it; Claude sets the words on top. Billed to your OpenAI account. The graphic is marked as AI imagery,
@@ -236,10 +268,12 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
               , or write a prompt below, make the picture in ChatGPT, and upload it under Your image.
             </>
           )}
-        </p>
+          </p>
+          )}
+        </div>
       )}
 
-      {picture !== "none" && (
+      {picture !== "none" && !(picture === "paint" && imageProvider === "chatgpt") && chosen?.source !== "chatgpt" && (
         <div className="mt-2">
           <Button size="sm" variant="ghost" icon={<Wand2 className="size-3.5" />} loading={!!writingPrompt} onClick={() => void writePrompt()}>
             Write a ChatGPT prompt
@@ -265,9 +299,14 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           aria-label="Direction for the graphic"
           className="h-8 text-[12.5px] sm:flex-1"
         />
-        <Tooltip content={cannot ?? "Two designs. Code checks every word, contrast and safe zone; Claude looks at each render and fixes what fails."}>
+        {picture === "paint" && imageProvider === "chatgpt" && (
+          <Button variant="agent" size="sm" className="h-8" loading={!!running} disabled={!chatgpt.status.connected} onClick={() => void generateInChatGpt()}>
+            Generate image in ChatGPT
+          </Button>
+        )}
+        <Tooltip content={designCannot ?? "Two designs. Code checks every word, contrast and safe zone; Claude looks at each render and fixes what fails."}>
           <span>
-            <Button variant="agent" size="sm" className="h-8" icon={<Paintbrush className="size-3.5" />} loading={!!running} disabled={!!cannot} onClick={() => void design()}>
+            <Button variant="agent" size="sm" className="h-8" icon={<Paintbrush className="size-3.5" />} loading={!!running} disabled={!!designCannot} onClick={() => void design()}>
               Design 2 graphics
             </Button>
           </span>
@@ -276,6 +315,17 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
 
       {run && running && <WorkLog run={run} className="mt-3" />}
       {run?.status === "error" && run.error && <p className="mt-2 text-[12px] text-danger">{run.error.message}</p>}
+
+      {picture === "mine" && chosen?.source === "chatgpt" && (
+        <figure className="mt-3 overflow-hidden rounded-md bg-surface ring-1 ring-border">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local image served by Inroad */}
+          <img src={fileUrl(chosen.file)} width={chosen.width} height={chosen.height} alt={chosen.alt || "Image generated in ChatGPT"} className="max-h-[420px] w-full object-contain" />
+          <figcaption className="flex items-center justify-between gap-2 p-3 text-[12px] text-fg-2">
+            <span>Generated in ChatGPT · AI imagery</span>
+            <a href={fileUrl(chosen.file, true)} className="inline-flex items-center gap-1 text-accent-text hover:underline"><Download aria-hidden className="size-3.5" />Download image</a>
+          </figcaption>
+        </figure>
+      )}
 
       {visuals.length > 0 && (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
