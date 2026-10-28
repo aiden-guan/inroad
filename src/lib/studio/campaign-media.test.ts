@@ -11,7 +11,7 @@ import {
 
 describe("campaign creative sources", () => {
   it("connects original assets to known campaigns with attribution and valid player targets", () => {
-    expect(Object.keys(CAMPAIGN_MEDIA)).toHaveLength(9);
+    expect(Object.keys(CAMPAIGN_MEDIA)).toHaveLength(20);
     for (const [id, items] of Object.entries(CAMPAIGN_MEDIA)) {
       expect(campaignById(id), id).toBeDefined();
       expect(items.length, id).toBeGreaterThan(0);
@@ -34,6 +34,9 @@ describe("campaign creative sources", () => {
 
   it("keeps records without verified creative separate and assets out of the writing context", () => {
     expect(campaignMedia("clicklearn-abm")).toEqual([]);
+    expect(campaignMedia("cider-shorts")).toEqual([]);
+    expect(campaignMedia("supabase-alternative")).toEqual([]);
+    expect(campaignMedia("notion-creators")).toEqual([]);
     expect(campaignMedia("unknown")).toEqual([]);
     const wispr = campaignById("wispr-old-way")!;
     expect(campaignContext([wispr])).not.toContain("youtube");

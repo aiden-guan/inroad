@@ -4,6 +4,23 @@ import type { Workspace } from "../src/lib/domain/types";
 const studioNav = (page: Page) =>
   page.getByRole("navigation", { name: "Studio views" });
 
+// Local image/availability fixtures exercise the interface without external publisher dependencies.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/studio/campaign-media/**", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("check") === "video") {
+      await route.fulfill({ json: { status: "available" } });
+    } else {
+      await route.fulfill({
+        contentType: "image/png",
+        body: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6S8AAAAASUVORK5CYII=",
+          "base64",
+        ),
+      });
+    }
+  });
+});
+
 // UI fixtures and mocked writing calls keep the shared workspace and provider accounts untouched.
 test("Studio starts with creation and recommends campaigns without pasted examples", async ({
   page,
@@ -43,38 +60,74 @@ test("Studio starts with creation and recommends campaigns without pasted exampl
   ).not.toBeVisible();
 });
 
-test("the campaign library searches, filters evidence and shows source records", async ({
+test("the library filters current studies and explains results, mechanisms and sources", async ({
   page,
 }) => {
   await page.goto("/studio?view=campaigns");
   const search = page.getByLabel("Find a campaign", { exact: true });
-  await search.fill("Cider Shorts");
-  await expect(page.getByRole("article")).toHaveCount(1);
-  await page
-    .getByRole("button", { name: "View Cider campaign details", exact: true })
-    .click();
-  const dialog = page.getByRole("dialog", { name: /^Cider/ });
-  await expect(dialog).toContainText("33% lower");
-  await expect(dialog).toContainText("not a test of copy alone");
+  await expect(page.getByRole("article")).toHaveCount(20);
   await expect(
-    dialog.getByRole("link", { name: "Google / Cider case study" }),
-  ).toHaveAttribute(
-    "href",
-    "https://business.google.com/us/resources/success-stories/cider/",
-  );
-  await page.keyboard.press("Escape");
-  await search.fill("");
-  await page.getByLabel("Evidence", { exact: true }).selectOption("results");
-  await expect(
-    page.getByRole("article").filter({ hasText: "Wispr Flow" }),
+    page.getByRole("article").filter({ hasText: "Supabase" }),
   ).toHaveCount(0);
-  await expect(
-    page.getByRole("article").filter({ hasText: "ClickLearn" }),
-  ).toHaveCount(1);
-  await page.getByLabel("Audience", { exact: true }).selectOption("b2b");
   await expect(
     page.getByRole("article").filter({ hasText: "Cider" }),
   ).toHaveCount(0);
+  await search.fill("CeraVe");
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "View CeraVe campaign details", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: /^CeraVe/ });
+  await expect(page).toHaveURL(/campaign=cerave-michael/);
+  await expect(dialog).toContainText("+25%");
+  await expect(dialog).toContainText(
+    "measurement period and baseline not disclosed",
+  );
+  await expect(
+    dialog.getByRole("list", { name: "Campaign execution" }),
+  ).toBeVisible();
+  await dialog.getByRole("tab", { name: "Why it worked", exact: true }).click();
+  await expect(
+    dialog.getByRole("list", { name: "Creative mechanisms" }),
+  ).toBeVisible();
+  await expect(dialog).toContainText("The hook carried the message");
+  await dialog.getByRole("tab", { name: "Make it yours", exact: true }).click();
+  await expect(
+    dialog.getByRole("list", { name: "Adaptation framework" }),
+  ).toBeVisible();
+  await expect(dialog).toContainText("Where it breaks");
+  await dialog.getByText(/^Sources & measurement/).click();
+  await expect(
+    dialog.getByRole("link", {
+      name: "Campaign submission · The One Club",
+      exact: true,
+    }),
+  ).toHaveAttribute(
+    "href",
+    "https://www.oneclub.org/awards/theoneshow/-award/53015/michael-cerave/",
+  );
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await search.fill("");
+  await page
+    .getByRole("checkbox", { name: "With reported outcomes", exact: true })
+    .check();
+  await expect(
+    page.getByRole("article").filter({ hasText: "Wispr Flow" }),
+  ).toHaveCount(0);
+  await page.getByLabel("Audience", { exact: true }).selectOption("b2b");
+  await expect(
+    page.getByRole("article").filter({ hasText: "Heinz" }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("article").filter({ hasText: "CeraVe" }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("What do you want to do?", { exact: true })
+    .selectOption("proof");
+  await expect(
+    page.getByRole("article").filter({ hasText: "AXA" }),
+  ).toHaveCount(1);
   await search.fill("no-such-campaign");
   await expect(
     page.getByText("No campaigns match", { exact: true }),
@@ -82,11 +135,7 @@ test("the campaign library searches, filters evidence and shows source records",
   await page
     .getByRole("button", { name: "Clear filters", exact: true })
     .click();
-  await expect(page.getByRole("article")).toHaveCount(9);
-  await page
-    .getByText("Supporting research · 6 records", { exact: true })
-    .click();
-  await expect(page.getByRole("article")).toHaveCount(15);
+  await expect(page.getByRole("article")).toHaveCount(20);
 });
 
 test("using a campaign preserves the brief and optional examples across views and browser history", async ({
@@ -108,7 +157,14 @@ test("using a campaign preserves the brief and optional examples across views an
     .getByRole("button", { name: "Browse campaign library", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Use Wispr Flow approach", exact: true })
+    .getByRole("button", {
+      name: "View Wispr Flow campaign details",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("dialog", { name: /^Wispr Flow/ })
+    .getByRole("button", { name: "Create with this approach", exact: true })
     .click();
   await expect(page.getByLabel("Format", { exact: true })).toHaveValue(
     "short_video",
@@ -130,11 +186,8 @@ test("using a campaign preserves the brief and optional examples across views an
   ).toHaveValue("Use a concrete before-and-after opening.");
   await page.goBack();
   await expect(
-    studioNav(page).getByRole("link", {
-      name: "Campaign library",
-      exact: true,
-    }),
-  ).toHaveAttribute("aria-current", "page");
+    page.getByRole("dialog", { name: /^Wispr Flow/ }),
+  ).toBeVisible();
   await page.goForward();
   await expect(
     page.getByRole("textbox", { name: /^What should this say/ }),
@@ -215,7 +268,14 @@ test("writing sends campaign direction, recovers from startup failure, and opens
   );
   await page.goto("/studio?view=campaigns");
   await page
-    .getByRole("button", { name: "Use Wispr Flow approach", exact: true })
+    .getByRole("button", {
+      name: "View Wispr Flow campaign details",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("dialog", { name: /^Wispr Flow/ })
+    .getByRole("button", { name: "Create with this approach", exact: true })
     .click();
   await page.getByLabel("Format", { exact: true }).selectOption("one_liner");
   await page
@@ -358,6 +418,32 @@ test("campaigns show original media, load players on demand and switch creative 
       });
     },
   );
+  await page.addInitScript(() => {
+    class Player {
+      element: HTMLElement;
+      onError: () => void;
+      constructor(
+        element: HTMLElement,
+        options: {
+          events: {
+            onReady: (event: { target: Player }) => void;
+            onError: () => void;
+          };
+        },
+      ) {
+        this.element = element;
+        this.onError = options.events.onError;
+        window.addEventListener("test-player-error", this.onError);
+        queueMicrotask(() => options.events.onReady({ target: this }));
+      }
+      playVideo() {}
+      destroy() {
+        window.removeEventListener("test-player-error", this.onError);
+        this.element.remove();
+      }
+    }
+    Object.assign(window, { YT: { Player } });
+  });
   await page.goto("/studio?view=campaigns");
   await expect(page.locator("iframe")).toHaveCount(0);
   await page
@@ -382,31 +468,11 @@ test("campaigns show original media, load players on demand and switch creative 
     .click();
   await expect(wispr.locator("iframe")).toHaveAttribute(
     "src",
-    "https://www.youtube-nocookie.com/embed/9KqGpxtsawc?autoplay=1&rel=0",
+    /https:\/\/www.youtube-nocookie.com\/embed\/9KqGpxtsawc\?enablejsapi=1/,
   );
   await expect.poll(() => players.length).toBe(1);
   await page.keyboard.press("Escape");
   await expect(page.locator("iframe")).toHaveCount(0);
-
-  await page.getByLabel("Find a campaign", { exact: true }).fill("Volvo");
-  await page
-    .getByRole("button", {
-      name: "Preview Volvo campaign creative",
-      exact: true,
-    })
-    .click();
-  const volvo = page.getByRole("dialog", { name: /^Volvo/ });
-  await volvo
-    .getByRole("button", { name: "EX90 · 60-second cut", exact: true })
-    .click();
-  await expect(
-    volvo.getByRole("button", { name: "EX90 · 60-second cut", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    volvo.getByRole("link", { name: "Open original", exact: true }),
-  ).toHaveAttribute("href", "https://www.youtube.com/watch?v=O9Z_vzJyToA");
-  await expect(volvo.locator("iframe")).toHaveCount(0);
-  await page.keyboard.press("Escape");
 
   await page.getByLabel("Find a campaign", { exact: true }).fill("Spotify");
   await page
@@ -436,10 +502,14 @@ test("campaigns show original media, load players on demand and switch creative 
 test("unavailable campaign images retain the original source and usable actions", async ({
   page,
 }) => {
-  await page.route("https://i.ytimg.com/**", (route) => route.abort());
+  await page.route(
+    /\/api\/studio\/campaign-media\/wispr-old-way\/0$/,
+    (route) => route.abort(),
+  );
   await page.goto("/studio?view=campaigns");
   const card = page.getByRole("article", { name: /^Wispr Flow:/ });
-  await expect(card).toContainText("Preview unavailable");
+  await card.scrollIntoViewIfNeeded();
+  await expect(card).toContainText("Publisher preview unavailable");
   await card
     .getByRole("button", {
       name: "View Wispr Flow campaign details",
@@ -456,4 +526,63 @@ test("unavailable campaign images retain the original source and usable actions"
       exact: true,
     }),
   ).toBeEnabled();
+});
+
+test("a removed video never opens a broken player", async ({
+  page,
+}) => {
+  await page.route(
+    /\/api\/studio\/campaign-media\/wispr-old-way\/0\?check=video$/,
+    (route) => route.fulfill({ json: { status: "unavailable" } }),
+  );
+  await page.goto("/studio?view=campaigns&campaign=wispr-old-way");
+  const dialog = page.getByRole("dialog", { name: /^Wispr Flow/ });
+  await dialog
+    .getByRole("button", {
+      name: "Play Break up with your keyboard",
+      exact: true,
+    })
+    .click();
+  await expect(dialog.getByRole("status")).toContainText(
+    "not allowing playback here",
+  );
+  await expect(dialog.locator("iframe")).toHaveCount(0);
+  await expect(
+    dialog.getByRole("link", { name: "Open original", exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("tab", { name: "Creative logic", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("list", { name: "Creative mechanisms" }),
+  ).toBeVisible();
+});
+
+test("case-study links survive reload and the sections support keyboard navigation", async ({
+  page,
+}) => {
+  await page.goto("/studio?view=campaigns&campaign=pedigree-adoptable");
+  let dialog = page.getByRole("dialog", { name: /^Pedigree/ });
+  await expect(dialog).toContainText("featured animals");
+  await page.reload();
+  dialog = page.getByRole("dialog", { name: /^Pedigree/ });
+  const first = dialog.getByRole("tab", { name: "The campaign", exact: true });
+  await first.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    dialog.getByRole("tab", { name: "Why it worked", exact: true }),
+  ).toBeFocused();
+  await expect(
+    dialog.getByRole("list", { name: "Creative mechanisms" }),
+  ).toBeVisible();
+  await page.keyboard.press("End");
+  await expect(
+    dialog.getByRole("tab", { name: "Make it yours", exact: true }),
+  ).toBeFocused();
+  await expect(
+    dialog.getByRole("list", { name: "Adaptation framework" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/view=campaigns$/);
+  await expect(page.getByRole("article")).toHaveCount(20);
 });

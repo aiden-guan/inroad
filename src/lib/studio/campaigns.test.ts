@@ -36,7 +36,9 @@ describe("campaign inspiration", () => {
     ).toEqual([]);
     expect(campaigns.length).toBeGreaterThan(0);
     expect(campaigns.length).toBeLessThanOrEqual(3);
-    expect(campaigns[0].brand).toBe("Wispr Flow");
+    expect(campaigns.some((campaign) => campaign.brand === "Wispr Flow")).toBe(
+      true,
+    );
     expect(
       campaigns.every(
         (campaign) =>
@@ -64,9 +66,9 @@ describe("campaign inspiration", () => {
       occasion,
       moves,
     });
-    expect(campaigns.some((campaign) => campaign.brand === "ClickLearn")).toBe(
-      true,
-    );
+    expect(
+      campaigns.some((campaign) => campaign.audiences.includes("b2b")),
+    ).toBe(true);
     expect(campaigns.some((campaign) => campaign.brand === "Cider")).toBe(
       false,
     );
@@ -77,11 +79,11 @@ describe("campaign inspiration", () => {
 
   it("can find campaigns by multiple terms and separates performance, reach and creative records", () => {
     expect(
-      searchCampaigns("Cider Shorts").map((campaign) => campaign.brand),
-    ).toEqual(["Cider"]);
+      searchCampaigns("Pedigree Adoptable").map((campaign) => campaign.brand),
+    ).toEqual(["Pedigree"]);
     expect(
       searchCampaigns("", "b2b", "results").map((campaign) => campaign.brand),
-    ).toContain("ClickLearn");
+    ).toContain("Heinz");
     expect(searchCampaigns("Wispr", undefined, "results")).toEqual([]);
     expect(searchCampaigns("Spotify", undefined, "reach")).toHaveLength(1);
     expect(searchCampaigns("there-is-no-such-campaign")).toEqual([]);
@@ -102,7 +104,7 @@ describe("campaign inspiration", () => {
   });
 
   it("provides creative direction to the writer without another brand's performance numbers", () => {
-    const cider = campaignById("cider-shorts")!;
+    const cider = campaignById("pedigree-adoptable")!;
     const context = campaignContext(
       [cider],
       "Use an opening demo, then a direct invitation.",
@@ -121,5 +123,32 @@ describe("campaign inspiration", () => {
     expect(
       copyGuide(ws, { format: "meta_ad" }).campaign_inspiration.length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe("current case-study curation", () => {
+  it("keeps old saved references readable without recommending or listing them", () => {
+    expect(campaignById("supabase-alternative")?.brand).toBe("Supabase");
+    expect(searchCampaigns("Supabase")).toEqual([]);
+    expect(searchCampaigns("Cider")).toEqual([]);
+    expect(searchCampaigns("ClickLearn")).toEqual([]);
+  });
+  it("gives every current campaign an execution, explanation, usable brief and measurement context", () => {
+    expect(CAMPAIGNS.length).toBeGreaterThanOrEqual(20);
+    for (const campaign of CAMPAIGNS) {
+      const study = campaign.study!;
+      expect(study, campaign.id).toBeDefined();
+      if (study.year !== null)
+        expect(study.year, campaign.id).toBeGreaterThanOrEqual(2023);
+      else expect(campaign.evidence).toBe("reference");
+      expect(study.execution, campaign.id).toHaveLength(3);
+      expect(study.mechanisms, campaign.id).toHaveLength(3);
+      expect(study.blueprint, campaign.id).toHaveLength(3);
+      expect(study.resultScope.length).toBeGreaterThan(25);
+      expect(study.avoidWhen.length).toBeGreaterThan(35);
+      expect(study.sources.length).toBeGreaterThan(0);
+      expect(campaignContext([campaign])).toContain(study.useWhen);
+      expect(campaignContext([campaign])).not.toContain(campaign.result.detail);
+    }
   });
 });
