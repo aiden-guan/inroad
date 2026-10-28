@@ -1778,6 +1778,11 @@ export interface StudioPiece {
   occasion: StudioOccasion;
   audience: StudioAudience;
   brief: string;
+  /** Curated creative references used for this piece; never product claim receipts. */
+  campaignIds?: string[];
+  /** Optional founder-supplied example or creative direction. */
+  reference?: string;
+  bold?: boolean;
   title: string;
   /** Best first: lint-clean options before ones with issues, then the reader's ranking. */
   options: StudioOption[];

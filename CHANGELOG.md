@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Studio campaign library with 15 sourced records, audience and evidence filters, campaign details, and direct use in a new piece.
+- Automatic campaign recommendations matched to the format, audience, occasion and available material; optional custom examples remain supported.
+- Saved campaign direction and supplied examples reused by Write more; automatic campaign recommendations are also included in the agent copy guide.
+
+### Changed
+- Separate Studio into Create, Campaign library and Your work, with brand settings and supporting material in a drawer.
+- Keep the write action accessible in smaller windows and preserve unfinished inputs while browsing campaigns.
+- Distinguish reported campaign results, reported reach and creative references; technique labels no longer imply a generated draft was tested.
+- Campaign approaches guide the writer while product claims still require the founder's own evidence and existing quality checks.
+
 ---
 
 ## [v0.2.8] — 2026-10-27

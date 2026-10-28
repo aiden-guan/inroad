@@ -2,6 +2,7 @@ import type { StudioFormatId, StudioOccasion, Workspace } from "@/lib/domain/typ
 import { AUDIENCES, FORMATS, OCCASIONS, type Limit } from "./formats";
 import { STUDIO_TELLS_FOR_PROMPT, lintStudio } from "./lint";
 import { movesFor } from "./moves";
+import { recommendedCampaigns } from "./campaigns";
 import { audienceFor, competitorsFor, formatBlocked, neverSayFor, receiptsFor, sourcedText, studioAllowWords } from "./receipts";
 import { checkDesign, sanitizeSvg } from "./svg";
 import { DEFAULT_PALETTE, IMAGE_PROMPT_RULES, LAYOUTS, VISUAL_FORMATS, presetById, presetsFor } from "./visuals";
@@ -43,6 +44,7 @@ export function copyGuide(ws: Workspace, args: { format: StudioFormatId; occasio
     occasion: { id: occasion, guide: OCCASIONS[occasion].guide },
     audience: { id: audience, label: AUDIENCES[audience].label, reader: ws.studio.profile?.reader || AUDIENCES[audience].reader },
     product_name: ws.studio.profile?.productName || ws.company?.name || null,
+    campaign_inspiration: recommendedCampaigns({ format: spec.id, audience, occasion, moves }).map((campaign) => ({ id: campaign.id, brand: campaign.brand, title: campaign.title, approach: campaign.approach, adaptation: campaign.adaptation, source: campaign.source.url })),
     moves: moves
       .filter((m) => !m.missing)
       .map(({ move }) => ({
@@ -61,6 +63,7 @@ export function copyGuide(ws: Workspace, args: { format: StudioFormatId; occasio
       "Every specific (number, customer, quote, ranking, price, “first”, “only”, “fastest”) must come from a receipt. Write [[what's missing]] instead of guessing.",
       "Name a customer only when its receipt is nameable. Receipts that aren't facts are beliefs: say them as the founder's view.",
       "Write each option with a different move. Learn the pattern from the examples; never copy their words.",
+      "Campaign inspiration is creative context, not product evidence. Never reuse another brand's results or claims as facts about this product.",
       "Run check_copy on every option before showing it. Fix every error.",
     ],
     blocked: formatBlocked(ws, spec.id),

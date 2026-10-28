@@ -9,6 +9,7 @@ import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { StudioAudience, StudioCritic, StudioFormatId, StudioLint, StudioOccasion, StudioOption, StudioPiece, Workspace } from "@/lib/domain/types";
 import { AUDIENCES, FORMAT_IDS, FORMATS, OCCASIONS, type FormatSpec, type Limit, type PartSpec } from "@/lib/studio/formats";
 import { movesFor, type MoveChoice } from "@/lib/studio/moves";
+import { campaignById, campaignContext, recommendedCampaigns, type Campaign } from "@/lib/studio/campaigns";
 import { audienceFor, competitorsFor, formatBlocked, lintOption, receiptsFor, type Receipt } from "@/lib/studio/receipts";
 import { defineWorkflow, type WorkflowContext } from "./types";
 
@@ -31,6 +32,8 @@ const Args = z.object({
   pieceId: z.string().max(40).optional(),
   /** Allow moves that trade trust for attention (taboo lines). Off unless the founder turns it on. */
   bold: z.boolean().optional(),
+  campaignIds: z.array(z.string().max(80)).max(3).refine((ids) => ids.every((id) => !!campaignById(id)), "Choose campaigns from the Studio library.").optional(),
+  reference: z.string().max(2000).optional(),
 });
 type StudioArgs = z.infer<typeof Args>;
 
@@ -173,6 +176,8 @@ interface Plan {
   reader: string;
   pieceId: string;
   existing?: StudioPiece;
+  campaigns: Campaign[];
+  reference?: string;
 }
 
 function taskMessage(plan: Plan): string {
@@ -188,6 +193,7 @@ function taskMessage(plan: Plan): string {
     `<company>${name}${ws.company?.plainOneLiner ? `: ${ws.company.plainOneLiner}` : ""}\nSells to: ${AUDIENCES[audience].label.toLowerCase()} (${AUDIENCES[audience].blurb})\nThe reader: ${reader}, ${spec.reading}.</company>`,
     brief ? `<brief>\n${clip(brief, 1800)}\n</brief>` : "<brief>No brief. Write the strongest evergreen version from the receipts.</brief>",
     `<format>\n${fmtFormat(spec)}\n</format>`,
+    `<campaign_inspiration>\n${campaignContext(plan.campaigns, plan.reference)}\n</campaign_inspiration>`,
     receipts.length ? `<receipts>\n${receipts.map(fmtReceipt).join("\n")}\n</receipts>` : "<receipts>none yet: no specifics allowed; write [[gaps]] where they'd go</receipts>",
     usable.length ? `<moves>\n${usable.map(fmtMove).join("\n")}\n</moves>` : "<moves>none fit; write each option from a different angle and set moveId to \"free\"</moves>",
     blocked.length > 0 && `<moves_unavailable note="missing receipts; don't use">\n${blocked.map((m) => `- ${m.move.name}: needs ${m.missing}`).join("\n")}\n</moves_unavailable>`,
@@ -413,6 +419,12 @@ export async function runStudio(ctx: WorkflowContext<StudioArgs>) {
   const occasion = a.occasion ?? existing?.occasion ?? spec.defaultOccasion;
   const brief = (a.brief ?? existing?.brief ?? "").trim();
   const receipts = receiptsFor(ws);
+  const bold = a.bold ?? existing?.bold ?? false;
+  const moves = movesFor({ format: spec.id, audience, occasion, receipts, competitors: competitorsFor(ws).length, bold });
+  const chosenIds = a.campaignIds ?? existing?.campaignIds;
+  const campaigns = chosenIds ? [...new Set(chosenIds)].flatMap((id) => { const campaign = campaignById(id); return campaign ? [campaign] : []; }) : recommendedCampaigns({ format: spec.id, audience, occasion, moves });
+  const reference = (a.reference ?? existing?.reference ?? "").trim();
+  const preferredMoves = new Set(campaigns.flatMap((campaign) => campaign.moveIds));
   const plan: Plan = {
     ws,
     spec,
@@ -420,7 +432,9 @@ export async function runStudio(ctx: WorkflowContext<StudioArgs>) {
     occasion,
     brief,
     receipts,
-    moves: movesFor({ format: spec.id, audience, occasion, receipts, competitors: competitorsFor(ws).length, bold: !!a.bold }),
+    moves: [...moves].sort((left, right) => Number(preferredMoves.has(right.move.id)) - Number(preferredMoves.has(left.move.id))),
+    campaigns,
+    reference,
     reader: readerFor(ws, audience),
     pieceId: a.pieceId ?? newId("stu"),
     existing,
@@ -506,6 +520,9 @@ export async function runStudio(ctx: WorkflowContext<StudioArgs>) {
       occasion,
       audience,
       brief,
+      campaignIds: campaigns.map((campaign) => campaign.id),
+      reference: reference || undefined,
+      bold,
       title: prior?.title ?? titleFor(spec, brief),
       options: [...merged, ...keptOld],
       gaps: dedupe([...gaps, ...(prior?.gaps ?? [])]).slice(0, 8),

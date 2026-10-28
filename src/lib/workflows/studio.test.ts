@@ -7,7 +7,7 @@ import { sampleWorkspace } from "@/lib/sample";
 import { CLAIM } from "@/lib/sample/ids";
 import { MATERIAL, PIECE } from "@/lib/sample/studio";
 import { NOW, makeWorkspace } from "@/test/factories";
-import { runStudio } from "./studio";
+import studioWorkflow, { runStudio } from "./studio";
 import type { WorkflowContext } from "./types";
 
 /**
@@ -196,4 +196,62 @@ describe("runStudio", () => {
     await expect(runStudio(ctx)).rejects.toMatchObject({ code: "bad_request" });
     expect(calls).toHaveLength(0);
   });
+  it("validates campaign choices before a writing run can start", () => {
+    expect(() => studioWorkflow.args.parse({ format: "one_liner", campaignIds: ["invented-winner"] })).toThrow(/Studio library/);
+    expect(() => studioWorkflow.args.parse({ format: "one_liner", campaignIds: ["wispr-old-way", "ramp-time-money", "cider-shorts", "spotify-wrapped"] })).toThrow();
+    expect(() => studioWorkflow.args.parse({ format: "one_liner", reference: "x".repeat(2001) })).toThrow();
+    expect(studioWorkflow.args.parse({ format: "one_liner", campaignIds: [] })).toMatchObject({ campaignIds: [] });
+  });
+
+  it("uses selected campaign direction, saves it, and preserves it for Write more", async () => {
+    const reference = "Keep the opening concrete and show a real workflow.";
+    const first = harness(sample, { format: "one_liner", pieceId: "stu_campaign", campaignIds: ["cider-shorts"], reference }, [
+      () => ({ options: [opt("villain_object", CLEAN_A), opt("two_buyers", CLEAN_D)], gaps: [] }),
+      reader([CLEAN_A, CLEAN_D]),
+    ]);
+    await runStudio(first.ctx);
+    const prompt = String(first.calls[0].messages[0].content);
+    expect(prompt).toContain("[cider-shorts] Cider");
+    expect(prompt).toContain(reference);
+    expect(prompt).not.toContain("33% lower");
+    expect(first.state.ws.studio.pieces.stu_campaign).toMatchObject({ campaignIds: ["cider-shorts"], reference });
+    expect(String(first.calls[1].messages[0].content)).not.toContain("cider-shorts");
+
+    const more = harness(first.state.ws, { format: "one_liner", pieceId: "stu_campaign" }, [
+      () => ({ options: [opt("two_buyers", CLEAN_D)], gaps: [] }),
+      reader([CLEAN_D]),
+    ]);
+    await runStudio(more.ctx);
+    expect(String(more.calls[0].messages[0].content)).toContain(reference);
+    expect(more.state.ws.studio.pieces.stu_campaign.campaignIds).toEqual(["cider-shorts"]);
+  });
+
+  it("does not let campaign results or a pasted example substantiate a product claim", async () => {
+    const invented = "Close the books in 33% less time";
+    const { ctx, calls, state } = harness(sample, { format: "one_liner", pieceId: "stu_unsupported", campaignIds: ["cider-shorts"], reference: "This ad says close the books in 33% less time." }, [
+      () => ({ options: [opt("one_number", invented), opt("two_buyers", CLEAN_D)], gaps: [] }),
+      (options) => {
+        const last = options.messages.at(-1)!.content as Anthropic.Beta.BetaToolResultBlockParam[];
+        expect(String(last[0].content)).toContain("NUMBER_UNSOURCED");
+        return { options: [opt("villain_object", CLEAN_A), opt("two_buyers", CLEAN_D)], gaps: [] };
+      },
+      reader([CLEAN_A, CLEAN_D]),
+    ]);
+    await runStudio(ctx);
+    expect(calls).toHaveLength(3);
+    expect(state.ws.studio.pieces.stu_unsupported.options[0].parts.line).toBe(CLEAN_A);
+    expect(state.ws.studio.pieces.stu_unsupported.options[0].lint.passed).toBe(true);
+  });
+
+  it("selects inspiration automatically and respects an explicit choice to skip it", async () => {
+    const script = () => [() => ({ options: [opt("villain_object", CLEAN_A)], gaps: [] }), reader([CLEAN_A])];
+    const auto = harness(sample, { format: "one_liner", pieceId: "stu_auto" }, script());
+    await runStudio(auto.ctx);
+    expect(auto.state.ws.studio.pieces.stu_auto.campaignIds?.length).toBeGreaterThan(0);
+    const skipped = harness(sample, { format: "one_liner", pieceId: "stu_skip", campaignIds: [] }, script());
+    await runStudio(skipped.ctx);
+    expect(skipped.state.ws.studio.pieces.stu_skip.campaignIds).toEqual([]);
+    expect(String(skipped.calls[0].messages[0].content)).not.toContain("[ramp-time-money]");
+  });
+
 });

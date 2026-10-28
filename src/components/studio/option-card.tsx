@@ -20,8 +20,8 @@ import { Preview } from "./previews";
 import { VisualPanel } from "./visuals";
 
 const EVIDENCE: Record<"tested" | "reported" | "opinion", { label: string; tone: "success" | "neutral" | "outline"; hint: string }> = {
-  tested: { label: "Tested", tone: "success", hint: "Backed by a controlled test or a peer-reviewed study." },
-  reported: { label: "Reported", tone: "neutral", hint: "Companies or press reported results; not independently measured." },
+  tested: { label: "Technique research", tone: "outline", hint: "Research supports the technique. This draft has not been tested with your audience." },
+  reported: { label: "Reported example", tone: "neutral", hint: "Results reported for campaign examples, not for this draft." },
   opinion: { label: "Practitioner", tone: "outline", hint: "Advice from practitioners; no controlled evidence." },
 };
 
