@@ -1809,6 +1809,16 @@ export interface StudioProfile {
  * An image layer: a real screenshot or photo the founder uploaded, or one OpenAI's GPT Image model
  * painted from a prompt Claude wrote. Files live in `.data/studio/`, never in the workspace JSON.
  */
+export interface StudioCreativeReview {
+  score: number;
+  concept?: number;
+  distinctiveness?: number;
+  craft?: number;
+  template?: boolean;
+  issues: string[];
+  fix: string;
+}
+
 export interface StudioImage {
   id: ID;
   source: "upload" | "openai" | "chatgpt";
@@ -1818,7 +1828,12 @@ export interface StudioImage {
   height: number;
   alt: string;
   /** Generated images only. A generated image is never presented as the product's UI or a real customer. */
-  generated?: { prompt: string; model: string; size: string; quality: string };
+  generated?: {
+    prompt: string; model: string; size: string; quality: string;
+    artDirection?: { version: string; style: string; energy: string; referenceIds: string[]; optionId?: ID };
+    /** Absent on subscription image-only runs, which make no additional model calls. */
+    review?: StudioCreativeReview;
+  };
   createdAt: ISODateTime;
 }
 
@@ -1859,8 +1874,8 @@ export interface StudioVisual {
   slot?: { x: number; y: number; w: number; h: number };
   why: string;
   checks: { code: VisualCheckCode; detail: string; severity: "error" | "warn" }[];
-  /** Claude's look at the actual render: 1–10 (7 = would post) and what it would change. */
-  review?: { score: number; issues: string[]; fix: string };
+  /** Claude's assessment of the actual render: 8+ overall and 7+ per creative dimension. */
+  review?: StudioCreativeReview;
   /** Uses a generated image layer: platforms ask advertisers to disclose realistic AI imagery. */
   aiImagery: boolean;
   kept?: boolean;

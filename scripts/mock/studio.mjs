@@ -80,18 +80,22 @@ function shaped(tool, body) {
   if (tool.name === "submit_designs") return designs(text);
   if (tool.name === "submit_review") {
     const ns = Array.isArray(last.content) ? last.content.filter((b) => b.type === "text" && /^Image \d+:$/.test(b.text)).map((b) => Number(b.text.match(/\d+/)[0])) : [];
-    return { reviews: ns.map((n) => ({ n, readable: true, broken: false, lowContrast: false, template: false, issues: [], fix: "", score: 8 })) };
+    return { reviews: ns.map((n) => ({ n, readable: true, broken: false, lowContrast: false, template: false, concept: 8, distinctiveness: 8, craft: 8, issues: [], fix: "", score: 8 })) };
+  }
+  if (tool.name === "submit_image_review") {
+    // Scripted transport fixture, not evidence of actual image quality.
+    return { score: 8, concept: 8, distinctiveness: 8, craft: 8, template: false, issues: [], fix: "" };
   }
   if (tool.name === "submit_image_prompt") {
     return {
-      prompt: "A controller's desk at 7am on the first of the month: a cold coffee in a white mug, a printed invoice run with pencil ticks, a laptop closed beside it. The left half is a plain warm wall, calm and empty. Overcast window light from the right, 35mm, shallow depth of field, muted warm palette. No text, letters, logos or interface anywhere.",
-      alt: "A desk at month-end with a coffee and a printed invoice run",
+      prompt: "Concept: complexity resolving into one precise form. Subject: many blank ivory paper strips converge into a single folded ribbon on the right side. Composition: a clear sculptural silhouette against a deep blue field, with the left third quiet and empty for type. Materials: visible paper fibers and crisp layered edges. Light: a coral sidelight reveals the paper's contours and casts one long shadow. No printed marks on any surface. No text, letters, logos or interface anywhere.",
+      alt: "Blank paper strips resolving into a precise sculptural ribbon",
     };
   }
   return null;
 }
 
-const STUDIO_TOOLS = ["submit_designs", "submit_review", "submit_image_prompt"];
+const STUDIO_TOOLS = ["submit_designs", "submit_review", "submit_image_prompt", "submit_image_review"];
 
 /** One playbook per Studio tool: the shaped input, called the way a model would. */
 export const STUDIO_PLAYBOOKS = STUDIO_TOOLS.map((name) => ({

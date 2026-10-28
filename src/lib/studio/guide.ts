@@ -6,6 +6,7 @@ import { recommendedCampaigns } from "./campaigns";
 import { audienceFor, competitorsFor, formatBlocked, neverSayFor, receiptsFor, sourcedText, studioAllowWords } from "./receipts";
 import { checkDesign, sanitizeSvg } from "./svg";
 import { DEFAULT_PALETTE, IMAGE_PROMPT_RULES, LAYOUTS, VISUAL_FORMATS, presetById, presetsFor } from "./visuals";
+import { ART_DIRECTIONS, CREATIVE_ENERGIES } from "./art-direction";
 
 /**
  * Studio for outside agents (MCP `get_copy_guide` and `check_copy`, REST /api/v1/copy/*). The calling
@@ -88,6 +89,9 @@ function visualGuide(ws: Workspace, format: StudioFormatId) {
       "Run check_graphic on the SVG with the copy it carries. Fix every error.",
     ],
     image_prompt_rules: IMAGE_PROMPT_RULES,
+    art_directions: ART_DIRECTIONS,
+    creative_range: CREATIVE_ENERGIES,
+    visual_process: "Explore three message-specific concepts, choose a deliberate medium and visual mechanism, reserve calm copy space, then inspect the actual image for concept, originality and finish. Full Studio design runs allow one image refinement and one SVG revision. Image-only ChatGPT runs do not receive an independent review.",
     disclosure: "If a picture layer is AI-generated, say so when posting: Meta and TikTok ask for disclosure of realistic AI imagery.",
   };
 }

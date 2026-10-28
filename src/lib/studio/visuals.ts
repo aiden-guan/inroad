@@ -190,14 +190,14 @@ export const IMAGE_PROMPT_RULES = [
   "No words, letters, numbers or logos in the image. The headline is set on top in code, exactly as approved.",
   "Never the product's interface. Real UI comes from an uploaded screenshot; a painted one would misrepresent the product.",
   "No people presented as customers, users or reviewers, and no one's real likeness. Generated people next to a quote would be a fake testimonial.",
-  "Show a real-world moment, place or object from the brief: the desk at month-end, the phone in a hand on a train. Specific beats pretty.",
+  "Build a message-specific visual idea, not a literal stock scene. For an open brief, explore three different concepts and choose the strongest; preserve a specific scene or medium the user requested.",
   "Leave calm, low-detail space where the text will sit, and say where in the prompt.",
-  "No AI-art clichés: glowing brains, robots, holograms, neon circuitry, floating particles, rockets, light bulbs, handshakes, abstract node networks.",
-  "Photographic or illustrated, but one consistent style, lit plainly. Describe the lens, light and palette like a photographer would.",
+  "Avoid generic AI-art shortcuts: glowing brains, neon circuitry, floating particles and meaningless node networks. A vivid palette, sculptural material, surreal metaphor or dramatic light can be appropriate when it serves the message.",
+  "Choose a deliberate medium: surreal still life, tactile collage, expressive illustration, graphic geometry, editorial composition or art-directed photography. Specify material, viewpoint, light, palette roles and one memorable intervention.",
 ];
 
 const PROMPT_FLAGS: { re: RegExp; detail: string }[] = [
-  { re: /\b(robots?|humanoid|glowing brain|holograms?|holographic|neon|circuit(ry| board)?|floating particles|rockets?|light ?bulbs?|handshakes?|node network|network of nodes)\b/i, detail: "uses an AI-art cliché" },
+  { re: /\b(glowing brain|neon circuitry|floating particles|node network|network of nodes)\b/i, detail: "uses an AI-art cliché" },
   { re: /\b(text|words?|letters?|caption|headline|logo|typography)\s+(that\s+)?(says|reads|saying|reading|with)\b|\bwith the (words|text)\b|["“][^"”]{3,}["”]\s+(written|printed|on)\b/i, detail: "asks for words in the image" },
   { re: /\b(dashboard|user interface|\bUI\b|screenshot|app screen|web page|landing page)\b/i, detail: "paints the product's interface" },
   { re: /\b(customer|user|client|reviewer)s?\b[^.]{0,40}\b(smiling|happy|holding|using|testimonial)\b|\btestimonial\b/i, detail: "shows people as customers" },
@@ -205,7 +205,10 @@ const PROMPT_FLAGS: { re: RegExp; detail: string }[] = [
 
 /** Problems with an image prompt, in plain words. Empty when it's fine. */
 export function checkImagePrompt(prompt: string): string[] {
-  return PROMPT_FLAGS.filter((f) => f.re.test(prompt)).map((f) => `The prompt ${f.detail}.`);
+  // Exclusion clauses are not positive requests: "No dashboard" must not fail the same lint
+  // that rejects "A dashboard showing revenue". This is a heuristic, not a vision review.
+  const requests = prompt.replace(/\b(?:no|without|avoid|exclude|never|do not|don't)\b[^.!?;\n]*/gi, "");
+  return PROMPT_FLAGS.filter((f) => f.re.test(requests)).map((f) => `The prompt ${f.detail}.`);
 }
 
 /* ───────────── Contrast (WCAG 2.x relative luminance) ───────────── */
