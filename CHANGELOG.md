@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Research-driven Studio art direction from 25 primary-source brand studies, with seven visual approaches and Focused, Bold and Unexpected creative ranges.
+- Shared concept exploration, composition, materials, lighting, copy-space and brand guidance for ChatGPT, OpenAI, copyable prompts and SVG graphics.
+- Generated-image review for concept, originality and finish, with one targeted refinement on full design runs and exact prompt/reference history.
+
+### Changed
+- Replace stock-scene and flat-card defaults with message-specific visual ideas, richer art direction and context from previous images to encourage variety.
+- Revise generic designs even when their overall review score is high, rank by the weakest creative dimension, and retain the better reviewed result.
+- Show unresolved or unavailable visual reviews clearly; image-only ChatGPT generation keeps its single-connection flow and identifies when a separate review was not run.
+
+### Validation
+- 1,300 tests pass with three skipped; lint, typecheck, production build and GitHub browser checks pass. Research notes, a generated example, prompts and responsive screenshots are included.
+- Live Inroad provider generation and engagement impact remain unmeasured.
+
 ---
 
 ## [v0.2.14] — 2026-10-28
