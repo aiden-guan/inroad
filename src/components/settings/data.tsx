@@ -83,7 +83,7 @@ export function DataSection({
   const counts = { companies: Object.keys(ws.accounts).length, people: Object.keys(ws.people).length, deals: Object.keys(ws.deals).length };
   const [downloading, setDownloading] = useState(false);
   return (
-    <SettingsSection id="data" title="Data" description="Your workspace is a set of files on this computer. Take it with you, restore a backup, try the sample, or start over.">
+    <SettingsSection id="data" title="Data & backups" description="Your workspace is a set of files on this computer. Take it with you, restore a backup, try the sample, or start over.">
       <Group>
         <Row
           align="start"
@@ -93,7 +93,7 @@ export function DataSection({
               Data stays on this machine
             </span>
           }
-          hint="What leaves it: calls to your AI provider with the context a task needs (none with Ollama), and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in General). Connected tools get only what you push to them."
+          hint="What leaves it: calls to your AI provider with the context a task needs (none with Ollama), and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in Data sources). Connected tools get only what you push to them."
         />
         <div className="px-4 py-3">
           <div className="flex items-center gap-2">
@@ -119,7 +119,7 @@ export function DataSection({
         </div>
       </Group>
 
-      <Group title="Export">
+      <Group id="export" title="Export">
         <Row
           label="Everything"
           hint="One backup file with every part of your workspace: playbook, companies, people, deals, drafts, Ask threads, LinkedIn connections, imports and run history. API keys and connector secrets are never in it."
@@ -206,7 +206,7 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
   const { leave, busy: leaving } = useLeaveSample();
 
   return (
-    <Group title="Start over">
+    <Group id="reset" title="Start over">
       {ws.sample ? (
         <Row label="You're exploring the sample workspace" hint={`${ws.company?.name ?? "This company"} and everyone in it are made up. Nothing here is yours, so leaving takes one click.`}>
           <div className="flex sm:justify-end">

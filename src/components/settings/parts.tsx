@@ -12,7 +12,7 @@ import type { CheckStatus } from "./types";
 
 export function SettingsSection({ id, title, description, children }: { id: string; title: string; description?: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-24 pt-16 first:pt-0">
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-56 @min-[880px]/page:scroll-mt-8 pt-16 first:pt-0">
       <header className="mb-6 border-b border-border pb-3">
         <h2 id={`${id}-title`} className="font-serif text-[26px] leading-[32px] tracking-[-0.015em] text-fg [font-variation-settings:'opsz'_48]">
           {title}
@@ -27,7 +27,7 @@ export function SettingsSection({ id, title, description, children }: { id: stri
 /** A titled group of rows on one card. */
 export function Group({ id, title, hint, right, children, className }: { id?: string; title?: string; hint?: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <div id={id} className={cn("scroll-mt-24", className)}>
+    <div id={id} className={cn("scroll-mt-56 @min-[880px]/page:scroll-mt-8", className)}>
       {(title || right) && (
         <div className="mb-2 flex min-h-7 items-end justify-between gap-3">
           {title && <h3 className="text-[14px] font-semibold tracking-[-0.005em] text-fg">{title}</h3>}

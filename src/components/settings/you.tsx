@@ -17,8 +17,8 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
   const [saved, setSaved] = useState(false);
 
   return (
-    <SettingsSection id="you" title="You" description="Who I'm working for, and the details I need when someone says yes.">
-      <Group title="About you">
+    <SettingsSection id="you" title="Profile & workflow" description="Your details and the tools you use for conversations and meetings.">
+      <Group id="profile" title="About you">
         <TextSetting label="Name" value={f.name} required="I need a name to sign your emails." autoComplete="name" onSave={(v) => update({ name: v })} />
         <TextSetting label="Title" value={f.title ?? ""} placeholder="Co-founder & CEO" autoComplete="organization-title" onSave={(v) => update({ title: v })} />
         <TextSetting
@@ -34,7 +34,7 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
         />
       </Group>
 
-      <Group title="Gmail" hint="Approved drafts open in Gmail's compose window, and Check replies runs one Gmail search. Nothing is sent from here.">
+      <Group id="gmail" title="Gmail" hint="Approved drafts open in Gmail's compose window, and Check replies runs one Gmail search. Nothing is sent from here.">
         <TextSetting
           label="Gmail account"
           hint={
@@ -60,7 +60,7 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
         />
       </Group>
 
-      <Group title="Booking" hint="Used only after someone replies with interest. Two specific times get booked more often than a bare link, so I lead with your availability.">
+      <Group id="booking" title="Booking" hint="Used only after someone replies with interest. Two specific times get booked more often than a bare link, so I lead with your availability.">
         <TextSetting
           label="Availability"
           hint="When you take first calls, with a time zone."
@@ -82,7 +82,7 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
         />
       </Group>
 
-      <Group title="Your day" hint="After this time, Today folds the deals with no dated next step into one close-out card. Nothing is blocked if you skip it.">
+      <Group id="your-day" title="Your day" hint="After this time, Today folds the deals with no dated next step into one close-out card. Nothing is blocked if you skip it.">
         <Row label="End-of-day close-out" hint="Your local time." htmlFor="settings-close-out">
           <div className="flex items-center gap-2 sm:justify-end">
             <SavedMark show={saved} />
@@ -105,7 +105,7 @@ export function YouSection({ ws, dispatch }: { ws: Workspace; dispatch: Dispatch
         </Row>
       </Group>
 
-      <Group title="LinkedIn">
+      <Group id="linkedin" title="LinkedIn">
         <Row
           label="LinkedIn Premium"
           hint="Free accounts get only a few personalized invite notes a month. Without Premium I keep invites blank and save the message for after they accept."

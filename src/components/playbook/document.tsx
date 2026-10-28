@@ -3,6 +3,8 @@
 import { motion } from "motion/react";
 import { Download, FileDown, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -13,7 +15,7 @@ import { usePlaybook } from "./context";
 import { GrowSection } from "./grow";
 import { HowSection } from "./how";
 import { JournalSection } from "./journal";
-import { CONSUMER_SECTIONS, SECTIONS, nextAction, playbookMarkdown, sectionsFor, type NavSection, type SectionId } from "./model";
+import { CONSUMER_SECTIONS, SECTIONS, nextAction, playbookMarkdown, sectionsFor, CONTENT_KINDS, type NavSection, type SectionId } from "./model";
 import { VoiceSection } from "./voice";
 import { WhySection } from "./why";
 import { WhoSection } from "./who";
@@ -54,12 +56,7 @@ function useScrollSpy(ids: string[]): string | null {
 }
 
 export function scrollToAnchor(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-  // Keep Next's router state; only the fragment changes.
-  history.replaceState(history.state, "", `#${id}`);
+  navigateToHash(id, SECTIONS.some((section) => section.id === id));
 }
 
 /** "Needs you" counts per section: drafts to approve and questions to answer. */
@@ -79,11 +76,10 @@ function CountPill({ n }: { n: number }) {
   return <span className="min-w-[18px] rounded-full bg-accent px-1.5 text-center font-mono text-[10.5px] font-medium leading-[18px] text-accent-fg">{n}</span>;
 }
 
-function SubNav({ activeId }: { activeId: string | null }) {
+function SubNav({ activeId, section }: { activeId: string | null; section: SectionId }) {
   const { ws } = usePlaybook();
   const counts = useCounts();
   const sections = sectionsFor(ws);
-  const section = (activeId && anchorsFor(ws.company?.market === "consumer").of.get(activeId)) || "who";
   return (
     <nav aria-label="Playbook sections" className="sticky top-8 pt-1">
       <ol className="space-y-0.5">
@@ -136,11 +132,10 @@ function SubNav({ activeId }: { activeId: string | null }) {
   );
 }
 
-function MobileNav({ activeId }: { activeId: string | null }) {
+function MobileNav({ section }: { section: SectionId }) {
   const { ws } = usePlaybook();
   const counts = useCounts();
   const sections = sectionsFor(ws);
-  const section = (activeId && anchorsFor(ws.company?.market === "consumer").of.get(activeId)) || "who";
   return (
     <nav aria-label="Playbook sections" className="sticky top-12 z-30 -mx-6 mb-8 border-b border-border bg-bg/90 px-6 backdrop-blur md:top-0 md:-mx-10 md:px-10 @min-[1000px]/page:hidden">
       <ol className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto px-1 py-2">
@@ -235,8 +230,24 @@ export function PlaybookDocument() {
   const { ws, openAsk } = usePlaybook();
   const consumer = ws.company?.market === "consumer";
   const { ids, of } = anchorsFor(consumer);
+  const hash = useLocationHash();
+  const params = useSearchParams();
+  const assetTarget = hash.startsWith("asset:") ? `asset-${hash.slice(6)}` : hash;
+  const hasAssetDestination = hash.startsWith("asset:") || hash.startsWith("asset-") || (!hash && (params.has("asset") || params.has("new")));
+  const section = of.get(hash) ?? (hasAssetDestination ? "how" : "who");
   const activeId = useScrollSpy(ids);
-  const section = (activeId && of.get(activeId)) || "who";
+  const sections = sectionsFor(ws);
+  const selected = sections.find((item) => item.id === section)!;
+
+  useEffect(() => {
+    const kind = params.get("new");
+    const asset = params.get("asset");
+    const composerTarget = kind ? (CONTENT_KINDS.some((content) => content === kind) ? "content" : "assets") : "";
+    const target = assetTarget || (asset ? `asset-${asset}` : composerTarget);
+    if (!target) return;
+    const frame = requestAnimationFrame(() => focusAnchor(target, SECTIONS.some((section) => section.id === target)));
+    return () => cancelAnimationFrame(frame);
+  }, [assetTarget, params, section]);
   const company = ws.company?.name ?? "you";
   return (
     <div className="@container/page">
@@ -248,7 +259,7 @@ export function PlaybookDocument() {
         )}
       >
         <aside className="hidden @min-[1000px]/page:block">
-          <SubNav activeId={activeId} />
+          <SubNav activeId={activeId} section={section} />
         </aside>
 
         <div className="mx-auto w-full min-w-0 max-w-[720px] @min-[1000px]/page:mx-0">
@@ -267,15 +278,22 @@ export function PlaybookDocument() {
             </p>
           </header>
 
-          <MobileNav activeId={activeId} />
+          <MobileNav section={section} />
+          <div className="mb-6 @min-[1000px]/page:hidden">
+            <label htmlFor="playbook-jump" className="mb-1.5 block text-[12px] font-medium text-fg-2">Jump to a topic</label>
+            <select id="playbook-jump" value={selected.children.some((child) => child.id === hash) ? hash : section} onChange={(event) => scrollToAnchor(event.target.value)} className="h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+              <option value={section}>Overview</option>
+              {selected.children.map((child) => <option key={child.id} value={child.id}>{child.label}</option>)}
+            </select>
+          </div>
           <NextActionCard />
 
           <div>
-            <WhoSection />
-            <WhySection />
-            {consumer ? <GrowSection /> : <HowSection />}
-            <VoiceSection />
-            <JournalSection />
+            <div hidden={section !== "who"}><WhoSection /></div>
+            <div hidden={section !== "why"}><WhySection /></div>
+            <div hidden={section !== "how"}>{consumer ? <GrowSection /> : <HowSection />}</div>
+            <div hidden={section !== "voice"}><VoiceSection /></div>
+            <div hidden={section !== "journal"}><JournalSection /></div>
           </div>
         </div>
       </div>

@@ -25,24 +25,41 @@ type Settings = ReturnType<typeof useSettingsStatus>;
 
 export function GeneralSection({ settings }: { settings: Settings }) {
   return (
-    <SettingsSection
-      id="general"
-      title="General"
-      description="AI, company preferences and app settings."
-    >
+    <SettingsSection id="general" title="General" description="Make Inroad feel at home on your computer.">
+      <Group id="appearance" title="Appearance"><ThemeRow /></Group>
+      <IconsGroup settings={settings} />
+      <UpdatesGroup />
+    </SettingsSection>
+  );
+}
+
+export function CompanySection() {
+  return <SettingsSection id="company" title="Company" description="The market and business model your playbook is built around."><MarketGroup /></SettingsSection>;
+}
+
+export function AiSection({ settings }: { settings: Settings }) {
+  return (
+    <SettingsSection id="ai" title="AI & models" description="Choose who powers your AI work and which models handle each task.">
       <AiProviderGroup settings={settings} />
       <AiRoutingGroup reload={settings.reload} revision={settings.status?.ai} />
-      <SearchProviderGroup settings={settings} />
-      <ImagesGroup settings={settings} />
-      <MarketGroup />
-      <Group title="Appearance">
-        <ThemeRow />
-      </Group>
+    </SettingsSection>
+  );
+}
+
+export function SearchSection({ settings }: { settings: Settings }) {
+  return <SettingsSection id="search" title="Web search" description="Control how Inroad searches and reads the web."><SearchProviderGroup settings={settings} /></SettingsSection>;
+}
+
+export function ImagesSection({ settings }: { settings: Settings }) {
+  return <SettingsSection id="image-settings" title="Images" description="Optional image generation for your Studio graphics."><ImagesGroup settings={settings} /></SettingsSection>;
+}
+
+export function SourcesSection({ settings }: { settings: Settings }) {
+  return (
+    <SettingsSection id="sources" title="Data sources" description="Choose the public information Inroad can look up.">
       <NewsGroup settings={settings} />
       <PlacesGroup settings={settings} />
-      <IconsGroup settings={settings} />
       <PublicDataGroup settings={settings} />
-      <UpdatesGroup />
     </SettingsSection>
   );
 }

@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+- Organize Settings into focused topics under Workspace, AI & research, and Manage, with one topic visible at a time.
+- Add settings search that opens the matching control directly, while keeping existing deep links and unfinished edits.
+- Show one major Playbook section at a time, with direct subsection links and a topic picker on smaller screens.
+- Keep settings search and the section picker accessible while scrolling on phones and narrower windows.
+
+### Validation
+- Add browser regression checks for settings search, history, deep links, unfinished forms, mobile layouts, and business and consumer Playbook navigation.
+
 ---
 
 ## [v0.2.7] — 2026-10-27
