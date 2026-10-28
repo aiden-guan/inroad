@@ -5,7 +5,7 @@ import { ChevronDown, Eye, ImageIcon, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
-import { IconButton } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/field";
 import { CopyButton } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -17,7 +17,6 @@ import { moveById } from "@/lib/studio/moves";
 import { lintOption, receiptsFor } from "@/lib/studio/receipts";
 import { VISUAL_FORMATS } from "@/lib/studio/visuals";
 import { Preview } from "./previews";
-import { VisualPanel } from "./visuals";
 
 const EVIDENCE: Record<"tested" | "reported" | "opinion", { label: string; tone: "success" | "neutral" | "outline"; hint: string }> = {
   tested: { label: "Technique research", tone: "outline", hint: "Research supports the technique. This draft has not been tested with your audience." },
@@ -88,13 +87,12 @@ function Check({ lint }: { lint: StudioLint }) {
   );
 }
 
-export function OptionCard({ ws, piece, option, index }: { ws: Workspace; piece: StudioPiece; option: StudioOption; index: number }) {
+export function OptionCard({ ws, piece, option, index, onGraphics }: { ws: Workspace; piece: StudioPiece; option: StudioOption; index: number; onGraphics: () => void }) {
   const { dispatch } = useWorkspace();
   const spec = FORMATS[piece.format];
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
   const [preview, setPreview] = useState(false);
   const graphics = Object.values(ws.studio.visuals).filter((v) => v.optionId === option.id).length;
-  const [visualsOpen, setVisualsOpen] = useState(graphics > 0);
   const canDesign = !!VISUAL_FORMATS[piece.format];
   const parts = draft ?? option.parts;
   // Lint runs on every keystroke, exactly as the server does.
@@ -138,11 +136,6 @@ export function OptionCard({ ws, piece, option, index }: { ws: Workspace; piece:
           </div>
           {option.why && <p className="mt-1 font-serif text-[14px] italic leading-5 text-fg-2">{option.why}</p>}
         </div>
-        {canDesign && (
-          <IconButton label={visualsOpen ? "Hide graphics" : graphics ? `Graphics (${graphics})` : "Make a graphic"} onClick={() => setVisualsOpen((o) => !o)} className={visualsOpen ? "text-fg" : undefined}>
-            <ImageIcon className="size-4" />
-          </IconButton>
-        )}
         <IconButton label={preview ? "Hide preview" : "Preview where it runs"} onClick={() => setPreview((p) => !p)} className={preview ? "text-fg" : undefined}>
           <Eye className="size-4" />
         </IconButton>
@@ -191,8 +184,6 @@ export function OptionCard({ ws, piece, option, index }: { ws: Workspace; piece:
         </div>
       )}
 
-      {canDesign && visualsOpen && <VisualPanel ws={ws} piece={piece} option={option} />}
-
       {receipts.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1">
           <span className="mr-0.5 text-[11px] text-fg-3">Rests on</span>
@@ -208,6 +199,11 @@ export function OptionCard({ ws, piece, option, index }: { ws: Workspace; piece:
         <div className="min-w-0 flex-1">
           <Check lint={lint} />
         </div>
+        {canDesign && (
+          <Button size="sm" variant="secondary" icon={<ImageIcon aria-hidden className="size-3.5" />} onClick={onGraphics}>
+            {graphics ? `Graphics (${graphics})` : "Design graphics"}
+          </Button>
+        )}
         <CopyButton text={optionText(piece, parts)} />
       </footer>
     </motion.article>

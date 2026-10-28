@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- A visible Graphics workspace in Studio for choosing a saved message, designing with typography, uploaded images or AI imagery, and reviewing and downloading PNG/SVG graphics.
+
+### Changed
+- Replace the hidden image-icon entry on copy options with a labeled Design graphics action, and explain the message-to-graphic path on Create.
+- Label the existing generated-picture mode AI image so its purpose is clear.
+
 ---
 
 ## [v0.2.11] — 2026-10-28

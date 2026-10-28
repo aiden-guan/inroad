@@ -181,7 +181,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           options={[
             { value: "none", label: "Words only" },
             { value: "mine", label: "Your image" },
-            { value: "paint", label: "Painted" },
+            { value: "paint", label: "AI image" },
           ]}
         />
         <label className="sr-only" htmlFor={`layout-${option.id}`}>

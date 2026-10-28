@@ -4,6 +4,72 @@ import type { Workspace } from "../src/lib/domain/types";
 const studioNav = (page: Page) =>
   page.getByRole("navigation", { name: "Studio views" });
 
+test("Graphics is visible from Create and preserves an unfinished brief", async ({ page }) => {
+  await page.goto("/studio");
+  await page.getByLabel("Format", { exact: true }).selectOption("image");
+  await page.getByRole("textbox", { name: /^What should this say/ }).fill("Launch the invoice match view.");
+  await expect(page.getByText("Write the message here, then design the finished image in Graphics.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Open Graphics", exact: true }).click();
+  await expect(studioNav(page).getByRole("link", { name: "Graphics", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Make the finished image.", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Write a new message", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: /^What should this say/ })).toHaveValue("Launch the invoice match view.");
+  await expect(page.getByLabel("Format", { exact: true })).toHaveValue("image");
+  await page.goBack();
+  await expect(page.getByRole("region", { name: "Graphic design controls", exact: true })).toBeVisible();
+});
+
+test("a labeled copy action opens the selected message and the graphics controls fit a phone", async ({ page }) => {
+  await page.goto("/studio?piece=stu_ll_hero");
+  await page.getByRole("button", { name: "Design graphics", exact: true }).nth(1).click();
+  await expect(page).toHaveURL(/view=graphics.*graphicPiece=stu_ll_hero.*graphicOption=opt_ll_vlookup/);
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue("opt_ll_vlookup");
+  const controls = page.getByRole("region", { name: "Graphic design controls", exact: true });
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeVisible();
+  await controls.getByRole("tab", { name: "Your image", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Upload", exact: true })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeDisabled();
+  await controls.getByRole("tab", { name: "AI image", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "Write a ChatGPT prompt", exact: true })).toBeVisible();
+  await controls.getByRole("tab", { name: "Words only", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(controls.getByRole("button", { name: "Design 2 graphics", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.reload();
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue("opt_ll_vlookup");
+});
+
+test("Graphics runs the existing design harness and persists downloadable PNG and SVG renders", async ({ page, request }) => {
+  await page.goto("/studio?view=graphics&graphicPiece=stu_ll_hero&graphicOption=opt_ll_script");
+  const controls = page.getByRole("region", { name: "Graphic design controls", exact: true });
+  await controls.getByLabel("Direction for the graphic", { exact: true }).fill("A bold headline with plenty of space.");
+  await controls.getByRole("button", { name: "Design 2 graphics", exact: true }).click();
+  await expect(controls.getByRole("link", { name: "PNG", exact: true })).toHaveCount(2, { timeout: 120_000 });
+  await expect(controls.getByRole("link", { name: "SVG", exact: true })).toHaveCount(2);
+  const png = await request.get((await controls.getByRole("link", { name: "PNG", exact: true }).first().getAttribute("href"))!);
+  expect(png.ok()).toBe(true);
+  expect((await png.body()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  const svg = await request.get((await controls.getByRole("link", { name: "SVG", exact: true }).first().getAttribute("href"))!);
+  expect(svg.ok()).toBe(true);
+  expect(await svg.text()).toContain("<svg");
+  await page.reload();
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue("opt_ll_script");
+  await expect(controls.getByRole("link", { name: "PNG", exact: true })).toHaveCount(2);
+});
+
+test("Graphics explains how to start when no saved messages support images", async ({ page, request }) => {
+  const ws: Workspace = await (await request.get("/api/workspace")).json();
+  ws.studio.pieces = {};
+  ws.studio.visuals = {};
+  await page.route("**/api/workspace", (route) => route.fulfill({ json: ws }));
+  await page.goto("/studio?view=graphics&graphicPiece=missing&graphicOption=missing");
+  await expect(page.getByText("Start with the message", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Design 2 graphics", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Write a message", exact: true }).click();
+  await expect(page.getByLabel("Format", { exact: true })).toHaveValue("image");
+  await expect(page.getByRole("textbox", { name: /^What should this say/ })).toBeVisible();
+});
+
 // Local image/availability fixtures exercise the interface without external publisher dependencies.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/studio/campaign-media/**", async (route) => {

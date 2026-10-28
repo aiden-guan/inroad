@@ -23,6 +23,7 @@ import {
   receiptsFor,
 } from "@/lib/studio/receipts";
 import { CampaignDetails } from "./campaign-library";
+import { VISUAL_FORMATS } from "@/lib/studio/visuals";
 
 export interface NewPieceArgs {
   format: StudioFormatId;
@@ -47,6 +48,7 @@ export function NewPiece({
   onCampaignChange,
   onBrowse,
   onMaterial,
+  onGraphics,
 }: {
   ws: Workspace;
   onWrite: (args: NewPieceArgs) => void;
@@ -57,6 +59,7 @@ export function NewPiece({
   onCampaignChange: (ids: string[] | undefined) => void;
   onBrowse: () => void;
   onMaterial: () => void;
+  onGraphics: () => void;
 }) {
   const audience = audienceFor(ws);
   const ordered = useMemo(() => formatsFor(audience), [audience]);
@@ -157,6 +160,17 @@ export function NewPiece({
           </div>
         </div>
         <p className="mt-3 text-[12.5px] leading-5 text-fg-3">{spec.blurb}</p>
+        {VISUAL_FORMATS[format] && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-y border-border py-3">
+            <p className="max-w-[55ch] text-[12px] leading-5 text-fg-2">
+              Write the message here, then design the finished image in Graphics.
+              Already have copy? Start with a saved option.
+            </p>
+            <Button size="sm" variant="ghost" onClick={onGraphics} icon={<ArrowRight aria-hidden className="size-3.5" />}>
+              Open Graphics
+            </Button>
+          </div>
+        )}
 
         <div className="mt-5">
           <Label htmlFor="studio-brief" hint="Optional">

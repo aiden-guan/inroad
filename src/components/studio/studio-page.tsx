@@ -42,6 +42,7 @@ import { MaterialCard, ProfileCard } from "./material";
 import { NewPiece, type NewPieceArgs } from "./new-piece";
 import { OptionCard } from "./option-card";
 import { ImagesCard } from "./visuals";
+import { GraphicsStudio } from "./graphics-studio";
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -62,7 +63,7 @@ export function StudioPage() {
   const pickedView = params.get("view");
   const view = selected
     ? "work"
-    : pickedView === "campaigns" || pickedView === "work"
+    : pickedView === "campaigns" || pickedView === "work" || pickedView === "graphics"
       ? pickedView
       : "create";
   const [formatPick, setFormat] = useState<StudioFormatId>();
@@ -71,6 +72,7 @@ export function StudioPage() {
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [requested, setRequested] = useState<string>();
+  const [graphicsPick, setGraphicsPick] = useState<{ pieceId: string; optionId: string }>();
 
   const pieces = useMemo(
     () =>
@@ -113,6 +115,16 @@ export function StudioPage() {
 
   const select = (id: string) =>
     router.push(`/studio?piece=${encodeURIComponent(id)}`, { scroll: false });
+  const openGraphics = (pieceId?: string, optionId?: string) => {
+    const target = pieceId && optionId ? { pieceId, optionId } : graphicsPick;
+    if (target) setGraphicsPick(target);
+    const query = new URLSearchParams({ view: "graphics" });
+    if (target) {
+      query.set("graphicPiece", target.pieceId);
+      query.set("graphicOption", target.optionId);
+    }
+    router.push(`/studio?${query}`, { scroll: false });
+  };
   const useCampaign = (campaign: Campaign) => {
     setCampaignIds([campaign.id]);
     setFormat(campaign.preferredFormat);
@@ -185,7 +197,7 @@ export function StudioPage() {
           </div>
         </div>
         <p className="mt-2 max-w-[60ch] text-[14px] leading-6 text-fg-2">
-          Campaign ideas with a source. Copy that sounds like you.
+          Campaign ideas, copy and graphics. Made from your own material.
         </p>
       </header>
 
@@ -195,6 +207,7 @@ export function StudioPage() {
       >
         {[
           { id: "create", label: "Create" },
+          { id: "graphics", label: "Graphics" },
           { id: "campaigns", label: "Campaign library" },
           { id: "work", label: "Your work" },
         ].map((item) => (
@@ -231,8 +244,22 @@ export function StudioPage() {
             router.push("/studio?view=campaigns", { scroll: false })
           }
           onMaterial={() => setSetup(true)}
+          onGraphics={() => openGraphics()}
           onWrite={(args) => void write(args)}
           busy={submitting}
+        />
+      </div>
+      <div hidden={view !== "graphics"}>
+        <GraphicsStudio
+          ws={ws}
+          pieceId={params.get("graphicPiece") ?? graphicsPick?.pieceId}
+          optionId={params.get("graphicOption") ?? graphicsPick?.optionId}
+          onSelect={openGraphics}
+          onWrite={() => {
+            setFormat("image");
+            router.push("/studio?view=create", { scroll: false });
+          }}
+          onEdit={select}
         />
       </div>
       <div hidden={view !== "campaigns"}>
@@ -264,6 +291,7 @@ export function StudioPage() {
             onRemoved={() =>
               router.replace("/studio?view=work", { scroll: false })
             }
+            onGraphics={openGraphics}
           />
         ) : selected ? (
           selectedRun?.status === "running" ||
@@ -324,12 +352,14 @@ function PieceView({
   onMore,
   busy,
   onRemoved,
+  onGraphics,
 }: {
   ws: Workspace;
   piece: StudioPiece;
   onMore: () => void;
   busy: boolean;
   onRemoved: () => void;
+  onGraphics: (pieceId: string, optionId: string) => void;
 }) {
   const { dispatch } = useWorkspace();
   const spec = FORMATS[piece.format];
@@ -433,7 +463,7 @@ function PieceView({
 
       <div className={cn("mt-4 grid gap-3", narrow && "md:grid-cols-2")}>
         {piece.options.map((o, i) => (
-          <OptionCard key={o.id} ws={ws} piece={piece} option={o} index={i} />
+          <OptionCard key={o.id} ws={ws} piece={piece} option={o} index={i} onGraphics={() => onGraphics(piece.id, o.id)} />
         ))}
       </div>
 
