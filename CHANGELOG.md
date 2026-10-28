@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+- Stop repeated Next.js server Keychain password prompts in ad hoc Mac builds by importing saved keys once into the existing owner-only AES-256-GCM encrypted store. Developer ID builds retain Keychain, and deletion cannot restore an older Keychain value.
+
+### Added
+- Original creative previews for nine Studio campaigns: official brand films, creator videos, launch demos, campaign photography and artwork, with source attribution and alternate cuts.
+- Click-to-play videos, original-media links and graceful unavailable-preview states; supporting research without verified creative is kept in a separate collapsed section.
+
 ---
 
 ## [v0.2.9] — 2026-10-27

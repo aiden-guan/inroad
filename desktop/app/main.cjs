@@ -6,7 +6,8 @@
  * loopback port, and a window shows it. Nothing listens beyond 127.0.0.1, and the server's own locality check
  * (scripts/peer-guard.cjs, loaded by server/entry.cjs) still refuses anything that isn't this computer.
  *
- * - Data lives in ~/Library/Application Support/Inroad/Workspace (GTM_DATA_DIR); AI keys go to the Keychain.
+ * - Data lives in ~/Library/Application Support/Inroad/Workspace (GTM_DATA_DIR). Developer ID builds use Keychain;
+ *   ad hoc builds import keys once into the encrypted local store to avoid repeated password prompts.
  * - One port per install, kept between launches, so the page's own storage (theme, folded panels) stays put.
  * - Links that leave the app open in the default browser; the window never navigates away from Inroad.
  * - Quitting stops the server. A server that quits after running a while is started again quietly, once in ten
@@ -22,6 +23,7 @@ const net = require("node:net");
 const path = require("node:path");
 const { createUpdater } = require("./updater.cjs");
 const { allowClipboardWrite } = require("./permissions.cjs");
+const { keychainMode } = require("./credentials.cjs");
 
 const PRODUCT = "Inroad";
 const HOST = "127.0.0.1";
@@ -135,12 +137,14 @@ async function startServer() {
   // The launching shell's NODE_OPTIONS are for Node, not this server (and Electron rejects some of them).
   const inherited = { ...process.env };
   delete inherited.NODE_OPTIONS;
+  const credentialMode = keychainMode({ packaged: app.isPackaged, platform: process.platform, executable: app.getPath("exe"), configured: inherited.INROAD_KEYCHAIN });
   server = utilityProcess.fork(entry, [], {
     cwd: serverDir,
     serviceName: `${PRODUCT} server`,
     stdio: "pipe",
     env: {
       ...inherited,
+      ...(credentialMode ? { INROAD_KEYCHAIN: credentialMode } : {}),
       NODE_ENV: "production",
       HOSTNAME: HOST,
       PORT: String(port),

@@ -10,7 +10,6 @@ import type {
   Workspace,
 } from "@/lib/domain/types";
 import {
-  CAMPAIGNS,
   campaignById,
   recommendedCampaigns,
   type Campaign,
@@ -191,7 +190,7 @@ export function NewPiece({
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={onBrowse}>
-              Browse {CAMPAIGNS.length} campaigns{" "}
+              Browse campaign library{" "}
               <ArrowRight aria-hidden className="size-3.5" />
             </Button>
           </div>

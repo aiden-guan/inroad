@@ -30,6 +30,8 @@ export interface AiStatus {
   saved: Partial<Record<ProviderId, { hint: string; store: "keychain" | "file" }>>;
   /** What this computer's credential store is called ("your Mac's Keychain"), for saying where a key is kept. */
   keychain: string;
+  /** Ad hoc desktop builds use the local encrypted store to avoid repeated Keychain prompts. */
+  defaultKeyStore?: "keychain" | "file";
   /** Providers with a key in this computer's environment variables. */
   env: ProviderId[];
   /** No price is known for a model in use, so spend can't be counted in dollars. */

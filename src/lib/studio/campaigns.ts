@@ -116,14 +116,14 @@ export const CAMPAIGNS: readonly Campaign[] = [
   {
     id: "ramp-time-money",
     brand: "Ramp",
-    title: "Give both buyers a reason to care",
-    period: "Ongoing positioning",
-    channel: "Website & positioning",
+    title: "Make the time saving visible",
+    period: "Super Bowl LX · 2026",
+    channel: "Brand film & positioning",
     audiences: ["b2b"],
-    formats: POSITIONING,
-    preferredFormat: "homepage_hero",
+    formats: [...POSITIONING, ...SOCIAL],
+    preferredFormat: "short_video",
     approach:
-      "Connect the finance buyer's money savings with the team's time savings, and put assumptions beside the estimate.",
+      "Turn saved time into something visible: Ramp's campaign multiplies one overworked finance professional into a team.",
     adaptation:
       "Pair two related outcomes only when your product delivers both. Support any numerical claim with your own evidence.",
     moveIds: ["two_buyers", "one_number", "against_the_model"],
@@ -132,14 +132,15 @@ export const CAMPAIGNS: readonly Campaign[] = [
       value: "Time + money",
       label: "Two benefits in one proposition",
       detail:
-        "Ramp's savings calculator makes the inputs and assumptions behind its proposition inspectable.",
+        "Ramp's 2026 campaign dramatizes time saved on finance work. Its savings calculator separately makes the product's estimates inspectable.",
     },
     caveat:
-      "Customer savings are product claims. They do not establish the conversion impact of this positioning.",
+      "The film is a creative reference. No verified campaign-level conversion result is attached; the calculator's savings are separate product claims.",
     source: {
       label: "Ramp savings calculator",
       url: "https://ramp.com/savings-calculator",
     },
+    creativeUrl: "https://www.youtube.com/watch?v=1-mgrFS00B0",
     reviewedAt: REVIEWED,
   },
   {

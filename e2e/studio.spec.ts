@@ -82,6 +82,10 @@ test("the campaign library searches, filters evidence and shows source records",
   await page
     .getByRole("button", { name: "Clear filters", exact: true })
     .click();
+  await expect(page.getByRole("article")).toHaveCount(9);
+  await page
+    .getByText("Supporting research · 6 records", { exact: true })
+    .click();
   await expect(page.getByRole("article")).toHaveCount(15);
 });
 
@@ -101,7 +105,7 @@ test("using a campaign preserves the brief and optional examples across views an
     .getByRole("textbox", { name: /^Your own inspiration/ })
     .fill("Use a concrete before-and-after opening.");
   await page
-    .getByRole("button", { name: "Browse 15 campaigns", exact: true })
+    .getByRole("button", { name: "Browse campaign library", exact: true })
     .click();
   await page
     .getByRole("button", { name: "Use Wispr Flow approach", exact: true })
@@ -338,3 +342,118 @@ for (const width of [390, 850]) {
     ).toBeLessThanOrEqual(0);
   });
 }
+
+test("campaigns show original media, load players on demand and switch creative examples", async ({
+  page,
+}) => {
+  // Exercise the player UI without relying on an external video platform or sending it workspace data.
+  const players: string[] = [];
+  await page.route(
+    "https://www.youtube-nocookie.com/embed/**",
+    async (route) => {
+      players.push(route.request().url());
+      await route.fulfill({
+        contentType: "text/html",
+        body: "<html><body>Campaign player fixture</body></html>",
+      });
+    },
+  );
+  await page.goto("/studio?view=campaigns");
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await page
+    .getByRole("button", {
+      name: "Preview Wispr Flow campaign creative",
+      exact: true,
+    })
+    .click();
+  const wispr = page.getByRole("dialog", { name: /^Wispr Flow/ });
+  await expect(
+    wispr.getByRole("region", { name: "Original campaign creative" }),
+  ).toBeVisible();
+  await expect(
+    wispr.getByRole("link", { name: "Open original", exact: true }),
+  ).toHaveAttribute("href", "https://www.youtube.com/watch?v=9KqGpxtsawc");
+  await expect(wispr.locator("iframe")).toHaveCount(0);
+  await wispr
+    .getByRole("button", {
+      name: "Play Break up with your keyboard",
+      exact: true,
+    })
+    .click();
+  await expect(wispr.locator("iframe")).toHaveAttribute(
+    "src",
+    "https://www.youtube-nocookie.com/embed/9KqGpxtsawc?autoplay=1&rel=0",
+  );
+  await expect.poll(() => players.length).toBe(1);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("iframe")).toHaveCount(0);
+
+  await page.getByLabel("Find a campaign", { exact: true }).fill("Volvo");
+  await page
+    .getByRole("button", {
+      name: "Preview Volvo campaign creative",
+      exact: true,
+    })
+    .click();
+  const volvo = page.getByRole("dialog", { name: /^Volvo/ });
+  await volvo
+    .getByRole("button", { name: "EX90 · 60-second cut", exact: true })
+    .click();
+  await expect(
+    volvo.getByRole("button", { name: "EX90 · 60-second cut", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    volvo.getByRole("link", { name: "Open original", exact: true }),
+  ).toHaveAttribute("href", "https://www.youtube.com/watch?v=O9Z_vzJyToA");
+  await expect(volvo.locator("iframe")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.getByLabel("Find a campaign", { exact: true }).fill("Spotify");
+  await page
+    .getByRole("button", {
+      name: "Preview Spotify campaign creative",
+      exact: true,
+    })
+    .click();
+  const spotify = page.getByRole("dialog", { name: /^Spotify/ });
+  await expect(
+    spotify.getByRole("link", {
+      name: "Spotify Newsroom · campaign photography",
+      exact: true,
+    }),
+  ).toHaveAttribute(
+    "href",
+    "https://newsroom.spotify.com/2025-12-03/wrapped-marketing-campaign/",
+  );
+  await spotify
+    .getByRole("button", { name: "Wrapped 2025 · Nashville", exact: true })
+    .click();
+  await expect(
+    spotify.getByRole("link", { name: "Open original", exact: true }),
+  ).toHaveAttribute("href", /2025-Wrapped-OOH-Nashville-Taylor341/);
+});
+
+test("unavailable campaign images retain the original source and usable actions", async ({
+  page,
+}) => {
+  await page.route("https://i.ytimg.com/**", (route) => route.abort());
+  await page.goto("/studio?view=campaigns");
+  const card = page.getByRole("article", { name: /^Wispr Flow:/ });
+  await expect(card).toContainText("Preview unavailable");
+  await card
+    .getByRole("button", {
+      name: "View Wispr Flow campaign details",
+      exact: true,
+    })
+    .click();
+  const dialog = page.getByRole("dialog", { name: /^Wispr Flow/ });
+  await expect(
+    dialog.getByRole("link", { name: "Open original", exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", {
+      name: "Create with this approach",
+      exact: true,
+    }),
+  ).toBeEnabled();
+});

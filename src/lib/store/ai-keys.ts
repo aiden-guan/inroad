@@ -21,7 +21,8 @@ import { DATA_DIR } from "./settings";
  *
  * Keys go in and never come back out to the browser: the app shows the provider and the last four
  * characters. Reads are cached in memory so the keychain is asked once per process, not once per run.
- * INROAD_KEYCHAIN=off skips the keychain (tests, and anyone who prefers the file).
+ * INROAD_KEYCHAIN=off skips the keychain. Ad hoc Mac builds use prefer-file: existing keys are imported
+ * once, so a changing Next.js executable identity doesn't ask for the login password every launch.
  */
 
 export type KeyStore = "keychain" | "file";
@@ -40,6 +41,8 @@ interface Sealed {
 interface KeysFile {
   v: 1;
   keys: Partial<Record<AiKeyId, Sealed>>;
+  /** Locally saved, imported, absent or deleted accounts. Never resurrect an older Keychain value. */
+  local?: AiKeyId[];
 }
 
 type Keyring = typeof import("@napi-rs/keyring");
@@ -91,7 +94,7 @@ function dataKey(create: boolean): Buffer | null {
 function readFile(): KeysFile {
   return readDataFile<KeysFile>(KEYS_FILE(), () => ({ v: 1, keys: {} }), (raw) => {
     const f = (raw ?? {}) as Partial<KeysFile>;
-    return { v: 1, keys: f.keys && typeof f.keys === "object" ? f.keys : {} };
+    return { v: 1, keys: f.keys && typeof f.keys === "object" ? f.keys : {}, ...(Array.isArray(f.local) ? { local: f.local.filter((id): id is AiKeyId => typeof id === "string") } : {}) };
   });
 }
 
@@ -119,13 +122,15 @@ function open(key: Buffer, sealed: Sealed, provider: AiKeyId): string | null {
 function writeToFile(provider: AiKeyId, value: string) {
   const file = readFile();
   file.keys[provider] = seal(dataKey(true)!, value, provider);
+  if (process.env.INROAD_KEYCHAIN === "prefer-file") file.local = [...new Set([...(file.local ?? []), provider])];
   writeDataFile(KEYS_FILE(), file);
 }
 
-function removeFromFile(provider: AiKeyId) {
+function removeFromFile(provider: AiKeyId, keepLocal = false) {
   const file = readFile();
-  if (!file.keys[provider]) return;
+  if (!file.keys[provider] && !!file.local?.includes(provider) === keepLocal) return;
   delete file.keys[provider];
+  file.local = keepLocal ? [...new Set([...(file.local ?? []), provider])] : file.local?.filter((id) => id !== provider);
   writeDataFile(KEYS_FILE(), file);
 }
 
@@ -140,7 +145,7 @@ function readFromFile(provider: AiKeyId): string | null {
 
 /** Saves a provider's key, in the keychain when one works (checked by reading it back), else the encrypted file. */
 export function saveAiKey(provider: AiKeyId, value: string): KeyStore {
-  const k = keyring();
+  const k = process.env.INROAD_KEYCHAIN === "prefer-file" ? null : keyring();
   let where: KeyStore = "file";
   if (k) {
     try {
@@ -157,26 +162,40 @@ export function saveAiKey(provider: AiKeyId, value: string): KeyStore {
   return where;
 }
 
-/** A provider's saved key, or undefined. The keychain is asked first, then the file. */
+/** A provider's saved key. Migrated/local accounts never reopen an older Keychain entry. */
 export function readAiKey(provider: AiKeyId): string | undefined {
   if (cache.has(provider)) return cache.get(provider) ?? undefined;
+  const file = readFile();
+  const preferFile = process.env.INROAD_KEYCHAIN === "prefer-file";
+  if (file.local?.includes(provider) || (preferFile && file.keys[provider])) {
+    const value = readFromFile(provider);
+    cache.set(provider, value);
+    return value ?? undefined;
+  }
   let value: string | null = null;
+  let imported = false;
   const k = keyring();
   if (k) {
     try {
       value = entry(k, provider).getPassword();
+      imported = true;
     } catch {
       value = null;
     }
+  }
+  if (preferFile && imported) {
+    if (value !== null) writeToFile(provider, value);
+    else removeFromFile(provider, true);
   }
   value ??= readFromFile(provider);
   cache.set(provider, value);
   return value ?? undefined;
 }
 
-/** Forgets a provider's key everywhere it might be. */
+/** Forgets a provider's active key. Local tombstones also suppress any older Keychain copy. */
 export function deleteAiKey(provider: AiKeyId) {
-  const k = keyring();
+  const keepLocal = process.env.INROAD_KEYCHAIN === "prefer-file" || !!readFile().local?.includes(provider);
+  const k = keepLocal ? null : keyring();
   if (k) {
     try {
       entry(k, provider).deleteCredential();
@@ -184,13 +203,19 @@ export function deleteAiKey(provider: AiKeyId) {
       // nothing there, or no store
     }
   }
-  removeFromFile(provider);
+  removeFromFile(provider, keepLocal);
   cache.set(provider, null);
 }
 
 /** "…abcd": enough to recognize a key, never enough to use it. */
 export function keyHint(value: string): string {
   return `…${value.trim().slice(-4)}`;
+}
+
+/** Actual storage after a migration, without reading a Keychain entry just to render Settings. */
+export function aiKeyStore(provider: AiKeyId, previous: KeyStore): KeyStore {
+  const file = readFile();
+  return file.local?.includes(provider) || file.keys[provider] ? "file" : previous;
 }
 
 /** Takes any saved or given key out of a string (an API's error text can quote part of one). */

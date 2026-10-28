@@ -12,6 +12,7 @@ directories:
 files:
   - main.cjs
   - permissions.cjs
+  - credentials.cjs
   - updater.cjs
   - preload.cjs
   - loading.html

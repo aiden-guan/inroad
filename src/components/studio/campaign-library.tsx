@@ -7,7 +7,6 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/misc";
 import {
-  CAMPAIGNS,
   EVIDENCE_LABELS,
   searchCampaigns,
   type Campaign,
@@ -15,10 +14,17 @@ import {
 } from "@/lib/studio/campaigns";
 import type { StudioAudience } from "@/lib/domain/types";
 import { AUDIENCES, FORMATS } from "@/lib/studio/formats";
+import { campaignMedia } from "@/lib/studio/campaign-media";
+import { CampaignMediaGallery, CampaignPreview } from "./campaign-media";
 
 const selectClass =
   "h-9 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
-const FEATURED = ["wispr-old-way", "clicklearn-abm", "cider-shorts"];
+const FEATURED = [
+  "wispr-old-way",
+  "cider-shorts",
+  "spotify-wrapped",
+  "ramp-time-money",
+];
 
 export function CampaignLibrary({
   onUse,
@@ -40,6 +46,12 @@ export function CampaignLibrary({
     };
     return rank(left) - rank(right);
   });
+  const visualCampaigns = campaigns.filter(
+    (campaign) => campaignMedia(campaign.id).length,
+  );
+  const research = campaigns.filter(
+    (campaign) => !campaignMedia(campaign.id).length,
+  );
 
   return (
     <section aria-labelledby="campaign-library-title">
@@ -48,11 +60,11 @@ export function CampaignLibrary({
           id="campaign-library-title"
           className="font-serif text-[26px] leading-8 text-fg"
         >
-          A starting point with a source.
+          See the creative. Find your direction.
         </h2>
         <p className="mt-2 text-[14px] leading-6 text-fg-2">
-          Public campaigns and creative approaches worth studying. See what was
-          reported, understand the idea, then make it your own.
+          Watch original campaign films, inspect the artwork and see the idea in
+          action. Then adapt the approach to your own product.
         </p>
       </div>
 
@@ -114,19 +126,25 @@ export function CampaignLibrary({
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3 text-[12px] text-fg-3">
         <p role="status">
-          {campaigns.length} of {CAMPAIGNS.length} campaign records
+          {visualCampaigns.length} campaign examples · {research.length}{" "}
+          research records
         </p>
         <p>Results and reach are reported by the linked sources.</p>
       </div>
 
-      {campaigns.length ? (
+      {visualCampaigns.length ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {campaigns.map((campaign) => (
+          {visualCampaigns.map((campaign) => (
             <article
               key={campaign.id}
               aria-label={`${campaign.brand}: ${campaign.title}`}
               className="flex min-w-0 flex-col rounded-lg bg-surface p-5 ring-1 ring-border"
             >
+              <CampaignPreview
+                id={campaign.id}
+                brand={campaign.brand}
+                onOpen={() => setDetail(campaign)}
+              />
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="text-[14px] font-semibold text-fg">
                   {campaign.brand}
@@ -158,7 +176,7 @@ export function CampaignLibrary({
                   onClick={() => setDetail(campaign)}
                   aria-label={`View ${campaign.brand} campaign details`}
                 >
-                  View record
+                  View creative
                 </Button>
                 <Button
                   size="sm"
@@ -171,7 +189,7 @@ export function CampaignLibrary({
             </article>
           ))}
         </div>
-      ) : (
+      ) : !research.length ? (
         <EmptyState
           title="No campaigns match"
           body="Try a brand, a channel like LinkedIn, or a broader audience."
@@ -187,6 +205,54 @@ export function CampaignLibrary({
             </Button>
           }
         />
+      ) : (
+        <p className="mb-5 text-[13px] text-fg-2">
+          No published creative matches these filters. Supporting research is
+          below.
+        </p>
+      )}
+
+      {!!research.length && (
+        <details
+          key={`${query}:${audience}:${evidence}`}
+          open={!!(query || audience || evidence)}
+          className="mt-8 rounded-lg border border-border bg-surface"
+        >
+          <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-fg">
+            Supporting research · {research.length} records
+          </summary>
+          <div className="border-t border-border px-5 pb-3 pt-4">
+            <p className="mb-3 text-[12px] leading-5 text-fg-3">
+              Useful case studies and positioning references. Original campaign
+              creative has not been verified for these records.
+            </p>
+            {research.map((campaign) => (
+              <article
+                key={campaign.id}
+                aria-label={`${campaign.brand}: ${campaign.title}`}
+                className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] font-semibold text-fg">
+                    {campaign.brand} · {campaign.title}
+                  </h3>
+                  <p className="mt-1 text-[12px] text-fg-3">
+                    {campaign.channel} · {EVIDENCE_LABELS[campaign.evidence]}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setDetail(campaign)}
+                  aria-label={`View ${campaign.brand} campaign details`}
+                >
+                  Read research{" "}
+                  <ArrowUpRight aria-hidden className="size-3.5" />
+                </Button>
+              </article>
+            ))}
+          </div>
+        </details>
       )}
 
       <CampaignDetails
@@ -220,10 +286,11 @@ export function CampaignDetails({
       description={
         campaign ? `${campaign.channel} · ${campaign.period}` : undefined
       }
-      className="top-[6vh] flex max-h-[88vh] max-w-[600px] flex-col"
+      className="top-[6vh] flex max-h-[88vh] max-w-[760px] flex-col"
     >
       {campaign && (
         <div className="min-h-0 overflow-y-auto px-5 pb-5 pt-5">
+          <CampaignMediaGallery key={campaign.id} id={campaign.id} />
           <div className="rounded-md bg-bg-subtle p-4">
             <p className="text-[11px] font-medium text-fg-3">
               {EVIDENCE_LABELS[campaign.evidence]}

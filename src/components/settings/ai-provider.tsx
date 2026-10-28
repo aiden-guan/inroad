@@ -280,7 +280,7 @@ function ConnectForm({ ai, save, canCancel, onCancel, onSaved }: { ai: AiStatus;
       <p id={`${id}-help`} className="mt-2 max-w-[62ch] text-pretty text-[12px] leading-[18px] text-fg-3">
         {preset.blurb}{" "}
         {preset.needsKey
-          ? `I check the key with ${short(form.provider)}, then keep it in ${ai.keychain} (or, where there's none, an encrypted file only your account can read). It's never shown again, never exported, and sent only to ${short(form.provider)}.`
+          ? `I check the key with ${short(form.provider)}, then keep it in ${ai.defaultKeyStore === "file" ? "an encrypted file only your account can read" : `${ai.keychain} (or, where there's none, an encrypted file only your account can read)`}. It's never shown again, never exported, and sent only to ${short(form.provider)}.`
           : "Nothing leaves this computer."}
       </p>
     </form>

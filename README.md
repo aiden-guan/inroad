@@ -33,7 +33,7 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 **Studio writes the marketing.** Launch posts, homepage heroes, ads, image text, short-video scripts, Show HN and Product Hunt launches, store listings and comparison pages, for founders of any kind of company (B2B, consumer, prosumer, developer tools). It writes from the founder's own material, gives several options built on different moves from campaigns that worked (Wispr Flow, Ramp, Supabase, Linear), and checks every option in code for AI tells, unsourced numbers and platform limits before a blind reader ranks them. The research behind it is in [`docs/research/10-marketing-copy.md`](docs/research/10-marketing-copy.md).
 
-**A campaign library is built in.** Studio has separate Create, Campaign library and Your work views. Fifteen sourced campaign records include Wispr Flow, Notion, Spotify, Cider and others, with clear labels for reported results, reach and creative references. Relevant approaches are recommended automatically; you can inspect the source, choose another approach, or add your own example. Your product claims still come from your own material. Brand and material settings stay in a drawer, and unfinished briefs survive browsing the library. The source ledger is in [`docs/research/11-studio-campaign-library.md`](docs/research/11-studio-campaign-library.md).
+**A campaign library is built in.** Studio has separate Create, Campaign library and Your work views. Nine campaign examples include original films, launch demos, campaign artwork and photography, with in-app players and alternate creative cuts. Six additional case studies and positioning references are kept under Supporting research because their original creative hasn't been verified. Reported results, reach and creative references are labeled separately. Relevant approaches are recommended automatically; you can inspect the source, choose another approach, or add your own example. Your product claims still come from your own material. Brand and material settings stay in a drawer, and unfinished briefs survive browsing the library. The source ledger is in [`docs/research/11-studio-campaign-library.md`](docs/research/11-studio-campaign-library.md).
 
 **Studio also makes the graphics.** For any option, Claude designs the graphic (LinkedIn and X images, 4:5 feed, square, 9:16 story, link previews, Product Hunt gallery) as SVG around the option's checked words. Code strips anything unsafe and checks every word against the approved copy, plus contrast, safe zones and type size, then renders the PNG on your machine. Claude looks at that render and fixes what fails. A design can sit over a real screenshot you upload, or over a photo or illustration painted by OpenAI's GPT Image if you add an OpenAI key in Settings. Without a key, Claude writes the prompt for you to paste into ChatGPT. Painted pictures never contain words, never stand in for your product's UI, and are labeled as AI imagery so you can disclose them where Meta and TikTok ask. The Claude API reads images but doesn't output them, which is why Claude designs in code.
 
@@ -301,7 +301,12 @@ workflows; small local models may need a retry now and then.
 **Where your key is kept.** In your computer's credential store: macOS Keychain, Windows Credential Manager, or the
 Secret Service (GNOME Keyring, KWallet) on Linux. Where there's none (a headless server, a container), it's an
 AES-256-GCM encrypted file (`ai-keys.json`, with its own random key in `ai-keys.secret`, both readable by your user
-only). Either way the key is never sent to the browser after you save it (you see the provider and the last four
+only). The current ad hoc signed Mac builds also use that encrypted file: without a consistent Developer ID,
+macOS can repeatedly ask for the login password when the Next.js server reads Keychain. Existing Keychain keys
+are imported on first use; macOS may ask once per existing key for that transfer. Later launches read the encrypted
+copy without opening Keychain. Developer ID builds keep the OS store, and locally migrated keys remain local until
+replaced. The encrypted file and its random encryption key are both protected by your account's file permissions,
+rather than Keychain's per-application access controls. Either way the API key is never sent to the browser after you save it (you see the provider and the last four
 characters), never in a backup or an export, and sent only to the provider you chose. A key saved by an earlier version
 of Inroad in `settings.json` is moved into the credential store the first time Inroad reads it.
 
@@ -626,7 +631,7 @@ real database; that isn't v1.
 | `OPENAI_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` | Other providers' keys, the same way. `OPENAI_API_KEY` also paints Studio's image layers when no OpenAI key is saved under Settings → General. |
 | `INROAD_AI_PROVIDER`, `INROAD_AI_MODEL`, `INROAD_AI_BASE_URL`, `INROAD_AI_KEY` | Pick a provider without the app (servers, scripts): its id (`openai`, `gemini`, `xai`, `groq`, `openrouter`, `mistral`, `deepseek`, `together`, `ollama`, `custom`), the model, and for `custom` the base URL and key. The choice in Settings wins. |
 | `OPENAI_BASE_URL` | Send OpenAI calls (chat and Studio images) somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
-| `INROAD_KEYCHAIN` | `off` keeps keys in the encrypted file instead of the system credential store. |
+| `INROAD_KEYCHAIN` | `off` skips the OS store. `prefer-file` imports existing keys once and then uses the encrypted file (the default for ad hoc Mac builds). `on` explicitly selects the OS store for new keys. |
 | `INROAD_UPDATE_CHECK` | `off` stops this server from asking GitHub for updates by itself; Settings → Updates → Check now still asks. |
 | `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it is not saved under Web search or connected under Integrations. |
 | `INROAD_SEARCH_PROVIDER` | External search provider: `auto` (default), `off`, `firecrawl`, `deepseek`, `tinyfish`, `tavily`, `exa`, `brave`, `custom`, or `connected`. A saved selection wins. DeepSeek requires an explicit choice. |

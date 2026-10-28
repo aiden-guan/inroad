@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AiStatus } from "@/components/settings/types";
-import { deleteAiKey, keyHint, readAiKey, saveAiKey } from "@/lib/store/ai-keys";
+import { aiKeyStore, deleteAiKey, keyHint, readAiKey, saveAiKey } from "@/lib/store/ai-keys";
 import { readSettings, writeSettings, type AiSettings, type ModelPrice } from "@/lib/store/settings";
 import { activeProvider } from "./client";
 import type { ModelTier } from "./models";
@@ -18,7 +18,7 @@ export function aiStatus(): AiStatus {
   const ai = readSettings().ai;
   const active = activeProvider();
   const saved: AiStatus["saved"] = {};
-  for (const [id, v] of Object.entries(ai?.keys ?? {})) if (v) saved[id as ProviderId] = { hint: v.hint, store: v.store };
+  for (const [id, v] of Object.entries(ai?.keys ?? {})) if (v) saved[id as ProviderId] = { hint: v.hint, store: aiKeyStore(id as ProviderId, v.store) };
   const env = PROVIDERS.filter((p) => p.env.some((name) => process.env[name])).map((p) => p.id);
   if (process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE) if (!env.includes("anthropic")) env.push("anthropic");
   const inUse = active && active.kind === "openai" ? [...new Set(Object.values(active.models))] : [];
@@ -32,6 +32,7 @@ export function aiStatus(): AiStatus {
     prices: ai?.prices ?? {},
     saved,
     keychain: process.platform === "darwin" ? "your Mac's Keychain" : process.platform === "win32" ? "Windows Credential Manager" : "your system keyring",
+    defaultKeyStore: ["prefer-file", "off"].includes(process.env.INROAD_KEYCHAIN ?? "") ? "file" : "keychain",
     env,
     unpriced: inUse.some((m) => !active?.prices[m]),
     webSearch: active?.kind === "anthropic" ? "built_in" : (activeSearch()?.id ?? "none"),
