@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.15] — 2026-10-28
+
 ### Added
 - Research-driven Studio art direction from 25 primary-source brand studies, with seven visual approaches and Focused, Bold and Unexpected creative ranges.
 - Shared concept exploration, composition, materials, lighting, copy-space and brand guidance for ChatGPT, OpenAI, copyable prompts and SVG graphics.
