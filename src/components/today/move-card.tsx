@@ -61,7 +61,7 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
   const present = useIsPresent();
   const leaving = present ? undefined : exits[move.id];
   return (
-    <div className={cn("group/move relative rounded-xl bg-surface shadow-xs ring-1 ring-inset transition-[box-shadow,background-color] duration-200 hover:shadow-sm", p.focused ? "ring-accent/40" : "ring-border")}>
+    <div data-move={move.id} className={cn("group/move relative rounded-xl bg-surface shadow-xs ring-1 ring-inset transition-[box-shadow,background-color] duration-200 hover:shadow-sm", p.focused ? "ring-accent/40" : "ring-border")}>
       <div className={cn("relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 md:px-5", p.focused && "draft-wash", p.expanded || p.skipOpen ? "rounded-t-xl" : "rounded-xl")}>
         <span
           className={cn(
