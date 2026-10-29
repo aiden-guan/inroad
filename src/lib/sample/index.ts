@@ -25,6 +25,7 @@ import { intros } from "./intros";
 import { DEAL, DOMAIN, MEETING, RUN } from "./ids";
 import { activities, outreach } from "./outreach";
 import { deals, meetings } from "./pipeline";
+import { ceoUpdate, lastWeekSnapshot, revenueTarget } from "./revenue";
 import { runs, runSteps, usage } from "./runs";
 import { studio } from "./studio";
 
@@ -66,8 +67,9 @@ function assemble(now: Date): Workspace {
   const povList = povs(c);
   const peopleById = people(c);
   const accountsByDomain = accounts(c, f.icp.criteria, evidenceList);
+  const target = revenueTarget(c);
 
-  return {
+  const ws: Workspace = {
     schemaVersion: 1,
     rev: 0,
     createdAt: c.at(-HIRED_DAYS_AGO, "09:58"),
@@ -106,7 +108,11 @@ function assemble(now: Date): Workspace {
     ],
     runs: runs(c),
     usage: usage(c),
+    revenue: { target, snapshots: [lastWeekSnapshot(c, target)] },
   };
+  // Written last: the update's numbers are computed from the finished workspace.
+  ws.revenue!.updates = [ceoUpdate(ws, c)];
+  return ws;
 }
 
 function brief(c: Clock): Brief {

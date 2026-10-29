@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
 import { ArrowLeftRight, Handshake, NotebookPen, Plus, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
@@ -66,15 +68,18 @@ export function IntrosPage() {
   const empty = !Object.keys(ws.intros ?? {}).length;
 
   return (
-    <div className="mx-auto w-full max-w-[860px] px-6 pb-28 pt-8 md:px-10 md:pt-12">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em]">Intros</h1>
-          <p className="mt-1.5 max-w-[56ch] text-[14px] leading-[21px] text-fg-2">
-            Every intro you ask for or make, from the ask to the thank-you. Double opt-in, always, and it always says whose move it is.
-          </p>
+    <div className="page-shell max-w-[1000px]">
+      <PageHeader
+        title="Intros"
+        eyebrow="Better through people"
+        description="Every intro you ask for or make, from the ask to the thank-you. Double opt-in, always."
+        actions={<>
+          <Button variant="secondary" icon={<NotebookPen className="size-4" />} onClick={() => setDialog("ask")}>Log an ask</Button>
+          <Button variant="primary" icon={<ArrowLeftRight className="size-4" />} onClick={() => setDialog("give")}>Make an intro</Button>
+        </>}
+      >
           {!empty && (
-            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
+            <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
               <span>
                 <span className="font-mono tnum text-fg-2">{groups.yours.length}</span> your move
               </span>
@@ -96,16 +101,7 @@ export function IntrosPage() {
               )}
             </p>
           )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" icon={<NotebookPen className="size-4" />} onClick={() => setDialog("ask")}>
-            Log an ask
-          </Button>
-          <Button variant="primary" icon={<ArrowLeftRight className="size-4" />} onClick={() => setDialog("give")}>
-            Make an intro
-          </Button>
-        </div>
-      </header>
+      </PageHeader>
 
       {empty ? (
         <div className="mt-10 rounded-lg bg-surface px-6 py-10 text-center ring-1 ring-border">
@@ -211,7 +207,8 @@ function Row({ i, intro, ws, today, open, highlight }: { i: number; intro: Intro
 
 function PageSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[860px] px-6 pb-28 pt-8 md:px-10 md:pt-12" aria-busy="true">
+    <div className="page-shell max-w-[1000px]" aria-busy="true">
+      <LoadingSignal label="Loading introductions" className="mb-7" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="mt-3 h-4 w-full max-w-[480px]" />
       {[2, 3].map((n, g) => (

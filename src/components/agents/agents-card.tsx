@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Favicon } from "@/components/ui/favicon";
 import { Input, Label, FieldError } from "@/components/ui/field";
-import { Skeleton } from "@/components/ui/misc";
-import { ACCESS, accessOf, CLIENTS, clientMeta, TOOL_VERBS, type AccessLevel, type AgentCall, type AgentClient, type ApiKeyPublic } from "@/lib/api-keys/types";
+import { Segmented, Skeleton } from "@/components/ui/misc";
+import type { ModelTier } from "@/lib/ai/models";
+import { ACCESS, accessOf, CLIENTS, clientMeta, KEY_EFFORTS, KEY_MODELS, keyModelOf, TOOL_VERBS, type AccessLevel, type AgentCall, type AgentClient, type ApiKeyPublic, type KeyEffort } from "@/lib/api-keys/types";
 import { cn } from "@/lib/client/cn";
 import { ease } from "@/lib/motion";
 import { Ago, Callout, ConfirmButton, CopyField, LOCAL_ORIGIN, SubLabel, useNow, useOrigin } from "./bits";
@@ -21,7 +22,8 @@ import { useAgentKeys } from "./use-keys";
 /**
  * Lets the founder plug other agents (Meta Muse, Claude Code/Desktop, Cursor, ChatGPT, n8n, AI SDRs)
  * into Inroad over MCP or REST: generate a scoped key, copy a per-client snippet, see each key's
- * activity, revoke. Those agents pay for their own inference, so this traffic costs zero tokens.
+ * activity, revoke. Those agents pay for their own inference, so this traffic costs zero tokens,
+ * except ask_inroad, which runs on the model and thinking level the founder picks per key.
  */
 
 function ClientMark({ client, size = 20 }: { client: AgentClient; size?: number }) {
@@ -223,6 +225,31 @@ function Reveal({ keyRow, token, base, localBase, isLocal, onDone }: { keyRow: A
   );
 }
 
+/* ───────────── Model for ask_inroad ───────────── */
+
+function AskModel({ k, onChange }: { k: ApiKeyPublic; onChange: (patch: { model?: ModelTier; effort?: KeyEffort }) => void }) {
+  const { model, effort } = keyModelOf(k);
+  const meta = KEY_MODELS.find((m) => m.id === model)!;
+  return (
+    <div>
+      <SubLabel>When it asks Inroad</SubLabel>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-fg-3">Model</span>
+          <Segmented layoutId={`key-model-${k.id}`} value={model} onChange={(v) => onChange({ model: v })} options={KEY_MODELS.map((m) => ({ value: m.id, label: m.label.replace(/ 5\.5$/, "") }))} />
+        </div>
+        <div className={cn("flex items-center gap-2", model === "fast" && "pointer-events-none opacity-50")} aria-disabled={model === "fast"}>
+          <span className="text-[12px] text-fg-3">Thinking</span>
+          <Segmented layoutId={`key-effort-${k.id}`} value={effort} onChange={(v) => onChange({ effort: v })} options={KEY_EFFORTS.map((e) => ({ value: e.id, label: e.label }))} />
+        </div>
+      </div>
+      <p className="mt-2 text-[12px] leading-[18px] text-fg-3">
+        {meta.blurb} {model === "fast" ? "Haiku always thinks at low." : effort === "high" ? "High thinking is slower and costs more per answer." : ""} Only ask_inroad uses your AI credits; every other call is free.
+      </p>
+    </div>
+  );
+}
+
 /* ───────────── One key ───────────── */
 
 function KeyRow({
@@ -231,6 +258,7 @@ function KeyRow({
   open,
   onToggle,
   onRevoke,
+  onUpdate,
   base,
   localBase,
   isLocal,
@@ -240,6 +268,7 @@ function KeyRow({
   open: boolean;
   onToggle: () => void;
   onRevoke: () => void;
+  onUpdate: (patch: { model?: ModelTier; effort?: KeyEffort }) => void;
   base: string;
   localBase: string;
   isLocal: boolean;
@@ -284,6 +313,7 @@ function KeyRow({
             <SubLabel>Activity</SubLabel>
             <Feed calls={calls} keyName={k.name} />
           </div>
+          <AskModel k={k} onChange={onUpdate} />
           <div>
             <SubLabel>Set it up</SubLabel>
             <Snippets base={base} localBase={localBase} isLocal={isLocal} initial={clientMeta(k.client).snippet} />
@@ -407,7 +437,7 @@ export function AgentsCard() {
   const [mode, setMode] = useState<"idle" | "create">("idle");
   const [fresh, setFresh] = useState<{ id: string; token: string } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const { data, error, refresh, create, revoke } = useAgentKeys(Boolean(fresh));
+  const { data, error, refresh, create, revoke, update } = useAgentKeys(Boolean(fresh));
 
   const publicUrl = typeof ws?.integrations.webhook_in?.config.publicUrl === "string" ? ws.integrations.webhook_in.config.publicUrl : "";
   const base = (publicUrl || origin).replace(/\/+$/, "");
@@ -431,6 +461,10 @@ export function AgentsCard() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't revoke that key.");
     }
+  };
+
+  const onUpdate = (k: ApiKeyPublic, patch: { model?: ModelTier; effort?: KeyEffort }) => {
+    update(k.id, patch).catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't save that setting."));
   };
 
   const startCreate = () => {
@@ -523,6 +557,7 @@ export function AgentsCard() {
                 open={openId === k.id}
                 onToggle={() => setOpenId(openId === k.id ? null : k.id)}
                 onRevoke={() => void onRevoke(k)}
+                onUpdate={(patch) => onUpdate(k, patch)}
                 base={base}
                 localBase={localBase}
                 isLocal={isLocal}

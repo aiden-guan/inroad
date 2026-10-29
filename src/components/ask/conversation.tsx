@@ -6,14 +6,16 @@ import { ArrowUp, Globe, History, Sparkles, SquarePen, Square, X, Zap } from "lu
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { RunState } from "@/components/providers/runs-provider";
+import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
 import { Popover } from "@/components/ui/menu";
 import { Skeleton } from "@/components/ui/misc";
+import { StatusLine } from "@/components/ui/fx";
 import { Orb } from "@/components/ui/orb";
+import { ReasoningTrace } from "@/components/ui/reasoning-stream";
 import { SourceChip } from "@/components/ui/source";
 import { Tooltip } from "@/components/ui/tooltip";
 import { WorkLog } from "@/components/ui/work-log";
@@ -21,7 +23,9 @@ import { cn } from "@/lib/client/cn";
 import { duration, relativeTime, usd } from "@/lib/client/format";
 import { MODEL_LABELS, costOf, emptyUsage } from "@/lib/ai/models";
 import { useAiStatus } from "@/lib/client/ai-provider";
+import { ease } from "@/lib/motion";
 import type { AskThreadSummary, AskTurn, EntityRef, Workspace } from "@/lib/domain/types";
+import { AnswerCard } from "./answer-cards";
 import { AnswerText, countWords, settledText, useWordReveal } from "./answer-text";
 import { ProposalChip } from "./proposal-chip";
 import { fetchThreads, useConversation, type ConversationState, type SendOptions } from "./use-conversation";
@@ -141,8 +145,16 @@ export function FounderTurn({ turn }: { turn: AskTurn }) {
   );
 }
 
-function InstantView({ turn, last, onFollowUp, onNavigate }: { turn: AskTurn; last: boolean; onFollowUp: (text: string) => void; onNavigate?: () => void }) {
+function InstantView({ turn, last, play, onFollowUp, onNavigate }: { turn: AskTurn; last: boolean; play: boolean; onFollowUp: (text: string) => void; onNavigate?: () => void }) {
   const answer = turn.instant!;
+  if (answer.view) {
+    return (
+      <div>
+        <AnswerCard view={answer.view} title={answer.title} rows={answer.rows} play={play} onNavigate={onNavigate} />
+        <InstantFooter last={last} play={play} onFollowUp={onFollowUp} />
+      </div>
+    );
+  }
   return (
     <div className="animate-[rise-in_200ms_var(--ease-out)_both]">
       <p className="prose-agent">{answer.title}</p>
@@ -172,16 +184,22 @@ function InstantView({ turn, last, onFollowUp, onNavigate }: { turn: AskTurn; la
           })}
         </ul>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-1 font-mono text-[11.5px] text-fg-3">
-          <Zap className="size-3" /> Instant · from your workspace · no AI cost
-        </span>
-        {last && (
-          <button onClick={() => onFollowUp("What should I do about this?")} className="text-[12.5px] font-medium text-accent-text hover:underline">
-            What should I do about this?
-          </button>
-        )}
-      </div>
+      <InstantFooter last={last} play={false} onFollowUp={onFollowUp} />
+    </div>
+  );
+}
+
+function InstantFooter({ last, play, onFollowUp }: { last: boolean; play: boolean; onFollowUp: (text: string) => void }) {
+  return (
+    <div className={cn("mt-2 flex flex-wrap items-center gap-x-3 gap-y-1", play && "fx-rise")} style={play ? { "--fx-delay": "1100ms" } as React.CSSProperties : undefined}>
+      <span className="inline-flex items-center gap-1 font-mono text-[11.5px] text-fg-3">
+        <Zap className="size-3" /> Instant · from your workspace · no AI cost
+      </span>
+      {last && (
+        <button onClick={() => onFollowUp("What should I do about this?")} className="text-[12.5px] font-medium text-accent-text hover:underline">
+          What should I do about this?
+        </button>
+      )}
     </div>
   );
 }
@@ -242,6 +260,9 @@ export function AgentTurn({
   hereHref?: string;
 }) {
   const { ws } = useWorkspace();
+  const { runs } = useRuns();
+  // The reasoning that led here, while this tab still holds it (it's never saved).
+  const reasoning = (turn.runId ? runs[turn.runId]?.reasoning : undefined) ?? run?.reasoning ?? [];
   const runEnded = !!run && run.status !== "running" && run.status !== "queued";
   const active = !!turn.pending && !turn.error && !runEnded;
   const raw = turn.pending ? (run?.text ?? "") : turn.text;
@@ -258,7 +279,7 @@ export function AgentTurn({
       <div className="flex gap-3">
         <Orb size={14} className="mt-[6px]" />
         <div className="min-w-0 flex-1">
-          <InstantView turn={turn} last={last} onFollowUp={(t) => void conv.send(t)} onNavigate={onNavigate} />
+          <InstantView turn={turn} last={last} play={animate} onFollowUp={(t) => void conv.send(t)} onNavigate={onNavigate} />
         </div>
       </div>
     );
@@ -281,6 +302,7 @@ export function AgentTurn({
             </motion.div>
           )}
         </AnimatePresence>
+        {visible && reasoning.length > 0 && <ReasoningTrace lines={reasoning} className="-mt-0.5" />}
         {visible && <AnswerText text={visible} limit={shown} animate={animate} evidence={ws?.evidence ?? {}} />}
         {active && visible && <p className="shimmer-text h-5 text-[12px]">Writing</p>}
         {(error || interrupted) && (
@@ -624,12 +646,45 @@ export function Conversation({
   const long = (conv.thread?.approxTokens ?? 0) > 30_000 || conv.turns.length > 40;
   const placeholder = meta ? `Ask about ${meta.label}…` : "Ask about a deal or what to do next…";
   const empty = !conv.loading && !conv.failed && conv.turns.length === 0;
+  // The window's title becomes the question; under it, what the agent is doing right now.
+  const title = conv.turns.length && conv.thread?.title ? conv.thread.title : "Ask";
+  const live = conv.liveRun;
+  const step = live?.steps.filter((s) => s.text).at(-1);
+  const status = !conv.busy
+    ? null
+    : !live
+      ? "Checking your workspace"
+      : live.text
+        ? "Writing the answer"
+        : step
+          ? step.kind === "search"
+            ? `Searching “${step.text}”`
+            : step.kind === "read"
+              ? `Reading ${step.text}`
+              : step.text
+          : "Thinking";
 
   const header =
     variant === "window" ? (
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border pl-4 pr-2">
-        <Orb size={16} state={conv.busy ? "working" : "idle"} />
-        <span className="text-[13.5px] font-medium text-fg">Ask</span>
+        <Orb size={16} state={conv.busy ? "working" : "idle"} tick={live?.steps.length ?? 0} />
+        <span className="flex min-w-0 max-w-[60%] flex-col justify-center">
+          <StatusLine text={title} className="text-[13.5px] font-medium leading-[18px] text-fg" />
+          <AnimatePresence initial={false}>
+            {status && (
+              <motion.span
+                key="status"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 16, opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: ease.out }}
+                className="flex min-w-0"
+              >
+                <StatusLine text={status} active className="text-[11.5px] leading-4 text-fg-3" />
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </span>
         <AiBadge />
         {meta && (
           <span className="ml-1 inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-bg-subtle pl-2 pr-1 text-[12px] text-fg-2 ring-1 ring-border">

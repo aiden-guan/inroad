@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Orb } from "@/components/ui/orb";
 import { cn } from "@/lib/client/cn";
@@ -263,20 +264,16 @@ export function PlaybookDocument() {
         </aside>
 
         <div className="mx-auto w-full min-w-0 max-w-[720px] @min-[1000px]/page:mx-0">
-          <header className="mb-8">
-            <div className="flex items-start justify-between gap-4">
-              <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em] text-fg [font-variation-settings:'opsz'_72]">Playbook</h1>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" variant="ghost" icon={<MessageCircle className="size-3.5" />} onClick={() => openAsk(section)}>
-                  <span className="hidden sm:inline">Ask</span>
-                </Button>
-                <ExportMenu />
-              </div>
-            </div>
-            <p className="mt-2 max-w-[58ch] text-[14px] leading-[21px] text-fg-2">
-              What I believe about how {company} wins, and how sure I am. Edit anything; your version is the one I use.
-            </p>
-          </header>
+          <PageHeader
+            title="Playbook"
+            eyebrow="A point of view, in progress"
+            description={<>What I believe about how {company} wins, and how sure I am. Edit anything; your version is the one I use.</>}
+            className="mb-8"
+            actions={<>
+              <Button size="sm" variant="ghost" icon={<MessageCircle className="size-3.5" />} onClick={() => openAsk(section)}>Ask</Button>
+              <ExportMenu />
+            </>}
+          />
 
           <MobileNav section={section} />
           <div className="mb-6 @min-[1000px]/page:hidden">

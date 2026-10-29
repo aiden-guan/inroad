@@ -10,6 +10,9 @@ import { isSuppressed, normalizeDomain, normalizeEmail } from "@/lib/hub/records
 import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
 import { linkedinKey } from "@/lib/network/csv";
 import { AI_VOCAB_FOR_PROMPT, BANNED_FOR_PROMPT, HYPE_FOR_PROMPT, LIMITS } from "@/lib/quality/lint";
+import { PLAYS, playEnabled, playMatches, playResults } from "@/lib/plays/catalog";
+import { baseline, computeForecast, computePlan, forecastChanges } from "@/lib/revenue/forecast";
+import type { Observed } from "@/lib/revenue/stats";
 
 /**
  * Read views for outside agents. Compact, snake_case JSON built in code from the workspace: an
@@ -401,4 +404,90 @@ export function growthView(ws: Workspace, base: string) {
     note: g.paidAllowed ? "Retention clears the bar." : "Paid acquisition is on hold until retention clears the bar. Don't propose scaling paid spend.",
     review_url: `${base}/playbook#numbers`,
   };
+}
+
+/* ─────────────────────────────── Forecast and plays ─────────────────────────────── */
+
+const pct = (n: number) => Math.round(n * 100) / 100;
+
+/** The forecast as other agents see it: the same code-computed call as the Revenue page. */
+export function forecastView(ws: Workspace, now: Date, base: string, dealId?: string) {
+  const today = todayISO(now);
+  const f = computeForecast(ws, today);
+  const plan = computePlan(ws, f, now);
+  const rate = (o: Observed) => ({ value: pct(o.value), source: o.source, n: o.n });
+  const deals = f.calls
+    .filter((c) => !dealId || c.deal.id === dealId)
+    .map((c) => ({
+      id: c.deal.id,
+      name: c.deal.name,
+      domain: c.deal.accountDomain,
+      stage: c.deal.stage,
+      category: c.category,
+      code_category: c.codeCategory,
+      called_by_owner: c.called,
+      why: c.why,
+      amount_usd: c.amount.usd,
+      amount_source: c.amount.source,
+      close_date: c.closeDate,
+      close_estimated: c.closeEstimated,
+      in_period: c.inPeriod,
+      odds: pct(c.probability),
+      health: c.health,
+      band: c.band,
+      risks: c.risks.map((r) => ({ code: r.code, severity: r.severity, label: r.label, detail: r.detail, fix: r.fix.label })),
+      review_url: `${base}/revenue?d=${encodeURIComponent(c.deal.id)}`,
+    }));
+  return {
+    period: { label: f.period.label, start: f.period.start, end: f.period.end, weeks_left: f.period.weeksLeft },
+    target_usd: f.hasTarget ? f.target : null,
+    closed_won_usd: f.closedWon.usd,
+    commit_usd: f.commit,
+    best_case_usd: f.bestCase,
+    pipeline_usd: f.pipeline,
+    weighted_usd: Math.round(f.weighted),
+    coverage: f.coverage === null ? null : pct(f.coverage),
+    coverage_healthy: f.coverageNeeded,
+    next_period: { start: f.next.start, end: f.next.end, pipeline_usd: f.next.pipeline },
+    plan: {
+      verdict: plan.verdict,
+      headline: plan.headline,
+      gap_usd: plan.gap,
+      deals_needed: plan.dealsNeeded,
+      qualified_needed: plan.qualifiedNeeded,
+      first_meetings_needed: plan.meetingsNeeded,
+      new_pipeline_cutoff: plan.cutoff,
+      first_meetings_per_week_needed: plan.meetingsPerWeekNeeded,
+      first_meetings_per_week_recent: plan.meetingsPerWeekRecent,
+      levers: plan.levers,
+      rates: { win_rate: rate(plan.winRate), typical_deal_usd: rate(plan.avgDeal), meeting_to_qualified: rate(plan.meetingToQualified), cycle_days: rate(plan.cycleDays) },
+    },
+    changes_since_last_week: forecastChanges(ws, baseline(ws, today), f).map((c) => ({ kind: c.kind, deal_id: c.dealId, text: c.text, delta_usd: c.deltaUsd })),
+    deals,
+    rule: "Numbers are counted from the founder's deals; rates marked prior are starting defaults until enough deals close. Don't restate them as observed.",
+    review_url: `${base}/revenue`,
+  };
+}
+
+export function playsView(ws: Workspace, today: string, base: string, args: { play_id?: string; limit?: number }) {
+  const limit = args.limit ?? 5;
+  const plays = PLAYS.filter((p) => !args.play_id || p.id === args.play_id).map((p) => {
+    const matches = playMatches(ws, p, today);
+    const live = matches.filter((m) => !m.worked);
+    return {
+      id: p.id,
+      name: p.name,
+      family: p.family,
+      trigger: p.trigger,
+      why: p.why,
+      how: p.coach,
+      action: p.action.label,
+      data: p.data,
+      running: playEnabled(ws, p.id),
+      live_matches: live.length,
+      matches: live.slice(0, limit).map((m) => ({ domain: m.domain, company: m.company, person: m.personName ?? null, deal_id: m.dealId ?? null, trigger: m.headline, date: m.date ?? null, source_url: m.url ?? null })),
+      results: playResults(ws, p),
+    };
+  });
+  return { plays, review_url: `${base}/plays`, rule: "The founder sends every touch. Draft or research from these matches; don't contact anyone yourself." };
 }

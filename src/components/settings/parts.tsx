@@ -27,7 +27,7 @@ export function SettingsSection({ id, title, description, children }: { id: stri
 /** A titled group of rows on one card. */
 export function Group({ id, title, hint, right, children, className }: { id?: string; title?: string; hint?: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <div id={id} className={cn("scroll-mt-56 @min-[880px]/page:scroll-mt-8", className)}>
+    <div id={id} className={cn("@container/setting-group scroll-mt-56 @min-[880px]/page:scroll-mt-8", className)}>
       {(title || right) && (
         <div className="mb-2 flex min-h-7 items-end justify-between gap-3">
           {title && <h3 className="text-[14px] font-semibold tracking-[-0.005em] text-fg">{title}</h3>}
@@ -35,7 +35,7 @@ export function Group({ id, title, hint, right, children, className }: { id?: st
         </div>
       )}
       {hint && <p className="-mt-1 mb-3 max-w-[62ch] text-[13px] leading-5 text-fg-3 text-pretty">{hint}</p>}
-      <div className="divide-y divide-border rounded-lg bg-surface shadow-xs ring-1 ring-border">{children}</div>
+      <div className="divide-y divide-border rounded-xl bg-surface shadow-xs ring-1 ring-inset ring-border">{children}</div>
     </div>
   );
 }
@@ -43,7 +43,7 @@ export function Group({ id, title, hint, right, children, className }: { id?: st
 /** Label and help on the left, the control on the right; stacked below 640px. */
 export function Row({ label, hint, htmlFor, children, className, align = "center" }: { label: ReactNode; hint?: ReactNode; htmlFor?: string; children?: ReactNode; className?: string; align?: "center" | "start" }) {
   return (
-    <div className={cn("flex flex-col gap-2.5 px-4 py-3.5 sm:flex-row sm:gap-6", align === "center" ? "sm:items-center" : "sm:items-start", className)}>
+    <div className={cn("flex flex-col gap-3 px-5 py-4 @min-[600px]/setting-group:flex-row @min-[600px]/setting-group:gap-6", align === "center" ? "@min-[600px]/setting-group:items-center" : "@min-[600px]/setting-group:items-start", className)}>
       <div className="min-w-0 flex-1">
         {htmlFor ? (
           <label htmlFor={htmlFor} className="text-[13px] font-medium text-fg">
@@ -54,7 +54,7 @@ export function Row({ label, hint, htmlFor, children, className, align = "center
         )}
         {hint && <div className="mt-0.5 text-[12.5px] leading-[18px] text-fg-3 text-pretty">{hint}</div>}
       </div>
-      {children !== undefined && <div className="min-w-0 sm:w-[300px] sm:shrink-0">{children}</div>}
+      {children !== undefined && <div className="min-w-0 @min-[600px]/setting-group:w-[280px] @min-[600px]/setting-group:shrink-0">{children}</div>}
     </div>
   );
 }

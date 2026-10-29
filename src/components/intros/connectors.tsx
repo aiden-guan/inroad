@@ -7,7 +7,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input, Label, Textarea } from "@/components/ui/field";
+import { Input, Label, Textarea, Select } from "@/components/ui/field";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { newId, nowISO } from "@/lib/domain/ids";
@@ -205,7 +205,7 @@ function ConnectorForm({ connector, onDone }: { connector?: Connector; onDone: (
         </div>
         <div>
           <Label htmlFor={`${id}-r`}>Who they are to you</Label>
-          <select
+          <Select
             id={`${id}-r`}
             value={relationship}
             onChange={(e) => setRelationship(e.target.value as Connector["relationship"])}
@@ -216,7 +216,7 @@ function ConnectorForm({ connector, onDone }: { connector?: Connector; onDone: (
                 {RELATIONSHIP_LABEL[r]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <Label htmlFor={`${id}-e`} hint="Fills the To line">

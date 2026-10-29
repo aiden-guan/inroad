@@ -1,3 +1,4 @@
+import type { ModelTier } from "@/lib/ai/models";
 import type { ID, ISODateTime } from "@/lib/domain/types";
 
 /**
@@ -35,6 +36,33 @@ export const CLIENTS: { id: AgentClient; name: string; domain?: string; access: 
   { id: "other", name: "Another agent", access: "records", snippet: "rest" },
 ];
 
+/**
+ * Which model and how much thinking Inroad spends when this key calls ask_inroad, the one tool
+ * that runs on the founder's Anthropic key. Everything else a key calls is plain code.
+ */
+export type KeyEffort = "low" | "medium" | "high";
+
+export const KEY_MODELS: { id: ModelTier; label: string; blurb: string }[] = [
+  { id: "fast", label: "Haiku 5.5", blurb: "Cheapest. Lookups and short answers, no web search." },
+  { id: "operator", label: "Sonnet 5.5", blurb: "Most questions: accounts, next moves, angles." },
+  { id: "strategist", label: "Opus 5.5", blurb: "Hard judgment calls. About twice Sonnet's cost." },
+];
+
+export const KEY_EFFORTS: { id: KeyEffort; label: string }[] = [
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+];
+
+export const DEFAULT_KEY_MODEL: ModelTier = "operator";
+export const DEFAULT_KEY_EFFORT: KeyEffort = "low";
+
+/** The model and effort a key's asks run on. Haiku always thinks at low effort, per the cost policy. */
+export function keyModelOf(k: Pick<ApiKeyPublic, "model" | "effort">): { model: ModelTier; effort: KeyEffort } {
+  const model = k.model ?? DEFAULT_KEY_MODEL;
+  return { model, effort: model === "fast" ? "low" : (k.effort ?? DEFAULT_KEY_EFFORT) };
+}
+
 export type SnippetId = "claude_code" | "cursor" | "claude_desktop" | "muse" | "rest";
 
 export function clientMeta(id: AgentClient) {
@@ -55,6 +83,9 @@ export interface ApiKeyPublic {
   calls: number;
   /** From the MCP initialize handshake: "claude-code 2.1.4". */
   lastClient?: string;
+  /** For ask_inroad. Unset on keys made before this existed: see keyModelOf. */
+  model?: ModelTier;
+  effort?: KeyEffort;
 }
 
 /** One logged call, shown in the key's activity feed ("Muse added 40 accounts"). */
@@ -74,6 +105,11 @@ export interface AgentCall {
 export interface KeysResponse {
   keys: ApiKeyPublic[];
   calls: AgentCall[];
+}
+
+/** PATCH /api/mcp/keys/[id] */
+export interface UpdateKeyResponse {
+  key: ApiKeyPublic;
 }
 
 /** POST /api/mcp/keys */
@@ -97,4 +133,5 @@ export const TOOL_VERBS: Record<string, string> = {
   get_account: "read an account",
   find_warm_paths: "find warm paths",
   list_intros: "list intros",
+  ask_inroad: "answer a question",
 };

@@ -7,7 +7,7 @@ import { useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/field";
+import { Input, Label, Select } from "@/components/ui/field";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { CopyButton, Markdown, Segmented } from "@/components/ui/misc";
 import { WorkLog } from "@/components/ui/work-log";
@@ -27,6 +27,11 @@ import {
 } from "@/lib/deals/rules";
 import { addDays, daysBetween, newId, nowISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Account, type Deal, type MutualActionPlan, type Person, type PersonaRole, type Stage } from "@/lib/domain/types";
+import { BAND_LABEL, BAND_TONE, RiskList } from "@/components/revenue/risk-list";
+import { CallMenu } from "@/components/revenue/deal-calls";
+import { callDeal } from "@/lib/revenue/forecast";
+import type { RiskCode } from "@/lib/revenue/risk";
+import { openStage, periodOf, revenueStats } from "@/lib/revenue/stats";
 import { MeetingsSection } from "./meetings";
 import { QualificationCardView } from "./qualification";
 import { Callout, CommitInput, HoldButton, ROLE_LABEL, Section } from "./shared";
@@ -35,6 +40,7 @@ export function DealPanel({ deal, account, today, focusLog }: { deal: Deal; acco
   return (
     <div className="space-y-9">
       <StageControl deal={deal} today={today} />
+      <ForecastRisk deal={deal} today={today} />
       <NextStep deal={deal} today={today} />
       <QualificationCardView deal={deal} today={today} />
       <MeetingsSection deal={deal} account={account} today={today} focusLog={focusLog} />
@@ -42,6 +48,49 @@ export function DealPanel({ deal, account, today, focusLog }: { deal: Deal; acco
       <Tasks deal={deal} today={today} />
       <Plan deal={deal} account={account} today={today} />
     </div>
+  );
+}
+
+/* ─────────────────────────────── Forecast & risk ─────────────────────────────── */
+
+/** Inside the sheet, a fix that would open this same sheet scrolls to the section where it's made. */
+const IN_SHEET: Partial<Record<RiskCode, string>> = {
+  no_next_step: "deal-next-step",
+  next_step_overdue: "deal-next-step",
+  next_step_unconfirmed: "deal-next-step",
+  no_champion: "deal-people",
+  plan_behind: "deal-plan",
+  no_pilot_criteria: "deal-pilot",
+  unpaid_pilot: "deal-pilot",
+};
+
+/** The deal review in one place: how the forecast calls it, its health, and each risk with the fix. */
+function ForecastRisk({ deal, today }: { deal: Deal; today: string }) {
+  const { ws } = useWorkspace();
+  const call = useMemo(() => {
+    if (!ws || !openStage(deal.stage)) return null;
+    return callDeal(ws, deal, revenueStats(ws, today), periodOf(ws.revenue?.target, today), today);
+  }, [ws, deal, today]);
+  if (!call) return null;
+  return (
+    <Section
+      label="Forecast and risk"
+      right={
+        <span className="flex items-center gap-2">
+          <span className={cn("text-[12px] font-medium", BAND_TONE[call.band])}>
+            {BAND_LABEL[call.band]} · <span className="font-mono tnum">{call.health}</span>
+          </span>
+          <CallMenu c={call} />
+        </span>
+      }
+    >
+      <p className="mb-1 text-[12.5px] leading-5 text-fg-3">
+        {money(call.amount.usd)}
+        {call.amount.source === "average" ? " (typical deal, until an amount is set)" : ""} · closes {shortDate(call.closeDate)}
+        {call.closeEstimated ? " (estimated)" : ""} · {call.inPeriod ? "in" : "outside"} {periodOf(ws?.revenue?.target, today).label} · {call.why}
+      </p>
+      <RiskList risks={call.risks} deal={deal} jump={IN_SHEET} />
+    </Section>
   );
 }
 
@@ -141,7 +190,7 @@ function StageControl({ deal, today }: { deal: Deal; today: string }) {
         <div className="mt-3 flex flex-wrap items-end gap-2 rounded-md bg-bg-subtle p-3 animate-[fade-in_150ms_var(--ease-out)]">
           <div className="min-w-48 flex-1">
             <Label htmlFor="loss-reason">Why did it end?</Label>
-            <select
+            <Select
               id="loss-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as NonNullable<Deal["lossReason"]>)}
@@ -152,7 +201,7 @@ function StageControl({ deal, today }: { deal: Deal; today: string }) {
                   {r.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <HoldButton onConfirm={() => void move("lost", { lossReason: reason })}>Hold to close as lost</HoldButton>
           <Button size="sm" variant="ghost" onClick={() => setClosing(null)}>
@@ -263,14 +312,14 @@ function NextStep({ deal, today }: { deal: Deal; today: string }) {
 
   if (!ns) {
     return (
-      <section className="rounded-lg bg-danger-subtle/60 p-3 ring-1 ring-danger/20">
+      <section id="deal-next-step" className="scroll-mt-14 rounded-lg bg-danger-subtle/60 p-3 ring-1 ring-danger/20">
         <p className="text-[13px] font-medium text-danger">No dated next step. Treat this deal as a soft no until one is booked.</p>
         {form}
       </section>
     );
   }
   return (
-    <section className={cn("rounded-lg p-3 ring-1", overdue ? "bg-danger-subtle/60 ring-danger/20" : "bg-surface ring-border")}>
+    <section id="deal-next-step" className={cn("scroll-mt-14 rounded-lg p-3 ring-1", overdue ? "bg-danger-subtle/60 ring-danger/20" : "bg-surface ring-border")}>
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <span className="text-[12px] font-medium text-fg-3">Next step</span>
         {!ns.buyerAgreed && <Badge tone="warning">Not agreed by them</Badge>}
@@ -333,6 +382,7 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
 
   return (
     <Section
+      id="deal-people"
       label="People on this deal"
       right={
         <div className="flex items-center gap-1">
@@ -377,11 +427,11 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
                 <span className="font-medium text-fg">{person.name}</span>
                 {person.title && <span className="text-fg-2"> · {person.title}</span>}
               </span>
-              <select
+              <Select
                 value={role ?? ""}
                 aria-label={`${person.name}'s role`}
                 onChange={(e) => void setContacts(deal.contacts.map((c) => (c.personId === person.id ? { ...c, role: (e.target.value || undefined) as PersonaRole | undefined } : c)))}
-                className="h-7 rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                className="h-7 w-full rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:w-auto"
               >
                 <option value="">Role?</option>
                 {(Object.keys(ROLE_LABEL) as PersonaRole[]).map((r) => (
@@ -389,12 +439,12 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
                     {ROLE_LABEL[r]}
                   </option>
                 ))}
-              </select>
-              <select
+              </Select>
+              <Select
                 value={person.champion ?? ""}
                 aria-label={`${person.name}'s champion status`}
                 onChange={(e) => void dispatch({ type: "person.upsert", person: { ...person, champion: (e.target.value || undefined) as Person["champion"] } })}
-                className="h-7 rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                className="h-7 w-full rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:w-auto"
               >
                 <option value="">Not a champion</option>
                 {(Object.keys(CHAMPION_LABEL) as (keyof typeof CHAMPION_LABEL)[]).map((c) => (
@@ -402,7 +452,7 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
                     {CHAMPION_LABEL[c]}
                   </option>
                 ))}
-              </select>
+              </Select>
               <button
                 onClick={() => void setContacts(deal.contacts.filter((c) => c.personId !== person.id))}
                 aria-label={`Remove ${person.name} from the deal`}
@@ -498,7 +548,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
   if (!map) {
     const target = deal.card?.criticalEvent.date && deal.card.criticalEvent.date > today ? deal.card.criticalEvent.date : addDays(today, 45);
     return (
-      <Section label="Mutual action plan">
+      <Section id="deal-plan" label="Mutual action plan">
         <p className="text-[13px] text-fg-2">
           A dated plan you agree with them, working back from their go-live or decision date. I draft one after a qualifying call, or start from the template now.
         </p>
@@ -511,6 +561,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
   const md = mapToMarkdown(map, deal.name, ws?.company?.name);
   return (
     <Section
+      id="deal-plan"
       label={`Mutual action plan · to ${shortDate(map.targetDate)}`}
       right={
         <div className="flex items-center gap-1.5">
@@ -533,7 +584,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
             <li key={m.id} className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2.5 py-1.5 sm:grid-cols-[20px_minmax(0,1fr)_96px_140px_24px]">
               <input type="checkbox" checked={m.status === "done"} onChange={() => setMs(m.id, { status: m.status === "done" ? "todo" : "done" })} aria-label={`Done: ${m.step}`} className="accent-[var(--fg)]" />
               <CommitInput value={m.step} onCommit={(step) => step.trim() && setMs(m.id, { step: step.trim() })} ariaLabel="Milestone" className={cn(m.status === "done" && "text-fg-3 line-through")} />
-              <select
+              <Select
                 value={m.ownerSide}
                 onChange={(e) => setMs(m.id, { ownerSide: e.target.value as "buyer" | "seller" | "both" })}
                 aria-label="Owner"
@@ -542,7 +593,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
                 <option value="buyer">{account.name}</option>
                 <option value="seller">You</option>
                 <option value="both">Both</option>
-              </select>
+              </Select>
               <span className={cn("col-start-2 sm:col-start-auto", late ? "text-danger" : afterTarget ? "text-warning" : "")}>
                 <CommitInput type="date" value={m.due} onCommit={(due) => due && setMs(m.id, { due })} ariaLabel="Due date" className={cn("font-mono text-[12px]", late && "text-danger", afterTarget && !late && "text-warning")} />
               </span>
@@ -580,7 +631,7 @@ function Pilot({ deal, today }: { deal: Deal; today: string }) {
 
   if (!open) {
     return (
-      <Section label="Pilot">
+      <Section id="deal-pilot" label="Pilot">
         <Button size="sm" onClick={() => setOpen(true)}>
           Write success criteria
         </Button>
@@ -588,7 +639,7 @@ function Pilot({ deal, today }: { deal: Deal; today: string }) {
     );
   }
   return (
-    <Section label="Pilot">
+    <Section id="deal-pilot" label="Pilot">
       <div className="space-y-3">
         <div>
           <Label hint={agreed ? "Agreed in writing" : undefined}>Success criteria</Label>
@@ -675,12 +726,12 @@ function Pricing({ deal, today }: { deal: Deal; today: string }) {
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Input value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === "Enter" && log()} placeholder="$ quoted" aria-label="Amount quoted" inputMode="numeric" className="w-32" />
-        <select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} aria-label="Their reaction" className="h-8 rounded-sm bg-surface px-2 text-[13px] ring-1 ring-border-strong/70">
+        <Select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} aria-label="Their reaction" className="h-8 rounded-sm bg-surface px-2 text-[13px] ring-1 ring-border-strong/70">
           <option value="">Reaction?</option>
           <option value="accepted">Accepted</option>
           <option value="pushback">Pushback</option>
           <option value="lost">Lost on price</option>
-        </select>
+        </Select>
         <Button size="sm" onClick={log} disabled={!amount.trim()}>
           Log quote
         </Button>

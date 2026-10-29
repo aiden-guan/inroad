@@ -165,6 +165,11 @@ export function deals(c: Clock): Record<ID, Deal> {
       source: "network",
       amountUsd: 48_000,
       closeDate: c.d(10),
+      // Promised with the first quote; moved a week when counsel asked for more time on the redlines.
+      closeDateHistory: [
+        { date: c.d(3), at: c.at(-20, "16:00") },
+        { date: c.d(10), at: c.at(-3, "10:20") },
+      ],
       nextStep: { what: "Nadia sends redlines from counsel", date: c.d(-2), buyerAgreed: true },
       contacts: [
         { personId: PERSON.nadia, role: "economic_buyer" },
@@ -248,6 +253,24 @@ export function deals(c: Clock): Record<ID, Deal> {
       createdAt: c.at(-34, "09:30"),
       updatedAt: c.at(-15, "17:00"),
       lastActivityAt: c.at(-15, "17:00"),
+    },
+    {
+      // Last quarter, before Inroad: qualified, then lost to a budget freeze. The revisit play finds it.
+      id: DEAL.larkspur,
+      accountDomain: DOMAIN.larkspur,
+      name: "Larkspur Analytics",
+      stage: "lost",
+      stageHistory: history(c, ["talking", -170, "10:30"], ["qualified", -158, "15:00"], ["lost", -136, "11:20"]),
+      source: "investor_intro",
+      amountUsd: 40_000,
+      contacts: [{ personId: PERSON.maya, role: "champion" }],
+      qualification: qualification(2, 1, 0, 1, 1, 2, false),
+      lossReason: "timing",
+      meetingIds: [],
+      notes: "Real pain (four-day usage close) but new finance tools froze until their next fiscal year. Maya asked to reconnect then.",
+      createdAt: c.at(-170, "10:30"),
+      updatedAt: c.at(-136, "11:20"),
+      lastActivityAt: c.at(-136, "11:20"),
     },
   ];
   return Object.fromEntries(list.map((d) => [d.id, d]));

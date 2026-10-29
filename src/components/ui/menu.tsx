@@ -7,15 +7,15 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/client/cn";
 
 const surface =
-  "z-[70] min-w-44 overflow-hidden rounded-lg bg-surface-raised p-1 shadow-lg ring-1 ring-border " +
-  "data-[state=open]:animate-[pop-in_160ms_var(--ease-out)] data-[state=closed]:animate-[pop-out_100ms_var(--ease-in-quad)]";
+  "z-[70] min-w-44 max-w-[calc(100vw-24px)] overflow-hidden rounded-xl bg-surface-raised p-1.5 shadow-lg ring-1 ring-inset ring-border " +
+  "data-[state=open]:animate-[pop-in_160ms_var(--ease-out)] data-[state=closed]:animate-[pop-out_100ms_var(--ease-out)]";
 
 export function Menu({ trigger, children, align = "end" }: { trigger: ReactNode; children: ReactNode; align?: "start" | "end" | "center" }) {
   return (
     <DM.Root>
       <DM.Trigger asChild>{trigger}</DM.Trigger>
       <DM.Portal>
-        <DM.Content align={align} sideOffset={6} className={cn(surface, "origin-[var(--radix-dropdown-menu-content-transform-origin)]")}>
+        <DM.Content align={align} sideOffset={6} collisionPadding={12} className={cn(surface, "max-h-[var(--radix-dropdown-menu-content-available-height)] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-y-auto overscroll-contain")}>
           {children}
         </DM.Content>
       </DM.Portal>
@@ -40,7 +40,7 @@ export function MenuItem({
     <DM.Item
       onSelect={onSelect}
       className={cn(
-        "flex h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 text-[13px] outline-none",
+        "flex min-h-9 cursor-default select-none items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] outline-none transition-colors duration-100",
         "data-[highlighted]:bg-bg-subtle",
         danger ? "text-danger" : "text-fg",
       )}
@@ -101,6 +101,7 @@ export function Popover({
         <RP.Content
           align={align}
           sideOffset={6}
+          collisionPadding={12}
           className={cn(surface, "origin-[var(--radix-popover-content-transform-origin)] p-3", className)}
         >
           {children}

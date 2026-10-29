@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
 import { FileSpreadsheet, Star, Users, Webhook } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -142,12 +144,8 @@ export function IntegrationsHub() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[760px] px-6 pb-28 pt-8 md:px-10 md:pt-12">
-      <header className="mb-2">
-        <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.015em] text-fg">Integrations</h1>
-        <p className="mt-3 max-w-[60ch] text-[14px] leading-[21px] text-fg-2 text-pretty">
-          Connect the tools you already use. Every connection here is optional.
-        </p>
+    <div className="page-shell max-w-[920px]">
+      <PageHeader title="Integrations" eyebrow="Connected, considered" description="Connect the tools you already use. Every connection here is optional.">
         {summary && (
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
             <span>
@@ -171,7 +169,7 @@ export function IntegrationsHub() {
             </Button>
           </p>
         )}
-      </header>
+      </PageHeader>
 
       <div className="mt-6 rounded-lg bg-surface p-4 ring-1 ring-border">
         <p className="text-[14px] font-medium text-fg">Start with your own inbox</p>
@@ -332,7 +330,8 @@ function outboundStatus(ws: Workspace): RowStatus {
 
 function HubSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[760px] px-6 pb-28 pt-8 md:px-10 md:pt-12" aria-busy="true">
+    <div className="page-shell max-w-[920px]" aria-busy="true">
+      <LoadingSignal label="Loading your connections" className="mb-7" />
       <Skeleton className="h-9 w-64" />
       <Skeleton className="mt-4 h-4 w-full max-w-[520px]" />
       <Skeleton className="mt-2 h-4 w-80" />

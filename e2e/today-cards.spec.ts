@@ -100,7 +100,7 @@ test("a booking card has no bare Done, and A marks the nudge as sent", async ({ 
   await page.goto("/today");
   const header = await card(page, /^Book Mei: said yes/);
   await open(header);
-  const body = page.locator("div.relative.rounded-lg", { has: header });
+  const body = page.locator("[data-move]", { has: header });
   await expect(body.getByRole("button", { name: "Mark as sent" })).toBeVisible();
   // Its own ways to end it, and Skip / Tomorrow; no Done that would drop Mei without logging anything.
   await expect(body.getByRole("button", { name: /^Done/ })).toHaveCount(0);
@@ -138,7 +138,7 @@ test("'Not now' on the network card means next week, and the referral card has o
   await page.goto("/today");
   const referrals = await card(page, /people Leo suggested|Write to the 2 people/);
   await open(referrals);
-  const refCard = page.locator("div.relative.rounded-lg", { has: referrals });
+  const refCard = page.locator("[data-move]", { has: referrals });
   await expect(refCard.getByRole("button", { name: /^Done/ })).toHaveCount(1);
   await expect(refCard.getByRole("button", { name: "Done for now" })).toHaveCount(0);
   await referrals.click();

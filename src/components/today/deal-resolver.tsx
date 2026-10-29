@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/field";
+import { Input, Label, Select } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
 import { addDays, daysBetween, nowISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type LossReason } from "@/lib/domain/types";
@@ -132,7 +132,7 @@ export function DealResolver({ deal, today, company, onResolved, compact }: { de
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <Label htmlFor={`${id}-reason`}>Reason</Label>
-            <select
+            <Select
               id={`${id}-reason`}
               value={reason}
               onChange={(e) => setReason(e.target.value as LossReason)}
@@ -143,7 +143,7 @@ export function DealResolver({ deal, today, company, onResolved, compact }: { de
                   {r.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <HoldButton
             onConfirm={async () => {

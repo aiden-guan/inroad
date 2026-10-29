@@ -28,6 +28,8 @@ export interface RunState {
   endedAt?: number;
   steps: LogStep[];
   thinking?: string;
+  /** Every reasoning line this run surfaced, in order: the reasoning stream. Kept in this tab only, never saved. */
+  reasoning: string[];
   sources: Source[];
   writingChars: number;
   text: string;
@@ -75,7 +77,7 @@ function reduce(state: RunState, event: AgentEvent): RunState {
     case "action":
       return push({ kind: "action", text: event.text });
     case "thinking":
-      return { ...state, thinking: event.text };
+      return { ...state, thinking: event.text, reasoning: state.reasoning.at(-1) === event.text ? state.reasoning : [...state.reasoning, event.text].slice(-60) };
     case "sources": {
       const seen = new Set(state.sources.map((s) => s.url));
       return { ...state, sources: [...state.sources, ...event.sources.filter((s) => !seen.has(s.url))] };
@@ -113,6 +115,7 @@ function fromSummary(s: RunSummary): RunState {
     startedAt: new Date(s.startedAt).getTime(),
     endedAt: s.endedAt ? new Date(s.endedAt).getTime() : undefined,
     steps: [],
+    reasoning: [],
     sources: [],
     writingChars: 0,
     text: "",

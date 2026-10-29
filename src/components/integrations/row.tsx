@@ -15,7 +15,7 @@ export interface RowStatus {
 }
 
 const rowBase =
-  "group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-bg-subtle/60 " +
+  "group flex w-full items-center gap-3.5 px-5 py-4 text-left transition-colors duration-150 hover:bg-bg-subtle/60 " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ring)]";
 
 function RowFace({ name, blurb, domain, icon, status, badge, trailing }: { name: string; blurb: ReactNode; domain?: string; icon?: ReactNode; status: RowStatus; badge?: ReactNode; trailing: ReactNode }) {
@@ -24,14 +24,14 @@ function RowFace({ name, blurb, domain, icon, status, badge, trailing }: { name:
       <ToolMark domain={domain} name={name} icon={icon} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate text-[14px] font-medium text-fg">{name}</span>
+          <span className="min-w-0 text-pretty text-[14px] font-medium leading-5 text-fg">{name}</span>
           <StatusDot tone={status.tone} className="sm:hidden" />
           {badge}
         </span>
-        <span className="mt-0.5 block text-[13px] leading-[18px] text-fg-3 sm:truncate">{blurb}</span>
+        <span className="mt-1 block text-pretty text-[13px] leading-5 text-fg-3">{blurb}</span>
         <span className={cn("mt-1 block text-[12px] sm:hidden", status.tone === "error" ? "text-danger" : "text-fg-3")}>{status.label}</span>
       </span>
-      <span className={cn("hidden max-w-[45%] shrink-0 items-center gap-1.5 text-[12px] sm:flex", status.tone === "error" ? "text-danger" : status.tone === "off" ? "text-fg-3" : "text-fg-2")}>
+      <span className={cn("hidden max-w-[30%] shrink-0 items-center gap-1.5 text-[11px] md:flex", status.tone === "error" ? "text-danger" : status.tone === "off" ? "text-fg-3" : "text-fg-2")}>
         <StatusDot tone={status.tone} />
         <span className="truncate">{status.label}</span>
       </span>

@@ -10,6 +10,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
+import { LoadingSignal } from "@/components/ui/loading";
 import { cn } from "@/lib/client/cn";
 import { isConsumer } from "@/lib/consumer/market";
 import type { Action } from "@/lib/domain/actions";
@@ -18,11 +19,12 @@ import type { Brief, Move, MoveKind, SkipReason, Workspace } from "@/lib/domain/
 import { codeGreeting, movesHeading } from "@/lib/moves/brief-data";
 import { KIND_ORDER, TOP_MOVES, visibleMoves } from "@/lib/moves/rules";
 import { computeScoreboard } from "@/lib/moves/scoreboard";
+import { computeForecast } from "@/lib/revenue/forecast";
 import { daysSince, plural } from "@/lib/moves/util";
 import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { Masthead } from "./masthead";
-import { MoveCard } from "./move-card";
+import { MoveCard, MoveExits } from "./move-card";
 import { cardDraft, endsInBody } from "./move-body";
 import { KIND_LABELS, Keys, RunInline, SKIP_REASONS } from "./parts";
 import { ReviewDoc } from "./review-panel";
@@ -52,7 +54,7 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("mx-auto w-full max-w-[800px] px-6 pb-24 pt-8 md:px-10 md:pt-12 xl:max-w-[1040px] xl:pr-[280px]", className)}>{children}</div>;
+  return <div className={cn("page-shell max-w-[900px] xl:max-w-[1120px] xl:pr-[280px]", className)}>{children}</div>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -144,6 +146,10 @@ export function Today({ ws }: { ws: Workspace }) {
   }, [expandedId]);
 
   const scoreboard = useMemo(() => computeScoreboard(ws, new Date(now)), [ws, now]);
+  const revenue = useMemo(() => {
+    const t = ws.revenue?.target;
+    return t ? { commit: computeForecast(ws, today).commit, target: t.amountUsd, label: t.label } : null;
+  }, [ws, today]);
   const brief = ws.briefs[today];
   const greeting = brief?.greeting || codeGreeting(ws, visible, new Date(now));
   const dateLabel = new Date(now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -267,10 +273,23 @@ export function Today({ ws }: { ws: Workspace }) {
       layout="position"
       custom={exits}
       variants={{
+        // Skipped folds away at once. Done holds while its stamp lands and its title is crossed off, then folds;
+        // the cards below close the gap as it goes (the fold is a height collapse, so they ride the reflow).
         exit: (all: Record<string, Exit>) =>
           all[m.id] === "skip"
-            ? { opacity: 0, scale: 0.98, transition: { duration: 0.15, ease: ease.inQuad } }
-            : { opacity: 0, x: 24, transition: { duration: 0.2, ease: ease.inQuad } },
+            ? {
+                opacity: 0,
+                scale: 0.98,
+                height: 0,
+                marginBottom: 0,
+                transition: { opacity: { duration: 0.14, ease: ease.out }, scale: { duration: 0.2, ease: ease.out }, default: { duration: 0.24, ease: ease.inOut } },
+              }
+            : {
+                opacity: 0,
+                height: 0,
+                marginBottom: 0,
+                transition: { opacity: { delay: 0.42, duration: 0.16, ease: ease.out }, default: { delay: 0.46, duration: 0.3, ease: ease.inOut } },
+              },
       }}
       initial={reveal ? { opacity: 0, y: 6 } : { opacity: 0 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1, transition: reveal ? { duration: 0.28, ease: ease.out, delay: 0.15 + Math.min(i, 8) * 0.04 } : { duration: 0.15 } }}
@@ -310,11 +329,13 @@ export function Today({ ws }: { ws: Workspace }) {
   );
 
   const list = (moves: Move[], offset = 0) => (
-    <ul className="relative space-y-2">
-      <AnimatePresence mode="popLayout" initial={reveal} custom={exits}>
-        {moves.map((m, i) => card(m, offset + i))}
-      </AnimatePresence>
-    </ul>
+    <MoveExits.Provider value={exits}>
+      <ul className="relative space-y-3">
+        <AnimatePresence initial={reveal} custom={exits}>
+          {moves.map((m, i) => card(m, offset + i))}
+        </AnimatePresence>
+      </ul>
+    </MoveExits.Provider>
   );
 
   const consumer = isConsumer(ws);
@@ -330,6 +351,7 @@ export function Today({ ws }: { ws: Workspace }) {
       <div key={phase === "skipped" ? "final" : "live"}>
         <Masthead
           ws={ws}
+          revenue={revenue}
           dateLabel={dateLabel}
           brief={brief}
           greeting={greeting}
@@ -485,6 +507,7 @@ function CaughtUpConsumer() {
 function TodaySkeleton() {
   return (
     <Column className="opacity-0 animate-[fade-in_150ms_var(--ease-out)_150ms_forwards]">
+      <LoadingSignal label="Preparing your daily brief" className="mb-7" />
       <Skeleton className="h-11 w-72 max-w-full md:h-[52px]" />
       <Skeleton className="mt-4 h-6 w-96 max-w-full" />
       <Skeleton className="mt-7 h-4 w-80 max-w-full" />

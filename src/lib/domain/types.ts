@@ -1164,6 +1164,68 @@ export interface Deal {
   tasks?: { id: ID; what: string; due?: ISODate; owner: "founder" | "buyer"; done: boolean; meetingId?: ID }[];
   /** Exit criteria the founder ticked by hand (keys from `src/lib/deals/rules.ts`). */
   checklist?: Record<string, boolean>;
+  /** The forecast call made by whoever owns the number, when it differs from the one code proposes. */
+  forecastCall?: { category: ForecastCategory; at: ISODateTime; note?: string };
+  /** Every close date this deal has had, oldest first. Slips are counted from it, never remembered. */
+  closeDateHistory?: { date: ISODate; at: ISODateTime }[];
+}
+
+/* ─────────────────────────────── Revenue ─────────────────────────────── */
+
+/** Where a deal sits in the forecast call. Code proposes one from evidence; the owner of the number can override it. */
+export type ForecastCategory = "commit" | "best_case" | "pipeline" | "omitted";
+
+/**
+ * The number a Head of GTM is measured on: new annual contract value closed in a period. Optional;
+ * a founder-led workspace can plan on `goal` (paid pilots) alone. Priors are used until the
+ * workspace has enough closed deals of its own to replace them.
+ */
+export interface RevenueTarget {
+  amountUsd: number;
+  periodStart: ISODate;
+  periodEnd: ISODate;
+  /** "Q4 new ARR" */
+  label: string;
+  winRate?: number;
+  avgDealUsd?: number;
+  cycleDays?: number;
+  /** Open pipeline needed per dollar still to close (3 = 3×). */
+  coverageTarget?: number;
+}
+
+/** The forecast as it stood at the start of a week, so "what changed" is computed rather than remembered. */
+export interface ForecastSnapshot {
+  weekOf: ISODate;
+  takenAt: ISODateTime;
+  periodEnd: ISODate;
+  target: number;
+  closedWon: number;
+  commit: number;
+  bestCase: number;
+  pipeline: number;
+  /** The call at the time (category-weighted), so forecast accuracy can be scored when the period closes. */
+  call?: number;
+  deals: { id: ID; name: string; stage: Stage; category: ForecastCategory; amountUsd: number; closeDate?: ISODate }[];
+}
+
+/** The weekly GTM update (for the CEO, the board or the team). Numbers come from code; the model writes the story. */
+export interface GtmUpdate {
+  weekOf: ISODate;
+  generatedAt: ISODateTime;
+  audience: "ceo" | "board" | "team";
+  subject: string;
+  body: string; // markdown
+  runId?: ID;
+}
+
+/* ─────────────────────────────── Plays ─────────────────────────────── */
+
+/** A play the workspace runs: on (it feeds Today) or paused, and every time its matches were worked in bulk. */
+export interface PlayState {
+  enabled: boolean;
+  updatedAt: ISODateTime;
+  /** Accounts worked from this play and when, so results are attributed in code. */
+  runs?: { at: ISODateTime; domains: string[] }[];
 }
 
 /* ─────────────────────────────── Activity & the desk ─────────────────────────────── */
@@ -1280,6 +1342,8 @@ export interface Move {
   overdueDays?: number;
   /** Marked done by the engine because its condition resolved (not by the founder); reopens if the condition returns. */
   autoDone?: true;
+  /** The play this move came from, when one did (see `src/lib/plays`). */
+  playId?: string;
 }
 
 export interface Scoreboard {
@@ -1594,7 +1658,9 @@ export type WorkflowId =
   | "network"
   | "partners"
   | "studio"
-  | "visual";
+  | "visual"
+  | "agent_ask"
+  | "gtm_update";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -2059,6 +2125,10 @@ export interface Workspace {
   experiments?: Record<ID, Experiment>;
   /** Consumer: Sean Ellis "how would you feel if you could no longer use it?" survey results, oldest first. */
   pmfSurveys?: PmfSurvey[];
+  /** The revenue number, weekly forecast snapshots (last 26) and weekly updates (last 12). */
+  revenue?: { target?: RevenueTarget; snapshots?: ForecastSnapshot[]; updates?: GtmUpdate[] };
+  /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
+  plays?: Record<string, PlayState>;
 }
 
 export interface PmfSurvey {
@@ -2108,6 +2178,55 @@ export interface AskCitation {
 }
 
 /** One display turn. The model's own history is stored separately (append-only) on the server. */
+/**
+ * The numbers behind an instant answer, so Ask can draw a card built for the question rather than a list.
+ * Code-computed like the rows. `facts` counts the workspace records the answer read; `domains` names a few.
+ */
+export type AnswerView =
+  | {
+      kind: "forecast";
+      period: string;
+      start: ISODate;
+      end: ISODate;
+      weeksLeft: number;
+      /** 0 when no target is set. */
+      target: number;
+      closedWon: number;
+      commit: number;
+      call: number;
+      bestCase: number;
+      pipeline: number;
+      hitChance: number | null;
+      coverage: number | null;
+      coverageNeeded: number;
+      facts: number;
+      domains: string[];
+    }
+  | {
+      kind: "week";
+      weekOf: ISODate;
+      conversations: [number, number];
+      firstTouches: [number, number];
+      replies: number;
+      positiveReplies: number;
+      qualified: number;
+      missingNextStep: number;
+      goal: [number, number];
+      goalLabel: string;
+      facts: number;
+      domains: string[];
+    }
+  | {
+      kind: "deals";
+      /** What the list is: risk on file, no dated next step, gone quiet, or the open pipeline. */
+      tone: "risk" | "missing" | "stale" | "pipeline";
+      count: number;
+      /** Dollar total of the listed deals that have an amount. */
+      usd: number;
+      facts: number;
+      domains: string[];
+    };
+
 export interface AskTurn {
   id: ID;
   role: "founder" | "agent";
@@ -2117,7 +2236,7 @@ export interface AskTurn {
   /** Agent turn still being written by `runId`. */
   pending?: boolean;
   /** Answered in code from the workspace, with no model call. */
-  instant?: { title: string; rows: { label: string; detail?: string; ref?: EntityRef; domain?: string; href?: string }[] };
+  instant?: { title: string; rows: { label: string; detail?: string; ref?: EntityRef; domain?: string; href?: string }[]; view?: AnswerView };
   /** Web sources the answer cited (evidence ids are cited inline as [ev_…]). */
   citations?: AskCitation[];
   proposals?: AskProposal[];

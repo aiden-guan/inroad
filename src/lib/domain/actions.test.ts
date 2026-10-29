@@ -530,6 +530,52 @@ const cases: Record<Action["type"], () => void> = {
     const s = apply(ws(), { type: "deal.update", id: DEAL.saltmarsh, patch: { amountUsd: 24000 }, at: at(0) });
     expect(s.deals[DEAL.saltmarsh]).toMatchObject({ amountUsd: 24000, updatedAt: at(0) });
     expect(() => apply(s, { type: "deal.update", id: "deal_missing", patch: {}, at: at(0) })).toThrow("Deal not found");
+
+    // A new close date is appended to the history, so slips are counted, not remembered.
+    const deal = () => s.deals[DEAL.rowanstack];
+    const before = deal().closeDateHistory!.map((h) => h.date);
+    const action: Action = { type: "deal.update", id: DEAL.rowanstack, patch: { closeDate: "2026-12-04" }, at: at(0) };
+    apply(s, action);
+    expect(deal().closeDateHistory?.map((h) => h.date)).toEqual([...before, "2026-12-04"]);
+    // The action itself is untouched (it is applied again on the server), and the same date twice records nothing.
+    expect(action).toEqual({ type: "deal.update", id: DEAL.rowanstack, patch: { closeDate: "2026-12-04" }, at: at(0) });
+    apply(s, action);
+    expect(deal().closeDateHistory).toHaveLength(before.length + 1);
+    // A deal with a date but no history keeps that first date as the original promise.
+    apply(s, { type: "deal.update", id: DEAL.lumenwire, patch: { closeDate: "2026-12-20" }, at: at(0) });
+    expect(s.deals[DEAL.lumenwire].closeDateHistory?.map((h) => h.date)).toEqual([sample.deals[DEAL.lumenwire].closeDate, "2026-12-20"]);
+  },
+
+  "deal.forecastCall": () => {
+    const s = apply(ws(), { type: "deal.forecastCall", id: DEAL.rowanstack, category: "commit", note: "n".repeat(400), at: at(0) });
+    expect(s.deals[DEAL.rowanstack].forecastCall).toEqual({ category: "commit", at: at(0), note: "n".repeat(280) });
+    apply(s, { type: "deal.forecastCall", id: DEAL.rowanstack, category: null, at: at(0) });
+    expect(s.deals[DEAL.rowanstack].forecastCall).toBeUndefined();
+    expect(() => apply(s, { type: "deal.forecastCall", id: "deal_missing", category: "commit", at: at(0) })).toThrow("Deal not found");
+  },
+
+  "revenue.setTarget": () => {
+    const target = { amountUsd: 150_000, periodStart: "2026-10-01", periodEnd: "2026-12-31", label: "Q4 new ARR" };
+    const s = apply(makeWorkspace(), { type: "revenue.setTarget", target });
+    expect(s.revenue?.target).toEqual(target);
+    apply(s, { type: "revenue.setTarget", target: null });
+    expect(s.revenue).toEqual({});
+  },
+
+  "play.set": () => {
+    const s = apply(makeWorkspace(), { type: "play.set", id: "new_leader", enabled: false, at: at(0) });
+    expect(s.plays?.new_leader).toEqual({ enabled: false, updatedAt: at(0) });
+    apply(s, { type: "play.run", id: "new_leader", domains: ["a.example"], at: at(0) });
+    apply(s, { type: "play.set", id: "new_leader", enabled: true, at: at(1) });
+    // Turning a play back on keeps its history.
+    expect(s.plays?.new_leader).toMatchObject({ enabled: true, updatedAt: at(1), runs: [{ at: at(0), domains: ["a.example"] }] });
+  },
+
+  "play.run": () => {
+    const s = apply(makeWorkspace(), { type: "play.run", id: "funding", domains: ["a.example", "a.example", "b.example"], at: at(0) });
+    expect(s.plays?.funding).toEqual({ enabled: true, updatedAt: at(0), runs: [{ at: at(0), domains: ["a.example", "b.example"] }] });
+    apply(s, { type: "play.run", id: "funding", domains: [], at: at(1) });
+    expect(s.plays?.funding.runs).toHaveLength(1);
   },
 
   "deal.setStage": () => {

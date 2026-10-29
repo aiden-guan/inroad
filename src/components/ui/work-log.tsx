@@ -11,6 +11,7 @@ import { ease, spring } from "@/lib/motion";
 import { AgentErrorNote } from "./agent-error";
 import { Favicon } from "./favicon";
 import { Orb } from "./orb";
+import { ReasoningStream, ReasoningTrace } from "./reasoning-stream";
 
 function useNow(active: boolean, from: number) {
   const [now, setNow] = useState(from);
@@ -96,8 +97,8 @@ export function Receipt({ run, onClick, open }: { run: RunState; onClick?: () =>
 }
 
 /**
- * The live log of an agent run: present-tense verbs while working, a receipt when done.
- * Thoughts are ephemeral — each one replaces the last in place.
+ * The live log of an agent run: present-tense verbs while working, a receipt when done. Its reasoning streams
+ * by underneath while it works, then folds into one line you can open.
  */
 export function WorkLog({ run, className, defaultOpen }: { run: RunState; className?: string; defaultOpen?: boolean }) {
   const { stop } = useRuns();
@@ -120,8 +121,9 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
   }
 
   return (
-    <motion.div layout transition={spring.smooth} className={cn("rounded-lg bg-surface p-3 ring-1 ring-border", className)}>
-      <div className="mb-1.5 flex items-center gap-2.5">
+    <motion.div layout transition={spring.smooth} aria-busy={active} className={cn("relative overflow-hidden rounded-xl bg-surface p-4 shadow-xs ring-1 ring-inset", active ? "ring-accent/25" : "ring-border", className)}>
+      {active && <span aria-hidden className="run-scan" />}
+      <div className="mb-3 flex items-center gap-2.5">
         <Orb state={active ? "working" : run.status === "error" ? "error" : "idle"} size={18} tick={steps.length} />
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{active
             ? run.title
@@ -150,20 +152,11 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
           <StepRow key={s.id} step={s} active={active && i === arr.length - 1 && !s.doneAt} />
         ))}
       </ul>
-      <AnimatePresence mode="wait">
-        {active && run.thinking && (
-          <motion.p
-            key={run.thinking}
-            initial={{ opacity: 0, filter: "blur(2px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, filter: "blur(2px)" }}
-            transition={{ duration: 0.15 }}
-            className="mt-1 truncate pl-[26px] font-serif text-[13.5px] italic text-fg-3"
-          >
-            {run.thinking}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {active ? (
+        run.reasoning.length > 0 && <ReasoningStream lines={run.reasoning} className="mt-1.5 pl-[26px]" />
+      ) : (
+        <ReasoningTrace lines={run.reasoning} className="mt-1 pl-[22px]" />
+      )}
       {active && run.writingChars > 0 && (
         <p className="mt-1 pl-[26px] font-mono text-[11.5px] text-fg-3">Writing · {Math.round(run.writingChars / 5)} words</p>
       )}

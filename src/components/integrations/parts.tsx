@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowUpRight, ChevronDown, TriangleAlert } from "lucide-react";
+import { Select as NativeSelect } from "@/components/ui/field";
+
+import { ArrowUpRight, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { CopyButton } from "@/components/ui/misc";
 import { Favicon } from "@/components/ui/favicon";
@@ -247,7 +249,7 @@ export function Select({
 }) {
   return (
     <div className={cn("relative min-w-0", className)}>
-      <select
+      <NativeSelect
         aria-label={label}
         value={value}
         disabled={disabled}
@@ -258,8 +260,7 @@ export function Select({
         )}
       >
         {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-fg-3" aria-hidden />
+      </NativeSelect>
     </div>
   );
 }

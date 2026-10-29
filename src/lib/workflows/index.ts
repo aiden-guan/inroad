@@ -17,6 +17,8 @@ import network from "./network";
 import partners from "./partners";
 import studio from "./studio";
 import visual from "./visual";
+import agentAsk from "./agent-ask";
+import gtmUpdate from "./gtm-update";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
@@ -36,6 +38,8 @@ export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
   partners: partners,
   studio: studio,
   visual: visual,
+  agent_ask: agentAsk,
+  gtm_update: gtmUpdate,
 };
 
 export function getWorkflow(id: string): WorkflowDef<unknown> | undefined {

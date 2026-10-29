@@ -95,9 +95,14 @@ export function context(body) {
 
 function thinking(ctx, lines) {
   const subject = (ctx.firstText.split("\n").find((l) => l.trim() && !/^Today is /.test(l)) ?? "the request").replace(/<[^>]+>/g, "").trim().slice(0, 70);
+  // Long enough, like a real summary, that the UI's reasoning stream has lines to stream.
   const parts = lines ?? [
     `Reading what was asked: ${subject.replace(/[.:]+$/, "")}.`,
+    "Starting from the workspace: the account, its open deal, and the last few touches.",
     ctx.afterToolResult ? "Checking what the tools sent back." : "Checking the material I was given before writing.",
+    "Two of the signals are dated, so the fresher one should carry more weight.",
+    "The recent hire is the stronger angle; the funding news is older and widely known.",
+    "Keeping it short: one claim per line, each with its source.",
     "Making sure every claim has a source.",
   ];
   return { type: "thinking", thinking: parts.join(" ") + " ", signature: "mock-signature" };

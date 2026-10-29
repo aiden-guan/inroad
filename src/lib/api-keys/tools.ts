@@ -6,13 +6,17 @@ import { todayISO } from "@/lib/domain/ids";
 import { normalizeDomain } from "@/lib/hub/records";
 import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules";
 import { readConnections } from "@/lib/network/store";
+import { AgentError } from "@/lib/ai/errors";
+import { MODEL_LABELS } from "@/lib/ai/models";
+import { startRun, stopRun, subscribe } from "@/lib/runs/registry";
 import { readWorkspace } from "@/lib/store/workspace";
 import { FORMAT_IDS, FORMATS, OCCASIONS } from "@/lib/studio/formats";
 import { checkCopy, checkGraphic, copyGuide } from "@/lib/studio/guide";
+import agentAsk from "@/lib/workflows/agent-ask";
 import { scoreAccount, scoringContext } from "./scoring";
-import { logCall, recordBudget, type ApiKey } from "./store";
-import { ACCESS, type Scope } from "./types";
-import { accountView, growthView, icpView, nextActionsView, playbookView, searchView } from "./views";
+import { askBudget, logCall, recordBudget, type ApiKey } from "./store";
+import { ACCESS, keyModelOf, type Scope } from "./types";
+import { accountView, forecastView, growthView, icpView, nextActionsView, playbookView, playsView, searchView } from "./views";
 import { ToolError, addAccounts, addPartners, completeAction, logActivity, logGrowthWeek, submitDraft } from "./writes";
 
 /**
@@ -491,7 +495,96 @@ export const TOOLS: ToolDef[] = [
       return { data, summary: data.passed ? `Checked a ${FORMATS[a.format].label} graphic: ready` : `Checked a ${FORMATS[a.format].label} graphic: ${plural(data.errors.length, "issue")}` };
     },
   }),
+  tool({
+    name: "ask_inroad",
+    title: "Ask Inroad",
+    description:
+      "Ask the founder's Head of GTM a question about their accounts, pipeline, next moves or positioning. Read-only. Unlike the other tools this runs AI on the founder's credits, so call the plain read tools first and ask only for judgment.",
+    scope: "read",
+    readOnly: true,
+    idempotent: false,
+    rest: { method: "POST", path: "/ask" },
+    schema: z.object({
+      question: z.string().trim().min(1).max(4000).describe("One question, at most 4,000 characters"),
+      domain: domain.optional().describe("The company the question is about, if any"),
+    }),
+    run: async (a, ctx) => {
+      const limit = askBudget(ctx.key.id);
+      if (!limit.ok) throw new ToolError(`This key has used its 30 questions this hour. Try again in ${limit.retryInMin} min.`, 429);
+      const { model, effort } = keyModelOf(ctx.key);
+      const answer = await askAndWait({ keyId: ctx.key.id, keyName: ctx.key.name, question: a.question, domain: a.domain ? normalizeDomain(a.domain) ?? undefined : undefined, model, effort, base: ctx.base });
+      const cost = answer.costUsd < 0.01 ? "<$0.01" : `$${answer.costUsd.toFixed(2)}`;
+      return {
+        data: { answer: answer.text, model: MODEL_LABELS[model], effort, cost_usd: Number(answer.costUsd.toFixed(4)) },
+        summary: `Answered a question on ${MODEL_LABELS[model]}, ${effort} effort · ${cost}`,
+      };
+    },
+  }),
+  tool({
+    name: "get_forecast",
+    title: "Get the forecast",
+    description:
+      "The revenue forecast, called in code (no AI): target, closed won, commit, best case, pipeline and coverage; the plan behind the gap (deals, qualified deals and first meetings it takes, and the last date new pipeline can still close); what changed since last week; and every open deal's call, health and risks with the fix for each.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/forecast" },
+    schema: z.object({ deal_id: z.string().max(40).optional().describe("Only this deal's call and risks") }),
+    run: (a, ctx) => {
+      const data = forecastView(readWorkspace(), new Date(), ctx.base, a.deal_id);
+      return { data, summary: `Read the forecast: commit ${data.commit_usd}, best case ${data.best_case_usd}${data.target_usd ? ` of ${data.target_usd}` : ""}`, records: data.deals.length };
+    },
+  }),
+  tool({
+    name: "list_plays",
+    title: "List plays",
+    description: "The signal-based plays Inroad runs (trigger, why, running or paused), each with its live matches (the triggering fact, dated and sourced) and its results so far. Use it to decide which accounts to work and why now.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/plays" },
+    schema: z.object({ play_id: z.string().max(40).optional().describe("Only this play"), limit: z.number().int().min(1).max(25).optional().describe("Matches per play, default 5") }),
+    run: (a, ctx) => {
+      const data = playsView(readWorkspace(), todayISO(), ctx.base, a);
+      return { data, summary: `Read ${plural(data.plays.length, "play")}, ${data.plays.reduce((n, p) => n + p.live_matches, 0)} live matches`, records: data.plays.length };
+    },
+  }),
 ];
+
+const ASK_TIMEOUT_MS = 120_000;
+
+/** Starts an agent_ask run (so it shows in the sidebar, receipts and the monthly budget) and waits for its answer. */
+async function askAndWait(args: Parameters<typeof agentAsk.run>[0]["args"]): Promise<{ text: string; costUsd: number }> {
+  let run;
+  try {
+    run = await startRun(agentAsk, args);
+  } catch (err) {
+    if (err instanceof AgentError) throw new ToolError(err.message, 429);
+    throw err;
+  }
+  return new Promise((resolve, reject) => {
+    let text = "";
+    let error: string | null = null;
+    let costUsd = 0;
+    const timer = setTimeout(() => {
+      unsubscribe();
+      stopRun(run.id);
+      reject(new ToolError("Inroad took too long to answer (over 2 minutes). Ask a narrower question.", 504));
+    }, ASK_TIMEOUT_MS);
+    const unsubscribe = subscribe(run.id, (event) => {
+      if (event.type === "result") text = String((event.data as { answer?: unknown } | null)?.answer ?? "");
+      else if (event.type === "error") error = event.message;
+      else if (event.type === "usage") costUsd = event.costUsd;
+      else if (event.type === "done") {
+        clearTimeout(timer);
+        queueMicrotask(() => unsubscribe());
+        if (error) reject(new ToolError(`Inroad couldn't answer: ${error}`, 502));
+        else if (!text) reject(new ToolError("No answer came back. Try again.", 502));
+        else resolve({ text, costUsd });
+      }
+    });
+  });
+}
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 

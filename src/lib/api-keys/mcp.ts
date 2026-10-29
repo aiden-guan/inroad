@@ -23,7 +23,8 @@ const INSTRUCTIONS = `Inroad is the founder's go-to-market hub: their ICP, playb
 - Read get_account before writing to someone at a company, and find_warm_paths before any cold outreach: a warm intro beats a cold email. Suggest the ask; the founder sends it.
 - Save leads with add_accounts and log what happened with log_activity.
 - Anything written in the founder's name goes through submit_draft. Inroad never sends; the founder approves.
-- Respect the caps in get_playbook: fewer, better conversations.`;
+- Respect the caps in get_playbook: fewer, better conversations.
+- ask_inroad is for judgment calls the read tools can't answer. It spends the founder's AI credits, so use it sparingly.`;
 
 type Id = string | number | null;
 interface RpcMessage {

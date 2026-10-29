@@ -8,6 +8,8 @@ export const AI_TASKS = {
   debrief: "Meeting follow-up", review: "Strategy review", dinner_plan: "Event planning",
   ask: "Ask Inroad", enrich: "Enrichment", asset: "Content", network: "Network research",
   partners: "Partner research", studio: "Studio writing", visual: "Visual planning",
+  agent_ask: "Agent questions",
+  gtm_update: "Weekly GTM update",
 } as const;
 export type AiTask = keyof typeof AI_TASKS;
 export interface ModelTarget { connectionId: string; model?: string }
