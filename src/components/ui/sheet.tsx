@@ -7,7 +7,7 @@ import { cn } from "@/lib/client/cn";
 import { IconButton } from "./button";
 
 /**
- * Right-side sheet for detail views (company, deal, event). 500ms iOS drawer curve on enter.
+ * Right-side sheet for detail views (company, deal, event). Fast, origin-aware drawer motion.
  * Width grows instead of stacking: never open a modal on top of a sheet.
  */
 export function Sheet({
@@ -28,12 +28,12 @@ export function Sheet({
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
-        <RD.Overlay className="fixed inset-0 z-[50] bg-overlay/60 data-[state=open]:animate-[fade-in_300ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_200ms_var(--ease-out)]" />
+        <RD.Overlay className="fixed inset-0 z-[50] bg-overlay/60 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_250ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_150ms_var(--ease-out)]" />
         <RD.Content
           style={{ maxWidth: width }}
           className={cn(
-            "fixed inset-y-2 right-2 z-[51] flex w-[calc(100vw-16px)] flex-col overflow-hidden rounded-xl bg-surface-raised shadow-xl outline-none",
-            "data-[state=open]:animate-[sheet-in_500ms_var(--ease-drawer)] data-[state=closed]:animate-[sheet-out_250ms_var(--ease-out)]",
+            "fixed inset-y-2 right-2 z-[51] flex w-[calc(100vw-16px)] flex-col overflow-hidden rounded-2xl bg-surface-raised shadow-xl ring-1 ring-inset ring-border outline-none",
+            "data-[state=open]:animate-[sheet-in_280ms_var(--ease-drawer)] data-[state=closed]:animate-[sheet-out_180ms_var(--ease-out)]",
           )}
         >
           <RD.Title className="sr-only">{title}</RD.Title>
@@ -46,7 +46,7 @@ export function Sheet({
               </IconButton>
             </RD.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
         </RD.Content>
       </RD.Portal>
     </RD.Root>

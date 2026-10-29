@@ -63,12 +63,13 @@ export function Masthead({
 
   return (
     <header className="relative">
+      <p className="page-eyebrow mb-4">Your daily brief</p>
       <div className="flex items-start gap-3">
         <motion.h1
           initial={reveal ? { opacity: 0, filter: "blur(4px)" } : false}
           animate={{ opacity: 1, filter: "blur(0px)" }}
           transition={{ duration: 0.3, ease: ease.out }}
-          className="min-w-0 flex-1 text-balance font-serif text-[40px] leading-[44px] tracking-[-0.02em] text-fg [font-variation-settings:'opsz'_72] md:text-[48px] md:leading-[52px]"
+          className="min-w-0 flex-1 text-balance font-serif text-[38px] leading-[42px] tracking-[-0.035em] text-fg [font-variation-settings:'opsz'_72] md:text-[48px] md:leading-[52px]"
         >
           {dateLabel}
         </motion.h1>
@@ -76,13 +77,14 @@ export function Masthead({
           onClick={onRefresh}
           aria-label="Refresh moves"
           title="Refresh moves"
-          className="mt-3 inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-fg-3 transition-[background-color,color,transform] duration-150 hover:bg-bg-subtle hover:text-fg active:scale-[0.94]"
+          disabled={preparing}
+          className="mt-2 inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-fg-3 ring-1 ring-inset ring-border transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.94] disabled:opacity-60"
         >
           <RotateCw className={cn("size-4", preparing && "animate-spin [animation-duration:900ms]")} />
         </button>
       </div>
 
-      <div className="mt-3 flex items-start gap-2.5">
+      <div className="mt-5 flex items-start gap-2.5">
         <span className="mt-[7px] flex shrink-0 items-center" title="Your Head of GTM">
           <Orb state={working ? "working" : "idle"} size={14} />
         </span>
@@ -145,29 +147,24 @@ export function Masthead({
 
       <Link
         href={revenue ? "/revenue" : "/playbook"}
-        className="group mt-6 inline-flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] text-fg-2 transition-colors hover:text-fg"
-        title={revenue ? "Open the forecast" : "Your plan: conversations are the input that matters"}
+        className="group mt-7 grid grid-cols-2 overflow-hidden rounded-xl bg-surface shadow-xs ring-1 ring-inset ring-border transition-shadow hover:shadow-sm"
+        title={revenue ? "Open the forecast" : "Open your plan"}
       >
-        <Num value={rolled ? conversations : 0} className="font-medium text-fg" />
-        <span>of</span>
-        <Num value={target} className="font-medium text-fg" />
-        <span>{consumer ? "user conversations this week" : "conversations this week"}</span>
-        <span className="text-fg-3">·</span>
-        {revenue ? (
-          <>
-            <Num value={rolled ? revenue.commit : 0} format={USD} className="font-medium text-fg" />
-            <span>of</span>
-            <span className="font-medium text-fg">{money(revenue.target)}</span>
-            <span>committed toward {revenue.label}</span>
-          </>
-        ) : (
-          <>
-            <Num value={rolled ? wins : 0} className="font-medium text-fg" />
-            <span>of</span>
-            <Num value={goal} className="font-medium text-fg" />
-            <span>{consumer ? ws.goal.targetLabel : "pilots"}</span>
-          </>
-        )}
+        {[
+          { label: consumer ? "User conversations this week" : "Conversations this week", value: conversations, max: target, usd: false },
+          revenue ? { label: `Commit toward ${revenue.label}`, value: revenue.commit, max: revenue.target, usd: true } : { label: consumer ? `${ws.goal.targetLabel.charAt(0).toUpperCase()}${ws.goal.targetLabel.slice(1)} toward your goal` : "Pilots toward your goal", value: wins, max: goal, usd: false },
+        ].map((metric, i) => (
+          <div key={metric.label} className={cn("px-4 py-4 md:px-5", i > 0 && "border-l border-border")}>
+            <span className="block truncate text-[11px] leading-4 text-fg-3 md:text-[12px]">{metric.label}</span>
+            <span className="mt-2 flex items-baseline gap-1.5">
+              <Num value={rolled ? metric.value : 0} format={metric.usd ? USD : undefined} className="text-[25px] font-medium leading-8 tracking-[-0.04em] text-fg" />
+              <span className="font-mono text-[11px] text-fg-3">/ {metric.usd ? money(metric.max) : metric.max}</span>
+            </span>
+            <span role="progressbar" aria-label={metric.label} aria-valuenow={Math.min(metric.value, Math.max(1, metric.max))} aria-valuemin={0} aria-valuemax={Math.max(1, metric.max)} aria-valuetext={`${metric.value} of ${metric.max}`} className="progress-track mt-3 block">
+              <span className="progress-fill block" style={{ transform: `scaleX(${rolled ? Math.min(1, metric.value / Math.max(1, metric.max)) : 0})` }} />
+            </span>
+          </div>
+        ))}
       </Link>
 
       {error && (

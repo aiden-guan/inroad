@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -199,33 +201,18 @@ export function CompaniesView() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-6 pt-8 md:px-10 md:pt-12">
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="min-w-0">
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em] text-fg">Companies</h1>
-          <p className="mt-1.5 min-h-5 text-[13px] text-fg-3">
-            {counts ? (
-              <>
-                {plural(counts.prospects, "prospect")} · {counts.talking} talking · {plural(counts.customers, "customer")}
-                {counts.ready > 0 && (
-                  <>
-                    {" · "}
-                    <span className="font-medium text-fg">{counts.ready} ready to work</span>
-                  </>
-                )}
-              </>
-            ) : (
-              <span aria-hidden className="skeleton inline-block h-3 w-52 rounded-sm align-middle" />
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <ImportLink className="hidden md:inline-flex" />
+    <div className="page-shell">
+      <PageHeader
+        title="Companies"
+        eyebrow="Your pipeline"
+        description={counts ? <>{plural(counts.prospects, "prospect")} · {counts.talking} talking · {plural(counts.customers, "customer")}{counts.ready > 0 && <> · <span className="font-medium text-fg">{counts.ready} ready to work</span></>}</> : <span aria-hidden className="skeleton inline-block h-3 w-52 rounded-sm" />}
+        actions={<>
+          <ImportLink className="hidden lg:inline-flex" />
           <MoreActions trackedCount={counts?.tracked.length ?? 0} onRefresh={refreshTracked} />
           <AddCompany onAdd={(d, info, research) => void addCompany(d, info, research)} onOpenExisting={(d) => openSheet(d)} />
           {findButton}
-        </div>
-      </header>
+        </>}
+      />
 
       <div className="mt-6">
         <Segmented
@@ -302,6 +289,7 @@ const SKELETON_WIDTHS = ["w-28", "w-36", "w-24", "w-32", "w-40", "w-28", "w-20",
 function ListSkeleton() {
   return (
     <div aria-busy aria-label="Loading companies" className="divide-y divide-border">
+      <LoadingSignal label="Loading companies" className="mb-7" />
       {SKELETON_WIDTHS.map((w, i) => (
         <div key={i} className="flex h-11 items-center gap-3 px-3">
           <Skeleton className="size-5 rounded-[5px]" />

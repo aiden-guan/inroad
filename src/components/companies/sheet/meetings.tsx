@@ -8,7 +8,7 @@ import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Textarea } from "@/components/ui/field";
+import { Input, Label, Textarea, Select } from "@/components/ui/field";
 import { Segmented } from "@/components/ui/misc";
 import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
@@ -326,7 +326,7 @@ export function LogCall({
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <p className="mr-auto text-[13px] font-semibold text-fg">Log a call</p>
         {meetings.length > 0 && (
-          <select
+          <Select
             value={meetingId}
             onChange={(e) => setMeetingId(e.target.value)}
             aria-label="Which call"
@@ -339,7 +339,7 @@ export function LogCall({
               </option>
             ))}
             <option value={NEW_CALL}>A new call today</option>
-          </select>
+          </Select>
         )}
         <Segmented
           layoutId="log-call-source"

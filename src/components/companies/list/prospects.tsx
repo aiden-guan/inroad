@@ -417,7 +417,7 @@ export function Prospects({
   return (
     <div className="pb-24">
       {/* Toolbar */}
-      <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 py-1 scrollbar-none">
+      <div className="-mx-1 flex flex-wrap items-center gap-2 px-1 py-1">
         <FilterMenu label="Tier" options={tierOptions} value={tiers} onChange={setTiers} />
         <FilterMenu label="Signal" options={signalOptions} value={signalTypes} onChange={setSignalTypes} />
         <FilterMenu label="Status" options={statusOptions} value={statuses} onChange={setStatuses} />
@@ -447,7 +447,7 @@ export function Prospects({
       </div>
 
       {/* Column labels */}
-      <div className={cn("mt-2 hidden h-8 items-center gap-3 border-b border-border px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
+      <div className={cn("mt-4 hidden h-10 items-center gap-3 rounded-t-lg border-b border-border bg-bg-subtle px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
         <button
           role="checkbox"
           aria-checked={allSelected}
@@ -477,7 +477,7 @@ export function Prospects({
       {rows.length === 0 ? (
         <EmptyState title="Nothing matches these filters." action={<Button onClick={clearFilters}>Clear filters</Button>} />
       ) : (
-        <ul onMouseMove={() => kbd && setKbd(false)} aria-label="Prospects" className="divide-y divide-border">
+        <ul onMouseMove={() => kbd && setKbd(false)} aria-label="Prospects" className="divide-y divide-border rounded-b-xl bg-surface/40">
           {rows.map((r, i) => (
             <ProspectRow
               key={r.a.domain}
@@ -634,7 +634,7 @@ function ProspectRow({
       onAnimationComplete={onEntered}
       aria-selected={focused || undefined}
       className={cn(
-        "group relative flex items-center gap-3 px-3 py-2.5 text-[13px] md:grid md:h-11 md:py-0",
+        "group relative flex items-center gap-3 px-3 py-2.5 text-[13px] md:grid md:min-h-14 md:py-2.5",
         GRID,
         "transition-colors duration-100 hover:bg-bg-subtle",
         focused && "bg-bg-subtle shadow-[inset_2px_0_0_var(--fg-3)]",

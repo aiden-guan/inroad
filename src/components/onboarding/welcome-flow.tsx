@@ -9,6 +9,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { LoadingSignal } from "@/components/ui/loading";
 import { Orb, type OrbState } from "@/components/ui/orb";
 import { OrbMorph, useWide } from "@/components/ui/orb-morph";
 import { useBillingUrl } from "@/lib/client/ai-provider";
@@ -302,7 +303,7 @@ export function WelcomeFlow() {
   if (!ws || (status === "hired" && !leaving)) {
     return (
       <Canvas>
-        <div className="flex justify-center pt-[30vh]">{error ? <p className="px-6 text-center text-[13px] text-danger">{error}</p> : <Orb size={28} />}</div>
+        <div className="flex justify-center pt-[30vh]">{error ? <p className="px-6 text-center text-[13px] text-danger">{error}</p> : <LoadingSignal />}</div>
       </Canvas>
     );
   }

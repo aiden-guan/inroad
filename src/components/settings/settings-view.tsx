@@ -5,7 +5,9 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { LoadingSignal } from "@/components/ui/loading";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
+import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/client/cn";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { todayISO } from "@/lib/domain/ids";
@@ -65,11 +67,8 @@ export function SettingsView() {
 
   return (
     <div className="@container/page">
-      <div className="mx-auto w-full max-w-[1100px] px-6 pb-24 pt-8 md:px-10 md:pt-12">
-        <header className="mb-8">
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em] text-fg [font-variation-settings:'opsz'_72]">Settings</h1>
-          <p className="mt-2 text-[14px] leading-[21px] text-fg-2">Your workspace, preferences and connected services.</p>
-        </header>
+      <div className="page-shell max-w-[1100px]">
+        <PageHeader title="Settings" eyebrow="Make it yours" description="Your workspace, preferences and connected services." className="mb-8" />
 
         <div className="@min-[880px]/page:grid @min-[880px]/page:grid-cols-[200px_minmax(0,720px)] @min-[880px]/page:gap-10">
           <aside className="sticky top-12 z-30 mb-8 bg-bg py-3 md:top-0 @min-[880px]/page:static @min-[880px]/page:mb-0 @min-[880px]/page:py-0">
@@ -132,7 +131,8 @@ export function SettingsView() {
 
 export function SettingsSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-6 pt-8 [animation:fade-in_200ms_var(--ease-out)_150ms_both] md:px-10 md:pt-12" aria-busy="true" aria-label="Loading settings">
+    <div className="page-shell max-w-[1100px] [animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
+      <LoadingSignal label="Opening settings" className="mb-7" />
       <Skeleton className="h-9 w-36" /><Skeleton className="mt-3 h-4 w-72 max-w-full" />
       <div className="mt-8 grid gap-8 md:grid-cols-[200px_1fr]">
         <div className="space-y-3"><Skeleton className="h-9 w-full" />{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-6 w-32" />)}</div>

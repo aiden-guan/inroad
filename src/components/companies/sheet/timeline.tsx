@@ -6,7 +6,7 @@ import { ComposeButton } from "@/components/compose/composer";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Textarea } from "@/components/ui/field";
+import { Input, Label, Textarea, Select } from "@/components/ui/field";
 import { EmptyState, Segmented } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { relativeTime } from "@/lib/client/format";
@@ -206,7 +206,7 @@ function LogReply({ account, deal, onDone }: { account: Account; deal?: Deal; on
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="reply-from">From</Label>
-          <select
+          <Select
             id="reply-from"
             value={personId}
             onChange={(e) => setPersonId(e.target.value)}
@@ -219,7 +219,7 @@ function LogReply({ account, deal, onDone }: { account: Account; deal?: Deal; on
               </option>
             ))}
             <option value="__new">Someone else…</option>
-          </select>
+          </Select>
         </div>
         <div>
           <Label htmlFor="reply-at" hint="optional">

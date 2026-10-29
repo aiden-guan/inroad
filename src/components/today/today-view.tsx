@@ -10,6 +10,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
+import { LoadingSignal } from "@/components/ui/loading";
 import { cn } from "@/lib/client/cn";
 import { isConsumer } from "@/lib/consumer/market";
 import type { Action } from "@/lib/domain/actions";
@@ -53,7 +54,7 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("mx-auto w-full max-w-[800px] px-6 pb-24 pt-8 md:px-10 md:pt-12 xl:max-w-[1040px] xl:pr-[280px]", className)}>{children}</div>;
+  return <div className={cn("page-shell max-w-[900px] xl:max-w-[1120px] xl:pr-[280px]", className)}>{children}</div>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -315,7 +316,7 @@ export function Today({ ws }: { ws: Workspace }) {
   );
 
   const list = (moves: Move[], offset = 0) => (
-    <ul className="relative space-y-2">
+    <ul className="relative space-y-3">
       <AnimatePresence mode="popLayout" initial={reveal} custom={exits}>
         {moves.map((m, i) => card(m, offset + i))}
       </AnimatePresence>
@@ -491,6 +492,7 @@ function CaughtUpConsumer() {
 function TodaySkeleton() {
   return (
     <Column className="opacity-0 animate-[fade-in_150ms_var(--ease-out)_150ms_forwards]">
+      <LoadingSignal label="Preparing your daily brief" className="mb-7" />
       <Skeleton className="h-11 w-72 max-w-full md:h-[52px]" />
       <Skeleton className="mt-4 h-6 w-96 max-w-full" />
       <Skeleton className="mt-7 h-4 w-80 max-w-full" />

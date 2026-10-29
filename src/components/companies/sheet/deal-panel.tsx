@@ -7,7 +7,7 @@ import { useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/field";
+import { Input, Label, Select } from "@/components/ui/field";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { CopyButton, Markdown, Segmented } from "@/components/ui/misc";
 import { WorkLog } from "@/components/ui/work-log";
@@ -190,7 +190,7 @@ function StageControl({ deal, today }: { deal: Deal; today: string }) {
         <div className="mt-3 flex flex-wrap items-end gap-2 rounded-md bg-bg-subtle p-3 animate-[fade-in_150ms_var(--ease-out)]">
           <div className="min-w-48 flex-1">
             <Label htmlFor="loss-reason">Why did it end?</Label>
-            <select
+            <Select
               id="loss-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as NonNullable<Deal["lossReason"]>)}
@@ -201,7 +201,7 @@ function StageControl({ deal, today }: { deal: Deal; today: string }) {
                   {r.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <HoldButton onConfirm={() => void move("lost", { lossReason: reason })}>Hold to close as lost</HoldButton>
           <Button size="sm" variant="ghost" onClick={() => setClosing(null)}>
@@ -427,11 +427,11 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
                 <span className="font-medium text-fg">{person.name}</span>
                 {person.title && <span className="text-fg-2"> · {person.title}</span>}
               </span>
-              <select
+              <Select
                 value={role ?? ""}
                 aria-label={`${person.name}'s role`}
                 onChange={(e) => void setContacts(deal.contacts.map((c) => (c.personId === person.id ? { ...c, role: (e.target.value || undefined) as PersonaRole | undefined } : c)))}
-                className="h-7 rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                className="h-7 w-full rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:w-auto"
               >
                 <option value="">Role?</option>
                 {(Object.keys(ROLE_LABEL) as PersonaRole[]).map((r) => (
@@ -439,12 +439,12 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
                     {ROLE_LABEL[r]}
                   </option>
                 ))}
-              </select>
-              <select
+              </Select>
+              <Select
                 value={person.champion ?? ""}
                 aria-label={`${person.name}'s champion status`}
                 onChange={(e) => void dispatch({ type: "person.upsert", person: { ...person, champion: (e.target.value || undefined) as Person["champion"] } })}
-                className="h-7 rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                className="h-7 w-full rounded-sm bg-transparent px-1.5 text-[12px] text-fg-2 ring-1 ring-border hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:w-auto"
               >
                 <option value="">Not a champion</option>
                 {(Object.keys(CHAMPION_LABEL) as (keyof typeof CHAMPION_LABEL)[]).map((c) => (
@@ -452,7 +452,7 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
                     {CHAMPION_LABEL[c]}
                   </option>
                 ))}
-              </select>
+              </Select>
               <button
                 onClick={() => void setContacts(deal.contacts.filter((c) => c.personId !== person.id))}
                 aria-label={`Remove ${person.name} from the deal`}
@@ -584,7 +584,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
             <li key={m.id} className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2.5 py-1.5 sm:grid-cols-[20px_minmax(0,1fr)_96px_140px_24px]">
               <input type="checkbox" checked={m.status === "done"} onChange={() => setMs(m.id, { status: m.status === "done" ? "todo" : "done" })} aria-label={`Done: ${m.step}`} className="accent-[var(--fg)]" />
               <CommitInput value={m.step} onCommit={(step) => step.trim() && setMs(m.id, { step: step.trim() })} ariaLabel="Milestone" className={cn(m.status === "done" && "text-fg-3 line-through")} />
-              <select
+              <Select
                 value={m.ownerSide}
                 onChange={(e) => setMs(m.id, { ownerSide: e.target.value as "buyer" | "seller" | "both" })}
                 aria-label="Owner"
@@ -593,7 +593,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
                 <option value="buyer">{account.name}</option>
                 <option value="seller">You</option>
                 <option value="both">Both</option>
-              </select>
+              </Select>
               <span className={cn("col-start-2 sm:col-start-auto", late ? "text-danger" : afterTarget ? "text-warning" : "")}>
                 <CommitInput type="date" value={m.due} onCommit={(due) => due && setMs(m.id, { due })} ariaLabel="Due date" className={cn("font-mono text-[12px]", late && "text-danger", afterTarget && !late && "text-warning")} />
               </span>
@@ -726,12 +726,12 @@ function Pricing({ deal, today }: { deal: Deal; today: string }) {
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Input value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === "Enter" && log()} placeholder="$ quoted" aria-label="Amount quoted" inputMode="numeric" className="w-32" />
-        <select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} aria-label="Their reaction" className="h-8 rounded-sm bg-surface px-2 text-[13px] ring-1 ring-border-strong/70">
+        <Select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} aria-label="Their reaction" className="h-8 rounded-sm bg-surface px-2 text-[13px] ring-1 ring-border-strong/70">
           <option value="">Reaction?</option>
           <option value="accepted">Accepted</option>
           <option value="pushback">Pushback</option>
           <option value="lost">Lost on price</option>
-        </select>
+        </Select>
         <Button size="sm" onClick={log} disabled={!amount.trim()}>
           Log quote
         </Button>

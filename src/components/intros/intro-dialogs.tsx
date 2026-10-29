@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input, Label, Textarea } from "@/components/ui/field";
+import { Input, Label, Textarea, Select } from "@/components/ui/field";
 import { addDays, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Intro, IntroSide, IntroStage, Workspace } from "@/lib/domain/types";
 import { first } from "@/lib/moves/util";
@@ -232,7 +232,7 @@ function LogAskForm({ onDone }: { onDone: () => void }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor={`${id}-c`}>Who you asked</Label>
-          <select
+          <Select
             id={`${id}-c`}
             value={connectorId}
             onChange={(e) => setConnectorId(e.target.value)}
@@ -243,7 +243,7 @@ function LogAskForm({ onDone }: { onDone: () => void }) {
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <Label htmlFor={`${id}-d`}>Asked on</Label>
@@ -259,7 +259,7 @@ function LogAskForm({ onDone }: { onDone: () => void }) {
           <Label htmlFor={`${id}-a`} hint="Optional">
             At
           </Label>
-          <select
+          <Select
             id={`${id}-a`}
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
@@ -271,12 +271,12 @@ function LogAskForm({ onDone }: { onDone: () => void }) {
                 {a.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div>
         <Label htmlFor={`${id}-s`}>Where it stands</Label>
-        <select
+        <Select
           id={`${id}-s`}
           value={stage}
           onChange={(e) => setStage(e.target.value as IntroStage)}
@@ -285,7 +285,7 @@ function LogAskForm({ onDone }: { onDone: () => void }) {
           <option value="asked">Waiting on {first(connector?.name) || "them"}</option>
           <option value="forwarded">{first(connector?.name) || "They"} is checking with them</option>
           <option value="introduced">The intro email landed</option>
-        </select>
+        </Select>
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" onClick={onDone}>

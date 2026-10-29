@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { Favicon } from "@/components/ui/favicon";
-import { Skeleton } from "@/components/ui/misc";
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
 import { nowISO } from "@/lib/domain/ids";
@@ -76,20 +77,20 @@ export function PlaysPage() {
     });
   }, [ws, today]);
 
-  if (!ws || !rows) return <PlaysSkeleton />;
+  if (!ws || !rows) return <LoadingSignal label="Matching your plays" className="min-h-[60dvh]" />;
   const running = rows.filter((r) => r.on).length;
   const live = rows.filter((r) => r.on).reduce((n, r) => n + r.live, 0);
   const onToday = rows.reduce((n, r) => n + r.onToday, 0);
   const pipeline = rows.reduce((n, r) => n + r.results.pipelineUsd + r.results.wonUsd, 0);
 
   return (
-    <div className="mx-auto w-full px-6 pb-28 pt-8 md:px-10 md:pt-12 max-w-[1000px]">
-      <header>
-        <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em]">Plays</h1>
-        <p className="mt-1.5 max-w-[60ch] text-[14px] leading-[21px] text-fg-2">
-          Repeatable programs I run against your accounts every day: a trigger you could write down, one action, and results counted from your deals. Running plays put their best match on Today; pause one and its cards come off.
-        </p>
-        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
+    <div className="page-shell max-w-[1000px]">
+      <PageHeader
+        title="Plays"
+        eyebrow="Always on"
+        description="Repeatable programs I run against your accounts every day: a trigger you could write down, one action, and results counted from your deals. Running plays put their best match on Today; pause one and its cards come off."
+      >
+        <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
           <span>
             <span className="font-mono tnum text-fg-2">{running}</span> of {rows.length} running
           </span>
@@ -112,7 +113,7 @@ export function PlaysPage() {
           <span aria-hidden>·</span>
           <span>Free public signals only: no intent data bought</span>
         </p>
-      </header>
+      </PageHeader>
 
       {FAMILIES.map((family) => {
         const group = rows.filter((r) => r.play.family === family);
@@ -408,13 +409,3 @@ function MatchRow({ m, play, ws, today }: { m: PlayMatch; play: PlayDef; ws: Wor
   );
 }
 
-function PlaysSkeleton() {
-  return (
-    <div aria-busy className="mx-auto w-full px-6 pb-28 pt-8 md:px-10 md:pt-12 max-w-[1000px]">
-      <Skeleton className="h-9 w-32" />
-      <Skeleton className="mt-3 h-4 w-full max-w-md" />
-      <Skeleton className="mt-10 h-28 w-full rounded-xl" />
-      <Skeleton className="mt-2.5 h-28 w-full rounded-xl" />
-    </div>
-  );
-}

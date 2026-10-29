@@ -16,6 +16,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Ask answers forecast and at-risk questions in code; MCP and REST add `get_forecast` and `list_plays`.
 - Research notes: `docs/research/12-revenue-operating-system.md` and `docs/research/13-gtm-engineering-and-plays.md`.
 
+### Changed
+- A refreshed look in light and dark: new palettes, Geist for text, and one page header (eyebrow, serif title, short description) with shared spacing on Companies, Revenue, Plays, Intros, Events, Playbook, Integrations and Settings. Today and setup use the same eyebrow.
+- Buttons and inputs are a step larger, with a visible keyboard focus ring. Invalid fields are marked, selects share one style, and a busy button says so to screen readers.
+- Loading shows an indeterminate signal instead of a made-up percentage, with a workspace-wide fallback while a page opens.
+- The sidebar leads with the Inroad mark and your workspace, then the agent and navigation, and scrolls when the window is shorter than it is.
+- Today's masthead shows progress tiles: conversations this week, and the revenue commit when a target is set.
+- A "Skip to content" link for keyboard users.
+
+### Validation
+- 1,349 tests pass with three skipped; lint, typecheck and production build pass. Today, Revenue, Plays, Companies, Integrations, Settings, Studio and Research were checked in the browser on the sample workspace at desktop width, and Today and the menu at phone width.
+- Forecast accuracy on real pipelines is unmeasured: win rates and cycle times lean on stated priors until 30 deals are decided.
+
 ---
 
 ## [v0.2.15] — 2026-10-28

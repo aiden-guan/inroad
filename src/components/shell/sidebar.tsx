@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge, Badge } from "@/components/ui/badge";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover } from "@/components/ui/menu";
@@ -19,7 +20,6 @@ import { usd } from "@/lib/client/format";
 import { monthKey } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
 import { goalLine } from "@/lib/moves/nav-counts";
-import { spring } from "@/lib/motion";
 import { UpdateNotice } from "@/components/updates/update-notice";
 import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
 import { SampleBanner } from "./sample-banner";
@@ -107,12 +107,12 @@ function AgentBlock() {
       align="start"
       className="w-72 p-2"
       trigger={
-        <button className="group flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-bg-subtle">
+        <button className="group flex w-full items-center gap-3 rounded-xl bg-surface/70 px-3 py-3 text-left ring-1 ring-inset ring-border transition-[background-color,box-shadow] duration-150 hover:bg-surface-raised hover:shadow-sm">
           <OrbMorph on={wide} layout="desktop">
             <Orb state={status.state} size={22} tick={status.ticks} />
           </OrbMorph>
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1.5 text-[12px] font-medium text-fg">
+            <span className="mb-0.5 flex items-center gap-1.5 text-[12px] font-medium text-fg">
               Head of GTM <AiBadge />
             </span>
             <AgentLine status={status} className="text-[12px]" />
@@ -133,29 +133,33 @@ export function Sidebar() {
   const counts = useNavCounts();
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-bg-subtle md:flex">
-      <div className="flex h-12 items-center gap-2 px-4">
-        <span className="font-serif text-[21px] font-medium tracking-[-0.02em] text-fg [font-variation-settings:'opsz'_36]">{BRAND.product}</span>
-        {ws?.company && (
-          <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[12px] text-fg-3">
-            <Favicon domain={ws.company.domain} size={14} />
-            <span className="truncate">{ws.company.name}</span>
-            {ws.sample && (
-              <Badge tone="warning" className="h-4 px-1 text-[10px]">
-                Sample
-              </Badge>
-            )}
-          </span>
-        )}
+    <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-border bg-bg-subtle [scrollbar-width:thin] md:flex">
+      <div className="flex h-[76px] shrink-0 items-center gap-2.5 px-5">
+        <BrandMark className="size-8 text-fg" />
+        <span className="font-serif text-[27px] font-medium tracking-[-0.04em] text-fg [font-variation-settings:'opsz'_48]">{BRAND.product}</span>
       </div>
+
+      {ws?.company && (
+        <div className="mx-4 mb-5 flex min-w-0 shrink-0 items-center gap-2 border-b border-border px-1 pb-4">
+          <Favicon domain={ws.company.domain} size={20} />
+          <span className="truncate text-[12px] font-medium text-fg-2">{ws.company.name}</span>
+          {ws.sample ? (
+            <Badge tone="warning" className="ml-auto h-4 px-1 text-[10px]">
+              Sample
+            </Badge>
+          ) : (
+            <span className="ml-auto font-mono text-[9px] uppercase tracking-[.08em] text-fg-3">Workspace</span>
+          )}
+        </div>
+      )}
 
       <SampleBanner variant="sidebar" />
 
-      <div className="px-2 pb-2">
+      <div className="shrink-0 px-3 pb-6">
         <AgentBlock />
       </div>
 
-      <nav className="flex flex-col gap-0.5 px-2">
+      <nav aria-label="Workspace" className="flex shrink-0 flex-col gap-1 px-3">
         {navFor(ws).map((item) => (
           <NavLink
             key={item.href}
@@ -169,13 +173,13 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-0.5 px-2 pb-2">
+      <div className="mt-auto flex shrink-0 flex-col gap-1 px-3 pb-4 pt-6">
         <UpdateNotice />
         <GoalLine />
         <button
           onClick={() => window.dispatchEvent(new Event("inroad:palette"))}
           aria-haspopup="dialog"
-          className="mb-1 flex h-8 items-center gap-2 rounded-sm px-2 text-[13px] text-fg-2 ring-1 ring-border transition-colors hover:bg-surface hover:text-fg"
+          className="mb-4 flex h-10 items-center gap-2 rounded-lg bg-surface/50 px-3 text-[12px] text-fg-2 ring-1 ring-inset ring-border transition-colors hover:bg-surface hover:text-fg"
         >
           <Command className="size-3.5" />
           <span className="flex-1 text-left">Ask or jump to…</span>
@@ -250,16 +254,15 @@ function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex h-8 items-center gap-2.5 rounded-sm px-2 text-[13px] transition-colors duration-150",
-        active ? "font-medium text-fg" : "text-fg-2 hover:bg-surface/60 hover:text-fg",
+        "relative flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors duration-150",
+        active ? "bg-surface font-medium text-fg shadow-xs ring-1 ring-inset ring-border" : "text-fg-2 hover:bg-surface/60 hover:text-fg",
       )}
       title={shortcut}
     >
-      {active && <motion.span layoutId="nav-active" transition={spring.snappy} className="absolute inset-0 rounded-sm bg-surface shadow-xs ring-1 ring-border" />}
       <Icon className={cn("relative size-4", active ? "text-fg" : "text-fg-3")} />
       <span className="relative flex-1">{label}</span>
       {count !== undefined && (
-        <span className="relative min-w-5 rounded-full bg-accent px-1.5 text-center font-mono text-[10.5px] font-medium leading-[18px] text-accent-fg">{count}</span>
+        <span className="relative min-w-5 rounded-md bg-accent-subtle px-1.5 text-center font-mono text-[10.5px] font-medium leading-5 text-accent-text">{count}</span>
       )}
     </Link>
   );

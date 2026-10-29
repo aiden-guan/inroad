@@ -19,6 +19,9 @@ const eslintConfig = defineConfig([
     // The Mac app's assembled server and packaged builds (generated, see desktop/).
     "desktop/dist-server/**",
     "desktop/dist/**",
+    // Local agent checkouts and workspace state are not application source.
+    ".claude/**",
+    ".data*/**",
   ]),
 ]);
 

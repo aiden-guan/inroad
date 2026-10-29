@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { FieldError, Label, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
 import type { Market, Workspace } from "@/lib/domain/types";
@@ -167,6 +168,10 @@ export function StartStep({ ws, onStart, starting }: { ws: Workspace; onStart: (
       exit={{ opacity: 0, transition: { duration: 0.12 } }}
       className="mx-auto w-full max-w-[560px] px-4 pb-20 pt-[8vh] sm:px-6 sm:pt-[13vh]"
     >
+        <motion.div variants={listItem} custom={0} className="mb-8 flex items-center gap-3">
+          <span className="flex size-12 items-center justify-center rounded-xl bg-surface text-fg shadow-sm ring-1 ring-inset ring-border"><BrandMark className="size-8" /></span>
+          <span className="page-eyebrow">A head start on your next chapter</span>
+        </motion.div>
         <motion.h1
           variants={listItem}
           custom={0}

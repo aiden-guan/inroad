@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, MapPin, Plus } from "lucide-react";
 import Link from "next/link";
@@ -42,7 +43,7 @@ function EventCard({ ev, ws, index, animate, planningTitle }: { ev: GtmEvent; ws
     <motion.li variants={listItem} initial={animate ? "hidden" : false} animate="show" custom={index}>
       <Link
         href={`/events/${ev.id}`}
-        className="group flex h-full flex-col rounded-lg bg-surface p-4 shadow-sm ring-1 ring-border transition-[box-shadow,transform] duration-150 ease-out hover:shadow-md active:scale-[0.995] md:p-5"
+        className="group flex h-full flex-col relative overflow-hidden rounded-xl bg-surface p-5 shadow-sm ring-1 ring-inset ring-border transition-[box-shadow,transform] duration-200 ease-out hover:shadow-md active:scale-[0.995] md:p-6"
       >
         <div className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[12px] text-fg-3">
           <KindIcon kind={ev.kind} />
@@ -65,7 +66,7 @@ function EventCard({ ev, ws, index, animate, planningTitle }: { ev: GtmEvent; ws
           </span>
         </div>
 
-        <h3 className="mt-3 text-[15px] font-semibold leading-5 tracking-[-0.01em] text-fg">{theme && theme.title !== "Write the question" ? theme.title : ev.title}</h3>
+        <h3 className="mt-5 text-[18px] font-medium leading-6 tracking-[-0.02em] text-fg">{theme && theme.title !== "Write the question" ? theme.title : ev.title}</h3>
         {theme ? (
           <p className="mt-1 line-clamp-2 font-serif text-[16px] leading-[23px] text-fg-2">{theme.question}</p>
         ) : planningTitle ? (
@@ -77,9 +78,9 @@ function EventCard({ ev, ws, index, animate, planningTitle }: { ev: GtmEvent; ws
           <p className="mt-1 text-[13px] text-fg-3">No plan yet. Open it to plan the room.</p>
         )}
 
-        <FunnelBar funnel={funnel} className="mt-4" size="sm" />
+        <FunnelBar funnel={funnel} className="mb-5 mt-6" size="sm" />
 
-        <div className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-[12.5px]">
+        <div className="mt-auto flex items-center gap-2 border-t border-border pt-4 text-[12.5px]">
           {task ? (
             <>
               <span className={cn("min-w-0 flex-1 truncate", overdue ? "text-danger" : "text-fg-2")}>
@@ -166,18 +167,13 @@ export function EventsPage() {
   const planningTitle = (id: string) => active.find((r) => r.ref?.kind === "event" && r.ref.id === id)?.title;
 
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-6 pb-24 pt-8 md:px-10 md:pt-12">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em]">Events</h1>
-          <p className="mt-1.5 text-[14px] text-fg-2">Roundtables and dinners that turn into meetings.</p>
-        </div>
-        {!open && (upcoming.length > 0 || past.length > 0) && (
-          <Button variant="primary" icon={<Plus className="size-4" />} kbd="N" onClick={() => setFormOpen(true)}>
-            Plan an event
-          </Button>
-        )}
-      </header>
+    <div className="page-shell">
+      <PageHeader
+        title="Events"
+        eyebrow="Make room for a conversation"
+        description="Roundtables and dinners that turn into meetings."
+        actions={!open && (upcoming.length > 0 || past.length > 0) ? <Button variant="primary" icon={<Plus className="size-4" />} kbd="N" onClick={() => setFormOpen(true)}>Plan an event</Button> : undefined}
+      />
 
       <AnimatePresence initial={false}>{open && ws && <PlanForm
             key="form"

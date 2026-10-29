@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingSignal } from "@/components/ui/loading";
 import { NotebookPen } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -149,6 +150,7 @@ export function PlaybookSkeleton() {
           ))}
         </div>
         <div className="mx-auto w-full max-w-[720px]">
+      <LoadingSignal label="Opening your playbook" className="mb-7" />
           <Skeleton className="h-9 w-40" />
           <Skeleton className="mt-3 h-4 w-[70%]" />
           <Skeleton className="mt-12 h-20 w-full rounded-lg" />

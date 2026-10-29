@@ -173,7 +173,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
-      <Suspense fallback={<div aria-hidden className="sticky top-0 hidden h-dvh w-[232px] shrink-0 border-r border-border bg-bg-subtle md:block" />}>
+      <a href="#main-content" className="fixed left-4 top-3 z-[90] -translate-y-24 rounded-lg bg-primary px-4 py-2 text-primary-fg focus:translate-y-0">Skip to content</a>
+      <Suspense fallback={<div aria-hidden className="sticky top-0 hidden h-dvh w-[240px] shrink-0 border-r border-border bg-bg-subtle md:block" />}>
         <Sidebar />
       </Suspense>
       <div className="min-w-0 flex-1">
@@ -208,7 +209,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </AnimatePresence>
         <SampleBanner variant="bar" />
-        <main className="min-w-0">{children}</main>
+        <main id="main-content" tabIndex={-1} className="workspace-main min-h-dvh min-w-0 outline-none">{children}</main>
       </div>
       <CommandPalette />
       <ShortcutsDialog />

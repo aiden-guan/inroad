@@ -62,7 +62,7 @@ export function SampleBanner({ variant }: { variant: "sidebar" | "bar" }) {
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0, transition: { duration: 0.15 } }}
           transition={{ duration: 0.22, ease: ease.out }}
-          className={cn("overflow-hidden", variant === "bar" && "md:hidden")}
+          className={cn("shrink-0 overflow-hidden", variant === "bar" && "md:hidden")}
         >
           {variant === "sidebar" ? (
             <div className="mx-2 mb-2 rounded-md bg-warning-subtle px-3 py-2.5">
