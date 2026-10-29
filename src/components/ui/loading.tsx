@@ -6,8 +6,7 @@ export function LoadingSignal({ label = "Opening your workspace", className }: {
   return (
     <div role="status" className={cn("loading-signal flex items-center gap-3", className)}>
       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-subtle text-accent-text ring-1 ring-inset ring-accent/15" aria-hidden>
-        <BrandMark className="size-6" />
-        <span className="loading-orbit absolute inset-0 rounded-xl" />
+        <BrandMark draw="loop" className="size-6" />
       </span>
       <span className="text-[12px] font-medium text-fg-3">{label}<span className="loading-dots" aria-hidden><i /><i /><i /></span></span>
     </div>

@@ -9,6 +9,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge, Badge } from "@/components/ui/badge";
 import { BrandMark } from "@/components/ui/brand-mark";
 import { Favicon } from "@/components/ui/favicon";
+import { useKeyboardDriven } from "@/components/ui/fx";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover } from "@/components/ui/menu";
 import { Num } from "@/components/ui/misc";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/client/cn";
 import { usd } from "@/lib/client/format";
 import { monthKey } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
+import { spring } from "@/lib/motion";
 import { goalLine } from "@/lib/moves/nav-counts";
 import { UpdateNotice } from "@/components/updates/update-notice";
 import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
@@ -67,14 +69,24 @@ function subscribeTheme(cb: () => void) {
 
 export function useTheme() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, () => null);
-  const toggle = () => {
-    const next = readTheme() === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
-      // private mode
-    }
+  /** Flips the theme; given the point it was asked from, the new theme spreads out from there as a circle. */
+  const toggle = (from?: { x: number; y: number }) => {
+    const apply = () => {
+      const next = readTheme() === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      try {
+        localStorage.setItem("theme", next);
+      } catch {
+        // private mode
+      }
+    };
+    const root = document.documentElement;
+    if (!from || !document.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return apply();
+    root.style.setProperty("--vt-x", `${from.x}px`);
+    root.style.setProperty("--vt-y", `${from.y}px`);
+    root.style.setProperty("--vt-r", `${Math.hypot(Math.max(from.x, innerWidth - from.x), Math.max(from.y, innerHeight - from.y))}px`);
+    root.dataset.vt = "theme";
+    void document.startViewTransition(apply).finished.finally(() => delete root.dataset.vt);
   };
   return { theme, toggle };
 }
@@ -135,7 +147,8 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-border bg-bg-subtle [scrollbar-width:thin] md:flex">
       <div className="flex h-[76px] shrink-0 items-center gap-2.5 px-5">
-        <BrandMark className="size-8 text-fg" />
+        {/* The layout persists across navigation, so this draws once per page load. */}
+        <BrandMark draw="once" className="size-8 text-fg" />
         <span className="font-serif text-[27px] font-medium tracking-[-0.04em] text-fg [font-variation-settings:'opsz'_48]">{BRAND.product}</span>
       </div>
 
@@ -192,8 +205,26 @@ export function Sidebar() {
           <Link href="/settings#usage" className="font-mono text-[11px] tnum text-fg-3 hover:text-fg-2" title="AI spend this month">
             {usd(spend)} this month
           </Link>
-          <button onClick={toggle} aria-label="Toggle theme" className="rounded-xs p-1 text-fg-3 transition-colors hover:bg-surface hover:text-fg">
-            {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+          <button
+            onClick={(e) => {
+              const box = e.currentTarget.getBoundingClientRect();
+              toggle(e.detail ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : undefined);
+            }}
+            aria-label="Toggle theme"
+            className="relative grid size-[22px] place-items-center rounded-xs text-fg-3 transition-colors hover:bg-surface hover:text-fg [&>*]:[grid-area:1/1]"
+          >
+            <AnimatePresence initial={false}>
+              <motion.span
+                key={theme ?? "none"}
+                initial={{ opacity: 0, rotate: -90, scale: 0.5, filter: "blur(2px)" }}
+                animate={{ opacity: 1, rotate: 0, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, rotate: 90, scale: 0.5, filter: "blur(2px)" }}
+                transition={spring.snappy}
+                className="flex"
+              >
+                {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+              </motion.span>
+            </AnimatePresence>
           </button>
         </div>
       </div>
@@ -249,21 +280,41 @@ function NavLink({
   count?: number;
   shortcut?: string;
 }) {
+  // "G then T" is used all day: from the keyboard the selection snaps; from a click it glides.
+  const keyboard = useKeyboardDriven();
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors duration-150",
-        active ? "bg-surface font-medium text-fg shadow-xs ring-1 ring-inset ring-border" : "text-fg-2 hover:bg-surface/60 hover:text-fg",
+        active ? "font-medium text-fg" : "text-fg-2 hover:bg-surface/60 hover:text-fg",
       )}
       title={shortcut}
     >
-      <Icon className={cn("relative size-4", active ? "text-fg" : "text-fg-3")} />
-      <span className="relative flex-1">{label}</span>
-      {count !== undefined && (
-        <span className="relative min-w-5 rounded-md bg-accent-subtle px-1.5 text-center font-mono text-[10.5px] font-medium leading-5 text-accent-text">{count}</span>
+      {active && (
+        <motion.span
+          layoutId="nav-selection"
+          transition={keyboard ? { duration: 0 } : spring.glide}
+          className="absolute inset-0 rounded-lg bg-surface shadow-xs ring-1 ring-inset ring-border"
+        />
       )}
+      <Icon className={cn("relative size-4 transition-colors duration-150", active ? "text-fg" : "text-fg-3")} />
+      <span className="relative flex-1">{label}</span>
+      <AnimatePresence initial={false}>
+        {count !== undefined && (
+          <motion.span
+            key="count"
+            initial={{ opacity: 0, scale: 0.5, x: -4, y: 4 }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, scale: 0.6, transition: { duration: 0.12 } }}
+            transition={spring.pop}
+            className="relative min-w-5 rounded-md bg-accent-subtle px-1.5 text-center font-mono text-[10.5px] font-medium leading-5 text-accent-text"
+          >
+            <Num value={count} />
+          </motion.span>
+        )}
+      </AnimatePresence>
     </Link>
   );
 }

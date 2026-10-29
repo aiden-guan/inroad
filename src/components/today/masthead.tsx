@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AiBadge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
+import { TextReveal } from "@/components/ui/fx";
 import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { MarginNote, SourceChip } from "@/components/ui/source";
@@ -65,14 +66,9 @@ export function Masthead({
     <header className="relative">
       <p className="page-eyebrow mb-4">Your daily brief</p>
       <div className="flex items-start gap-3">
-        <motion.h1
-          initial={reveal ? { opacity: 0, filter: "blur(4px)" } : false}
-          animate={{ opacity: 1, filter: "blur(0px)" }}
-          transition={{ duration: 0.3, ease: ease.out }}
-          className="min-w-0 flex-1 text-balance font-serif text-[38px] leading-[42px] tracking-[-0.035em] text-fg [font-variation-settings:'opsz'_72] md:text-[48px] md:leading-[52px]"
-        >
-          {dateLabel}
-        </motion.h1>
+        <h1 className="min-w-0 flex-1 text-balance font-serif text-[38px] leading-[42px] tracking-[-0.035em] text-fg [font-variation-settings:'opsz'_72] md:text-[48px] md:leading-[52px]">
+          <TextReveal key={dateLabel} text={dateLabel} play={reveal && !reduce} step={70} />
+        </h1>
         <button
           onClick={onRefresh}
           aria-label="Refresh moves"

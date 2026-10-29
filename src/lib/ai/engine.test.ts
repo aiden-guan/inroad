@@ -73,7 +73,15 @@ describe("runAgent with a terminal tool", () => {
     // Schema-valid input that keeps to the caps the strict schema carries in its descriptions.
     expect(r.result).toEqual({ headline: "Hiring a first finance lead this quarter", score: 78, steps: ["Send the first email Thursday morning", "Send the first email Thursday morning"], url: "https://example.com" });
     expect(r.stopReason).toBe("tool_use");
-    expect(r.of("thinking").map((e) => e.text)).toEqual(["Reading what was asked: Plan outreach for Acme.", "Checking the material I was given before writing."]);
+    // Each complete sentence of the summary surfaces once; the last one waits for a sentence after it.
+    expect(r.of("thinking").map((e) => e.text)).toEqual([
+      "Reading what was asked: Plan outreach for Acme.",
+      "Starting from the workspace: the account, its open deal, and the last few touches.",
+      "Checking the material I was given before writing.",
+      "Two of the signals are dated, so the fresher one should carry more weight.",
+      "The recent hire is the stronger angle; the funding news is older and widely known.",
+      "Keeping it short: one claim per line, each with its source.",
+    ]);
     expect(r.of("search")).toEqual([{ type: "search", query: "Acme funding news 2026" }]);
     expect(r.of("sources")[0].sources.map((s) => s.host)).toEqual(["techcrunch.com", "jobs.ashbyhq.com", "forbes.com"]);
     expect(r.of("read")).toEqual([{ type: "read", url: "https://example.com", host: "example.com" }]);

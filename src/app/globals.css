@@ -181,6 +181,8 @@
   --ease-in-quad: cubic-bezier(0.55, 0.085, 0.68, 0.53);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --ease-reason: cubic-bezier(0.22, 1, 0.36, 1);
 
   --animate-shimmer: shimmer 1.5s linear infinite;
   --animate-text-shimmer: text-shimmer 2s linear infinite;
@@ -302,12 +304,6 @@
   }
   .field-select:disabled {
     cursor: not-allowed;
-  }
-  .loading-orbit {
-    border: 1px solid transparent;
-    border-top-color: var(--accent);
-    border-right-color: color-mix(in oklab, var(--accent) 30%, transparent);
-    animation: orb-spin 1.8s linear infinite;
   }
   .loading-dots {
     display: inline-flex;
@@ -631,5 +627,183 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+}
+
+/* ───────────── Motion kit (src/components/ui/fx.tsx, ink-pattern.tsx, reasoning-stream.tsx) ─────────────
+ * CSS-driven so the compositor keeps running them while React is busy. One vocabulary everywhere:
+ * 8px of travel, 2px of blur, ~45ms between siblings, ease-out to arrive, a small overshoot to land.
+ * `--fx-i` (sibling index) and `--fx-delay` are set inline by the components. */
+
+:root {
+  --fx-travel: 8px;
+  --fx-blur: 2px;
+  --fx-step: 45ms;
+}
+
+/* Words and rows arrive: up 8px, out of a 2px blur. */
+@keyframes fx-rise {
+  from { opacity: 0; transform: translateY(var(--fx-travel)); filter: blur(var(--fx-blur)); }
+}
+/* Surfaces (cards, panels) arrive without blur: blurring a large layer costs too much, Safari most of all. */
+@keyframes fx-lift {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+}
+/* Digits land from below when a number grows and from above when it shrinks (`--fx-dir`). */
+@keyframes fx-digit {
+  from { opacity: 0; transform: translateY(calc(var(--fx-travel) * var(--fx-dir, 1))); filter: blur(var(--fx-blur)); }
+}
+/* Strokes drawn with pathLength="1". */
+@keyframes fx-draw {
+  from { stroke-dashoffset: 1; }
+}
+@keyframes fx-pop {
+  from { opacity: 0; transform: scale(0.6); }
+}
+@keyframes fx-ring {
+  from { opacity: 0.45; transform: scale(0.85); }
+  to { opacity: 0; transform: scale(2); }
+}
+/* A soft diagonal edge sweeps across: the pattern inks in, left to right. */
+@keyframes fx-ink-in {
+  from { mask-position: 100% 0; }
+  to { mask-position: 0 0; }
+}
+@keyframes fx-wipe {
+  from { clip-path: inset(0 100% 0 0 round 6px); }
+  to { clip-path: inset(0 0 0 0 round 6px); }
+}
+@keyframes fx-drop {
+  from { opacity: 0; transform: translateY(-12px) scaleY(0.3); }
+}
+@keyframes fx-sheen {
+  from { transform: translateX(-140%) skewX(-20deg); }
+  to { transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes fx-draw-loop {
+  0% { stroke-dashoffset: 1; }
+  45%, 62% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -1; }
+}
+@keyframes fx-strike {
+  from { transform: scaleX(0); }
+}
+/* The empty state's satellite makes one lap of its ring, then rests where it always sits. */
+@keyframes fx-orbit-once {
+  from { transform: rotate(-300deg); }
+}
+
+@layer components {
+  .fx-word {
+    display: inline-block;
+    animation: fx-rise 460ms var(--ease-out) both;
+    animation-delay: calc(var(--fx-delay, 0ms) + var(--fx-i, 0) * var(--fx-step));
+  }
+  .fx-rise {
+    animation: fx-rise 380ms var(--ease-out) both;
+    animation-delay: calc(var(--fx-delay, 0ms) + var(--fx-i, 0) * var(--fx-step));
+  }
+  .fx-lift {
+    animation: fx-lift 460ms var(--ease-out) both;
+    animation-delay: calc(var(--fx-delay, 0ms) + var(--fx-i, 0) * var(--fx-step));
+  }
+  .fx-digit {
+    display: inline-block;
+    animation: fx-digit 540ms var(--ease-overshoot) both;
+    animation-delay: calc(var(--fx-delay, 0ms) + var(--fx-i, 0) * 50ms);
+  }
+  .fx-draw {
+    stroke-dasharray: 1;
+    animation: fx-draw 900ms var(--ease-in-out) both;
+    animation-delay: var(--fx-delay, 0ms);
+  }
+  .fx-draw-loop {
+    stroke-dasharray: 1;
+    animation: fx-draw-loop 2000ms var(--ease-in-out) infinite both;
+    animation-delay: var(--fx-delay, 0ms);
+  }
+  .fx-wipe {
+    animation: fx-wipe 760ms var(--ease-in-out) both;
+    animation-delay: var(--fx-delay, 0ms);
+  }
+  .fx-drop {
+    transform-origin: top;
+    animation: fx-drop 520ms var(--ease-overshoot) both;
+    animation-delay: var(--fx-delay, 0ms);
+  }
+  .fx-ink {
+    -webkit-mask-image: linear-gradient(110deg, #000 42%, transparent 58%);
+    mask-image: linear-gradient(110deg, #000 42%, transparent 58%);
+    -webkit-mask-size: 260% 100%;
+    mask-size: 260% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    mask-position: 0 0;
+    animation: fx-ink-in 1200ms var(--ease-out) both;
+    animation-delay: var(--fx-delay, 0ms);
+  }
+
+  /* Reasoning stream: the agent's summarized thinking, two lines at a time. The column steps up as lines
+     arrive (an interruptible transition, so a burst retargets instead of queueing); older lines dissolve
+     under a mask, so it sits on any surface. */
+  .fx-reason {
+    position: relative;
+    overflow: hidden;
+    height: calc(var(--reason-lines, 3) * var(--reason-lh, 20px));
+    -webkit-mask-image: linear-gradient(transparent 0, #000 var(--reason-fade, 18px), #000 100%);
+    mask-image: linear-gradient(transparent 0, #000 var(--reason-fade, 18px), #000 100%);
+  }
+  .fx-reason-col {
+    transition: transform 560ms var(--ease-reason);
+    will-change: transform;
+  }
+  .fx-reason-line {
+    transition: color 400ms var(--ease-out), opacity 400ms var(--ease-out);
+    animation: fx-rise 420ms var(--ease-out) both;
+  }
+
+  /* Agent buttons catch the light once on the way in: this one puts the agent to work. */
+  @media (hover: hover) and (pointer: fine) {
+    .fx-sheen {
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .fx-sheen::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 36%;
+      background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.3), transparent);
+      transform: translateX(-140%) skewX(-20deg);
+      pointer-events: none;
+    }
+    .fx-sheen:hover::after {
+      animation: fx-sheen 800ms var(--ease-out) both;
+    }
+  }
+}
+
+/* The theme flips from the button outward: the new one spreads as a circle (a rare, chosen moment). */
+:root[data-vt="theme"]::view-transition-old(root) {
+  animation: none;
+}
+:root[data-vt="theme"]::view-transition-new(root) {
+  animation: vt-theme-in 560ms var(--ease-in-out) both;
+}
+@keyframes vt-theme-in {
+  from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%)); }
+  to { clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-reason-col {
+    transition: none;
+  }
+  .fx-draw-loop {
+    animation: none;
+    stroke-dasharray: none;
+  }
+  .fx-sheen::after {
+    display: none;
   }
 }

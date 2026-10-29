@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Agent keys choose the model and thinking level for the new `ask_inroad` tool (MCP and `POST /api/v1/ask`).
 - Ask answers forecast and at-risk questions in code; MCP and REST add `get_forecast` and `list_plays`.
 - Research notes: `docs/research/12-revenue-operating-system.md` and `docs/research/13-gtm-engineering-and-plays.md`.
+- A live reasoning stream for agent runs: while one works, its thinking scrolls by, three lines at most; when it's done it folds into one line you can open. The lines stay in the tab and are never saved.
+- Answer cards in Ask for the forecast, the week and deal lists (at risk, no next step, gone quiet, open pipeline): the numbers, how many records they came from, and for the forecast a Commit / call / best-case switch. While Ask works, its window shows the question and what it's doing.
 
 ### Changed
 - A refreshed look in light and dark: new palettes, Geist for text, and one page header (eyebrow, serif title, short description) with shared spacing on Companies, Revenue, Plays, Intros, Events, Playbook, Integrations and Settings. Today and setup use the same eyebrow.
@@ -23,9 +25,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The sidebar leads with the Inroad mark and your workspace, then the agent and navigation, and scrolls when the window is shorter than it is.
 - Today's masthead shows progress tiles: conversations this week, and the revenue commit when a target is set.
 - A "Skip to content" link for keyboard users.
+- Motion where it explains something: a finished move stamps, strikes through and folds away; Revenue's first look of a session builds its bar and rolls its numbers; the sidebar selection glides on a click and snaps from the keyboard; counts pop in; the theme spreads out from its switch; and each company sheet carries a pattern drawn from its domain. Big reveals play once a session, and reduced motion turns movement off.
 
 ### Validation
-- 1,349 tests pass with three skipped; lint, typecheck and production build pass. Today, Revenue, Plays, Companies, Integrations, Settings, Studio and Research were checked in the browser on the sample workspace at desktop width, and Today and the menu at phone width.
+- 1,349 tests pass with three skipped, and all 55 end-to-end tests pass; lint, typecheck and production build pass. Today, Revenue, Plays, Companies, Integrations, Settings, Studio, Research and Ask's forecast card were checked in the browser on the sample workspace at desktop width, and Today and the menu at phone width.
 - Forecast accuracy on real pipelines is unmeasured: win rates and cycle times lean on stated priors until 30 deals are decided.
 
 ---

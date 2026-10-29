@@ -101,6 +101,7 @@ export function CompanySheet({ domain, onClose }: { domain: string | null; onClo
       title={account?.name ?? shown ?? "Company"}
       width={880}
       header={shown ? <Header domain={shown} account={account} deal={deal} tab={tab} onTab={setTab} /> : null}
+      seed={shown ?? undefined}
     >
       {/* Keyed by company: switching companies with the sheet open must not carry a half-logged call (or any form) across. */}
       {shown && (

@@ -12,6 +12,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { LoadingSignal } from "@/components/ui/loading";
 import { Orb, type OrbState } from "@/components/ui/orb";
 import { OrbMorph, useWide } from "@/components/ui/orb-morph";
+import { ReasoningStream } from "@/components/ui/reasoning-stream";
 import { useBillingUrl } from "@/lib/client/ai-provider";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
@@ -201,24 +202,7 @@ function WorkingColumn({
           collapsed={phase === "drafting" && !ledgerOpen}
           onToggle={phase === "drafting" ? () => setLedgerOpen((v) => !v) : undefined}
         />
-        {phase === "drafting" && live && (
-          <div className="mt-1 min-h-6">
-            <AnimatePresence mode="wait" initial={false}>
-              {run?.thinking && (
-                <motion.p
-                  key={run.thinking}
-                  initial={{ opacity: 0, filter: "blur(2px)" }}
-                  animate={{ opacity: 1, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, filter: "blur(2px)" }}
-                  transition={{ duration: 0.15 }}
-                  className="truncate pl-6 font-serif text-[14px] italic leading-6 text-fg-3"
-                >
-                  {run.thinking}
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+        {phase === "drafting" && live && run && run.reasoning.length > 0 && <ReasoningStream lines={run.reasoning} className="mt-1 pl-6" />}
         {dLive && (
           <ul className="mt-1">
             <PendingRow verb="Finding companies" detail={dLast && dLast.kind !== "status" ? dLast.text.slice(0, 60) : undefined} />

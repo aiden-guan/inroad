@@ -11,6 +11,7 @@ import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import {
   OPEN_STAGES,
   STAGE_LABELS,
+  type AnswerView,
   type AskCitation,
   type AskProposal,
   type AskTurn,
@@ -617,6 +618,8 @@ type InstantRow = NonNullable<AskTurn["instant"]>["rows"][number];
 export interface InstantAnswer {
   title: string;
   rows: InstantRow[];
+  /** The numbers behind it, for the card Ask draws (forecast, the week, a deal list). */
+  view?: AnswerView;
   /** The same answer as plain text, appended to the model history so follow-ups have it. */
   text: string;
 }
@@ -625,8 +628,20 @@ function dealRow(d: Deal, detail: string): InstantRow {
   return { label: d.name, detail, ref: { kind: "deal", id: d.id }, domain: d.accountDomain, href: companyHref(d.accountDomain) };
 }
 
-function finish(title: string, rows: InstantRow[]): InstantAnswer {
-  return { title, rows, text: [title, ...rows.map((r) => `- ${r.label}${r.detail ? ` — ${r.detail}` : ""}`)].join("\n") };
+function finish(title: string, rows: InstantRow[], view?: AnswerView): InstantAnswer {
+  return { title, rows, view, text: [title, ...rows.map((r) => `- ${r.label}${r.detail ? ` — ${r.detail}` : ""}`)].join("\n") };
+}
+
+/** The card behind a list of deals: how many, the dollars on them, and which companies it read. */
+function dealsView(tone: Extract<AnswerView, { kind: "deals" }>["tone"], deals: Deal[], read: number): AnswerView {
+  return {
+    kind: "deals",
+    tone,
+    count: deals.length,
+    usd: deals.reduce((n, d) => n + (d.amountUsd ?? 0), 0),
+    facts: read,
+    domains: [...new Set(deals.map((d) => d.accountDomain))].slice(0, 5),
+  };
 }
 
 /**
@@ -654,7 +669,7 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
     const missing = dealsMissingNextStep(ws, today).map((id) => ws.deals[id]);
     const rows = missing.map((d) => dealRow(d, `${STAGE_LABELS[d.stage]} · ${d.nextStep?.date ? `next step was due ${d.nextStep.date}` : "no next step"} · ${lastTouch(d)}`));
     if (!open.length) return finish("You have no open deals yet.", []);
-    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} no dated next step.` : "Every open deal has a dated next step.", rows);
+    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} no dated next step.` : "Every open deal has a dated next step.", rows, dealsView("missing", missing, open.length));
   }
 
   if (/^(?:what'?s |whats |show (?:me )?)?(?:my |our |the )?(?:forecast|commit|number|quarter|coverage)(?: call| look like| this quarter| right now)?$|\b(?:hit|make) (?:the |our |my )?(?:number|target|quota|plan)\b|\bpipeline coverage\b/.test(q)) {
@@ -669,7 +684,25 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
       { label: "Pipeline", detail: `${usd(f.pipeline)}${f.coverage !== null ? ` · ${f.coverage.toFixed(1)}× coverage (healthy ${f.coverageNeeded}×)` : ""}`, href: "/revenue" },
       ...f.calls.filter((c) => c.category !== "omitted").slice(0, 5).map((c) => dealRow(c.deal, `${CATEGORY_LABELS[c.category]} · ${usd(c.amount.usd)}${c.amount.source === "average" ? " est." : ""} · ${c.risks[0]?.label ?? "no open risks"}`)),
     ];
-    return finish(plan.headline, rows);
+    const counted = [...f.closedWon.deals, ...f.calls.map((c) => c.deal)];
+    return finish(plan.headline, rows, {
+      kind: "forecast",
+      period: f.period.label,
+      start: f.period.start,
+      end: f.period.end,
+      weeksLeft: f.period.weeksLeft,
+      target: f.hasTarget ? f.target : 0,
+      closedWon: f.closedWon.usd,
+      commit: f.commit,
+      call: f.call,
+      bestCase: f.bestCase,
+      pipeline: f.pipeline,
+      hitChance: f.hitChance,
+      coverage: f.coverage,
+      coverageNeeded: f.coverageNeeded,
+      facts: counted.length,
+      domains: [...new Set(counted.map((d) => d.accountDomain))].slice(0, 5),
+    });
   }
 
   if (/\b(at risk|risky|in trouble|slipping|might slip)\b/.test(q) && /\b(deals|pipeline|forecast|accounts|companies)\b/.test(q)) {
@@ -677,13 +710,13 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
     const risky = f.calls.filter((c) => c.band !== "healthy").sort((a, b) => a.health - b.health || b.amount.usd - a.amount.usd);
     const rows = risky.map((c) => dealRow(c.deal, `${c.band === "at_risk" ? "At risk" : "Watch"} · ${c.risks.slice(0, 2).map((r) => r.label).join(", ")} · fix: ${c.risks[0]?.fix.label.toLowerCase() ?? "—"}`));
     if (!open.length) return finish("You have no open deals yet.", []);
-    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} risks on file, worst first.` : "No open deal has a medium or high risk on file.", rows);
+    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} risks on file, worst first.` : "No open deal has a medium or high risk on file.", rows, dealsView("risk", risky.map((c) => c.deal), f.calls.length));
   }
 
   if (/\b(stuck|stale|stalled|quiet|gone dark|went dark|neglected)\b/.test(q) && /\b(deals|pipeline|accounts|companies)\b/.test(q)) {
     const stale = open.filter((d) => daysBetween(day(d.lastActivityAt), today) >= 14).sort((a, b) => a.lastActivityAt.localeCompare(b.lastActivityAt));
     const rows = stale.map((d) => dealRow(d, `${STAGE_LABELS[d.stage]} · ${lastTouch(d)} · ${d.nextStep?.date ? `next step ${d.nextStep.date}` : "no next step"}`));
-    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} had no activity for 14 days or more.` : "No open deal has gone 14 days without activity.", rows);
+    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} had no activity for 14 days or more.` : "No open deal has gone 14 days without activity.", rows, dealsView("stale", stale, open.length));
   }
 
   const stageMatch = q.match(/\b(?:in|at) (talking|qualified|pilot|proposal|nurture)\b/) ?? q.match(/^(?:my |open |active |current )?(pilots|proposals)$/);
@@ -700,7 +733,7 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
     const rows = [...open]
       .sort((a, b) => OPEN_STAGES.indexOf(b.stage) - OPEN_STAGES.indexOf(a.stage) || b.lastActivityAt.localeCompare(a.lastActivityAt))
       .map((d) => dealRow(d, `${STAGE_LABELS[d.stage]} · ${nextStepText(d, today)}`));
-    return finish(`${plural(open.length, "open deal")}: ${counts.map(([s, n]) => `${n} ${STAGE_LABELS[s].toLowerCase()}`).join(", ")}.`, rows);
+    return finish(`${plural(open.length, "open deal")}: ${counts.map(([s, n]) => `${n} ${STAGE_LABELS[s].toLowerCase()}`).join(", ")}.`, rows, dealsView("pipeline", open, open.length));
   }
 
   if (/^(?:what'?s |whats )?(?:on )?(?:my )?(?:moves|plate|queue|to-?dos?|todo list|agenda)(?: today| for today)?$|^what'?s (?:due|on) today$/.test(q)) {
@@ -740,7 +773,21 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
       { label: "Goal", detail: `${sb.goalProgress[0]} of ${sb.goalProgress[1]} ${ws.goal.targetLabel} by ${ws.goal.byDate}` },
     ];
     const behind = sb.conversations[0] < sb.conversations[1];
-    return finish(`${sb.conversations[0]} of ${sb.conversations[1]} conversations this week${behind ? "" : ", on pace"}.`, rows.map((r) => ({ ...r, href: "/today" })));
+    const active = Object.values(ws.deals).filter((d) => d.lastActivityAt >= sb.weekOf);
+    return finish(`${sb.conversations[0]} of ${sb.conversations[1]} conversations this week${behind ? "" : ", on pace"}.`, rows.map((r) => ({ ...r, href: "/today" })), {
+      kind: "week",
+      weekOf: sb.weekOf,
+      conversations: sb.conversations,
+      firstTouches: sb.firstTouches,
+      replies: sb.replies,
+      positiveReplies: sb.positiveReplies ?? 0,
+      qualified: sb.qualifiedDeals,
+      missingNextStep: sb.dealsMissingNextStep,
+      goal: sb.goalProgress,
+      goalLabel: ws.goal.targetLabel,
+      facts: ws.activities.filter((a) => localDate(a.at) >= sb.weekOf).length + open.length,
+      domains: [...new Set(active.map((d) => d.accountDomain))].slice(0, 5),
+    });
   }
 
   if (/^(?:my )?(?:top|best|hottest|strongest|tier a) (?:prospects|accounts|companies|targets)$/.test(q)) {

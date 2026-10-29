@@ -1,9 +1,10 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import type { Ref } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { createContext, useContext, type Ref } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CheckStamp } from "@/components/ui/fx";
 import { SourceChip } from "@/components/ui/source";
 import { cn } from "@/lib/client/cn";
 import type { Move, SkipReason, Workspace } from "@/lib/domain/types";
@@ -12,6 +13,13 @@ import { spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { MoveBody, cardDraft, endsInBody } from "./move-body";
 import { KindIcon, SkipReasons } from "./parts";
+
+/**
+ * How each move is leaving, by id. A context rather than a prop: a card that's already on its way out keeps
+ * its last props, but still hears this, so it can stamp itself done as it folds away. Only a card that is
+ * actually leaving reads it, so an Undo mid-fold brings the card back clean.
+ */
+export const MoveExits = createContext<Record<string, "done" | "skip">>({});
 
 export interface MoveCardProps {
   move: Move;
@@ -49,11 +57,20 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
   // Matches the page's A key: with a draft showing, A belongs to the composer's own button.
   const hasDraft = !!cardDraft(p.ws, move);
   const ownEnd = endsInBody(move);
+  const exits = useContext(MoveExits);
+  const present = useIsPresent();
+  const leaving = present ? undefined : exits[move.id];
   return (
     <div className={cn("group/move relative rounded-xl bg-surface shadow-xs ring-1 ring-inset transition-[box-shadow,background-color] duration-200 hover:shadow-sm", p.focused ? "ring-accent/40" : "ring-border")}>
       <div className={cn("relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 md:px-5", p.focused && "draft-wash", p.expanded || p.skipOpen ? "rounded-t-xl" : "rounded-xl")}>
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-inset ring-border/60" title={ruleLabel(move.rule)}>
-          <KindIcon kind={move.kind} className={cn(p.focused && "text-accent-text")} />
+        <span
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset transition-colors duration-200",
+            leaving === "done" ? "bg-success-subtle ring-success/20" : "bg-bg-subtle ring-border/60",
+          )}
+          title={ruleLabel(move.rule)}
+        >
+          {leaving === "done" ? <CheckStamp size={20} /> : <KindIcon kind={move.kind} className={cn(p.focused && "text-accent-text")} />}
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="pt-0.5 text-[14px] font-medium leading-5 text-fg">
@@ -64,7 +81,11 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
               aria-expanded={p.expanded}
               className="text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-[var(--ring)]"
             >
-              {move.title}
+              <span className={cn("relative transition-colors duration-300", leaving === "done" && "text-fg-3")}>
+                {move.title}
+                {/* Crossed off: a pencil line drawn through the title as the stamp lands. */}
+                {leaving === "done" && <span aria-hidden className="absolute inset-x-0 top-1/2 h-px origin-left bg-fg-3 [animation:fx-strike_320ms_var(--ease-out)_120ms_both]" />}
+              </span>
             </button>
           </h3>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-5 text-fg-2">

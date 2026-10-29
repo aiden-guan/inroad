@@ -11,6 +11,7 @@ import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useToday } from "@/components/companies/list/lib";
 import { Badge } from "@/components/ui/badge";
+import { StatusLine, Switch } from "@/components/ui/fx";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { Favicon } from "@/components/ui/favicon";
@@ -168,19 +169,9 @@ function PlayCard({ row, ws, today, open, onToggle }: { row: Row; ws: Workspace;
           </p>
         </div>
         <div className="flex items-start gap-3 sm:flex-col sm:items-end">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={`${play.name}: ${on ? "running" : "paused"}`}
-            onClick={() => void toggle()}
-            className="inline-flex h-7 items-center gap-2 rounded-full px-2.5 text-[12px] font-medium ring-1 ring-inset ring-border transition-[background-color,transform] duration-150 hover:bg-bg-subtle active:scale-[0.97]"
-          >
-            <span aria-hidden className={cn("relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors duration-150", on ? "bg-fg" : "bg-border-strong")}>
-              <span className={cn("absolute size-2.5 rounded-full bg-bg transition-transform duration-150", on ? "translate-x-3" : "translate-x-0.5")} />
-            </span>
-            {on ? "Running" : "Paused"}
-          </button>
+          <Switch on={on} onChange={() => void toggle()} label={`${play.name}: ${on ? "running" : "paused"}`}>
+            <StatusLine text={on ? "Running" : "Paused"} className="min-w-[46px]" />
+          </Switch>
         </div>
       </div>
 

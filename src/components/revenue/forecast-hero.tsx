@@ -1,12 +1,13 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import { useEffect, useState } from "react";
 import { AiBadge } from "@/components/ui/badge";
+import { DigitPop, TextReveal, fx, useFirstSight } from "@/components/ui/fx";
 import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
-import { ease } from "@/lib/motion";
 import { money, shortDay, type Forecast, type RevenuePlan } from "@/lib/revenue/forecast";
 
 const USD = { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 } as const;
@@ -25,6 +26,15 @@ const SEGMENTS = [
  */
 export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
   const reduce = useReducedMotion();
+  // The first look this session is choreographed: the call is read out, the bar draws, the target drops in,
+  // the numbers roll up from zero. After that the page just shows the number.
+  const play = useFirstSight("revenue-hero") && !reduce;
+  const [rolled, setRolled] = useState(!play);
+  useEffect(() => {
+    if (rolled) return;
+    const t = setTimeout(() => setRolled(true), 420);
+    return () => clearTimeout(t);
+  }, [rolled]);
   const commitOpen = f.commit - f.closedWon.usd;
   const bestOpen = f.bestCase - f.commit;
   const pipeOpen = f.pipeline - f.bestCase;
@@ -46,17 +56,14 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
           <span className="font-medium text-fg-2">The call</span>
           <AiBadge />
         </div>
-        <p className="max-w-[62ch] text-pretty font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg sm:text-[24px] sm:leading-[33px]">{plan.headline}</p>
+        <p className="max-w-[62ch] text-pretty font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg sm:text-[24px] sm:leading-[33px]">
+          <TextReveal text={plan.headline} play={play} step={22} delay={60} />
+        </p>
 
         <div className="mt-7">
           <div className="relative h-11">
             <div className="absolute inset-0 overflow-hidden rounded-md bg-bg-subtle ring-1 ring-inset ring-border">
-              <motion.div
-                className="flex h-full origin-left"
-                initial={reduce ? false : { scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 0.6, ease: ease.out }}
-              >
+              <div className={cn("flex h-full", play && "fx-wipe")} style={play ? fx(0, 380, { animationDuration: "1100ms" }) : undefined}>
                 {parts.map((p) =>
                   p.value > 0 ? (
                     <Tooltip key={p.key} content={`${p.label}: ${money(p.value)}`}>
@@ -64,18 +71,21 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
                     </Tooltip>
                   ) : null,
                 )}
-              </motion.div>
+              </div>
             </div>
             {f.hasTarget && (
               <div className="pointer-events-none absolute -bottom-1.5 -top-1.5" style={{ left: pct(f.target) }}>
-                <div className="h-full w-0.5 -translate-x-1/2 rounded-full bg-fg" />
+                <div className={cn("h-full w-0.5 -translate-x-1/2 rounded-full bg-fg", play && "fx-drop")} style={play ? fx(0, 1250) : undefined} />
               </div>
             )}
           </div>
           {f.hasTarget && (
             <div className="relative mt-2 h-4 text-[11.5px]">
               {/* The label sits on whichever side of the marker has room. */}
-              <span className={cn("absolute whitespace-nowrap font-mono tnum text-fg-2", f.target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5")} style={{ left: pct(f.target) }}>
+              <span
+                className={cn("absolute whitespace-nowrap font-mono tnum text-fg-2", f.target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5", play && "fx-rise")}
+                style={{ left: pct(f.target), ...(play ? fx(0, 1350) : {}) }}
+              >
                 Target {money(f.target)}
               </span>
             </div>
@@ -83,20 +93,20 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
         </div>
 
         <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
-          <Stat label="Closed won" swatch="bg-fg" value={f.closedWon.usd} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} />
-          <Stat label="Commit · floor" swatch="bg-fg/65" value={f.commit} note={f.hasTarget ? `${Math.round((f.commit / f.target) * 100)}% of target` : "Won + commit"} />
+          <Stat label="Closed won" swatch="bg-fg" value={rolled ? f.closedWon.usd : 0} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} />
+          <Stat label="Commit · floor" swatch="bg-fg/65" value={rolled ? f.commit : 0} note={f.hasTarget ? `${Math.round((f.commit / f.target) * 100)}% of target` : "Won + commit"} />
           <Stat
             label="The call"
-            value={f.call}
+            value={rolled ? f.call : 0}
             note={f.hasTarget ? `${Math.round((f.call / f.target) * 100)}% of target` : "Category-weighted"}
             tip="Closed won, plus each deal at its category's odds: commit 90%, best case 50%, pipeline 15%. The odds calibrate once two quarters of snapshots exist."
           />
-          <Stat label="Best case · ceiling" swatch="bg-fg/35" value={f.bestCase} note={f.hasTarget ? `${Math.round((f.bestCase / f.target) * 100)}% of target` : "Commit + best case"} />
-          <Stat label="Pipeline" swatch="bg-fg/12" value={f.pipeline} note={`Stage-weighted ${money(f.weighted)}`} />
+          <Stat label="Best case · ceiling" swatch="bg-fg/35" value={rolled ? f.bestCase : 0} note={f.hasTarget ? `${Math.round((f.bestCase / f.target) * 100)}% of target` : "Commit + best case"} />
+          <Stat label="Pipeline" swatch="bg-fg/12" value={rolled ? f.pipeline : 0} note={`Stage-weighted ${money(f.weighted)}`} />
         </dl>
         {f.hitChance !== null && f.remaining > 0 && (
           <p className="mt-5 flex flex-wrap items-baseline gap-x-2 border-t border-border pt-4 text-[13px] text-fg-2">
-            <span className={cn("font-mono text-[18px] font-medium tnum", f.hitChance < 0.3 ? "text-warning" : "text-fg")}>{Math.round(f.hitChance * 100)}%</span>
+            <DigitPop text={`${Math.round(f.hitChance * 100)}%`} delay={1500} still={!play} className={cn("font-mono text-[18px] font-medium tnum", f.hitChance < 0.3 ? "text-warning" : "text-fg")} />
             <span>chance of reaching {money(f.target)} with the deals open today, at their category odds.</span>
             <Tooltip content="Exact, over every combination of these deals closing or not. It treats deals as independent, which flatters a bad quarter: one budget freeze can hit several at once.">
               <span tabIndex={0} className="cursor-help text-[12px] text-fg-3 underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">

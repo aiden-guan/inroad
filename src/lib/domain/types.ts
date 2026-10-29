@@ -2178,6 +2178,55 @@ export interface AskCitation {
 }
 
 /** One display turn. The model's own history is stored separately (append-only) on the server. */
+/**
+ * The numbers behind an instant answer, so Ask can draw a card built for the question rather than a list.
+ * Code-computed like the rows. `facts` counts the workspace records the answer read; `domains` names a few.
+ */
+export type AnswerView =
+  | {
+      kind: "forecast";
+      period: string;
+      start: ISODate;
+      end: ISODate;
+      weeksLeft: number;
+      /** 0 when no target is set. */
+      target: number;
+      closedWon: number;
+      commit: number;
+      call: number;
+      bestCase: number;
+      pipeline: number;
+      hitChance: number | null;
+      coverage: number | null;
+      coverageNeeded: number;
+      facts: number;
+      domains: string[];
+    }
+  | {
+      kind: "week";
+      weekOf: ISODate;
+      conversations: [number, number];
+      firstTouches: [number, number];
+      replies: number;
+      positiveReplies: number;
+      qualified: number;
+      missingNextStep: number;
+      goal: [number, number];
+      goalLabel: string;
+      facts: number;
+      domains: string[];
+    }
+  | {
+      kind: "deals";
+      /** What the list is: risk on file, no dated next step, gone quiet, or the open pipeline. */
+      tone: "risk" | "missing" | "stale" | "pipeline";
+      count: number;
+      /** Dollar total of the listed deals that have an amount. */
+      usd: number;
+      facts: number;
+      domains: string[];
+    };
+
 export interface AskTurn {
   id: ID;
   role: "founder" | "agent";
@@ -2187,7 +2236,7 @@ export interface AskTurn {
   /** Agent turn still being written by `runId`. */
   pending?: boolean;
   /** Answered in code from the workspace, with no model call. */
-  instant?: { title: string; rows: { label: string; detail?: string; ref?: EntityRef; domain?: string; href?: string }[] };
+  instant?: { title: string; rows: { label: string; detail?: string; ref?: EntityRef; domain?: string; href?: string }[]; view?: AnswerView };
   /** Web sources the answer cited (evidence ids are cited inline as [ev_…]). */
   citations?: AskCitation[];
   proposals?: AskProposal[];

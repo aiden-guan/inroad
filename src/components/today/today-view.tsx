@@ -24,7 +24,7 @@ import { daysSince, plural } from "@/lib/moves/util";
 import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { Masthead } from "./masthead";
-import { MoveCard } from "./move-card";
+import { MoveCard, MoveExits } from "./move-card";
 import { cardDraft, endsInBody } from "./move-body";
 import { KIND_LABELS, Keys, RunInline, SKIP_REASONS } from "./parts";
 import { ReviewDoc } from "./review-panel";
@@ -273,10 +273,23 @@ export function Today({ ws }: { ws: Workspace }) {
       layout="position"
       custom={exits}
       variants={{
+        // Skipped folds away at once. Done holds while its stamp lands and its title is crossed off, then folds;
+        // the cards below close the gap as it goes (the fold is a height collapse, so they ride the reflow).
         exit: (all: Record<string, Exit>) =>
           all[m.id] === "skip"
-            ? { opacity: 0, scale: 0.98, transition: { duration: 0.15, ease: ease.inQuad } }
-            : { opacity: 0, x: 24, transition: { duration: 0.2, ease: ease.inQuad } },
+            ? {
+                opacity: 0,
+                scale: 0.98,
+                height: 0,
+                marginBottom: 0,
+                transition: { opacity: { duration: 0.14, ease: ease.out }, scale: { duration: 0.2, ease: ease.out }, default: { duration: 0.24, ease: ease.inOut } },
+              }
+            : {
+                opacity: 0,
+                height: 0,
+                marginBottom: 0,
+                transition: { opacity: { delay: 0.42, duration: 0.16, ease: ease.out }, default: { delay: 0.46, duration: 0.3, ease: ease.inOut } },
+              },
       }}
       initial={reveal ? { opacity: 0, y: 6 } : { opacity: 0 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1, transition: reveal ? { duration: 0.28, ease: ease.out, delay: 0.15 + Math.min(i, 8) * 0.04 } : { duration: 0.15 } }}
@@ -316,11 +329,13 @@ export function Today({ ws }: { ws: Workspace }) {
   );
 
   const list = (moves: Move[], offset = 0) => (
-    <ul className="relative space-y-3">
-      <AnimatePresence mode="popLayout" initial={reveal} custom={exits}>
-        {moves.map((m, i) => card(m, offset + i))}
-      </AnimatePresence>
-    </ul>
+    <MoveExits.Provider value={exits}>
+      <ul className="relative space-y-3">
+        <AnimatePresence initial={reveal} custom={exits}>
+          {moves.map((m, i) => card(m, offset + i))}
+        </AnimatePresence>
+      </ul>
+    </MoveExits.Provider>
   );
 
   const consumer = isConsumer(ws);

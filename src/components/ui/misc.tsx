@@ -77,12 +77,14 @@ export function EmptyState({ title, body, action, icon }: { title: string; body?
       <div aria-hidden className="relative mb-7 flex size-24 items-center justify-center">
         <span className="absolute inset-0 rounded-full border border-dashed border-border" />
         <span className="absolute inset-3 rounded-full border border-border/70" />
-        <span className="absolute left-0 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-border-strong ring-4 ring-bg" />
-        <span className="relative flex size-12 items-center justify-center rounded-xl bg-surface text-fg-2 shadow-sm ring-1 ring-border">{icon ?? <BrandMark className="size-6" />}</span>
+        <span className="absolute inset-0 [animation:fx-orbit-once_1600ms_var(--ease-in-out)_200ms_both]">
+          <span className="absolute left-0 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-border-strong ring-4 ring-bg" />
+        </span>
+        <span className="fx-lift relative flex size-12 items-center justify-center rounded-xl bg-surface text-fg-2 shadow-sm ring-1 ring-border">{icon ?? <BrandMark draw="once" className="size-6" />}</span>
       </div>
-      <h3 className="max-w-[30ch] text-balance font-serif text-[28px] leading-[34px] tracking-[-0.025em] text-fg">{title}</h3>
-      {body && <p className="mt-3 max-w-[46ch] text-pretty text-[14px] leading-[23px] text-fg-2">{body}</p>}
-      {action && <div className="mt-6 max-w-full">{action}</div>}
+      <h3 className="fx-rise max-w-[30ch] text-balance font-serif text-[28px] leading-[34px] tracking-[-0.025em] text-fg [--fx-delay:120ms]">{title}</h3>
+      {body && <p className="fx-rise mt-3 max-w-[46ch] text-pretty text-[14px] leading-[23px] text-fg-2 [--fx-delay:200ms]">{body}</p>}
+      {action && <div className="fx-rise mt-6 max-w-full [--fx-delay:280ms]">{action}</div>}
     </div>
   );
 }

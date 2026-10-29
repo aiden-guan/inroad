@@ -5,10 +5,12 @@ import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/client/cn";
 import { IconButton } from "./button";
+import { InkPattern } from "./ink-pattern";
 
 /**
  * Right-side sheet for detail views (company, deal, event). Fast, origin-aware drawer motion.
- * Width grows instead of stacking: never open a modal on top of a sheet.
+ * Width grows instead of stacking: never open a modal on top of a sheet. With a `seed` (a company's
+ * domain), the header carries that company's generative ink mark, inking in as the sheet lands.
  */
 export function Sheet({
   open,
@@ -17,6 +19,7 @@ export function Sheet({
   children,
   width = 640,
   header,
+  seed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -24,6 +27,7 @@ export function Sheet({
   children: ReactNode;
   width?: number;
   header?: ReactNode;
+  seed?: string;
 }) {
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
@@ -38,7 +42,12 @@ export function Sheet({
         >
           <RD.Title className="sr-only">{title}</RD.Title>
           <RD.Description className="sr-only">{title} details</RD.Description>
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
+          <div className="relative isolate flex shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-border px-5 py-3">
+            {seed && (
+              <div aria-hidden className="absolute inset-0 -z-10 text-fg opacity-[0.15] [mask-image:linear-gradient(to_left,#000_8%,transparent_62%)]">
+                <InkPattern key={seed} seed={seed} reveal delay={160} scale={1.25} />
+              </div>
+            )}
             <div className="min-w-0 flex-1">{header ?? <span className="text-[14px] font-semibold">{title}</span>}</div>
             <RD.Close asChild>
               <IconButton label="Close (Esc)">
