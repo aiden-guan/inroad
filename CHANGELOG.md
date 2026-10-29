@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.17] — 2026-10-29
+
 ### Added
 - Switch between selling to businesses and to consumers from the company row at the top of the sidebar, the phone menu or ⌘K ("Switch to selling to…"). Switching keeps everything, offers Undo from ⌘K, and gives each market back its own goal and kind of consumer company when you return to it.
 - Growth (`/growth`), the consumer counterpart of Revenue: the goal and the straight-line pace to its date, last week's numbers and what they say (moved here from Playbook → How we grow, which now links to it), what it takes at the retention bar, what's working (the channel that led each week, creator results, referrals, experiments) and the Monday growth review.
