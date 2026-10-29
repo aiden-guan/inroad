@@ -30,11 +30,21 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 **You do the selling.** Inroad never sends an email, posts a message, or modifies deal stages autonomously. Every outbound artifact is presented as a draft for founder review and one-click approval.
 
+For a Head of GTM it is also a **revenue operating system**: the number called deal by deal from evidence, the plan behind the gap, deal risk with the fix, signal-based plays with backtests, and the weekly update, all computed in code from your deals.
+
 Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
 ---
 
 ## Core Capabilities
+
+| Revenue Operating System | Signal-Based Plays |
+| :--- | :--- |
+| **The Number, Called Like a Forecast Meeting**<br/>Set a quarterly target and every open deal is called commit, best case or pipeline from evidence (economic buyer engaged, paper process known, buyer-agreed step within 14 days, no recent close-date push). Shows floor, call and ceiling, the exact chance of hitting the target, coverage, week-over-week changes, and a reverse waterfall from the gap to the first meetings it takes and the last date new pipeline can still close. Small samples are shrunk toward stated priors, never shown as false precision. | **Always-On Programs With an Audit Trail**<br/>Thirteen plays (new leader, hiring for the pain, funding, champion moved, closed-lost by reason, customer referrals, lookalikes, multi-threading…) run in code against your accounts. Each shows its live matches with the dated fact that triggered it, what it skipped and why, a backtest against your own won and lost deals, and the results it produced. Running plays feed Today; pausing one takes its cards off. |
+
+| Deal Inspection | Weekly GTM Update |
+| :--- | :--- |
+| **Every Risk With Its Fix**<br/>Close-date slips, overdue or unconfirmed next steps, thin threading, no economic buyer, stalled stages and silence are flagged with research-backed thresholds and a one-click fix (or a question already asked in Ask). | **Numbers From Code, Story From the Model**<br/>One click drafts the update for the CEO, board or team: the call, what changed, risks with owners, what's working with its n, next week's focus and asks. The numbers table is built in code, so it can't drift. |
 
 | Today's Moves & Pipeline Rhythm | Warm Intro State Machine |
 | :--- | :--- |
@@ -245,7 +255,7 @@ npm run lint
 ```
 
 ### Test Suite Highlights
-- **Coverage**: 17 test suites, 365 tests passing in <2 seconds.
+- **Coverage**: 21 test suites, 414 tests passing in a few seconds.
 - **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
 - **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
 
@@ -277,7 +287,9 @@ inroad/
 │   │   ├── domain/              # Workspace entities, actions, and reducer
 │   │   ├── intros/              # Warm intro state machine and etiquette rules
 │   │   ├── moves/               # Daily action generation and priority scoreboard
+│   │   ├── plays/               # Signal-based plays: triggers, matches, backtests, results
 │   │   ├── quality/             # Content safety gates, draft linters, sequences
+│   │   ├── revenue/             # Forecast call, deal risk, reverse-waterfall plan, attribution
 │   │   ├── signals/             # SSRF-guarded HTTP client, job board and news parsers
 │   │   └── store/               # Atomic local-first JSON database (FileDB)
 │   └── test/                    # Test fixtures, mock servers, and test setup

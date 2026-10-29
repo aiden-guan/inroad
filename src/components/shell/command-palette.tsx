@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileUp, Handshake, Keyboard, Map as MapIcon, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, UserPlus } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Building2, CalendarHeart, Compass, FileText, FileUp, Handshake, Keyboard, Map as MapIcon, MessageCircle, Moon, NotebookPen, Phone, Plug, Search, Settings, Sparkles, Sunrise, Target, UserPlus, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAsk } from "@/components/providers/ask-provider";
@@ -143,8 +143,14 @@ export function CommandPalette() {
             <Item value="today" icon={<Sunrise className="size-4" />} onSelect={() => run(() => router.push("/today"))} hint="G T">
               Today
             </Item>
+            <Item value="revenue forecast pipeline commit coverage quota number" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue"))} hint="G R">
+              Revenue
+            </Item>
             <Item value="companies" icon={<Building2 className="size-4" />} onSelect={() => run(() => router.push("/companies"))} hint="G C">
               Companies
+            </Item>
+            <Item value="plays signals triggers programs automation" icon={<Zap className="size-4" />} onSelect={() => run(() => router.push("/plays"))} hint="G Y">
+              Plays
             </Item>
             <Item value="intros warm introductions connectors" icon={<Handshake className="size-4" />} onSelect={() => run(() => router.push("/intros"))} hint="G N">
               Intros
@@ -165,6 +171,12 @@ export function CommandPalette() {
           <Command.Group heading="Do">
             <Item value="find new companies discover accounts" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
               Find new companies to talk to
+            </Item>
+            <Item value="set revenue target quota number quarter" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue?target=1"))}>
+              Set the revenue target
+            </Item>
+            <Item value="weekly update board investor ceo report forecast" icon={<FileText className="size-4" />} onSelect={() => run(() => router.push("/revenue#update-label"))}>
+              Write the weekly GTM update
             </Item>
             <Item value="import linkedin connections warm network csv" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=linkedin"))}>
               Import LinkedIn connections

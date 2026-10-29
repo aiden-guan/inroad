@@ -5,6 +5,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [Unreleased]
+
+### Summary
+A revenue operating system and signal-based plays for Heads of GTM and GTM engineers, computed in code from the deal ledger.
+
+### Added
+- **Revenue** (`/revenue`): quarterly target; evidence-based commit / best case / pipeline calls with owner overrides; floor, call and ceiling; exact chance of hitting the target; coverage and next-period coverage; week-over-week changes from weekly snapshots; reverse-waterfall plan with the new-pipeline cutoff and a channel-by-channel view; what's working by source, signal and persona; loss patterns.
+- **Deal risk**: research-backed flags (slips, overdue or unconfirmed next steps, thin threading, no economic buyer, stalls, silence, pricing silent) with a fix for each, on the Revenue page and in every deal's sheet.
+- **Plays** (`/plays`): 13 signal-based plays with live matches, a backtest against won and lost deals, a skipped-and-why audit trail and attributed results. Running plays feed Today; pausing one takes its cards off.
+- **Weekly GTM update** workflow (`gtm_update`) for the CEO, board or team, with a code-built numbers table.
+- Ask answers forecast and at-risk questions instantly in code; MCP and REST gain `get_forecast` and `list_plays`.
+- Research notes `docs/research/10-revenue-operating-system.md` and `11-gtm-engineering-and-plays.md`.
+
+---
+
 ## [v0.1.0] — 2026-10-22
 
 ### Summary

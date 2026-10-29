@@ -17,6 +17,7 @@ import type { Brief, Move, MoveKind, SkipReason, Workspace } from "@/lib/domain/
 import { codeGreeting } from "@/lib/moves/brief-data";
 import { KIND_ORDER, TOP_MOVES, visibleMoves } from "@/lib/moves/rules";
 import { computeScoreboard } from "@/lib/moves/scoreboard";
+import { computeForecast } from "@/lib/revenue/forecast";
 import { daysSince, plural } from "@/lib/moves/util";
 import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
@@ -101,6 +102,10 @@ export function Today({ ws }: { ws: Workspace }) {
   const lastG = useRef(0);
 
   const scoreboard = useMemo(() => computeScoreboard(ws, new Date(now)), [ws, now]);
+  const revenue = useMemo(() => {
+    const t = ws.revenue?.target;
+    return t ? { commit: computeForecast(ws, today).commit, target: t.amountUsd, label: t.label } : null;
+  }, [ws, today]);
   const brief = ws.briefs[today];
   const greeting = brief?.greeting || codeGreeting(ws, visible, new Date(now));
   const dateLabel = new Date(now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -280,6 +285,7 @@ export function Today({ ws }: { ws: Workspace }) {
       <div key={phase === "skipped" ? "final" : "live"}>
         <Masthead
           ws={ws}
+          revenue={revenue}
           dateLabel={dateLabel}
           brief={brief}
           greeting={greeting}

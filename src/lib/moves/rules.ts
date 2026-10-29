@@ -3,6 +3,7 @@ import { STAGE_LABELS, type Deal, type ID, type Move, type MoveKind, type Outrea
 import { leadPoints, nearby } from "@/lib/geo/leads";
 import { placeLabel, resolvePlace } from "@/lib/geo/places";
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
+import { PLAY_BY_ID, playEnabled, playForSignal, playMatches, type PlayMatch } from "@/lib/plays/catalog";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { awaitingOutcome } from "./replies";
 import { coldQuotaLeft, counters, INTRO_ASKS_PER_WEEK, type Counters } from "./scoreboard";
@@ -73,6 +74,7 @@ const RULES = {
   question: { base: 35, label: "Open founder question" },
   import: { base: 30, label: "Connections import missing or older than 30 days" },
   discover: { base: 28, label: "Fewer than 10 untouched A/B prospects" },
+  play: { base: 50, label: "A running play matched a company" },
 } as const;
 
 type RuleKey = keyof typeof RULES;
@@ -123,10 +125,13 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   warmPaths(ctx);
   introFollowThrough(ctx);
   setup(ctx);
+  plays(ctx);
   events(ctx);
   dinnerNeighbors(ctx);
   questions(ctx);
   reviews(ctx);
+  // A paused play takes its cards off Today, whichever rule made them.
+  ctx.out = ctx.out.filter((c) => !c.playId || playEnabled(ws, c.playId));
 
   // Other surfaces (inbound webhooks, agent API) create their own reply and prep cards. When one already
   // covers the same reply or meeting, in any status, don't add a second card for it.
@@ -579,6 +584,7 @@ function deals({ ws, now, today, out }: Ctx) {
         id: `mv_thread_${deal.id}_${deal.stage}`,
         kind: "next_step_missing",
         rule: "single_threaded",
+        playId: "multi_thread",
         title: `Add a second contact at ${company}`,
         why: `${stage} · ${only ? `single-threaded through ${only}` : "no contacts on the deal"} · aim for 3`,
         minutes: 5,
@@ -671,6 +677,9 @@ function firstTouches({ ws, today, c, out }: Ctx) {
   const used = new Set<string>();
   for (const { acc, s } of fresh) {
     if (used.has(acc.domain)) continue;
+    // A paused play's signals don't spend the day's cold quota.
+    const signalPlay = playForSignal(s.type);
+    if (signalPlay && !playEnabled(ws, signalPlay)) continue;
     // Already drafted since the signal, or touched in the last 60 days: recycle only after 60 days AND a new signal.
     const busy = (pkgsByAccount.get(acc.domain) ?? []).some((p) => localDate(p.createdAt) >= s.date || daysSince(p.createdAt, today) <= 60);
     if (busy) continue;
@@ -685,6 +694,7 @@ function firstTouches({ ws, today, c, out }: Ctx) {
         id: `mv_signal_${acc.domain}_${s.id}`,
         kind: "signal",
         rule: "signal",
+        playId: playForSignal(s.type),
         title: `Answer the thread on ${s.host}`,
         why: `${clip(s.headline, 70)} · ${ageShort(s.date, today)} · reply there, not by email`,
         minutes: 5,
@@ -709,6 +719,7 @@ function firstTouches({ ws, today, c, out }: Ctx) {
       id: `mv_signal_${acc.domain}_${s.id}`,
       kind: "first_touch",
       rule: "signal",
+      playId: playForSignal(s.type),
       title: `Write to ${who} at ${company}`,
       why: `${clip(s.headline, 70)} · ${ageShort(s.date, today)}${champion ? " · they know you" : ""}`,
       minutes: 4,
@@ -834,6 +845,7 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
         id: `mv_warm_${acc.domain}`,
         kind: "first_touch",
         rule: "warm_path",
+        playId: "warm_path",
         title: `Write to ${name} at ${acc.name}`,
         why: `You know ${name} · warm path${sig ? ` · ${clip(sig.headline, 50)}` : ""}`,
         minutes: 4,
@@ -848,6 +860,7 @@ function warmPaths({ ws, today, weekStart, c, out }: Ctx) {
       id: `mv_warm_${acc.domain}`,
       kind: "intro_ask",
       rule: "warm_path",
+      playId: "warm_path",
       title: `Use your warm path into ${acc.name}`,
       why: `${plural(acc.warmPathCount, "person", "people")} you know there${sig ? ` · ${clip(sig.headline, 50)}` : ""} · ${asks} of ${INTRO_ASKS_PER_WEEK} intro asks this week`,
       minutes: 4,
@@ -962,6 +975,47 @@ function setup({ ws, now, today, weekStart, out }: Ctx) {
         priority: RULES.discover.base,
       });
     }
+  }
+}
+
+/** Plays with no rule of their own put their best unworked match on Today, a few a day across plays. */
+const PLAY_CARDS: Record<string, { kind: MoveKind; base: number; minutes: number; title: (m: PlayMatch) => string }> = {
+  event_follow_up: { kind: "follow_up", base: 57, minutes: 4, title: (m) => `Follow up with ${first(m.personName) || "your guest"} at ${m.company}` },
+  stalled_rescue: { kind: "next_step_missing", base: 54, minutes: 4, title: (m) => `Re-engage ${m.company}` },
+  customer_referral: { kind: "intro_ask", base: 52, minutes: 4, title: (m) => `Ask ${first(m.personName) || "your champion"} at ${m.company} for a referral` },
+  closed_lost_revisit: { kind: "follow_up", base: 50, minutes: 4, title: (m) => `Check back with ${m.company}` },
+  lookalike: { kind: "research", base: 44, minutes: 1, title: (m) => `Research ${m.company}, a customer lookalike` },
+};
+const PLAY_CARDS_PER_DAY = 3;
+
+function plays({ ws, today, out }: Ctx) {
+  const domainOf = (c: Cand) =>
+    c.ref?.kind === "account" ? c.ref.id : c.ref?.kind === "deal" ? ws.deals[c.ref.id]?.accountDomain : c.ref?.kind === "person" ? ws.people[c.ref.id]?.accountDomain : undefined;
+  const busy = new Set(out.map(domainOf).filter(Boolean));
+  // The evening close-out folds deal cards into one; its deals' companies are still covered.
+  for (const c of out) if (c.kind === "close_out") for (const id of c.subjectIds ?? []) if (ws.deals[id]) busy.add(ws.deals[id].accountDomain);
+  let left = PLAY_CARDS_PER_DAY;
+  for (const [id, card] of Object.entries(PLAY_CARDS)) {
+    const play = PLAY_BY_ID[id];
+    if (left <= 0 || !play || !playEnabled(ws, id)) continue;
+    // Another card already covers the company (a next step, a research card): one card per company.
+    const match = playMatches(ws, play, today).find((m) => !m.worked && !busy.has(m.domain));
+    if (!match) continue;
+    left--;
+    busy.add(match.domain);
+    out.push({
+      id: `mv_play_${match.key.replace(/[^a-z0-9_.-]/gi, "_")}`,
+      kind: card.kind,
+      rule: "play",
+      playId: id,
+      title: card.title(match),
+      why: `${play.name} · ${clip(match.headline, 60)}`,
+      minutes: card.minutes,
+      priority: card.base,
+      ref: match.dealId ? { kind: "deal", id: match.dealId } : match.personId ? { kind: "person", id: match.personId } : { kind: "account", id: match.domain },
+      source: match.url ? { url: match.url, date: match.date } : undefined,
+      href: sheet(match.domain),
+    });
   }
 }
 

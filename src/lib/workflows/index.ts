@@ -15,6 +15,7 @@ import enrich from "./enrich";
 import asset from "./asset";
 import network from "./network";
 import agentAsk from "./agent-ask";
+import gtmUpdate from "./gtm-update";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
@@ -32,6 +33,7 @@ export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
   asset: asset,
   network: network,
   agent_ask: agentAsk,
+  gtm_update: gtmUpdate,
 };
 
 export function getWorkflow(id: string): WorkflowDef<unknown> | undefined {

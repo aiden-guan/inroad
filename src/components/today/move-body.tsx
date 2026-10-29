@@ -6,6 +6,7 @@ import { useState, type ReactNode, type Ref } from "react";
 import { DraftView } from "@/components/compose/composer";
 import { IntroNextPanel } from "@/components/intros/intro-next";
 import { ImportFlow } from "@/components/import/import-flow";
+import { useAsk } from "@/components/providers/ask-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
@@ -14,6 +15,7 @@ import { newId, nowISO } from "@/lib/domain/ids";
 import type { Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { nextStep } from "@/lib/intros/rules";
 import { RULE_PREFIX } from "@/lib/moves/rules";
+import { PLAY_BY_ID, playMatches } from "@/lib/plays/catalog";
 import { ago, clip, clockTime, companyName, first, knowsDirectly } from "@/lib/moves/util";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { DealResolver } from "./deal-resolver";
@@ -346,6 +348,8 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
         </div>
       );
     }
+    case "play":
+      return <PlayBody {...props} />;
     case "question":
       return <QuestionBody {...props} />;
     case "pov":
@@ -585,6 +589,41 @@ function CloseOutBody({ move, ws, today, onComplete, onChanged }: BodyProps) {
             );
           })}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/** A card a running play put on Today: how to run the play, then the one action it calls for. */
+function PlayBody({ move, ws, today, onComplete, onChanged }: BodyProps) {
+  const { openAsk } = useAsk();
+  const play = move.playId ? PLAY_BY_ID[move.playId] : undefined;
+  const ref = move.ref;
+  const domain = ref?.kind === "deal" ? ws.deals[ref.id]?.accountDomain : ref?.kind === "person" ? ws.people[ref.id]?.accountDomain : ref?.kind === "account" ? ref.id : undefined;
+  // The card carries the match's subject; find the match itself again so the prompt has its facts.
+  const match = play && domain ? playMatches(ws, play, today).find((m) => m.domain === domain && (!m.dealId || ref?.kind !== "deal" || m.dealId === ref.id)) : undefined;
+  if (!play || !domain) return <Lead>This play no longer matches anything here.</Lead>;
+  const company = companyName(ws, domain);
+  return (
+    <div className="space-y-3">
+      <Lead>
+        {play.coach} <span className="text-fg-3">{play.why}</span>
+      </Lead>
+      {play.action.kind === "research" && !ws.accounts[domain]?.dossier ? (
+        <RunInline workflow="dossier" args={{ domain }} runRef={{ kind: "account", id: domain }} label={`Research ${company}`} onResult={onChanged} hint="About 2 minutes" />
+      ) : (
+        <Row>
+          {play.prompt && match && (
+            <Button variant="agent" onClick={() => openAsk({ context: ref?.kind === "deal" ? ref : { kind: "account", id: domain }, prefill: play.prompt!(match, ws) })}>
+              {play.action.label}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onComplete}>
+            {play.action.kind === "write" || play.action.kind === "intro" ? "I sent it" : "Handled"}
+          </Button>
+          <Quiet href={sheet(domain)}>Open {company}</Quiet>
+          <Quiet href="/plays">All plays</Quiet>
+        </Row>
       )}
     </div>
   );

@@ -1,11 +1,12 @@
 import "server-only";
 import { isConfigured } from "@/lib/ai/client";
-import { addDays, todayISO } from "@/lib/domain/ids";
+import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Brief, Workspace } from "@/lib/domain/types";
 import { briefData, emitHubEvent } from "@/lib/hub";
 import { startRun } from "@/lib/runs/registry";
 import { mutateWorkspace, readWorkspace } from "@/lib/store/workspace";
 import { getWorkflow } from "@/lib/workflows";
+import { computeForecast, takeSnapshot } from "@/lib/revenue/forecast";
 import { briefInputs, codeGreeting } from "./brief-data";
 import { computeMoves, mergeMoves, TOP_MOVES, visibleMoves } from "./rules";
 import { computeScoreboard } from "./scoreboard";
@@ -56,6 +57,20 @@ function sweepDomains(ws: Workspace): string[] {
     .map((a) => a.domain);
 }
 
+/** The forecast is photographed once a week, on the week's first prepare, so week-over-week changes are computed. */
+function needsSnapshot(ws: Workspace, today: string): boolean {
+  if (!Object.keys(ws.deals).length) return false;
+  const week = weekOf(today);
+  return !(ws.revenue?.snapshots ?? []).some((s) => s.weekOf === week);
+}
+
+function snapshotForecast(ws: Workspace, now: Date) {
+  const today = todayISO(now);
+  if (!needsSnapshot(ws, today)) return;
+  ws.revenue ??= {};
+  ws.revenue.snapshots = [...(ws.revenue.snapshots ?? []), takeSnapshot(computeForecast(ws, today), now.toISOString())].slice(-26);
+}
+
 /** Old daily briefs carry nothing worth keeping; reviews stay (they're the Journal). */
 function pruneBriefs(ws: Workspace, today: string) {
   const cutoff = addDays(today, -45);
@@ -83,7 +98,8 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   // The sample workspace is a demo: never spend the founder's tokens on it unless a caller forces it.
   const wantModel = (opts.force || (newKeys.length > 0 && !snapshot.sample)) && runsToday < MAX_MODEL_BRIEFS_PER_DAY && isConfigured();
 
-  const changed = wantModel || JSON.stringify(dryMoves) !== JSON.stringify(snapshot.moves) || JSON.stringify(dryBrief) !== JSON.stringify(snapshot.briefs[today]);
+  const changed =
+    wantModel || needsSnapshot(snapshot, today) || JSON.stringify(dryMoves) !== JSON.stringify(snapshot.moves) || JSON.stringify(dryBrief) !== JSON.stringify(snapshot.briefs[today]);
 
   // The first prepare of the day announces the brief (Slack, webhooks) once.
   const firstOfDay = !snapshot.briefs[today];
@@ -103,6 +119,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
       const startSweep = !ws.sample && !ws.briefs[today];
       ws.briefs[today] = brief;
       pruneBriefs(ws, today);
+      snapshotForecast(ws, now);
       return { claim, sweep: startSweep };
     });
     claimed = value.claim;

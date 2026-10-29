@@ -20,6 +20,7 @@ export const DOMAIN = {
   wrenfield: "wrenfield.example",
   quillfeather: "quillfeather.example",
   ironvale: "ironvale.example",
+  larkspur: "larkspur.example",
 } as const;
 
 export const PERSON = {
@@ -40,6 +41,7 @@ export const PERSON = {
   sam: "per_sam_whitlock",
   ava: "per_ava_whitman",
   ben: "per_ben_adler",
+  maya: "per_maya_okonkwo",
 } as const;
 
 export const DEAL = {
@@ -49,6 +51,7 @@ export const DEAL = {
   saltmarsh: "deal_saltmarsh",
   wrenfield: "deal_wrenfield",
   quillfeather: "deal_quillfeather",
+  larkspur: "deal_larkspur",
 } as const;
 
 export const MEETING = {
