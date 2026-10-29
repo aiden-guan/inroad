@@ -7,6 +7,7 @@ import { normalizeDomain } from "@/lib/hub/records";
 import { isOpenIntro, nextStep, openIntroFor, waysIn } from "@/lib/intros/rules";
 import { readConnections } from "@/lib/network/store";
 import { AgentError } from "@/lib/ai/errors";
+import { PARTNER_PLATFORMS } from "@/lib/consumer/partners";
 import { MODEL_LABELS } from "@/lib/ai/models";
 import { startRun, stopRun, subscribe } from "@/lib/runs/registry";
 import { readWorkspace } from "@/lib/store/workspace";
@@ -414,8 +415,8 @@ export const TOOLS: ToolDef[] = [
   }),
   tool({
     name: "add_partners",
-    title: "Add creators and communities",
-    description: "Consumer companies: add up to 50 creators, communities, newsletters or podcasts (from a creator tool or your own search) to the founder's shortlist. Never contacts anyone.",
+    title: "Add creators, communities and partners",
+    description: "Add up to 50 creators, communities, newsletters, podcasts or partner companies (from a creator tool or your own search) to the founder's shortlist. Consumer companies call it Creators; businesses call it Partners. Never contacts anyone.",
     scope: "write_records",
     readOnly: false,
     idempotent: true,
@@ -427,7 +428,7 @@ export const TOOLS: ToolDef[] = [
           z.object({
             kind: z.enum(["creator", "community", "newsletter", "podcast", "press", "brand"]),
             name: z.string().trim().min(1).max(80),
-            platform: z.enum(["tiktok", "instagram", "youtube", "x", "reddit", "discord", "facebook", "substack", "podcast", "web", "other"]).optional(),
+            platform: z.enum(PARTNER_PLATFORMS).optional(),
             handle: z.string().max(60).optional(),
             url: z.string().max(400).optional(),
             audience: z.string().max(80).optional().describe("Who follows them, in words"),

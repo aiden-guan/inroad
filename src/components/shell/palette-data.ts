@@ -90,7 +90,7 @@ export function repliesToCheck(ws: Workspace, now: Date): number {
 }
 
 /** "Run the weekly review": this week's review of that kind, when it's already written (open it, don't pay twice). */
-export function reviewThisWeek(ws: Workspace, kind: "monday" | "friday", now: Date): boolean {
+export function reviewThisWeek(ws: Workspace, kind: "monday" | "friday" | "growth", now: Date): boolean {
   const weekStart = weekOf(todayISO(now));
   return Object.values(ws.briefs).some((b) => b.reviewKind === kind && !!b.review && b.date >= weekStart);
 }

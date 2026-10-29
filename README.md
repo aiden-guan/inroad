@@ -66,12 +66,14 @@ See the [Research guide](docs/RESEARCH.md) for setup, supported protocol scope, 
 
 ### Consumer companies
 
-Inroad also runs a consumer mode for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. It picks the mode from your site (store links, a cart, two-sided signup), and you can change it in onboarding or Settings. In consumer mode:
+Inroad also runs a consumer mode for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. It picks the mode from your site (store links, a cart, two-sided signup), and you can switch any time from your company name at the top of the sidebar, from ⌘K, or in onboarding and Settings. Switching keeps everything and only changes what Inroad shows and writes: businesses get Revenue, Companies, Plays, Intros, Partners and Events; consumer companies get Growth and Creators. Research, Playbook and Studio serve both. In consumer mode:
 
-- **Retention comes before acquisition.** You log last week's numbers, and code checks week-4 retention against the bar for your category (DTC uses 90-day repeat purchase). Inroad tells you to hold paid spend until retention clears the bar. Activation, the Sean Ellis 40% survey, the quick ratio, CAC and payback are all computed in code.
+- **Retention comes before acquisition.** You log last week's numbers on Growth, and code checks week-4 retention against the bar for your category (DTC uses 90-day repeat purchase), shows the straight-line pace to your goal, and tells you to hold paid spend until retention clears the bar. Activation, the Sean Ellis 40% survey, the quick ratio, CAC and payback are all computed in code.
 - **Creators and communities replace accounts.** The agent keeps only creators and communities whose links appeared in its own search results, and it never stores follower counts it reports. Each one gets one note and one follow-up a week later; if they stay quiet, Inroad suggests letting them go. Briefs must tell creators to disclose, and Inroad asks you to confirm that each paid or gifted post carries `#ad`.
 - **A weekly growth rhythm.** You talk to five users a week, run one ICE-ranked experiment sized with Lehr's rule, and get a Monday growth review.
 - **Consumer marketing rules in the linter.** It covers FTC endorsement disclosure, the 16 CFR 465 fake-review rule, app-store rating rules, health and earnings claims, "free" terms and false urgency.
+
+Businesses use the same list as **Partners**: newsletters, podcasts, communities, people who post for your buyers, and companies that sell to the same buyers, with sponsorship, referral-fee and co-marketing offers and B2B outreach rules.
 
 The sources, figures and their limits are in [`docs/research/10-consumer-gtm.md`](docs/research/10-consumer-gtm.md).
 

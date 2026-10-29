@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Move } from "@/lib/domain/types";
 import { sampleWorkspace } from "@/lib/sample";
-import { NOW, TODAY, day, makeAccount, makeDeal, makeMove, makeWorkspace } from "@/test/factories";
+import { consumerChannelPlan } from "@/lib/consumer/plan";
+import { NOW, TODAY, consumerWorkspace, day, makeAccount, makeDeal, makeMove, makeWeek, makeWorkspace } from "@/test/factories";
 import { TOP_MOVES, visibleMoves } from "./rules";
 import { customerCount, goalLine, todayCounts } from "./nav-counts";
 
@@ -40,7 +41,8 @@ describe("goalLine", () => {
   it("reads paid pilots against the goal and customers against the long arc", () => {
     const ws = makeWorkspace();
     ws.goal = { ...ws.goal, target: 5, longArcCustomers: 20 };
-    expect(goalLine(ws)).toEqual({ pilots: [0, 5], customers: [0, 20] });
+    const rows = (w = ws) => Object.fromEntries(goalLine(w, TODAY).map((r) => [r.label, r.value]));
+    expect(rows()).toEqual({ "Paid pilots": [0, 5], Customers: [0, 20] });
 
     ws.accounts["won.io"] = makeAccount("won.io", { status: "customer" });
     ws.deals.d1 = makeDeal("d1", "won.io", { stage: "won" });
@@ -48,7 +50,18 @@ describe("goalLine", () => {
     ws.deals.d2 = makeDeal("d2", "paid.io", { stage: "pilot", pilot: { criteria: "Closes the month in a day", paid: true } });
     // A customer that came in without a deal (an import, a known user) counts as a customer, not a pilot.
     ws.accounts["imported.io"] = makeAccount("imported.io", { status: "customer" });
-    expect(goalLine(ws)).toEqual({ pilots: [2, 5], customers: [2, 20] });
+    expect(rows()).toEqual({ "Paid pilots": [2, 5], Customers: [2, 20] });
+  });
+
+  it("reads a consumer company's goal from the growth log, then signups against what the plan needs a week", () => {
+    const ws = consumerWorkspace({ growthLog: [makeWeek(day(-14), { signups: 30, active: 22 }), makeWeek(day(-7), { signups: 41, active: 37 })] });
+    const perWeek = consumerChannelPlan(ws, { today: TODAY }).funnel.consumer!.signupsPerWeek;
+    expect(goalLine(ws, TODAY)).toEqual([
+      { label: "Weekly active users", value: [37, 100] },
+      { label: "Signups a week", value: [41, perWeek] },
+    ]);
+    // Nothing logged yet: zeros, never the business rows.
+    expect(goalLine(consumerWorkspace(), TODAY).map((r) => r.value[0])).toEqual([0, 0]);
   });
 
   it("counts a company once however many deals it won", () => {

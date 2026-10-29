@@ -13,20 +13,12 @@ import { CopyButton } from "@/components/ui/misc";
 import { SourceChip } from "@/components/ui/source";
 import { cn } from "@/lib/client/cn";
 import { CREATOR_OUTREACH } from "@/lib/consumer/benchmarks";
-import { PARTNER_KIND_LABELS, PARTNER_STAGE_LABELS, PLATFORM_LABELS, partnerNext, partnerResults } from "@/lib/consumer/partners";
+import { marketOf } from "@/lib/consumer/market";
+import { PARTNER_STAGE_LABELS, PLATFORM_LABELS, partnerCopy, partnerNext, partnerResults, type PartnerCopy } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Partner, PartnerOffer, PartnerStage } from "@/lib/domain/types";
 import { lintDraft, mergeLint, worstIssue } from "@/lib/quality/lint";
 import { spring } from "@/lib/motion";
-
-const OFFER_LABELS: Record<PartnerOffer, string> = {
-  gifted: "Gifted product",
-  flat_fee: "Flat fee",
-  affiliate: "Commission",
-  hybrid: "Fee + commission",
-  free_access: "Free access",
-  collab: "Collab, no payment",
-};
 
 /** Stages the founder moves by hand. Sending is marked from the draft; nothing moves on its own. */
 const NEXT_STAGES: Partial<Record<PartnerStage, PartnerStage[]>> = {
@@ -55,7 +47,8 @@ function relint(p: Partner, body: string, followUp: string, subject: string | nu
 }
 
 export function PartnerCard({ p, today, focused }: { p: Partner; today: string; focused?: boolean }) {
-  const { dispatch } = useWorkspace();
+  const { ws, dispatch } = useWorkspace();
+  const copy = partnerCopy(ws ? marketOf(ws) : "consumer");
   const [open, setOpen] = useState(!!focused);
   const next = partnerNext(p, today);
   const at = () => nowISO();
@@ -68,7 +61,7 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-baseline gap-x-2">
             <span className="text-[14.5px] font-medium text-fg">{p.name}</span>
-            <span className="font-mono text-[11.5px] text-fg-3">{[PARTNER_KIND_LABELS[p.kind], p.platform ? PLATFORM_LABELS[p.platform] : null, p.handle].filter(Boolean).join(" · ")}</span>
+            <span className="font-mono text-[11.5px] text-fg-3">{[copy.kinds[p.kind], p.platform ? PLATFORM_LABELS[p.platform] : null, p.handle].filter(Boolean).join(" · ")}</span>
           </p>
           <p className="mt-0.5 line-clamp-2 text-pretty text-[13px] leading-5 text-fg-2">{p.fit}</p>
           <p className={cn("mt-1 text-[12.5px]", next.action ? "font-medium text-fg" : "text-fg-3")}>
@@ -92,7 +85,7 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
               {p.followers !== undefined && <span className="font-mono">{p.followers.toLocaleString("en-US")} followers</span>}
             </div>
 
-            <OfferEditor p={p} />
+            <OfferEditor p={p} copy={copy} />
             <Outreach p={p} today={today} />
 
             {p.stage === "agreed" && p.kind === "creator" && (
@@ -118,10 +111,10 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
             {p.stage === "live" && paidOrGifted && p.kind === "creator" && (
               <div className={cn("rounded-md px-3 py-2.5 text-[13px] leading-5", p.disclosure === "confirmed" ? "bg-bg-subtle text-fg-2" : "bg-warning-subtle text-fg")}>
                 {p.disclosure === "confirmed" ? (
-                  "You confirmed the post says #ad."
+                  copy.disclosure.confirmed
                 ) : (
                   <>
-                    <p>Check the live post: &ldquo;#ad&rdquo; or &ldquo;Ad&rdquo; at the start of the caption, said or shown in the video. The brand is responsible for this, not only the creator.</p>
+                    <p>{copy.disclosure.ask}</p>
                     <div className="mt-2 flex gap-2">
                       <Button size="sm" onClick={() => void dispatch({ type: "partner.update", id: p.id, patch: { disclosure: "confirmed" }, at: at() })}>
                         It does
@@ -131,7 +124,7 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
                         variant="ghost"
                         onClick={() => {
                           void dispatch({ type: "partner.update", id: p.id, patch: { disclosure: "missing" }, at: at() });
-                          toast("Ask them to add “#ad” at the start of the caption today, before you share or boost it.");
+                          toast(copy.disclosure.fix);
                         }}
                       >
                         It doesn&apos;t
@@ -142,10 +135,11 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
               </div>
             )}
 
-            {(p.stage === "live" || p.stage === "done") && <ResultsForm p={p} />}
+            {(p.stage === "live" || p.stage === "done") && <ResultsForm p={p} copy={copy} />}
             {results.signups + results.orders > 0 && (
               <p className="font-mono text-[12px] text-fg-3">
-                {results.signups} signups · {results.orders} orders{results.costUsd ? ` · $${results.costUsd} spent` : ""}
+                {results.signups} {copy.results.signups.toLowerCase()} · {results.orders} {copy.results.orders.toLowerCase()}
+                {results.costUsd ? ` · $${results.costUsd} spent` : ""}
                 {results.costPer !== undefined ? ` · $${results.costPer.toFixed(2)} each` : ""}
               </p>
             )}
@@ -176,13 +170,15 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
   );
 }
 
-function OfferEditor({ p }: { p: Partner }) {
+function OfferEditor({ p, copy }: { p: Partner; copy: PartnerCopy }) {
   const { dispatch } = useWorkspace();
   const [type, setType] = useState<PartnerOffer | "">(p.offer?.type ?? "");
   const [amount, setAmount] = useState(p.offer?.amountUsd ? String(p.offer.amountUsd) : "");
   const [pct, setPct] = useState(p.offer?.commissionPct ? String(p.offer.commissionPct) : "");
   const [terms, setTerms] = useState(p.offer?.terms ?? "");
   const [code, setCode] = useState(p.trackingCode ?? "");
+  // This market's offers, plus one set before a switch so it still shows as chosen.
+  const offers = (Object.keys(copy.offers) as PartnerOffer[]).concat(type && !(type in copy.offers) ? [type] : []);
   const save = () => {
     const n = (s: string) => (s.trim() && Number.isFinite(Number(s)) ? Number(s) : undefined);
     void dispatch({
@@ -197,7 +193,7 @@ function OfferEditor({ p }: { p: Partner }) {
     <div>
       <p className="mb-1.5 text-[12px] font-medium text-fg-2">What they get</p>
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Offer">
-        {(Object.keys(OFFER_LABELS) as PartnerOffer[]).map((o) => (
+        {offers.map((o) => (
           <button
             key={o}
             type="button"
@@ -206,7 +202,7 @@ function OfferEditor({ p }: { p: Partner }) {
             onClick={() => setType(o)}
             className={cn("inline-flex h-7 items-center rounded-sm px-2.5 text-[12.5px] ring-1 ring-inset transition-colors duration-150", type === o ? "bg-fg text-bg ring-fg" : "text-fg-2 ring-border hover:bg-bg-subtle")}
           >
-            {OFFER_LABELS[o]}
+            {copy.offers[o] ?? partnerCopy("consumer").offers[o]}
           </button>
         ))}
       </div>
@@ -219,7 +215,7 @@ function OfferEditor({ p }: { p: Partner }) {
         </div>
         <div>
           <Label htmlFor={`pct-${p.id}`} className="mb-1 text-[11.5px]">
-            Commission, %
+            {copy.commission}
           </Label>
           <Input id={`pct-${p.id}`} inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
@@ -227,13 +223,13 @@ function OfferEditor({ p }: { p: Partner }) {
           <Label htmlFor={`code-${p.id}`} className="mb-1 text-[11.5px]">
             Their code or link
           </Label>
-          <Input id={`code-${p.id}`} value={code} onChange={(e) => setCode(e.target.value)} placeholder="MAYA10" maxLength={80} className="font-mono text-[16px] sm:text-[13px]" />
+          <Input id={`code-${p.id}`} value={code} onChange={(e) => setCode(e.target.value)} placeholder={copy.codePlaceholder} maxLength={80} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
         <div className="col-span-2 sm:col-span-4">
           <Label htmlFor={`terms-${p.id}`} className="mb-1 text-[11.5px]">
             Terms (deliverables, usage, when you pay)
           </Label>
-          <Input id={`terms-${p.id}`} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="One 45-second video, organic only, paid within 7 days of posting" maxLength={240} className="text-[16px] sm:text-[13px]" />
+          <Input id={`terms-${p.id}`} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder={copy.termsPlaceholder} maxLength={240} className="text-[16px] sm:text-[13px]" />
         </div>
       </div>
       <Button size="sm" className="mt-2.5" onClick={save}>
@@ -344,14 +340,14 @@ function Outreach({ p, today }: { p: Partner; today: string }) {
   );
 }
 
-function ResultsForm({ p }: { p: Partner }) {
+function ResultsForm({ p, copy }: { p: Partner; copy: PartnerCopy }) {
   const { dispatch } = useWorkspace();
   const [vals, setVals] = useState({ views: "", clicks: "", signups: "", orders: "", costUsd: "" });
   const fields: { key: keyof typeof vals; label: string }[] = [
     { key: "views", label: "Views" },
     { key: "clicks", label: "Clicks" },
-    { key: "signups", label: "Signups" },
-    { key: "orders", label: "Orders" },
+    { key: "signups", label: copy.results.signups },
+    { key: "orders", label: copy.results.orders },
     { key: "costUsd", label: "Cost, $" },
   ];
   const save = () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Move } from "@/lib/domain/types";
+import { sampleWorkspace } from "@/lib/sample";
 import { NOW, TODAY, at, consumerWorkspace, day, makeActivity, makePartner, makeWeek } from "@/test/factories";
 import { computeMoves } from "./rules";
 import { computeScoreboard, goalWins } from "./scoreboard";
@@ -85,5 +86,31 @@ describe("consumer moves", () => {
     expect(computeMoves(ws, NOW)).toEqual(a);
     expect(new Set(a.map((m) => m.id)).size).toBe(a.length);
     expect(a.every((m) => m.dueOn >= TODAY)).toBe(true);
+  });
+
+  it("follows the market after a switch: the deal desk goes quiet, conversations in flight stay", () => {
+    const business = sampleWorkspace(NOW);
+    const before = rules(computeMoves(business, NOW));
+    const ws = structuredClone(business);
+    ws.company = { ...ws.company!, market: "consumer", consumerModel: "app" };
+    const after = rules(computeMoves(ws, NOW));
+    // New business work is gone: first touches, plays, warm paths, rooms and the pipeline reviews.
+    for (const rule of ["signal", "cold_draft", "research", "discover", "event_nearby", "review_monday"]) {
+      expect(before.has(rule)).toBe(true);
+      expect(after.has(rule)).toBe(false);
+    }
+    expect(before.has("play") && !after.has("play")).toBe(true);
+    // The growth loop takes their place.
+    expect(after.has("growth_log")).toBe(true);
+    // Replies and meetings the sample has in flight still show.
+    for (const rule of ["reply", "meeting_prep"]) if (before.has(rule)) expect(after.has(rule)).toBe(true);
+  });
+
+  it("follows partners through for a business too, without the weekly nudge to find more", () => {
+    const ws = sampleWorkspace(NOW);
+    ws.partners = { ptn_pod: makePartner("ptn_pod", { kind: "podcast", platform: "podcast", name: "Finance Ops Weekly" }) };
+    const moves = computeMoves(ws, NOW);
+    expect(ofRule(moves, "partner_draft").map((m) => m.subjectIds?.[0])).toEqual(["ptn_pod"]);
+    expect(rules(moves).has("partner_find")).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TODAY, consumerWorkspace, day, makeWeek } from "@/test/factories";
 import { usersPerArm, viralMultiplier } from "./benchmarks";
-import { hasLoggedLastWeek, lastWeekOf, readGrowth, sizeExperiment } from "./growth";
+import { goalPace, hasLoggedLastWeek, lastWeekOf, readGrowth, sizeExperiment } from "./growth";
 
 /** TODAY is Tuesday 2026-10-20, so last week starts Monday 2026-10-12. */
 const LAST = "2026-10-12";
@@ -136,5 +136,37 @@ describe("experiment math", () => {
     expect(viralMultiplier(0.5)).toBe(2);
     expect(viralMultiplier(0)).toBe(1);
     expect(viralMultiplier(1.2)).toBeNull();
+  });
+});
+
+describe("goalPace", () => {
+  it("carries the last four weeks of change in a straight line to the goal date", () => {
+    // 20 → 60 weekly active users over four weeks: +10 a week.
+    const ws = consumerWorkspace({ growthLog: [-35, -28, -21, -14, -7].map((d, i) => makeWeek(day(d), { active: 20 + i * 10 })) });
+    ws.goal = { ...ws.goal, target: 100, byDate: day(28) };
+    const pace = goalPace(ws, TODAY)!;
+    expect(pace).toMatchObject({ current: 60, perWeek: 10, readings: 5 });
+    // The latest week ends today; four more weeks at +10 lands on 100.
+    expect(pace.projected).toBe(100);
+    expect(pace.onPace).toBe(true);
+    expect(pace.needPerWeek).toBe(10);
+  });
+
+  it("says how far short a flat line falls, and what it would take", () => {
+    const ws = consumerWorkspace({ growthLog: [makeWeek(day(-14), { active: 40 }), makeWeek(day(-7), { active: 42 })] });
+    ws.goal = { ...ws.goal, target: 100, byDate: day(56) };
+    const pace = goalPace(ws, TODAY)!;
+    expect(pace.onPace).toBe(false);
+    expect(pace.projected).toBe(58);
+    expect(pace.needPerWeek).toBeCloseTo(58 / 8);
+  });
+
+  it("follows the goal's metric, and waits for two readings of it", () => {
+    const ws = consumerWorkspace({ growthLog: [makeWeek(day(-14), { active: 30, paying: 4 }), makeWeek(day(-7), { active: 35 })] }, "dtc");
+    expect(ws.goal.metric).toBe("paying");
+    expect(goalPace(ws, TODAY)).toBeNull();
+    ws.growthLog!.push(makeWeek(day(0), { paying: 9 }));
+    expect(goalPace(ws, TODAY)).toMatchObject({ current: 9, readings: 2 });
+    expect(goalPace(consumerWorkspace(), TODAY)).toBeNull();
   });
 });

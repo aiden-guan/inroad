@@ -9,6 +9,14 @@ describe("shortcutGroups", () => {
     expect(keys("Companies")).toEqual(expect.arrayContaining(["J", "K", "Enter", "T", "X"]));
   });
 
+  it("lists the pages and page keys of the company's market only", () => {
+    const go = (market: "b2b" | "consumer") => shortcutGroups(true, market)[0].rows.filter(([k]) => k[0] === "G").map(([k, what]) => `${k[1]} ${what}`);
+    expect(go("b2b")).toEqual(expect.arrayContaining(["V Revenue: the forecast and the plan", "C Companies", "R Partners: newsletters, podcasts and communities"]));
+    expect(go("consumer")).toEqual(expect.arrayContaining(["W Growth: the goal and your weekly numbers", "R Creators and communities"]));
+    expect(go("consumer").join()).not.toMatch(/Revenue|Companies|Plays|Intros|Events/);
+    expect(shortcutGroups(true, "consumer").map((g) => g.title)).toEqual(["Everywhere", "Today", "A draft", "Check replies", "Studio"]);
+  });
+
   it("labels the modifier for this computer", () => {
     const palette = (mac: boolean) => shortcutGroups(mac)[0].rows[0][0];
     expect(palette(true)).toEqual(["⌘", "K"]);

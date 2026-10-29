@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { PartnersPage } from "@/components/partners/partners-page";
 import { PageTransition } from "@/components/shell/page-transition";
 
-export const metadata: Metadata = { title: "Creators and communities" };
+export const metadata: Metadata = { title: "Partners and creators" };
 
 export default function Page() {
   return (

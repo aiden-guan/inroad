@@ -13,6 +13,15 @@ export function isConsumer(ws: Pick<Workspace, "company">): boolean {
   return marketOf(ws) === "consumer";
 }
 
+/**
+ * The market the playbook on file was written for, or null before there is one. Consumer channel plans always carry
+ * the retention-first funnel, so it tells even when the founder has switched markets since.
+ */
+export function playbookMarket(ws: Pick<Workspace, "foundation">): Market | null {
+  if (!ws.foundation) return null;
+  return ws.foundation.channelPlan.funnel.consumer ? "consumer" : "b2b";
+}
+
 /** The consumer model, defaulting to "app" (the most common early consumer company) when the site didn't say. */
 export function consumerModelOf(ws: Pick<Workspace, "company">): ConsumerModel {
   return ws.company?.consumerModel ?? "app";

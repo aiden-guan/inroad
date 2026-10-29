@@ -385,10 +385,13 @@ export interface GrowthWeek {
   loggedAt: ISODateTime;
 }
 
-/** Creators, communities, newsletters, podcasts, press and partner brands: who a consumer company reaches its users through. */
+/**
+ * Creators, communities, newsletters, podcasts, press and partner brands or companies: who a company reaches its users
+ * or buyers through. Consumer companies call the list Creators; businesses call it Partners.
+ */
 export type PartnerKind = "creator" | "community" | "newsletter" | "podcast" | "press" | "brand";
 export type PartnerStage = "shortlist" | "contacted" | "replied" | "agreed" | "live" | "done" | "passed";
-export type PartnerPlatform = "tiktok" | "instagram" | "youtube" | "x" | "reddit" | "discord" | "facebook" | "substack" | "podcast" | "web" | "other";
+export type PartnerPlatform = "tiktok" | "instagram" | "youtube" | "x" | "linkedin" | "reddit" | "discord" | "slack" | "facebook" | "substack" | "podcast" | "web" | "other";
 export type PartnerOffer = "gifted" | "flat_fee" | "affiliate" | "hybrid" | "free_access" | "collab";
 
 export interface PartnerOutreach {
@@ -2119,7 +2122,7 @@ export interface Workspace {
   usage: Record<string /* YYYY-MM */, UsageMonth>;
   /** Consumer: one row per week, oldest first. */
   growthLog?: GrowthWeek[];
-  /** Consumer: creators, communities, newsletters, podcasts, press and partner brands, by id. */
+  /** Creators, communities, newsletters, podcasts, press and partner brands or companies, by id. */
   partners?: Record<ID, Partner>;
   /** Consumer: growth experiments, by id. */
   experiments?: Record<ID, Experiment>;
@@ -2129,6 +2132,14 @@ export interface Workspace {
   revenue?: { target?: RevenueTarget; snapshots?: ForecastSnapshot[]; updates?: GtmUpdate[] };
   /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
   plays?: Record<string, PlayState>;
+  /** What each market had when the founder last switched away from it, so switching back restores it. */
+  marketMemory?: Partial<Record<Market, MarketMemory>>;
+}
+
+export interface MarketMemory {
+  goal: Pick<Goal, "metric" | "target" | "targetLabel">;
+  /** Consumer only: the kind of consumer company. */
+  consumerModel?: ConsumerModel;
 }
 
 export interface PmfSurvey {

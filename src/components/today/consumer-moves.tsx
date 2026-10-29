@@ -112,7 +112,7 @@ export function ConsumerMoveBody({ rule, move, ws, today, weekStart, onComplete,
         <div className="space-y-3">
           <VerdictList verdicts={shown} />
           <div className="flex flex-wrap gap-2">
-            <Open href="/playbook#numbers">See the numbers</Open>
+            <Open href="/growth#numbers">See the numbers</Open>
             <Button variant="ghost" onClick={onComplete}>
               Got it
             </Button>
