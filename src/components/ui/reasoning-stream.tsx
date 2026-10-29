@@ -6,8 +6,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/client/cn";
 import { spring } from "@/lib/motion";
 
-/** At most one new line per beat, so a burst of thinking still reads at a human pace. */
+/** At most one new line per beat, so a burst of thinking still reads at a human pace; a backlog drains faster. */
 const BEAT_MS = 720;
+const CATCH_UP_MS = 240;
 const LINE_PX = 20;
 
 /**
@@ -22,7 +23,7 @@ export function ReasoningStream({ lines, max = 3, className }: { lines: string[]
 
   useEffect(() => {
     if (shown >= lines.length) return;
-    const t = setTimeout(() => setShown((n) => Math.min(lines.length, n + 1)), shown === 0 ? 0 : BEAT_MS);
+    const t = setTimeout(() => setShown((n) => Math.min(lines.length, n + 1)), shown === 0 ? 0 : lines.length - shown > 2 ? CATCH_UP_MS : BEAT_MS);
     return () => clearTimeout(t);
   }, [shown, lines.length]);
 

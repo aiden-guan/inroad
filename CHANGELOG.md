@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+- The reasoning stream catches up when thinking arrives in a burst: with more than two lines waiting, they show 240ms apart instead of 720ms, so a long run's reasoning isn't still trailing when the answer lands.
+
 ---
 
 ## [v0.2.16] — 2026-10-29
