@@ -1,14 +1,13 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { Building2, CalendarHeart, Command, Handshake, Megaphone, Moon, NotebookPen, PenTool, Plug, Search, Settings, Sun, Sunrise, Target, Zap } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Command, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { AiBadge, Badge } from "@/components/ui/badge";
+import { AiBadge } from "@/components/ui/badge";
 import { BrandMark } from "@/components/ui/brand-mark";
-import { Favicon } from "@/components/ui/favicon";
 import { useKeyboardDriven } from "@/components/ui/fx";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover } from "@/components/ui/menu";
@@ -18,37 +17,15 @@ import { OrbMorph, useWide } from "@/components/ui/orb-morph";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { usd } from "@/lib/client/format";
-import { monthKey } from "@/lib/domain/ids";
-import type { Workspace } from "@/lib/domain/types";
-import { spring } from "@/lib/motion";
+import { isConsumer } from "@/lib/consumer/market";
+import { monthKey, todayISO } from "@/lib/domain/ids";
+import { ease, spring } from "@/lib/motion";
 import { goalLine } from "@/lib/moves/nav-counts";
 import { UpdateNotice } from "@/components/updates/update-notice";
 import { AgentPanel, useAgentStatus, useNavCounts, type AgentStatus } from "./agent-status";
+import { CompanySwitcher, useMarket } from "./market-switch";
+import { SECONDARY, navFor } from "./nav";
 import { SampleBanner } from "./sample-banner";
-
-const NAV = [
-  { href: "/today", label: "Today", icon: Sunrise, key: "T" },
-  { href: "/revenue", label: "Revenue", icon: Target, key: "V" },
-  { href: "/partners", label: "Creators", icon: Megaphone, key: "R" },
-  { href: "/companies", label: "Companies", icon: Building2, key: "C" },
-  { href: "/plays", label: "Plays", icon: Zap, key: "Y" },
-  { href: "/research", label: "Research", icon: Search, key: "F" },
-  { href: "/intros", label: "Intros", icon: Handshake, key: "N" },
-  { href: "/events", label: "Events", icon: CalendarHeart, key: "E" },
-  { href: "/playbook", label: "Playbook", icon: NotebookPen, key: "P" },
-  { href: "/studio", label: "Studio", icon: PenTool, key: "M" },
-] as const;
-
-/** Creators and communities show for consumer companies (or once anyone is on the list). */
-export function navFor(ws: Workspace | null | undefined) {
-  const consumer = ws?.company?.market === "consumer" || Object.keys(ws?.partners ?? {}).length > 0;
-  return NAV.filter((n) => n.href !== "/partners" || consumer);
-}
-
-const SECONDARY = [
-  { href: "/integrations", label: "Integrations", icon: Plug, key: "I" },
-  { href: "/settings", label: "Settings", icon: Settings, key: "S" },
-] as const;
 
 function readTheme(): "light" | "dark" {
   const t = document.documentElement.dataset.theme;
@@ -143,6 +120,8 @@ export function Sidebar() {
   const { theme, toggle } = useTheme();
   const spend = ws?.usage[monthKey()]?.costUsd ?? 0;
   const counts = useNavCounts();
+  const market = useMarket();
+  const reduce = useReducedMotion();
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-border bg-bg-subtle [scrollbar-width:thin] md:flex">
@@ -152,19 +131,7 @@ export function Sidebar() {
         <span className="font-serif text-[27px] font-medium tracking-[-0.04em] text-fg [font-variation-settings:'opsz'_48]">{BRAND.product}</span>
       </div>
 
-      {ws?.company && (
-        <div className="mx-4 mb-5 flex min-w-0 shrink-0 items-center gap-2 border-b border-border px-1 pb-4">
-          <Favicon domain={ws.company.domain} size={20} />
-          <span className="truncate text-[12px] font-medium text-fg-2">{ws.company.name}</span>
-          {ws.sample ? (
-            <Badge tone="warning" className="ml-auto h-4 px-1 text-[10px]">
-              Sample
-            </Badge>
-          ) : (
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-[.08em] text-fg-3">Workspace</span>
-          )}
-        </div>
-      )}
+      <CompanySwitcher />
 
       <SampleBanner variant="sidebar" />
 
@@ -172,18 +139,29 @@ export function Sidebar() {
         <AgentBlock />
       </div>
 
-      <nav aria-label="Workspace" className="flex shrink-0 flex-col gap-1 px-3">
-        {navFor(ws).map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={item.icon}
-            shortcut={`G then ${item.key}`}
-            active={pathname.startsWith(item.href)}
-            count={counts[item.href]}
-          />
-        ))}
+      <nav aria-label="Workspace" className="relative flex shrink-0 flex-col gap-1 px-3">
+        {/* Switching markets swaps pages in and out: leaving rows fade where they were, the rest glide into place. */}
+        <AnimatePresence mode="popLayout" initial={false}>
+          {navFor(market).map((item) => (
+            <motion.div
+              key={item.href}
+              layout={reduce ? false : "position"}
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.14, ease: ease.inQuad } }}
+              transition={{ duration: 0.22, ease: ease.out, layout: spring.layout }}
+            >
+              <NavLink
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                shortcut={`G then ${item.key}`}
+                active={pathname.startsWith(item.href)}
+                count={counts[item.href]}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </nav>
 
       <div className="mt-auto flex shrink-0 flex-col gap-1 px-3 pb-4 pt-6">
@@ -233,23 +211,26 @@ export function Sidebar() {
 }
 
 /**
- * "Paid pilots 1 of 5 · Customers 0 of 20": the near-term goal and the long arc, in view on every page.
- * The numbers tick (NumberFlow) when a deal is won. Opens the plan they come from.
+ * The goal and the number under it, in view on every page: "Paid pilots 1 of 5 · Customers 0 of 20" for a business,
+ * "Weekly active users 40 of 100 · Signups a week 18 of 25" for a consumer company. The numbers tick (NumberFlow)
+ * when they move. Opens where they come from: the plan, or Growth.
  */
 export function GoalLine({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
   const { ws } = useWorkspace();
   if (!ws) return null;
-  const { pilots, customers } = goalLine(ws);
+  const rows = goalLine(ws, todayISO());
+  const consumer = isConsumer(ws);
   return (
     <Link
-      href="/playbook#plan"
+      href={consumer ? "/growth" : "/playbook#plan"}
       onClick={onNavigate}
-      title="Your goal, from the plan"
-      aria-label={`Paid pilots: ${pilots[0]} of ${pilots[1]}. Customers: ${customers[0]} of ${customers[1]}.`}
+      title={consumer ? "Your goal and last week's numbers" : "Your goal, from the plan"}
+      aria-label={rows.map((r) => `${r.label}: ${r.value[0]} of ${r.value[1]}.`).join(" ")}
       className={cn("mb-2 block border-t border-border px-2 pb-1 pt-2.5 text-[12px] leading-[18px] transition-colors hover:text-fg", className)}
     >
-      <GoalRow label="Paid pilots" value={pilots} />
-      <GoalRow label="Customers" value={customers} />
+      {rows.map((r) => (
+        <GoalRow key={r.label} label={r.label} value={r.value} />
+      ))}
     </Link>
   );
 }
@@ -319,4 +300,3 @@ function NavLink({
   );
 }
 
-export { NAV, SECONDARY };

@@ -11,16 +11,18 @@ import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/misc";
+import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/client/cn";
-import { isConsumer } from "@/lib/consumer/market";
-import { PARTNER_KIND_LABELS, PLATFORM_LABELS, normalizeHandle, partnerKey, partnerNext } from "@/lib/consumer/partners";
+import { marketOf } from "@/lib/consumer/market";
+import { PLATFORM_LABELS, normalizeHandle, partnerCopy, partnerKey, partnerNext, type PartnerCopy } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Partner, PartnerKind, PartnerPlatform } from "@/lib/domain/types";
 import { PartnerCard } from "./partner-card";
 
 /**
- * Creators and communities: who a consumer company reaches its users through. Grouped by whose move it is, like
- * Intros. One note and one follow-up per partner, paid or gifted posts checked for #ad, results logged per partner.
+ * Who the company reaches its users or buyers through: creators and communities for a consumer company, newsletters,
+ * podcasts, communities and partner companies for a business. Grouped by whose move it is, like Intros. One note and
+ * one follow-up per partner, paid or sponsored posts checked for disclosure, results logged per partner.
  */
 export function PartnersPage() {
   const { ws } = useWorkspace();
@@ -48,61 +50,54 @@ export function PartnersPage() {
 
   if (!ws || !groups || !today) return <PageSkeleton />;
   const live = Object.values(ws.partners ?? {}).filter((p) => p.stage === "live").length;
+  const copy = partnerCopy(marketOf(ws));
 
   return (
-    <div className="mx-auto w-full max-w-[860px] px-6 pb-28 pt-8 md:px-10 md:pt-12">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em]">Creators and communities</h1>
-          <p className="mt-1.5 max-w-[58ch] text-[14px] leading-[21px] text-fg-2">
-            The people your users already listen to. Audience fit beats size. One note and one follow-up each, paid or gifted posts say #ad, and every result is counted.
+    <div className="page-shell max-w-[1000px]">
+      <PageHeader
+        title={copy.title}
+        eyebrow={copy.eyebrow}
+        description={copy.intro}
+        actions={
+          <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setAdding((a) => !a)}>
+            Add one
+          </Button>
+        }
+      >
+        {groups.total > 0 && (
+          <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
+            <span>
+              <span className="font-mono tnum text-fg-2">{groups.yours.length}</span> your move
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              <span className="font-mono tnum text-fg-2">{groups.waiting.length}</span> waiting on them
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              <span className="font-mono tnum text-fg-2">{live}</span> live
+            </span>
           </p>
-          {groups.total > 0 && (
-            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
-              <span>
-                <span className="font-mono tnum text-fg-2">{groups.yours.length}</span> your move
-              </span>
-              <span aria-hidden>·</span>
-              <span>
-                <span className="font-mono tnum text-fg-2">{groups.waiting.length}</span> waiting on them
-              </span>
-              <span aria-hidden>·</span>
-              <span>
-                <span className="font-mono tnum text-fg-2">{live}</span> live
-              </span>
-            </p>
-          )}
-        </div>
-        <Button variant="ghost" icon={<Plus className="size-4" />} onClick={() => setAdding((a) => !a)}>
-          Add one
-        </Button>
-      </header>
+        )}
+      </PageHeader>
 
-      {!isConsumer(ws) && (
-        <p className="mt-6 rounded-md bg-bg-subtle px-3 py-2.5 text-[13px] leading-5 text-fg-2">
-          This list is built for companies that sell to consumers. You can switch in Settings → General.
-        </p>
-      )}
-
-      {adding && <AddPartner onDone={() => setAdding(false)} />}
+      {adding && <AddPartner copy={copy} onDone={() => setAdding(false)} />}
 
       <div className="mt-6">
         <RunInline
           workflow="partners"
           args={{ mode: "find", count: 8, source: "founder" }}
           runRef={{ kind: "playbook", id: "partners" }}
-          label={groups.total ? "Find more" : "Find creators and communities"}
-          hint="Up to 5 web searches · about $0.10 · only links I can show you"
+          label={groups.total ? "Find more" : copy.find}
+          hint={copy.findHint}
         />
       </div>
 
       {groups.total === 0 ? (
         <div className="mt-10 rounded-lg bg-surface px-6 py-10 text-center ring-1 ring-border">
           <Megaphone className="mx-auto size-6 text-fg-4" aria-hidden />
-          <p className="mt-3 font-serif text-[24px] leading-[30px] tracking-[-0.01em] text-fg">Most consumer startups found their first users where they already gathered.</p>
-          <p className="mx-auto mt-2 max-w-[52ch] text-[14px] leading-[21px] text-fg-2">
-            I&apos;ll look where your segments spend time: the creators they watch, the communities where they ask for help, the newsletters they read.
-          </p>
+          <p className="mx-auto mt-3 max-w-[30ch] text-balance font-serif text-[24px] leading-[30px] tracking-[-0.01em] text-fg">{copy.emptyTitle}</p>
+          <p className="mx-auto mt-2 max-w-[52ch] text-[14px] leading-[21px] text-fg-2">{copy.emptyBody}</p>
         </div>
       ) : (
         <div className="mt-8 space-y-8">
@@ -137,12 +132,11 @@ function Group({ title, list, today, focus, className }: { title: string; list: 
 }
 
 const KINDS: PartnerKind[] = ["creator", "community", "newsletter", "podcast", "press", "brand"];
-const PLATFORMS: PartnerPlatform[] = ["tiktok", "instagram", "youtube", "x", "reddit", "discord", "facebook", "substack", "podcast", "web", "other"];
 
-function AddPartner({ onDone }: { onDone: () => void }) {
+function AddPartner({ copy, onDone }: { copy: PartnerCopy; onDone: () => void }) {
   const { ws, dispatch } = useWorkspace();
   const [kind, setKind] = useState<PartnerKind>("creator");
-  const [platform, setPlatform] = useState<PartnerPlatform>("tiktok");
+  const [platform, setPlatform] = useState<PartnerPlatform>(copy.platforms[0]);
   const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
   const [url, setUrl] = useState("");
@@ -189,12 +183,12 @@ function AddPartner({ onDone }: { onDone: () => void }) {
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Kind">
         {KINDS.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={chip(kind === k)}>
-            {PARTNER_KIND_LABELS[k]}
+            {copy.kinds[k]}
           </button>
         ))}
       </div>
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Platform">
-        {PLATFORMS.map((p) => (
+        {copy.platforms.map((p) => (
           <button key={p} type="button" role="radio" aria-checked={platform === p} onClick={() => setPlatform(p)} className={chip(platform === p)}>
             {PLATFORM_LABELS[p]}
           </button>
@@ -209,13 +203,13 @@ function AddPartner({ onDone }: { onDone: () => void }) {
           <Label htmlFor="pt-handle" hint="optional">
             Handle
           </Label>
-          <Input id="pt-handle" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@maya.runs or r/running" maxLength={60} className="text-[16px] sm:text-[13px]" />
+          <Input id="pt-handle" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder={copy.handlePlaceholder} maxLength={60} className="text-[16px] sm:text-[13px]" />
         </div>
         <div>
           <Label htmlFor="pt-url" hint="optional">
             Link
           </Label>
-          <Input id="pt-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="tiktok.com/@maya.runs" maxLength={300} className="text-[16px] sm:text-[13px]" />
+          <Input id="pt-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={copy.urlPlaceholder} maxLength={300} className="text-[16px] sm:text-[13px]" />
         </div>
         <div>
           <Label htmlFor="pt-followers" hint="optional, from their profile">
@@ -226,7 +220,7 @@ function AddPartner({ onDone }: { onDone: () => void }) {
       </div>
       <div>
         <Label htmlFor="pt-fit">Why their audience is yours</Label>
-        <Input id="pt-fit" value={fit} onChange={(e) => setFit(e.target.value)} placeholder="Beginner runners, weekly training vlogs, mostly US" maxLength={160} className="text-[16px] sm:text-[13px]" />
+        <Input id="pt-fit" value={fit} onChange={(e) => setFit(e.target.value)} placeholder={copy.fitPlaceholder} maxLength={160} className="text-[16px] sm:text-[13px]" />
       </div>
       {error && <p className="text-[12px] text-danger">{error}</p>}
       <div className="flex gap-2">
@@ -243,7 +237,7 @@ function AddPartner({ onDone }: { onDone: () => void }) {
 
 function PageSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[860px] px-6 pt-8 md:px-10 md:pt-12" aria-busy="true">
+    <div className="page-shell max-w-[1000px]" aria-busy="true">
       <Skeleton className="h-9 w-72" />
       <Skeleton className="mt-3 h-4 w-[70%]" />
       <div className="mt-10 space-y-2.5">

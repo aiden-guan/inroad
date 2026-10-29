@@ -1,15 +1,15 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { GrowthLogForm, PmfSurveyForm, VerdictList } from "@/components/consumer/growth-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Num } from "@/components/ui/misc";
-import { cn } from "@/lib/client/cn";
 import { shortDate } from "@/lib/client/format";
-import { PMF_SURVEY, SUBSCRIPTION_APPS } from "@/lib/consumer/benchmarks";
-import { iceScore, readGrowth, sizeExperiment, STAGE_LABELS, type FunnelStage } from "@/lib/consumer/growth";
+import { SUBSCRIPTION_APPS } from "@/lib/consumer/benchmarks";
+import { hasLoggedLastWeek, iceScore, readGrowth, sizeExperiment, STAGE_LABELS } from "@/lib/consumer/growth";
 import { ACTIVE_MOTIONS, consumerChannelPlan, growthDefaults } from "@/lib/consumer/plan";
 import { addDays, daysBetween, newId, nowISO } from "@/lib/domain/ids";
 import type { Experiment, GrowthModel } from "@/lib/domain/types";
@@ -21,8 +21,8 @@ import { AddRow, Choice, Editable, FieldLabel, RemoveButton, Section, Stamp, Ste
 
 /**
  * Playbook → How we grow: the consumer replacement for "How we sell". The plan is retention-first math, the numbers
- * are logged weekly and read in code, channels are ranked with at most three "now", and experiments are sized before
- * anyone calls a winner.
+ * are logged weekly and read in code on Growth, channels are ranked with at most three "now", and experiments are
+ * sized before anyone calls a winner.
  */
 export function GrowSection() {
   const { ws, today } = usePlaybook();
@@ -144,107 +144,45 @@ function GrowthPlan() {
 
 /* ───────────────────────────── Numbers ───────────────────────────── */
 
-const STAGE_ORDER: FunnelStage[] = ["acquisition", "activation", "retention", "referral", "revenue"];
-
+/** The weekly numbers are logged and read on Growth. Here: where they stand, and the way there. */
 function Numbers() {
-  const { ws, today, dispatch } = usePlaybook();
+  const { ws, today } = usePlaybook();
   const g = readGrowth(ws, today);
-  const [logging, setLogging] = useState(!g.latest);
-  const [surveying, setSurveying] = useState(false);
-  const recent = g.weeks.slice(-6).reverse();
-  const repeat = g.model.retention.metric === "m3_repeat";
-  const stats: { label: string; value: string }[] = [];
-  if (g.activationRate !== undefined) stats.push({ label: "Reach the first win", value: `${g.activationRate.toFixed(0)}%` });
-  if (g.retention !== undefined) stats.push({ label: repeat ? "Repeat in 90 days" : "Week-4 retention", value: `${g.retention}%` });
-  if (g.referredShare !== undefined) stats.push({ label: "From a friend", value: `${g.referredShare.toFixed(0)}%` });
-  if (g.quickRatio !== undefined) stats.push({ label: "Quick ratio", value: g.quickRatio.toFixed(1) });
-  if (g.cac !== undefined) stats.push({ label: g.cacBasis === "paying" ? "Paid cost per customer" : "Paid cost per signup", value: `$${g.cac.toFixed(2)}` });
-  if (g.paybackMonths !== undefined) stats.push({ label: "Payback", value: `${g.paybackMonths.toFixed(1)} mo` });
-  if (g.pmf) stats.push({ label: `Very disappointed (${g.pmf.answers})`, value: `${g.pmf.score.toFixed(0)}%` });
-
+  const logged = hasLoggedLastWeek(ws, today);
   return (
-    <Sub
-      id="numbers"
-      title="Numbers"
-      hint="Log last week every Monday. I read them in code: rates hide below 20 signups, and paid spend waits until retention clears the bar."
-      right={
-        !logging && (
-          <Button size="sm" variant="ghost" onClick={() => setLogging(true)}>
-            Log last week
-          </Button>
-        )
-      }
-    >
-      <div className="mb-4 flex flex-wrap gap-1.5" aria-label="Funnel stages">
-        {STAGE_ORDER.map((s) => (
-          <span key={s} className={cn("rounded-full px-2.5 py-0.5 text-[12px] ring-1", s === g.focus ? "bg-surface font-medium text-fg ring-border-strong" : "text-fg-3 ring-border")}>
-            {STAGE_LABELS[s]}
-            {s === g.focus && <span className="ml-1 font-mono text-[10.5px] text-fg-3">focus</span>}
-          </span>
-        ))}
-      </div>
-
-      {logging && (
-        <div className="mb-5 rounded-lg bg-surface p-4 ring-1 ring-border sm:p-5">
-          <GrowthLogForm ws={ws} today={today} onSaved={() => setLogging(false)} />
+    <Sub id="numbers" title="Numbers" hint="Logged every Monday and read in code on Growth: the pace to the goal, what's leaking and what's working.">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 rounded-lg bg-surface px-4 py-3 ring-1 ring-border">
+        <p className="min-w-0 text-[13.5px] leading-5 text-fg-2">
+          {g.latest ? (
+            <>
+              Week of {shortDate(g.latest.weekOf)}: <span className="font-mono tnum text-fg">{g.latest.signups}</span> signups
+              {g.goal.current !== null && (
+                <>
+                  {" "}
+                  · <span className="font-mono tnum text-fg">{g.goal.current}</span> {ws.goal.targetLabel}
+                </>
+              )}
+              {g.retention !== undefined && (
+                <>
+                  {" "}
+                  · <span className="font-mono tnum text-fg">{g.retention}%</span> {g.model.retention.metric === "m3_repeat" ? "repeat" : "week-4 retention"}
+                </>
+              )}
+            </>
+          ) : (
+            "No weeks logged yet. Two minutes every Monday, and every recommendation gets sharper."
+          )}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          {!logged && (
+            <Link href="/growth?log=1" className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn transition-colors hover:bg-primary-hover active:scale-[0.97]">
+              Log last week
+            </Link>
+          )}
+          <Link href="/growth" className="inline-flex h-8 items-center gap-1 rounded-md px-3 text-[13px] text-fg-2 transition-colors hover:bg-bg-subtle hover:text-fg">
+            Open Growth <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
         </div>
-      )}
-
-      {stats.length > 0 && (
-        <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-md bg-surface px-3 py-2.5 ring-1 ring-border">
-              <dt className="text-[11.5px] text-fg-3">{s.label}</dt>
-              <dd className="mt-0.5 font-mono text-[15px] font-medium tnum text-fg">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-
-      <VerdictList verdicts={g.verdicts} />
-
-      {recent.length > 0 && (
-        <div className="mt-5 overflow-x-auto rounded-lg ring-1 ring-border">
-          <table className="w-full min-w-[520px] text-left text-[12.5px]">
-            <thead className="bg-bg-subtle text-fg-3">
-              <tr>
-                {["Week of", "Signups", "First win", "Active", repeat ? "Repeat %" : "Wk-4 %", "Paying", "Spend", ""].map((h) => (
-                  <th key={h} scope="col" className="px-3 py-2 font-medium">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border font-mono tnum">
-              {recent.map((w) => (
-                <tr key={w.weekOf}>
-                  <td className="px-3 py-2">{shortDate(w.weekOf)}</td>
-                  <td className="px-3 py-2">{w.signups}</td>
-                  <td className="px-3 py-2">{w.activated ?? "—"}</td>
-                  <td className="px-3 py-2">{w.active ?? "—"}</td>
-                  <td className="px-3 py-2">{w.retainedPct ?? "—"}</td>
-                  <td className="px-3 py-2">{w.paying ?? "—"}</td>
-                  <td className="px-3 py-2">{w.spendUsd ? `$${w.spendUsd}` : "—"}</td>
-                  <td className="px-2 py-1 text-right">
-                    <RemoveButton label={`Remove the week of ${w.weekOf}`} onClick={() => void dispatch({ type: "growth.remove", weekOf: w.weekOf })} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="mt-5">
-        {surveying ? (
-          <div className="rounded-lg bg-surface p-4 ring-1 ring-border sm:p-5">
-            <PmfSurveyForm onSaved={() => setSurveying(false)} />
-          </div>
-        ) : (
-          <button type="button" onClick={() => setSurveying(true)} className="text-[13px] text-fg-2 underline-offset-4 hover:text-fg hover:underline">
-            Log a product-market fit survey ({PMF_SURVEY.threshold.value}% “very disappointed” is the line)
-          </button>
-        )}
       </div>
     </Sub>
   );

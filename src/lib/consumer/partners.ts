@@ -1,11 +1,11 @@
 import { addDays, daysBetween } from "@/lib/domain/ids";
-import type { Partner, PartnerKind, PartnerPlatform, PartnerStage, Workspace } from "@/lib/domain/types";
+import type { Market, Partner, PartnerKind, PartnerOffer, PartnerPlatform, PartnerStage, Workspace } from "@/lib/domain/types";
 import { CREATOR_OUTREACH } from "./benchmarks";
 
 /**
- * Creators and communities as a list the founder works, in code: dedupe keys, whose move it is, and the code-written
- * notes (user-interview invite, referral ask). Pure and isomorphic. One outreach and one follow-up per partner, then
- * let it go: partners are relationships, not a sequence.
+ * Creators and communities (consumer) or partners (business) as a list the founder works, in code: dedupe keys, whose
+ * move it is, and the code-written notes (user-interview invite, referral ask). Pure and isomorphic. One outreach and
+ * one follow-up per partner, then let it go: partners are relationships, not a sequence.
  */
 
 export const PARTNER_KIND_LABELS: Record<PartnerKind, string> = {
@@ -32,8 +32,10 @@ export const PLATFORM_LABELS: Record<PartnerPlatform, string> = {
   instagram: "Instagram",
   youtube: "YouTube",
   x: "X",
+  linkedin: "LinkedIn",
   reddit: "Reddit",
   discord: "Discord",
+  slack: "Slack",
   facebook: "Facebook",
   substack: "Substack",
   podcast: "Podcast",
@@ -41,12 +43,133 @@ export const PLATFORM_LABELS: Record<PartnerPlatform, string> = {
   other: "Other",
 };
 
+/** Every platform, for the agent's tools and the finder's schema. */
+export const PARTNER_PLATFORMS = ["tiktok", "instagram", "youtube", "x", "linkedin", "reddit", "discord", "slack", "facebook", "substack", "podcast", "web", "other"] as const satisfies readonly PartnerPlatform[];
+
+/**
+ * What the list says in each market. Consumer companies reach users through creators and communities; businesses reach
+ * buyers through the newsletters, podcasts, communities and people those buyers already follow, and through companies
+ * that sell to the same buyers. The workflow, stages and checks are the same; the words, platforms and offers differ.
+ */
+export interface PartnerCopy {
+  title: string;
+  /** The list, in a sentence: "Added Maya to your creators." */
+  list: string;
+  eyebrow: string;
+  intro: string;
+  find: string;
+  findHint: string;
+  emptyTitle: string;
+  emptyBody: string;
+  kinds: Record<PartnerKind, string>;
+  /** In the order the add form offers them; the first is the default. */
+  platforms: PartnerPlatform[];
+  handlePlaceholder: string;
+  urlPlaceholder: string;
+  fitPlaceholder: string;
+  /** The offers this market makes, in order, with its words for them. */
+  offers: Partial<Record<PartnerOffer, string>>;
+  commission: string;
+  codePlaceholder: string;
+  termsPlaceholder: string;
+  results: { signups: string; orders: string };
+  disclosure: { ask: string; confirmed: string; fix: string };
+}
+
+const FIND_HINT = "Up to 5 web searches · about $0.10 · only links I can show you";
+
+const COPY: Record<Market, PartnerCopy> = {
+  consumer: {
+    title: "Creators and communities",
+    list: "creators",
+    eyebrow: "Where your users gather",
+    intro: "The people your users already listen to. Audience fit beats size. One note and one follow-up each, paid or gifted posts say #ad, and every result is counted.",
+    find: "Find creators and communities",
+    findHint: FIND_HINT,
+    emptyTitle: "Most consumer startups found their first users where they already gathered.",
+    emptyBody: "I'll look where your segments spend time: the creators they watch, the communities where they ask for help, the newsletters they read.",
+    kinds: PARTNER_KIND_LABELS,
+    platforms: ["tiktok", "instagram", "youtube", "x", "reddit", "discord", "facebook", "substack", "podcast", "web", "other"],
+    handlePlaceholder: "@maya.runs or r/running",
+    urlPlaceholder: "tiktok.com/@maya.runs",
+    fitPlaceholder: "Beginner runners, weekly training vlogs, mostly US",
+    offers: { gifted: "Gifted product", flat_fee: "Flat fee", affiliate: "Commission", hybrid: "Fee + commission", free_access: "Free access", collab: "Collab, no payment" },
+    commission: "Commission, %",
+    codePlaceholder: "MAYA10",
+    termsPlaceholder: "One 45-second video, organic only, paid within 7 days of posting",
+    results: { signups: "Signups", orders: "Orders" },
+    disclosure: {
+      ask: "Check the live post: “#ad” or “Ad” at the start of the caption, said or shown in the video. The brand is responsible for this, not only the creator.",
+      confirmed: "You confirmed the post says #ad.",
+      fix: "Ask them to add “#ad” at the start of the caption today, before you share or boost it.",
+    },
+  },
+  b2b: {
+    title: "Partners",
+    list: "partners",
+    eyebrow: "Where your buyers listen",
+    intro: "The newsletters, podcasts, communities and people your buyers already follow, and companies that sell to the same buyers. Fit beats reach. One note and one follow-up each, sponsored posts say so, and every result is counted.",
+    find: "Find newsletters, podcasts and communities",
+    findHint: FIND_HINT,
+    emptyTitle: "Your buyers already read, listen to and ask someone.",
+    emptyBody: "I'll look where your personas spend time: the newsletters and podcasts in their niche, the Slack and LinkedIn communities where they ask peers, and the people they follow.",
+    kinds: { ...PARTNER_KIND_LABELS, brand: "Partner company" },
+    platforms: ["linkedin", "substack", "podcast", "slack", "x", "youtube", "reddit", "discord", "web", "other"],
+    handlePlaceholder: "@ali.writes",
+    urlPlaceholder: "financeopsweekly.com",
+    fitPlaceholder: "Controllers at mid-market SaaS, a weekly issue on the month-end close",
+    offers: { flat_fee: "Sponsorship fee", affiliate: "Referral fee", hybrid: "Fee + referral", free_access: "Free account", collab: "Co-marketing, no payment" },
+    commission: "Referral fee, %",
+    codePlaceholder: "utm_source=financeops",
+    termsPlaceholder: "One sponsored issue in March, paid on publication",
+    results: { signups: "Leads", orders: "Deals" },
+    disclosure: {
+      ask: "Check the live post or issue says it's sponsored: “Sponsored”, “#ad” or the platform's paid-partnership label, where readers see it first.",
+      confirmed: "You confirmed the post says it's sponsored.",
+      fix: "Ask them to mark it as sponsored today, before you share or boost it.",
+    },
+  },
+};
+
+export function partnerCopy(market: Market): PartnerCopy {
+  return COPY[market];
+}
+
 export const OPEN_PARTNER_STAGES: PartnerStage[] = ["shortlist", "contacted", "replied", "agreed", "live"];
 
 export function normalizeHandle(h: string): string {
   const t = h.trim();
   if (/^r\//i.test(t)) return `r/${t.slice(2)}`;
   return t.startsWith("@") ? t : `@${t.replace(/^@+/, "")}`;
+}
+
+/**
+ * What a link is, when it's somewhere people follow or gather: the platform, the kind of partner and the handle the
+ * URL shows. Null for an ordinary website, which may be a company instead.
+ */
+export function partnerFromUrl(url: string): { platform: PartnerPlatform; kind: PartnerKind; handle?: string } | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\./, "").toLowerCase();
+  const seg = u.pathname.split("/").filter(Boolean);
+  const at = seg[0]?.startsWith("@") ? seg[0] : undefined;
+  if (host.endsWith("reddit.com")) return { platform: "reddit", kind: "community", handle: seg[0] === "r" && seg[1] ? `r/${seg[1]}` : undefined };
+  if (host === "youtube.com" || host === "youtu.be" || host === "m.youtube.com") return { platform: "youtube", kind: "creator", handle: at };
+  if (host === "tiktok.com") return { platform: "tiktok", kind: "creator", handle: at };
+  if (host === "instagram.com") return { platform: "instagram", kind: "creator", handle: seg[0] && !["p", "reel", "explore"].includes(seg[0]) ? `@${seg[0]}` : undefined };
+  if (host === "x.com" || host === "twitter.com") return { platform: "x", kind: "creator", handle: seg[0] && seg[0] !== "i" ? `@${seg[0]}` : undefined };
+  if (host.endsWith("linkedin.com")) return { platform: "linkedin", kind: seg[0] === "company" ? "brand" : seg[0] === "groups" ? "community" : "creator" };
+  if (host === "substack.com" || host.endsWith(".substack.com")) return { platform: "substack", kind: "newsletter", handle: at };
+  if (host === "discord.gg" || host === "discord.com") return { platform: "discord", kind: "community" };
+  if (host.endsWith("slack.com")) return { platform: "slack", kind: "community" };
+  if (host === "facebook.com") return { platform: "facebook", kind: seg[0] === "groups" ? "community" : "creator" };
+  if (host === "podcasts.apple.com" || (host === "open.spotify.com" && seg[0] === "show")) return { platform: "podcast", kind: "podcast" };
+  if (host === "medium.com") return { platform: "web", kind: "creator", handle: at };
+  return null;
 }
 
 /** Same creator or community, however it was written: platform + handle, else the URL, else the name. */

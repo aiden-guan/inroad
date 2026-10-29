@@ -1,7 +1,7 @@
 import { PMF_SURVEY, REFERRALS } from "@/lib/consumer/benchmarks";
 import { STAGE_LABELS as FUNNEL_LABELS, hasLoggedLastWeek, lastWeekOf, readGrowth } from "@/lib/consumer/growth";
-import { isConsumer } from "@/lib/consumer/market";
-import { PARTNER_KIND_LABELS, PLATFORM_LABELS, openPartners, partnerNext, type PartnerAction } from "@/lib/consumer/partners";
+import { isConsumer, marketOf } from "@/lib/consumer/market";
+import { PLATFORM_LABELS, openPartners, partnerCopy, partnerNext, type PartnerAction } from "@/lib/consumer/partners";
 import { CREATOR_ASKS_PER_WEEK, USER_TALKS_PER_WEEK } from "@/lib/consumer/plan";
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Asset, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type SignalType, type Workspace } from "@/lib/domain/types";
@@ -188,6 +188,10 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   const today = todayISO(now);
   const ctx: Ctx = { ws, now, today, weekStart: weekOf(today), c: counters(ws, now), out: [], firstThree: new Set() };
 
+  // What's already in flight (replies, meetings, deals, intros, rooms) shows whatever the market: switching never
+  // hides a real conversation. What starts new work follows the market: the deal desk for businesses, the growth
+  // loop for consumer companies.
+  const business = !isConsumer(ws);
   replies(ctx);
   checkReplies(ctx);
   bookings(ctx);
@@ -195,24 +199,31 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   callReferrals(ctx);
   sequences(ctx);
   deals(ctx);
-  firstThree(ctx);
-  firstTouches(ctx);
-  warmPaths(ctx);
-  ctx.out.push(...customerReferralMoves(ws, today));
+  if (business) {
+    firstThree(ctx);
+    firstTouches(ctx);
+    warmPaths(ctx);
+    ctx.out.push(...customerReferralMoves(ws, today));
+  }
   introFollowThrough(ctx);
   setup(ctx);
-  missingAssets(ctx);
-  plays(ctx);
+  if (business) {
+    missingAssets(ctx);
+    plays(ctx);
+  }
   events(ctx);
-  dinnerNeighbors(ctx);
-  roomSuggestion(ctx);
+  if (business) {
+    dinnerNeighbors(ctx);
+    roomSuggestion(ctx);
+  }
   questions(ctx);
-  reviews(ctx);
+  if (business) reviews(ctx);
   monthlyReview(ctx);
   refreshBet(ctx);
-  badExamples(ctx);
+  if (business) badExamples(ctx);
   weeklyPost(ctx);
-  if (isConsumer(ws)) consumerMoves(ctx);
+  partnerMoves(ctx);
+  if (!business) consumerMoves(ctx);
   // A paused play takes its cards off Today, whichever rule made them.
   ctx.out = ctx.out.filter((c) => !c.playId || playEnabled(ws, c.playId));
 
@@ -1389,9 +1400,11 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
   const accounts = Object.values(ws.accounts).filter((a) => a.status !== "disqualified");
   const anyDossier = accounts.some((a) => a.dossier);
 
-  // Research the top accounts that have no dossier yet (the first three have their own cards).
+  // Research the top accounts that have no dossier yet (the first three have their own cards). Businesses only, like
+  // the opinion below: both start cold outreach.
+  const business = !isConsumer(ws);
   const research = accounts
-    .filter((a) => !a.dossier && !a.dealId && !covered.has(a.domain) && (a.tier === "A" || !anyDossier) && (a.watch || a.status === "tracked" || a.status === "new"))
+    .filter((a) => business && !a.dossier && !a.dealId && !covered.has(a.domain) && (a.tier === "A" || !anyDossier) && (a.watch || a.status === "tracked" || a.status === "new"))
     .sort((a, b) => b.fitScore - a.fitScore)
     .slice(0, 3);
   for (const acc of research) {
@@ -1411,7 +1424,7 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
   }
 
   // While the first three are on the desk their drafts ask for it inline, just in time (SPEC §3.2): no card on top.
-  const needsPov = !ws.povs.length && !covered.size && (Object.values(ws.outreach).some((p) => p.mode === "cold") || accounts.some((a) => a.dossier && a.tier === "A"));
+  const needsPov = business && !ws.povs.length && !covered.size && (Object.values(ws.outreach).some((p) => p.mode === "cold") || accounts.some((a) => a.dossier && a.tier === "A"));
   if (needsPov) {
     out.push({
       id: "mv_setup_pov",
@@ -1425,7 +1438,7 @@ function setup({ ws, now, today, weekStart, out, firstThree: covered }: Ctx) {
   }
 
   // Consumer companies reach users through creators and communities, not a LinkedIn network of buyers.
-  if (ws.onboarding.status === "hired" && !isConsumer(ws)) {
+  if (ws.onboarding.status === "hired" && business) {
     // Warm before cold: who already knows the founder, and who their investors and advisors can reach. Without
     // either, intros never start (the connector card needs a connector), so this ranks above cold touches; while
     // the first three are on the desk it sits second, as on arrival (SPEC §3.2 step 4).
@@ -1941,8 +1954,63 @@ const PARTNER_TITLE_SAYS_IT = new Set<PartnerAction>(["draft", "send", "follow_u
 const PARTNER_MINUTES: Record<PartnerAction, number> = { draft: 2, send: 2, follow_up: 2, reply: 10, brief: 5, go_live: 1, check_disclosure: 2, log_results: 2, let_go: 1 };
 
 /**
- * Consumer moves: the weekly numbers and what they say (retention before acquisition), user conversations, the
- * creator and community list (one note, one follow-up a week later, then let go), experiments and the growth review.
+ * Partners, for either market: creators, communities, newsletters, podcasts and press. One note per partner, one
+ * follow-up a week later, then let go; paid or gifted posts checked for disclosure; results logged.
+ */
+function partnerMoves({ ws, today, weekStart, out }: Ctx) {
+  if (ws.onboarding.status !== "hired" || !ws.foundation) return;
+  const thisWeek = ws.activities.filter((a) => localDate(a.at) >= weekStart);
+  const { kinds } = partnerCopy(marketOf(ws));
+
+  // One note per partner, capped per week like cold email: relationships, not volume.
+  const sentThisWeek = thisWeek.filter((a) => a.kind === "partner_contacted").length;
+  let newNotesLeft = Math.max(0, CREATOR_ASKS_PER_WEEK - sentThisWeek);
+  const ranked = openPartners(ws).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const p of ranked) {
+    const next = partnerNext(p, today);
+    if (!next.action || next.action === "go_live") continue;
+    if (next.action === "draft" || next.action === "send") {
+      if (newNotesLeft <= 0) continue;
+      newNotesLeft--;
+    }
+    const overdue = next.dueOn && next.dueOn < today ? daysBetween(next.dueOn, today) : 0;
+    out.push({
+      id: `mv_partner_${next.action}_${p.id}`,
+      kind: "partner",
+      rule: PARTNER_RULE[next.action],
+      title: PARTNER_TITLE[next.action](p.name),
+      why: clip(
+        [PARTNER_TITLE_SAYS_IT.has(next.action) ? [kinds[p.kind], p.platform && PLATFORM_LABELS[p.platform]].filter(Boolean).join(" · ") : next.line, p.fit].filter(Boolean).join(" · "),
+        120,
+      ),
+      minutes: PARTNER_MINUTES[next.action],
+      priority: RULES[PARTNER_RULE[next.action]].base + overdueBoost(overdue),
+      overdueDays: overdue || undefined,
+      ref: { kind: "playbook", id: `partner:${p.id}` },
+      subjectIds: [p.id],
+      href: `/partners?p=${encodeURIComponent(p.id)}`,
+      source: p.sourceUrl ? { url: p.sourceUrl } : undefined,
+    });
+  }
+  // Finding more is a weekly nudge for consumer companies, where creators and communities are the main channel.
+  // Businesses find partners from the page when they want them.
+  const shortlisted = Object.values(ws.partners ?? {}).filter((p) => p.stage === "shortlist").length;
+  if (isConsumer(ws) && shortlisted < 5) {
+    out.push({
+      id: `mv_partner_find_${weekStart}`,
+      kind: "partner",
+      rule: "partner_find",
+      title: "Find creators and communities your users follow",
+      why: `${plural(shortlisted, "on the shortlist", "on the shortlist")} · audience fit beats size`,
+      minutes: 2,
+      priority: RULES.partner_find.base + (Object.keys(ws.partners ?? {}).length ? 0 : 14),
+    });
+  }
+}
+
+/**
+ * Consumer moves: the weekly numbers and what they say (retention before acquisition), user conversations,
+ * experiments and the growth review. Creators and communities come from `partnerMoves`, as they do for businesses.
  */
 function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
   if (ws.onboarding.status !== "hired" || !ws.foundation) return;
@@ -1959,7 +2027,7 @@ function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
       why: `Week of ${shortDay(lastWeekOf(today))} · signups, first wins, who came back · 2 minutes`,
       minutes: 2,
       priority: RULES.growth_log.base + (dow === 0 ? 6 : 0),
-      href: "/playbook#numbers",
+      href: "/growth?log=1",
     });
   }
 
@@ -1973,7 +2041,7 @@ function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
       why: "Every point of retention first makes each dollar of paid worth more",
       minutes: 2,
       priority: RULES.paid_hold.base,
-      href: "/playbook#numbers",
+      href: "/growth#numbers",
     });
   }
 
@@ -1987,7 +2055,7 @@ function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
       why: clip(focus.title, 110),
       minutes: 15,
       priority: RULES.growth_focus.base,
-      href: "/playbook#numbers",
+      href: "/growth#numbers",
     });
   }
 
@@ -2015,49 +2083,6 @@ function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
       minutes: 15,
       // Before retention holds, talking to users is the job; later in the week it matters more.
       priority: RULES.user_talks.base + (g.retentionHolds ? 0 : 6) + Math.min(6, dow * 2),
-    });
-  }
-
-  // One note per partner, capped per week like cold email: relationships, not volume.
-  const sentThisWeek = thisWeek.filter((a) => a.kind === "partner_contacted").length;
-  let newNotesLeft = Math.max(0, CREATOR_ASKS_PER_WEEK - sentThisWeek);
-  const ranked = openPartners(ws).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  for (const p of ranked) {
-    const next = partnerNext(p, today);
-    if (!next.action || next.action === "go_live") continue;
-    if (next.action === "draft" || next.action === "send") {
-      if (newNotesLeft <= 0) continue;
-      newNotesLeft--;
-    }
-    const overdue = next.dueOn && next.dueOn < today ? daysBetween(next.dueOn, today) : 0;
-    out.push({
-      id: `mv_partner_${next.action}_${p.id}`,
-      kind: "partner",
-      rule: PARTNER_RULE[next.action],
-      title: PARTNER_TITLE[next.action](p.name),
-      why: clip(
-        [PARTNER_TITLE_SAYS_IT.has(next.action) ? [PARTNER_KIND_LABELS[p.kind], p.platform && PLATFORM_LABELS[p.platform]].filter(Boolean).join(" · ") : next.line, p.fit].filter(Boolean).join(" · "),
-        120,
-      ),
-      minutes: PARTNER_MINUTES[next.action],
-      priority: RULES[PARTNER_RULE[next.action]].base + overdueBoost(overdue),
-      overdueDays: overdue || undefined,
-      ref: { kind: "playbook", id: `partner:${p.id}` },
-      subjectIds: [p.id],
-      href: `/partners?p=${encodeURIComponent(p.id)}`,
-      source: p.sourceUrl ? { url: p.sourceUrl } : undefined,
-    });
-  }
-  const shortlisted = Object.values(ws.partners ?? {}).filter((p) => p.stage === "shortlist").length;
-  if (shortlisted < 5) {
-    out.push({
-      id: `mv_partner_find_${weekStart}`,
-      kind: "partner",
-      rule: "partner_find",
-      title: "Find creators and communities your users follow",
-      why: `${plural(shortlisted, "on the shortlist", "on the shortlist")} · audience fit beats size`,
-      minutes: 2,
-      priority: RULES.partner_find.base + (Object.keys(ws.partners ?? {}).length ? 0 : 14),
     });
   }
 
@@ -2098,7 +2123,7 @@ function consumerMoves({ ws, now, today, weekStart, out }: Ctx) {
       why: `${g.latest?.active} active users · "How would you feel if you could no longer use it?"`,
       minutes: 10,
       priority: RULES.pmf_survey.base,
-      href: "/playbook#numbers",
+      href: "/growth#numbers",
     });
   }
 }

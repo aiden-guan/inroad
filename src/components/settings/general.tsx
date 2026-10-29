@@ -3,7 +3,6 @@
 import { ArrowUpRight, ImageIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,8 @@ import { setCompanyIcons } from "@/lib/client/icons";
 import { AiProviderGroup } from "./ai-provider";
 import { SearchProviderGroup } from "./search-provider";
 import { AiRoutingGroup } from "./ai-routing";
-import { CONSUMER_MODEL_LABELS, MARKET_LABELS } from "@/lib/consumer/market";
+import { useRewritePlaybook } from "@/components/shell/market-switch";
+import { CONSUMER_MODEL_LABELS, MARKET_LABELS, playbookMarket } from "@/lib/consumer/market";
 import type { ConsumerModel, Market } from "@/lib/domain/types";
 import { UpdatesGroup } from "@/components/updates/updates-group";
 import { ChoiceList, Group, Row, SettingsSection } from "./parts";
@@ -66,36 +66,27 @@ export function SourcesSection({ settings }: { settings: Settings }) {
 
 /* ───────────── Who you sell to ───────────── */
 
-/** Businesses or consumers: which playbook, moves and drafting rules apply. Switching keeps everything; the playbook is rewritten on request. */
+/**
+ * Businesses or consumers: which pages, playbook, moves and drafting rules apply. The same switch sits on the company
+ * row in the sidebar. Switching keeps everything; the playbook is rewritten on request.
+ */
 function MarketGroup() {
   const { ws, dispatch } = useWorkspace();
-  const { start } = useRuns();
-  const [changed, setChanged] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { rewrite, busy, rewriting } = useRewritePlaybook();
   if (!ws?.company) return null;
   const market: Market = ws.company.market ?? "b2b";
   const model: ConsumerModel = ws.company.consumerModel ?? "app";
-  const set = async (next: Market, nextModel?: ConsumerModel) => {
-    if (await dispatch({ type: "company.setMarket", market: next, consumerModel: nextModel })) setChanged(true);
-  };
-  const rewrite = async () => {
-    setBusy(true);
-    const run = await start("foundation", { url: ws.company?.domain || undefined, note: ws.company?.founderNote, mode: "refresh", market, consumerModel: market === "consumer" ? model : undefined });
-    setBusy(false);
-    if (run) {
-      setChanged(false);
-      toast("Rewriting your playbook. Everything you approved stays.");
-    }
-  };
+  const written = playbookMarket(ws);
+  const set = (next: Market, nextModel?: ConsumerModel) => void dispatch({ type: "company.setMarket", market: next, consumerModel: nextModel });
   return (
     <Group
       id="market"
       title="Who you sell to"
-      hint="This sets the playbook I write, the moves on Today and the rules your drafts follow."
+      hint="This sets the pages in the sidebar, the playbook I write, the moves on Today and the rules your drafts follow. Switch any time from your company name in the sidebar."
       right={
-        changed && ws.foundation ? (
+        written && written !== market && !ws.sample ? (
           <Button size="sm" variant="agent" loading={busy} onClick={() => void rewrite()}>
-            Rewrite my playbook for this
+            {rewriting ? "Rewriting your playbook" : "Rewrite my playbook for this"}
           </Button>
         ) : undefined
       }
@@ -104,10 +95,10 @@ function MarketGroup() {
         name="market"
         label="Who you sell to"
         value={market}
-        onChange={(v) => void set(v, v === "consumer" ? model : undefined)}
+        onChange={(v) => set(v, v === "consumer" ? model : undefined)}
         options={[
-          { value: "b2b", label: MARKET_LABELS.b2b, hint: "Founder-led sales: accounts, warm intros, signal-based outreach, deals and pilots." },
-          { value: "consumer", label: MARKET_LABELS.consumer, hint: "Growth: retention first, creators and communities, weekly numbers, experiments." },
+          { value: "b2b", label: MARKET_LABELS.b2b, hint: "Revenue, Companies, Plays, Intros, Partners and Events: accounts, warm intros, signal-based outreach, deals and pilots." },
+          { value: "consumer", label: MARKET_LABELS.consumer, hint: "Growth and Creators: retention first, creators and communities, weekly numbers and experiments." },
         ]}
       />
       {market === "consumer" && (
@@ -117,7 +108,7 @@ function MarketGroup() {
             name="consumer-model"
             label="What kind of consumer company"
             value={model}
-            onChange={(v) => void set("consumer", v)}
+            onChange={(v) => set("consumer", v)}
             options={(Object.keys(CONSUMER_MODEL_LABELS) as ConsumerModel[]).map((k) => ({ value: k, label: CONSUMER_MODEL_LABELS[k].label, hint: CONSUMER_MODEL_LABELS[k].hint }))}
           />
         </div>

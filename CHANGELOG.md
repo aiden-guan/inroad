@@ -7,8 +7,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Switch between selling to businesses and to consumers from the company row at the top of the sidebar, the phone menu or ⌘K ("Switch to selling to…"). Switching keeps everything, offers Undo from ⌘K, and gives each market back its own goal and kind of consumer company when you return to it.
+- Growth (`/growth`), the consumer counterpart of Revenue: the goal and the straight-line pace to its date, last week's numbers and what they say (moved here from Playbook → How we grow, which now links to it), what it takes at the retention bar, what's working (the channel that led each week, creator results, referrals, experiments) and the Monday growth review.
+- Partners for businesses: the Creators list now serves B2B companies as Partners (newsletters, podcasts, communities, people who post for your buyers, and partner companies), with LinkedIn and Slack, sponsorship, referral-fee and co-marketing offers, leads and deals as results, a B2B finder and B2B outreach rules. Follow-ups show on Today for both markets.
+- Research for consumer companies: it asks where your users gather, finds creators and communities from your search, and adds any result to Creators, including Reddit, YouTube, TikTok and Substack links it used to block. Businesses can add those links to Partners.
+
 ### Changed
+- Each market shows only its own pages, in the sidebar, the phone menu, "G then …", ⌘K and the shortcuts list. Businesses: Today, Revenue, Companies, Plays, Research, Intros, Partners, Events, Playbook and Studio. Consumer companies: Today, Growth, Creators, Research, Playbook and Studio. Switching away from a page the new market doesn't use lands on its counterpart (Revenue and Growth) or Today; old links still open.
+- Today follows the market: after a switch to consumer, first touches, account research, plays, room suggestions and the pipeline reviews stop, while replies, meetings, deals and intros already in flight stay. Consumer Today shows the growth goal instead of the revenue commit and counts user conversations against the weekly target.
+- The sidebar goal line reads "Weekly active users 44 of 100 · Signups a week 38 of 28" for a consumer company and opens Growth.
+- When the playbook on file was written for the other market, the Playbook, the switch and Settings → Company say so and offer to rewrite it (the sample explains instead of spending tokens).
+- Partners and Research use the shared page header.
 - The reasoning stream catches up when thinking arrives in a burst: with more than two lines waiting, they show 240ms apart instead of 720ms, so a long run's reasoning isn't still trailing when the answer lands.
+
+### Validation
+- 1,366 tests pass with three skipped; lint, typecheck and the production build pass; 38 end-to-end tests (first run, phone, palette, sample, Today cards, providers, usability and settings navigation) pass. The switch, both sidebars, the phone menu, ⌘K, "G then …", the shortcuts list, Growth with five logged weeks, Partners and Creators, Research in both markets, Today's tiles and the Playbook note were checked in the browser on the sample workspace at desktop and phone width.
+- Growth's pace is a straight line over the last four weeks of change: a guide to the goal date, not a forecast. It waits for two weeks of the goal's number.
 
 ---
 

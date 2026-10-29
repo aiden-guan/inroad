@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
 import { useIsMac } from "@/lib/client/platform";
+import { useMarket } from "./market-switch";
 import { shortcutGroups } from "./shortcut-groups";
 
 function isTyping(target: EventTarget | null) {
@@ -14,7 +15,7 @@ function isTyping(target: EventTarget | null) {
 /** "?" anywhere (outside a text field) shows every keyboard shortcut, grouped by where it works, in this computer's keys. */
 export function ShortcutsDialog() {
   const [open, setOpen] = useState(false);
-  const groups = shortcutGroups(useIsMac());
+  const groups = shortcutGroups(useIsMac(), useMarket());
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(e.target)) {

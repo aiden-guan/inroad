@@ -1,11 +1,17 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Textarea } from "@/components/ui/field";
+import { PageHeader } from "@/components/ui/page-header";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useRuns } from "@/components/providers/runs-provider";
+import { isConsumer, marketOf } from "@/lib/consumer/market";
+import { normalizeHandle, partnerCopy, partnerFromUrl, partnerKey } from "@/lib/consumer/partners";
+import { newId, nowISO } from "@/lib/domain/ids";
+import type { Partner } from "@/lib/domain/types";
 import type { ResearchResponse } from "@/lib/search/research";
 import type { PageEvidence } from "@/lib/search/pages";
 import { ConnectionsPanel } from "./connections-panel";
@@ -18,11 +24,36 @@ const NON_COMPANY =
 const tabs = ["Search", "Connections", "Monitors", "Outcomes"] as const;
 type Tab = (typeof tabs)[number];
 
+/** What the search is for: companies and their evidence for a business; where users gather and talk for a consumer company. */
+const SEARCH = {
+  b2b: {
+    intro: "Find companies, inspect the evidence, and keep useful signals coming from the tools you already use.",
+    label: "What companies or evidence are you looking for?",
+    placeholder: "Usage-based SaaS companies hiring their first finance leader",
+    tiles: ["Company websites and product evidence", "New leadership, funding and hiring", "Competitor customer stories and market signals"],
+  },
+  consumer: {
+    intro: "Find where your users gather and what they say, inspect the evidence, and keep useful signals coming from the tools you already use.",
+    label: "Where do your users gather, and what are they saying?",
+    placeholder: "Subreddits and creators where new runners ask for training advice",
+    tiles: ["Communities and creators your users follow", "Reviews, app store comments and complaints", "Competitor launches and campaigns"],
+  },
+} as const;
+
+/** A search result's title without the platform's suffix ("r/running - Reddit" → "r/running"). */
+function partnerName(title: string): string {
+  return title.replace(/\s*[-|–·:]\s*(reddit|youtube|tiktok|instagram|linkedin|substack|medium|x|twitter|facebook|discord|apple podcasts|spotify)\s*$/i, "").trim().slice(0, 80);
+}
+
 export function ResearchWorkbench() {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>(params.get("tab") === "tools" ? "Connections" : params.get("tab") === "monitors" ? "Monitors" : "Search");
-  const { ws, refresh } = useWorkspace();
+  const { ws, refresh, dispatch } = useWorkspace();
   const { start } = useRuns();
+  const router = useRouter();
+  const consumer = !!ws && isConsumer(ws);
+  const words = SEARCH[consumer ? "consumer" : "b2b"];
+  const partners = partnerCopy(ws ? marketOf(ws) : "b2b");
   const automation = useAutomation();
   const [query, setQuery] = useState(params.get("query") ?? "");
   const [include, setInclude] = useState("");
@@ -117,15 +148,36 @@ export function ResearchWorkbench() {
       setAction(null);
     }
   }
+  /** A result where people follow or gather goes on the Creators (or Partners) list, as a shortlisted name. */
+  async function addPartner(url: string, title: string, description: string) {
+    const found = partnerFromUrl(url);
+    const candidate = { name: partnerName(title) || title.slice(0, 80), handle: found?.handle ? normalizeHandle(found.handle) : undefined, url, platform: found?.platform ?? "web" };
+    const existing = Object.values(ws?.partners ?? {}).find((p) => partnerKey(p) === partnerKey(candidate));
+    if (existing) {
+      router.push(`/partners?p=${encodeURIComponent(existing.id)}`);
+      return;
+    }
+    const at = nowISO();
+    const partner: Partner = {
+      id: newId("ptn"),
+      kind: found?.kind ?? "creator",
+      ...candidate,
+      fit: (description || title).trim().slice(0, 160),
+      sourceUrl: url,
+      source: "founder",
+      stage: "shortlist",
+      stageHistory: [{ stage: "shortlist", at }],
+      createdAt: at,
+      updatedAt: at,
+    };
+    if (await dispatch({ type: "partner.upsert", partner })) {
+      toast(`Added ${partner.name} to your ${partners.list}.`, { action: { label: "Open", onClick: () => router.push(`/partners?p=${encodeURIComponent(partner.id)}`) } });
+    }
+  }
   const unread = automation.data?.observations.filter((o) => !o.read).length ?? 0;
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-5 pb-28 pt-8 md:px-10 md:pt-12">
-      <header className="mb-7">
-        <h1 className="font-serif text-[32px] leading-10 text-fg">Research</h1>
-        <p className="mt-2 max-w-[70ch] text-[14px] leading-6 text-fg-2">
-          Find companies, inspect the evidence, and keep useful signals coming from the tools you already use.
-        </p>
-      </header>
+    <div className="page-shell max-w-[1100px]">
+      <PageHeader title="Research" eyebrow="Evidence from the web" description={words.intro} className="mb-7" />
       <div role="tablist" aria-label="Research workspace" className="mb-6 flex flex-wrap gap-2 border-b border-border pb-3">
         {tabs.map((name) => (
           <button
@@ -168,7 +220,7 @@ export function ResearchWorkbench() {
           className="space-y-4 rounded-xl border border-border bg-surface p-5"
         >
           <label htmlFor="research-query" className="block text-[14px] font-medium text-fg">
-            What companies or evidence are you looking for?
+            {words.label}
           </label>
           <Textarea
             id="research-query"
@@ -176,7 +228,7 @@ export function ResearchWorkbench() {
             maxLength={1200}
             onChange={(e) => setQuery(e.target.value)}
             rows={3}
-            placeholder="Usage-based SaaS companies hiring their first finance leader"
+            placeholder={words.placeholder}
           />
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-[12px] text-fg-2">
@@ -208,21 +260,33 @@ export function ResearchWorkbench() {
                 Stop search
               </Button>
             )}
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={busy || !query.trim() || query.trim().length > 300}
-              onClick={() => void start("discovery", { count: 10, brief: query.trim(), source: "manual" })}
-            >
-              Find and qualify companies
-            </Button>
+            {consumer ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy || !query.trim() || query.trim().length > 300}
+                onClick={() => void start("partners", { mode: "find", count: 8, brief: query.trim(), source: "founder" })}
+              >
+                {partners.find}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy || !query.trim() || query.trim().length > 300}
+                onClick={() => void start("discovery", { count: 10, brief: query.trim(), source: "manual" })}
+              >
+                Find and qualify companies
+              </Button>
+            )}
             <Link href="/settings#web-search" className="ml-auto text-[12px] text-fg-3 underline underline-offset-2">
               Search providers and limits
             </Link>
           </div>
           <p className="text-[12px] leading-5 text-fg-3">
-            Web search returns sources to inspect. Find and qualify checks candidates against your playbook and verifies their websites before adding them. Use
-            a brief of 300 characters or fewer for qualification.
+            {consumer
+              ? "Web search returns sources to inspect. Finding creators and communities searches where your segments gather and keeps only links it can show you. Use a brief of 300 characters or fewer."
+              : "Web search returns sources to inspect. Find and qualify checks candidates against your playbook and verifies their websites before adding them. Use a brief of 300 characters or fewer for qualification."}
           </p>
         </form>
         {error && (
@@ -262,6 +326,8 @@ export function ResearchWorkbench() {
               {result.results.map((hit) => {
                 const domain = new URL(hit.url).hostname.replace(/^www\./, "");
                 const known = ws?.accounts[domain];
+                // Consumer companies collect people and places, not companies; a business adds media links as partners.
+                const asPartner = consumer || !!partnerFromUrl(hit.url);
                 return (
                   <article key={hit.url} className="rounded-lg border border-border bg-surface p-4">
                     <p className="break-all text-[11px] text-fg-3">
@@ -277,7 +343,12 @@ export function ResearchWorkbench() {
                       <Button size="sm" variant="secondary" loading={reading === hit.url} disabled={!!reading || busy} onClick={() => void read(hit.url)}>
                         Read source
                       </Button>
-                      {known ? (
+                      {asPartner && (
+                        <Button size="sm" variant="ghost" onClick={() => void addPartner(hit.url, hit.title, hit.description)}>
+                          Add to {partners.list}
+                        </Button>
+                      )}
+                      {consumer ? null : known ? (
                         <Link className="self-center text-[12px] text-fg-2 underline" href={`/companies?c=${encodeURIComponent(domain)}`}>
                           Open saved company
                         </Link>
@@ -362,7 +433,7 @@ export function ResearchWorkbench() {
         )}
         {!result && !busy && (
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {["Company websites and product evidence", "New leadership, funding and hiring", "Competitor customer stories and market signals"].map((label) => (
+            {words.tiles.map((label) => (
               <div key={label} className="rounded-lg bg-bg-subtle p-4 text-[13px] text-fg-2">
                 {label}
               </div>

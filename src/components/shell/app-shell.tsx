@@ -18,19 +18,21 @@ import { AgentPanel, useAgentStatus, useNavCounts } from "./agent-status";
 import { CommandPalette } from "./command-palette";
 import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
-import { AgentLine, GoalLine, SECONDARY, Sidebar, navFor } from "./sidebar";
-
-const GO: Record<string, string> = { t: "/today", v: "/revenue", r: "/partners", c: "/companies", y: "/plays", f: "/research", n: "/intros", e: "/events", p: "/playbook", m: "/studio", i: "/integrations", s: "/settings" };
+import { MarketToggle, useMarket, useSwitchMarket } from "./market-switch";
+import { SECONDARY, goKeys, navFor } from "./nav";
+import { AgentLine, GoalLine, Sidebar } from "./sidebar";
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
   return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 }
 
-/** Linear-style "G then T" navigation. Instant, never animated. */
+/** Linear-style "G then T" navigation. Instant, never animated. Only to pages the company's market shows. */
 function useGoKeys() {
   const router = useRouter();
+  const market = useMarket();
   useEffect(() => {
+    const go = goKeys(market);
     let armed = 0;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
@@ -39,15 +41,15 @@ function useGoKeys() {
         armed = Date.now();
         return;
       }
-      if (armed && Date.now() - armed < 1200 && GO[k]) {
+      if (armed && Date.now() - armed < 1200 && go[k]) {
         e.preventDefault();
-        router.push(GO[k]);
+        router.push(go[k]);
       }
       armed = 0;
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router]);
+  }, [router, market]);
 }
 
 /** Reads the pathname, so it renders under Suspense (dynamic routes can't resolve it while prerendering). */
@@ -55,6 +57,8 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
   const { ws } = useWorkspace();
   const counts = useNavCounts();
+  const market = useMarket();
+  const switchTo = useSwitchMarket();
   // Any navigation closes the menu (G then T, the palette), not only a tap on one of its links.
   const [openedOn] = useState(pathname);
   useEffect(() => {
@@ -62,7 +66,8 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   }, [pathname, openedOn, onNavigate]);
   return (
     <nav id="mobile-nav" aria-label="Pages" className="grid grid-cols-2 gap-1 p-2">
-      {[...navFor(ws), ...SECONDARY].map((n) => {
+      {ws?.company && <MarketToggle value={market} onChange={(m) => void switchTo(m)} className="col-span-2 mb-1" />}
+      {[...navFor(market), ...SECONDARY].map((n) => {
         const active = pathname.startsWith(n.href);
         const count = counts[n.href];
         return (

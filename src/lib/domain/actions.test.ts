@@ -943,6 +943,21 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.company?.consumerModel).toBeUndefined();
     expect(s.goal).toMatchObject({ metric: "deals", target: 5, targetLabel: "paid pilots or design partners" });
     expect(() => apply(makeWorkspace(), { type: "company.setMarket", market: "consumer" })).toThrow("Company not found");
+
+    // A round trip gives each market back its own target and kind of company, not the defaults.
+    apply(s, { type: "goal.update", patch: { target: 8, targetLabel: "paid pilots" } });
+    apply(s, { type: "company.setMarket", market: "consumer" });
+    expect(s.company?.consumerModel).toBe("dtc");
+    expect(s.goal).toMatchObject({ metric: "paying", target: 100 });
+    apply(s, { type: "goal.update", patch: { target: 250 } });
+    apply(s, { type: "company.setMarket", market: "b2b" });
+    expect(s.goal).toMatchObject({ metric: "deals", target: 8, targetLabel: "paid pilots" });
+    apply(s, { type: "company.setMarket", market: "consumer" });
+    expect(s.goal).toMatchObject({ metric: "paying", target: 250, targetLabel: "customers" });
+    // Picking the kind of consumer company while already consumer parks nothing and keeps the goal.
+    apply(s, { type: "company.setMarket", market: "consumer", consumerModel: "app" });
+    expect(s.company?.consumerModel).toBe("app");
+    expect(s.goal.target).toBe(250);
   },
 
   "growth.log": () => {

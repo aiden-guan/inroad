@@ -52,6 +52,8 @@ export function Masthead({
   const [conversations, target] = scoreboard.conversations;
   const [wins, goal] = scoreboard.goalProgress;
   const consumer = ws.company?.market === "consumer";
+  // A revenue target is a business's number; a consumer company's is its growth goal, whatever is still on file.
+  const commit = consumer ? null : revenue;
   // Numbers roll from zero on the reveal only.
   const [rolled, setRolled] = useState(!reveal);
   useEffect(() => {
@@ -142,13 +144,13 @@ export function Masthead({
       </AnimatePresence>
 
       <Link
-        href={revenue ? "/revenue" : "/playbook"}
+        href={commit ? "/revenue" : consumer ? "/growth" : "/playbook"}
         className="group mt-7 grid grid-cols-2 overflow-hidden rounded-xl bg-surface shadow-xs ring-1 ring-inset ring-border transition-shadow hover:shadow-sm"
-        title={revenue ? "Open the forecast" : "Open your plan"}
+        title={commit ? "Open the forecast" : consumer ? "Open Growth" : "Open your plan"}
       >
         {[
           { label: consumer ? "User conversations this week" : "Conversations this week", value: conversations, max: target, usd: false },
-          revenue ? { label: `Commit toward ${revenue.label}`, value: revenue.commit, max: revenue.target, usd: true } : { label: consumer ? `${ws.goal.targetLabel.charAt(0).toUpperCase()}${ws.goal.targetLabel.slice(1)} toward your goal` : "Pilots toward your goal", value: wins, max: goal, usd: false },
+          commit ? { label: `Commit toward ${commit.label}`, value: commit.commit, max: commit.target, usd: true } : { label: consumer ? `${ws.goal.targetLabel.charAt(0).toUpperCase()}${ws.goal.targetLabel.slice(1)} toward your goal` : "Pilots toward your goal", value: wins, max: goal, usd: false },
         ].map((metric, i) => (
           <div key={metric.label} className={cn("px-4 py-4 md:px-5", i > 0 && "border-l border-border")}>
             <span className="block truncate text-[11px] leading-4 text-fg-3 md:text-[12px]">{metric.label}</span>

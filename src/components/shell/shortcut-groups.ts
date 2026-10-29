@@ -1,4 +1,6 @@
 import { modKeys } from "@/lib/client/platform";
+import type { Market } from "@/lib/domain/types";
+import { SECONDARY, navFor } from "./nav";
 
 export interface ShortcutGroup {
   title: string;
@@ -7,28 +9,21 @@ export interface ShortcutGroup {
 
 /**
  * Every keyboard shortcut, grouped by where it works, labeled for this computer (⌘ on a Mac, Ctrl
- * elsewhere). Keep in step with the handlers: app-shell (G then…), command-palette (⌘K), today-view,
+ * elsewhere). Keep in step with the handlers: app-shell (G then…, from ./nav), command-palette (⌘K), today-view,
  * composer, check-replies, prospects and events-page.
  */
-export function shortcutGroups(mac: boolean): ShortcutGroup[] {
+export function shortcutGroups(mac: boolean, market: Market = "b2b"): ShortcutGroup[] {
   const mod = modKeys("⌘", mac);
-  return [
+  const shown = new Set(navFor(market).map((p) => p.label));
+  const elsewhere = new Set([...navFor("b2b"), ...navFor("consumer")].map((p) => p.label).filter((label) => !shown.has(label)));
+  const groups: ShortcutGroup[] = [
     {
       title: "Everywhere",
       rows: [
         [[mod, "K"], "Ask, or jump to a company, page or action"],
         [["?"], "These shortcuts"],
-        [["G", "T"], "Today"],
-        [["G", "V"], "Revenue: the forecast and the plan"],
-        [["G", "R"], "Creators and communities"],
-        [["G", "C"], "Companies"],
-        [["G", "Y"], "Plays"],
-        [["G", "N"], "Intros"],
-        [["G", "E"], "Events"],
-        [["G", "P"], "Playbook"],
-        [["G", "M"], "Studio (marketing copy)"],
-        [["G", "I"], "Integrations"],
-        [["G", "S"], "Settings"],
+        // The pages this market shows, in sidebar order (see ./nav).
+        ...[...navFor(market), ...SECONDARY].map((p): ShortcutGroup["rows"][number] => [["G", p.key], p.long ?? p.label]),
         [[mod, "↵"], "Save or send what you're typing"],
         [["Esc"], "Close the sheet or dialog"],
       ],
@@ -84,4 +79,6 @@ export function shortcutGroups(mac: boolean): ShortcutGroup[] {
       rows: [[["N"], "New piece"]],
     },
   ];
+  // A page's own keys only list where the market shows the page.
+  return groups.filter((g) => !elsewhere.has(g.title));
 }

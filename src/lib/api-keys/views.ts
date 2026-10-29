@@ -402,7 +402,7 @@ export function growthView(ws: Workspace, base: string) {
     },
     partners: partners.slice(0, 50).map((p) => ({ id: p.id, kind: p.kind, name: p.name, platform: p.platform ?? null, handle: p.handle ?? null, stage: p.stage, next: partnerNext(p, today).line })),
     note: g.paidAllowed ? "Retention clears the bar." : "Paid acquisition is on hold until retention clears the bar. Don't propose scaling paid spend.",
-    review_url: `${base}/playbook#numbers`,
+    review_url: `${base}/growth`,
   };
 }
 

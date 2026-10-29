@@ -6,7 +6,6 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Briefcase,
-  Building2,
   CalendarHeart,
   ClipboardList,
   Compass,
@@ -21,17 +20,12 @@ import {
   Moon,
   NotebookPen,
   PenLine,
-  PenTool,
   Phone,
-  Plug,
   Reply,
   Search,
-  Settings,
   Sparkles,
-  Sunrise,
   Target,
   UserPlus,
-  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -42,7 +36,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { newAccount } from "@/components/companies/sheet/new-account";
 import { unlessSheetOpen } from "@/components/companies/sheet/open-sheet";
 import { RELATIONSHIP_LABEL } from "@/components/intros/connectors";
-import { ASSET_KINDS, CREATABLE_KINDS } from "@/components/playbook/model";
+import { ASSET_KINDS, creatableKinds } from "@/components/playbook/model";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/client/cn";
@@ -50,6 +44,8 @@ import { readRecent } from "@/lib/client/recent";
 import { newDeal } from "@/lib/deals/rules";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS } from "@/lib/domain/types";
+import { MODES, useMarket, useSwitchMarket } from "./market-switch";
+import { SECONDARY, navFor } from "./nav";
 import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, reviewThisWeek, upcomingMeetings, writeTargets } from "./palette-data";
 import { PasteReply } from "./paste-reply";
 
@@ -102,6 +98,11 @@ export function CommandPalette() {
   const { ws, dispatch } = useWorkspace();
   const { start } = useRuns();
   const { openAsk } = useAsk();
+  const market = useMarket();
+  const switchMarket = useSwitchMarket();
+  const b2b = market === "b2b";
+  const other = b2b ? "consumer" : "b2b";
+  const OtherIcon = MODES[other].icon;
 
   // A page picked with the mouse leaves focus on the dialog, not the input: put it back, so typing filters the page.
   const inputRef = useRef<HTMLInputElement>(null);
@@ -185,11 +186,17 @@ export function CommandPalette() {
       else router.push("/today?open=check_replies");
     });
   // Reviews land on Today, under the moves. One written this week opens; it isn't paid for twice.
-  const review = (kind: "monday" | "friday") =>
+  const review = (kind: "monday" | "friday" | "growth") =>
     run(() => {
-      if (ws && reviewThisWeek(ws, kind, new Date())) toast(`This week's ${kind === "monday" ? "pipeline" : "learning"} review is on Today.`);
+      if (ws && reviewThisWeek(ws, kind, new Date())) toast(`This week's ${{ monday: "pipeline", friday: "learning", growth: "growth" }[kind]} review is on Today.`);
       else void start("review", { kind });
       if (window.location.pathname !== "/today") router.push("/today");
+    });
+  // Everything stays where it is; the toast undoes it in one click.
+  const switchTo = () =>
+    run(async () => {
+      if (!(await switchMarket(other))) return;
+      toast(`Now selling to ${MODES[other].label.toLowerCase()}.`, { description: "The pages, Today and every draft follow. Nothing is deleted.", action: { label: "Undo", onClick: () => void switchMarket(market) } });
     });
   const startDeal = (domain: string) =>
     run(async () => {
@@ -298,7 +305,7 @@ export function CommandPalette() {
       case "asset":
         return (
           <Command.Group heading="Draft">
-            {CREATABLE_KINDS.filter((k) => k !== "pilot_proposal").map((k) => (
+            {creatableKinds(ws).filter((k) => k !== "pilot_proposal").map((k) => (
               <Item key={k} value={`${ASSET_KINDS[k].label} ${ASSET_KINDS[k].description}`} icon={<FileText className="size-4" />} onSelect={() => run(() => router.push(`/playbook?new=${k}`))}>
                 {ASSET_KINDS[k].label} <span className="text-fg-3">· {ASSET_KINDS[k].description}</span>
               </Item>
@@ -386,7 +393,9 @@ export function CommandPalette() {
             className="-ml-1.5 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-[12.5px] text-fg-2 transition-colors hover:bg-bg-subtle hover:text-fg"
           >
             <ArrowLeft className="size-3.5" />
-            <span className="max-w-40 truncate">{page.kind === "connector" && page.id ? (ws?.connectors.find((c) => c.id === page.id)?.name ?? PAGE.connector.title) : PAGE[page.kind].title}</span>
+            <span className="max-w-40 truncate">
+              {page.kind === "connector" && page.id ? (ws?.connectors.find((c) => c.id === page.id)?.name ?? PAGE.connector.title) : page.kind === "asset" && !b2b ? "Draft a document" : PAGE[page.kind].title}
+            </span>
           </button>
         ) : (
           <Search className="size-4 text-fg-3" />
@@ -424,12 +433,12 @@ export function CommandPalette() {
                   <span className="text-fg-3">Ask:</span> {query}
                 </Item>
               )}
-              {q && looksLikeDomain && (
+              {q && looksLikeDomain && b2b && (
                 <Item value={`research ${query}`} icon={<Sparkles className="size-4" />} onSelect={() => run(() => router.push(`/companies?add=${encodeURIComponent(cleanDomain(q))}`))}>
                   Research {cleanDomain(q)}
                 </Item>
               )}
-              {q && looksLikeDomain && (
+              {q && looksLikeDomain && b2b && (
                 <Item
                   value={`find companies like ${query}`}
                   icon={<Compass className="size-4" />}
@@ -444,7 +453,7 @@ export function CommandPalette() {
                   Find companies like {cleanDomain(q)}
                 </Item>
               )}
-              {!q && recentCompanies.length > 0 && (
+              {!q && b2b && recentCompanies.length > 0 && (
                 <Command.Group heading="Recent">
                   {recentCompanies.map((a) => (
                     <Item
@@ -472,64 +481,102 @@ export function CommandPalette() {
                 <Item value="prep for a meeting call brief" icon={<ClipboardList className="size-4" />} onSelect={() => go({ kind: "prep" })} more>
                   Prep for a meeting…
                 </Item>
-                <Item value="log a call debrief notes transcript" icon={<Phone className="size-4" />} onSelect={() => run(() => router.push("/companies?view=talking&log=1"))}>
-                  Log a call
+                {b2b ? (
+                  <>
+                    <Item value="log a call debrief notes transcript" icon={<Phone className="size-4" />} onSelect={() => run(() => router.push("/companies?view=talking&log=1"))}>
+                      Log a call
+                    </Item>
+                    <Item value="set revenue target quota number quarter forecast" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue?target=1"))}>
+                      Set the revenue target
+                    </Item>
+                    <Item value="weekly update board investor ceo report forecast" icon={<FileText className="size-4" />} onSelect={() => run(() => router.push("/revenue#update-label"))}>
+                      Write the weekly GTM update
+                    </Item>
+                  </>
+                ) : (
+                  <>
+                    <Item value="log weekly numbers growth signups retention active users" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/growth?log=1"))}>
+                      Log last week&apos;s numbers
+                    </Item>
+                    <Item value="run weekly review growth monday numbers experiment" icon={<ClipboardList className="size-4" />} onSelect={() => review("growth")}>
+                      Run the weekly growth review
+                    </Item>
+                  </>
+                )}
+                <Item value="research search web sources" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research"))}>
+                  {b2b ? "Search the web and research companies" : "Search the web"}
                 </Item>
-                <Item value="set revenue target quota number quarter forecast" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue?target=1"))}>
-                  Set the revenue target
+                {b2b && (
+                  <Item value="find new companies discover accounts prospects" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
+                    Find new companies to talk to
+                  </Item>
+                )}
+                <Item
+                  value={b2b ? "find partners newsletters podcasts communities linkedin creators sponsors" : "find creators communities influencers where users gather"}
+                  icon={<Megaphone className="size-4" />}
+                  onSelect={() => run(() => void start("partners", { mode: "find", count: 8, source: "founder" }))}
+                >
+                  {b2b ? "Find newsletters, podcasts and communities" : "Find creators and communities"}
                 </Item>
-                <Item value="weekly update board investor ceo report forecast" icon={<FileText className="size-4" />} onSelect={() => run(() => router.push("/revenue#update-label"))}>
-                  Write the weekly GTM update
+                {b2b && (
+                  <Item value="ask a connector for intros warm introduction investor advisor" icon={<Handshake className="size-4" />} onSelect={() => go({ kind: "connector" })} more>
+                    Ask a connector for intros
+                  </Item>
+                )}
+                <Item
+                  value={`draft an asset document ${creatableKinds(ws ?? { company: null }).map((k) => ASSET_KINDS[k].label).join(" ")}`}
+                  icon={<FileText className="size-4" />}
+                  onSelect={() => go({ kind: "asset" })}
+                  more
+                >
+                  {b2b ? "Draft an asset…" : "Draft a document…"}
                 </Item>
-                <Item value="research search web sources companies" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research"))}>Search the web and research companies</Item>
-                <Item value="find new companies discover accounts prospects" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
-                  Find new companies to talk to
-                </Item>
-                <Item value="find creators communities influencers where users gather" icon={<Megaphone className="size-4" />} onSelect={() => run(() => void start("partners", { mode: "find", count: 8, source: "founder" }))}>
-                  Find creators and communities
-                </Item>
-                <Item value="log weekly numbers growth signups retention" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/playbook#numbers"))}>
-                  Log this week&apos;s numbers
-                </Item>
-                <Item value="ask a connector for intros warm introduction investor advisor" icon={<Handshake className="size-4" />} onSelect={() => go({ kind: "connector" })} more>
-                  Ask a connector for intros
-                </Item>
-                <Item value="draft an asset one-pager demo script security case study insight design partner terms document" icon={<FileText className="size-4" />} onSelect={() => go({ kind: "asset" })} more>
-                  Draft an asset…
-                </Item>
-                <Item value="draft a pilot proposal order form deal" icon={<NotebookPen className="size-4" />} onSelect={() => go({ kind: "proposal" })} more>
-                  Draft a pilot proposal…
-                </Item>
-                <Item value="add a deal start a deal pipeline conversation" icon={<Briefcase className="size-4" />} onSelect={() => go({ kind: "deal" })} more>
-                  Add a deal…
-                </Item>
-                <Item value="run weekly review monday pipeline review" icon={<ClipboardList className="size-4" />} onSelect={() => review("monday")}>
-                  Run the weekly pipeline review
-                </Item>
-                <Item value="run weekly review friday learning review what worked" icon={<ClipboardList className="size-4" />} onSelect={() => review("friday")}>
-                  Run the weekly learning review
-                </Item>
-                <Item value="plan a roundtable dinner event" icon={<CalendarHeart className="size-4" />} onSelect={() => run(() => router.push("/events?new=1"))}>
-                  Plan a roundtable or dinner
-                </Item>
-                <Item value="import a list csv companies crm export conference" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=csv"))}>
-                  Import a list
-                </Item>
-                <Item value="import linkedin connections warm network csv" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=linkedin"))}>
-                  Import LinkedIn connections
-                </Item>
-                <Item value="import github stargazers repo developers warm" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=github"))}>
-                  Import GitHub stargazers
-                </Item>
-                <Item value="make an intro introduce two people give" icon={<ArrowLeftRight className="size-4" />} onSelect={() => run(() => router.push("/intros?new=give"))}>
-                  Make an intro
-                </Item>
-                <Item value="add a connector investor advisor who introduces me" icon={<UserPlus className="size-4" />} onSelect={() => run(() => router.push("/intros?new=connector"))}>
-                  Add someone who introduces you
-                </Item>
-                <Item value="map where are my leads nearby location" icon={<MapIcon className="size-4" />} onSelect={() => run(() => router.push("/companies?view=map"))}>
-                  Map of your leads
-                </Item>
+                {b2b && (
+                  <>
+                    <Item value="draft a pilot proposal order form deal" icon={<NotebookPen className="size-4" />} onSelect={() => go({ kind: "proposal" })} more>
+                      Draft a pilot proposal…
+                    </Item>
+                    <Item value="add a deal start a deal pipeline conversation" icon={<Briefcase className="size-4" />} onSelect={() => go({ kind: "deal" })} more>
+                      Add a deal…
+                    </Item>
+                    <Item value="run weekly review monday pipeline review" icon={<ClipboardList className="size-4" />} onSelect={() => review("monday")}>
+                      Run the weekly pipeline review
+                    </Item>
+                    <Item value="run weekly review friday learning review what worked" icon={<ClipboardList className="size-4" />} onSelect={() => review("friday")}>
+                      Run the weekly learning review
+                    </Item>
+                    <Item value="plan a roundtable dinner event" icon={<CalendarHeart className="size-4" />} onSelect={() => run(() => router.push("/events?new=1"))}>
+                      Plan a roundtable or dinner
+                    </Item>
+                    <Item value="import a list csv companies crm export conference" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=csv"))}>
+                      Import a list
+                    </Item>
+                    <Item value="import linkedin connections warm network csv" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=linkedin"))}>
+                      Import LinkedIn connections
+                    </Item>
+                    <Item value="import github stargazers repo developers warm" icon={<FileUp className="size-4" />} onSelect={() => run(() => router.push("/integrations?import=github"))}>
+                      Import GitHub stargazers
+                    </Item>
+                    <Item value="make an intro introduce two people give" icon={<ArrowLeftRight className="size-4" />} onSelect={() => run(() => router.push("/intros?new=give"))}>
+                      Make an intro
+                    </Item>
+                    <Item value="add a connector investor advisor who introduces me" icon={<UserPlus className="size-4" />} onSelect={() => run(() => router.push("/intros?new=connector"))}>
+                      Add someone who introduces you
+                    </Item>
+                    <Item value="map where are my leads nearby location" icon={<MapIcon className="size-4" />} onSelect={() => run(() => router.push("/companies?view=map"))}>
+                      Map of your leads
+                    </Item>
+                  </>
+                )}
+                {ws?.company && (
+                  <Item
+                    value={`switch to ${MODES[other].label} ${b2b ? "consumer b2c" : "b2b business"} mode market who you sell to`}
+                    icon={<OtherIcon className="size-4" />}
+                    onSelect={switchTo}
+                  >
+                    Switch to selling to {MODES[other].label.toLowerCase()}
+                  </Item>
+                )}
                 <Item value="toggle theme dark light" icon={<Moon className="size-4" />} onSelect={() => run(toggleTheme)}>
                   Toggle dark mode
                 </Item>
@@ -538,41 +585,13 @@ export function CommandPalette() {
                 </Item>
               </Command.Group>
               <Command.Group heading="Go to">
-                <Item value="today" icon={<Sunrise className="size-4" />} onSelect={() => run(() => router.push("/today"))} keys="G T">
-                  Today
-                </Item>
-                <Item value="revenue forecast pipeline commit coverage quota number" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue"))} keys="G V">
-                  Revenue
-                </Item>
-                <Item value="creators communities influencers partners newsletters" icon={<Megaphone className="size-4" />} onSelect={() => run(() => router.push("/partners"))} keys="G R">
-                  Creators and communities
-                </Item>
-                <Item value="companies" icon={<Building2 className="size-4" />} onSelect={() => run(() => router.push("/companies"))} keys="G C">
-                  Companies
-                </Item>
-                <Item value="plays signals triggers programs automation" icon={<Zap className="size-4" />} onSelect={() => run(() => router.push("/plays"))} keys="G Y">
-                  Plays
-                </Item>
-                <Item value="intros warm introductions connectors" icon={<Handshake className="size-4" />} onSelect={() => run(() => router.push("/intros"))} keys="G N">
-                  Intros
-                </Item>
-                <Item value="events dinners" icon={<CalendarHeart className="size-4" />} onSelect={() => run(() => router.push("/events"))} keys="G E">
-                  Events
-                </Item>
-                <Item value="playbook icp positioning" icon={<NotebookPen className="size-4" />} onSelect={() => run(() => router.push("/playbook"))} keys="G P">
-                  Playbook
-                </Item>
-                <Item value="studio marketing copy launch post ad headline landing page tagline" icon={<PenTool className="size-4" />} onSelect={() => run(() => router.push("/studio"))} keys="G M">
-                  Studio
-                </Item>
-                <Item value="integrations connect tools" icon={<Plug className="size-4" />} onSelect={() => run(() => router.push("/integrations"))} keys="G I">
-                  Integrations
-                </Item>
-                <Item value="settings usage api key" icon={<Settings className="size-4" />} onSelect={() => run(() => router.push("/settings"))} keys="G S">
-                  Settings
-                </Item>
+                {[...navFor(market), ...SECONDARY].map((p) => (
+                  <Item key={p.href} value={`${p.label} ${p.keywords}`} icon={<p.icon className="size-4" />} onSelect={() => run(() => router.push(p.href))} keys={`G ${p.key}`}>
+                    {p.label}
+                  </Item>
+                ))}
               </Command.Group>
-              {companies.length > 0 && (
+              {b2b && companies.length > 0 && (
                 <Command.Group heading="Companies">
                   {companies.map((a) => (
                     <Item

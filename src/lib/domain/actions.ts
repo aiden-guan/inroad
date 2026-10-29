@@ -14,6 +14,7 @@ import type {
   GrowthWeek,
   ForecastCategory,
   GtmEvent,
+  Goal,
   Guest,
   ID,
   IntegrationId,
@@ -22,6 +23,7 @@ import type {
   IntroSide,
   IntroStage,
   Market,
+  MarketMemory,
   Meeting,
   ObjectionCard,
   OutboundWebhook,
@@ -1026,12 +1028,23 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "company.setMarket": {
       const company = need(ws.company, "Company");
+      const from = company.market ?? "b2b";
+      // Switching is a toggle, so park what the market being left had: switching back restores the founder's own
+      // target and kind of consumer company instead of the defaults.
+      let back: MarketMemory | undefined;
+      if (from !== action.market) {
+        const { metric = "deals", target, targetLabel } = ws.goal;
+        (ws.marketMemory ??= {})[from] = { goal: { metric, target, targetLabel }, consumerModel: company.consumerModel };
+        back = ws.marketMemory[action.market];
+      }
       company.market = action.market;
-      company.consumerModel = action.market === "consumer" ? (action.consumerModel ?? company.consumerModel ?? "app") : undefined;
+      company.consumerModel = action.market === "consumer" ? (action.consumerModel ?? back?.consumerModel ?? company.consumerModel ?? "app") : undefined;
       company.marketSource = "founder";
       // The goal counts what this market sells: deals for businesses; active users or customers for consumers.
-      if (action.market === "consumer" && (!ws.goal.metric || ws.goal.metric === "deals")) Object.assign(ws.goal, consumerGoal(company.consumerModel ?? "app"));
-      if (action.market === "b2b" && ws.goal.metric && ws.goal.metric !== "deals") Object.assign(ws.goal, { metric: "deals", target: 5, targetLabel: "paid pilots or design partners" });
+      const counts = (m: Goal["metric"]) => (m === "active_users" || m === "paying" ? "consumer" : "b2b");
+      if (back && counts(back.goal.metric) === action.market) Object.assign(ws.goal, back.goal);
+      else if (action.market === "consumer" && (!ws.goal.metric || ws.goal.metric === "deals")) Object.assign(ws.goal, consumerGoal(company.consumerModel ?? "app"));
+      else if (action.market === "b2b" && ws.goal.metric && ws.goal.metric !== "deals") Object.assign(ws.goal, { metric: "deals", target: 5, targetLabel: "paid pilots or design partners" });
       return;
     }
     case "growth.log": {

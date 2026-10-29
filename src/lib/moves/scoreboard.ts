@@ -1,3 +1,5 @@
+import { isConsumer } from "@/lib/consumer/market";
+import { USER_TALKS_PER_WEEK } from "@/lib/consumer/plan";
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
 import type { Activity, Scoreboard, Workspace } from "@/lib/domain/types";
 import { coldFirstTouches } from "@/lib/quality/cap";
@@ -71,8 +73,13 @@ export function coldQuotaLeft(ws: Workspace, c: Counters): number {
   return Math.max(0, Math.min(ws.caps.firstTouchesPerWeek - c.coldThisWeek, ws.caps.firstTouchesPerDayMax - c.coldToday));
 }
 
-/** Weekly conversations: the number the founder chose in Playbook → Plan ("Use N"), else the bet's channel plan, else the goal default. */
+/**
+ * Weekly conversations: the number the founder chose in Playbook → Plan ("Use N"), else the bet's channel plan, else
+ * the goal default. Consumer companies count user conversations against their own weekly number, whichever market the
+ * plan on file was written for.
+ */
 export function conversationsTarget(ws: Workspace): number {
+  if (isConsumer(ws)) return ws.goal.userTalksPerWeek ?? USER_TALKS_PER_WEEK;
   if (ws.goal.conversationsChosenAt && ws.goal.conversationsPerWeek > 0) return ws.goal.conversationsPerWeek;
   return ws.foundation?.channelPlan?.funnel?.perWeek?.conversations || ws.goal.conversationsPerWeek || 10;
 }

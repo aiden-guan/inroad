@@ -8,6 +8,7 @@ import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/locat
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { PlaybookMismatch } from "@/components/shell/market-switch";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Orb } from "@/components/ui/orb";
 import { cn } from "@/lib/client/cn";
@@ -275,6 +276,7 @@ export function PlaybookDocument() {
             </>}
           />
 
+          <PlaybookMismatch className="mb-6" />
           <MobileNav section={section} />
           <div className="mb-6 @min-[1000px]/page:hidden">
             <label htmlFor="playbook-jump" className="mb-1.5 block text-[12px] font-medium text-fg-2">Jump to a topic</label>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Target } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -8,6 +9,7 @@ import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
 import { LoadingSignal } from "@/components/ui/loading";
 import { PageHeader } from "@/components/ui/page-header";
+import { isConsumer } from "@/lib/consumer/market";
 import { todayISO } from "@/lib/domain/ids";
 import { baseline, computeForecast, computePlan, forecastChanges, money } from "@/lib/revenue/forecast";
 import { DealCalls } from "./deal-calls";
@@ -63,6 +65,16 @@ export function RevenuePage() {
           </Button>
         }
       />
+
+      {isConsumer(ws) && (
+        <p className="mt-6 rounded-md bg-bg-subtle px-3 py-2.5 text-[13px] leading-5 text-fg-2">
+          Revenue calls a business&apos;s deals. You&apos;re set up as a consumer company, so your number lives on{" "}
+          <Link href="/growth" className="text-fg underline underline-offset-2">
+            Growth
+          </Link>
+          .
+        </p>
+      )}
 
       <ForecastHero f={f} plan={plan} />
       <Changes changes={changes} since={base?.weekOf} />

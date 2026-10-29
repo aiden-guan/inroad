@@ -1,3 +1,5 @@
+import { isConsumer } from "@/lib/consumer/market";
+import { consumerChannelPlan } from "@/lib/consumer/plan";
 import type { ID, Move, Workspace } from "@/lib/domain/types";
 import { TOP_MOVES, visibleMoves } from "./rules";
 import { goalWins } from "./scoreboard";
@@ -21,7 +23,28 @@ export function customerCount(ws: Workspace): number {
   return domains.size;
 }
 
-/** The sidebar's goal line: "Paid pilots 1 of 5 · Customers 0 of 20" (the near-term goal, then the long arc). */
-export function goalLine(ws: Workspace): { pilots: [number, number]; customers: [number, number] } {
-  return { pilots: [goalWins(ws), ws.goal.target], customers: [customerCount(ws), ws.goal.longArcCustomers] };
+export interface GoalRow {
+  label: string;
+  value: [number, number];
+}
+
+/**
+ * The sidebar's goal line: the near-term goal, then the number under it. Business: "Paid pilots 1 of 5 · Customers
+ * 0 of 20" (the long arc). Consumer: "Weekly active users 40 of 100 · Signups a week 18 of 25", the second against
+ * what the retention-first plan needs each week.
+ */
+export function goalLine(ws: Workspace, today: string): GoalRow[] {
+  if (isConsumer(ws)) {
+    const latest = [...(ws.growthLog ?? [])].filter((w) => w.weekOf <= today).sort((a, b) => a.weekOf.localeCompare(b.weekOf)).at(-1);
+    const { signupsPerWeek } = consumerChannelPlan(ws, { today }).funnel.consumer!;
+    const label = ws.goal.targetLabel.charAt(0).toUpperCase() + ws.goal.targetLabel.slice(1);
+    return [
+      { label, value: [goalWins(ws), ws.goal.target] },
+      { label: "Signups a week", value: [latest?.signups ?? 0, signupsPerWeek] },
+    ];
+  }
+  return [
+    { label: "Paid pilots", value: [goalWins(ws), ws.goal.target] },
+    { label: "Customers", value: [customerCount(ws), ws.goal.longArcCustomers] },
+  ];
 }

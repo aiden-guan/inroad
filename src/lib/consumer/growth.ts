@@ -1,4 +1,4 @@
-import { addDays, weekOf } from "@/lib/domain/ids";
+import { addDays, daysBetween, weekOf } from "@/lib/domain/ids";
 import type { Experiment, GrowthModel, GrowthWeek, Workspace } from "@/lib/domain/types";
 import { ACTIVATION, ECONOMICS, PMF_SURVEY, QUICK_RATIO, REFERRALS, usersPerArm } from "./benchmarks";
 import { growthDefaults } from "./plan";
@@ -255,6 +255,45 @@ export const STAGE_LABELS: Record<FunnelStage, string> = {
   referral: "Bringing friends",
   revenue: "Paying",
 };
+
+/** Readings the pace is drawn from: five weeks, so four weeks of change. */
+const PACE_READINGS = 5;
+
+export interface GoalPace {
+  /** The goal's metric (weekly active users or paying customers) on the latest week that logged it. */
+  current: number;
+  /** The change a week across the readings. */
+  perWeek: number;
+  /** Where the goal lands by its date at that pace. */
+  projected: number;
+  /** What it takes a week from the latest reading to reach the target by the date. */
+  needPerWeek: number;
+  onPace: boolean;
+  readings: number;
+}
+
+/**
+ * Where the goal lands at the recent pace: the change a week in the goal's metric over the last four weeks of change
+ * logged, carried in a straight line from the latest reading to the goal date. Straight on purpose: early consumer
+ * numbers swing too much week to week for compounding to mean anything. Null until two weeks carry the metric.
+ */
+export function goalPace(ws: Pick<Workspace, "goal" | "growthLog">, today: string): GoalPace | null {
+  const key = ws.goal.metric === "paying" ? "paying" : "active";
+  const points = [...(ws.growthLog ?? [])]
+    .filter((w) => w.weekOf <= today && typeof w[key] === "number")
+    .sort((a, b) => a.weekOf.localeCompare(b.weekOf))
+    .slice(-PACE_READINGS);
+  if (points.length < 2) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const current = last[key] ?? 0;
+  const perWeek = (current - (first[key] ?? 0)) / Math.max(1, daysBetween(first.weekOf, last.weekOf) / 7);
+  // A week's reading covers the week, so the line starts where that week ends.
+  const ahead = Math.max(0, daysBetween(addDays(last.weekOf, 7), ws.goal.byDate) / 7);
+  const projected = Math.max(0, Math.round(current + perWeek * ahead));
+  const needPerWeek = ahead > 0 ? Math.max(0, (ws.goal.target - current) / ahead) : 0;
+  return { current, perWeek, projected, needPerWeek, onPace: projected >= ws.goal.target, readings: points.length };
+}
 
 /** The Monday a log entry is for: last week until Monday's numbers exist. */
 export function lastWeekOf(today: string): string {
