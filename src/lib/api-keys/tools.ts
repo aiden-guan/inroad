@@ -16,7 +16,7 @@ import agentAsk from "@/lib/workflows/agent-ask";
 import { scoreAccount, scoringContext } from "./scoring";
 import { askBudget, logCall, recordBudget, type ApiKey } from "./store";
 import { ACCESS, keyModelOf, type Scope } from "./types";
-import { accountView, growthView, icpView, nextActionsView, playbookView, searchView } from "./views";
+import { accountView, forecastView, growthView, icpView, nextActionsView, playbookView, playsView, searchView } from "./views";
 import { ToolError, addAccounts, addPartners, completeAction, logActivity, logGrowthWeek, submitDraft } from "./writes";
 
 /**
@@ -518,6 +518,35 @@ export const TOOLS: ToolDef[] = [
         data: { answer: answer.text, model: MODEL_LABELS[model], effort, cost_usd: Number(answer.costUsd.toFixed(4)) },
         summary: `Answered a question on ${MODEL_LABELS[model]}, ${effort} effort · ${cost}`,
       };
+    },
+  }),
+  tool({
+    name: "get_forecast",
+    title: "Get the forecast",
+    description:
+      "The revenue forecast, called in code (no AI): target, closed won, commit, best case, pipeline and coverage; the plan behind the gap (deals, qualified deals and first meetings it takes, and the last date new pipeline can still close); what changed since last week; and every open deal's call, health and risks with the fix for each.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/forecast" },
+    schema: z.object({ deal_id: z.string().max(40).optional().describe("Only this deal's call and risks") }),
+    run: (a, ctx) => {
+      const data = forecastView(readWorkspace(), new Date(), ctx.base, a.deal_id);
+      return { data, summary: `Read the forecast: commit ${data.commit_usd}, best case ${data.best_case_usd}${data.target_usd ? ` of ${data.target_usd}` : ""}`, records: data.deals.length };
+    },
+  }),
+  tool({
+    name: "list_plays",
+    title: "List plays",
+    description: "The signal-based plays Inroad runs (trigger, why, running or paused), each with its live matches (the triggering fact, dated and sourced) and its results so far. Use it to decide which accounts to work and why now.",
+    scope: "read",
+    readOnly: true,
+    idempotent: true,
+    rest: { method: "GET", path: "/plays" },
+    schema: z.object({ play_id: z.string().max(40).optional().describe("Only this play"), limit: z.number().int().min(1).max(25).optional().describe("Matches per play, default 5") }),
+    run: (a, ctx) => {
+      const data = playsView(readWorkspace(), todayISO(), ctx.base, a);
+      return { data, summary: `Read ${plural(data.plays.length, "play")}, ${data.plays.reduce((n, p) => n + p.live_matches, 0)} live matches`, records: data.plays.length };
     },
   }),
 ];

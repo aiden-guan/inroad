@@ -13,6 +13,9 @@ import { cn } from "@/lib/client/cn";
 import { age } from "@/lib/client/format";
 import type { Brief, EntityRef, Scoreboard, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
+import { money } from "@/lib/revenue/forecast";
+
+const USD = { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 } as const;
 
 /**
  * The masthead: the date in Newsreader, one greeting line, 0–3 cited lines worth knowing, and ONE
@@ -29,7 +32,10 @@ export function Masthead({
   preparing,
   error,
   onRefresh,
+  revenue,
 }: {
+  /** Set when there's a revenue target: the second number becomes commit against it. */
+  revenue?: { commit: number; target: number; label: string } | null;
   ws: Workspace;
   dateLabel: string;
   brief: Brief | undefined;
@@ -138,19 +144,30 @@ export function Masthead({
       </AnimatePresence>
 
       <Link
-        href="/playbook"
+        href={revenue ? "/revenue" : "/playbook"}
         className="group mt-6 inline-flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] text-fg-2 transition-colors hover:text-fg"
-        title="Your plan: conversations are the input that matters"
+        title={revenue ? "Open the forecast" : "Your plan: conversations are the input that matters"}
       >
         <Num value={rolled ? conversations : 0} className="font-medium text-fg" />
         <span>of</span>
         <Num value={target} className="font-medium text-fg" />
         <span>{consumer ? "user conversations this week" : "conversations this week"}</span>
         <span className="text-fg-3">·</span>
-        <Num value={rolled ? wins : 0} className="font-medium text-fg" />
-        <span>of</span>
-        <Num value={goal} className="font-medium text-fg" />
-        <span>{consumer ? ws.goal.targetLabel : "pilots"}</span>
+        {revenue ? (
+          <>
+            <Num value={rolled ? revenue.commit : 0} format={USD} className="font-medium text-fg" />
+            <span>of</span>
+            <span className="font-medium text-fg">{money(revenue.target)}</span>
+            <span>committed toward {revenue.label}</span>
+          </>
+        ) : (
+          <>
+            <Num value={rolled ? wins : 0} className="font-medium text-fg" />
+            <span>of</span>
+            <Num value={goal} className="font-medium text-fg" />
+            <span>{consumer ? ws.goal.targetLabel : "pilots"}</span>
+          </>
+        )}
       </Link>
 
       {error && (

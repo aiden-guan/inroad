@@ -20,6 +20,7 @@ import {
   type Workspace,
 } from "@/lib/domain/types";
 import { computeScoreboard, dealsMissingNextStep } from "@/lib/moves/scoreboard";
+import { CATEGORY_LABELS, computeForecast, computePlan } from "@/lib/revenue/forecast";
 import { localDate } from "@/lib/moves/util";
 import { toDomain } from "@/lib/signals/http";
 import { estimateTokens, getThread, putTurn, refKey, withThread, type StoredThread } from "@/lib/store/threads";
@@ -598,6 +599,14 @@ function pipelineSummary(ws: Workspace, now: Date): string {
     `No activity for 14+ days: ${stale.length ? stale.map((d) => `${d.id} ${d.name} (${day(d.lastActivityAt)})`).join(", ") : "none"}.`,
   ];
   if (unpaid.length) L.push(`Unpaid pilots: ${unpaid.map((d) => `${d.id} ${d.name}${d.pilot?.startedOn ? ` since ${d.pilot.startedOn}` : ""}`).join(", ")}.`);
+  // The forecast call and the plan, computed in code: the model explains them, never recomputes them.
+  const f = computeForecast(ws, today);
+  const plan = computePlan(ws, f, now);
+  L.push(
+    `Forecast ${f.period.label} (code-computed): ${f.hasTarget ? `target $${f.target}, ` : "no target set, "}closed won $${f.closedWon.usd}, commit $${f.commit}, best case $${f.bestCase}, pipeline $${f.pipeline}${f.coverage !== null ? `, coverage ${f.coverage.toFixed(1)}x (healthy ${f.coverageNeeded}x)` : ""}.`,
+    `Plan: ${plan.headline}${plan.levers.length ? ` Levers: ${plan.levers.join(" ")}` : ""}`,
+    `Deal calls: ${f.calls.map((c) => `${c.deal.id} ${c.deal.name} ${c.category}${c.called ? " (founder's call)" : ""} $${c.amount.usd}${c.amount.source === "average" ? " est" : ""} close ${c.closeDate}${c.closeEstimated ? " est" : ""} health ${c.health}${c.risks.length ? ` risks: ${c.risks.slice(0, 3).map((r) => r.code).join("/")}` : ""}`).join("; ") || "none"}.`,
+  );
   if (quotes.length) L.push(`Price quotes logged: ${quotes.length} (${quotes.filter((q) => q.outcome === "accepted").length} accepted, ${quotes.filter((q) => q.outcome === "pushback").length} pushback).`);
   return L.join("\n");
 }
@@ -648,7 +657,30 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
     return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} no dated next step.` : "Every open deal has a dated next step.", rows);
   }
 
-  if (/\b(stuck|stale|stalled|quiet|gone dark|went dark|at risk|neglected)\b/.test(q) && /\b(deals|pipeline|accounts|companies)\b/.test(q)) {
+  if (/^(?:what'?s |whats |show (?:me )?)?(?:my |our |the )?(?:forecast|commit|number|quarter|coverage)(?: call| look like| this quarter| right now)?$|\b(?:hit|make) (?:the |our |my )?(?:number|target|quota|plan)\b|\bpipeline coverage\b/.test(q)) {
+    const f = computeForecast(ws, today);
+    const plan = computePlan(ws, f, now);
+    const usd = (n: number) => `$${Math.round(n / 1000)}K`;
+    const rows: InstantRow[] = [
+      ...(f.hasTarget ? [{ label: "Target", detail: `${usd(f.target)} · ${f.period.label}`, href: "/revenue" }] : []),
+      { label: "Closed won", detail: usd(f.closedWon.usd), href: "/revenue" },
+      { label: "Commit", detail: usd(f.commit), href: "/revenue" },
+      { label: "Best case", detail: usd(f.bestCase), href: "/revenue" },
+      { label: "Pipeline", detail: `${usd(f.pipeline)}${f.coverage !== null ? ` · ${f.coverage.toFixed(1)}× coverage (healthy ${f.coverageNeeded}×)` : ""}`, href: "/revenue" },
+      ...f.calls.filter((c) => c.category !== "omitted").slice(0, 5).map((c) => dealRow(c.deal, `${CATEGORY_LABELS[c.category]} · ${usd(c.amount.usd)}${c.amount.source === "average" ? " est." : ""} · ${c.risks[0]?.label ?? "no open risks"}`)),
+    ];
+    return finish(plan.headline, rows);
+  }
+
+  if (/\b(at risk|risky|in trouble|slipping|might slip)\b/.test(q) && /\b(deals|pipeline|forecast|accounts|companies)\b/.test(q)) {
+    const f = computeForecast(ws, today);
+    const risky = f.calls.filter((c) => c.band !== "healthy").sort((a, b) => a.health - b.health || b.amount.usd - a.amount.usd);
+    const rows = risky.map((c) => dealRow(c.deal, `${c.band === "at_risk" ? "At risk" : "Watch"} · ${c.risks.slice(0, 2).map((r) => r.label).join(", ")} · fix: ${c.risks[0]?.fix.label.toLowerCase() ?? "—"}`));
+    if (!open.length) return finish("You have no open deals yet.", []);
+    return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} risks on file, worst first.` : "No open deal has a medium or high risk on file.", rows);
+  }
+
+  if (/\b(stuck|stale|stalled|quiet|gone dark|went dark|neglected)\b/.test(q) && /\b(deals|pipeline|accounts|companies)\b/.test(q)) {
     const stale = open.filter((d) => daysBetween(day(d.lastActivityAt), today) >= 14).sort((a, b) => a.lastActivityAt.localeCompare(b.lastActivityAt));
     const rows = stale.map((d) => dealRow(d, `${STAGE_LABELS[d.stage]} · ${lastTouch(d)} · ${d.nextStep?.date ? `next step ${d.nextStep.date}` : "no next step"}`));
     return finish(rows.length ? `${plural(rows.length, "open deal")} ${rows.length === 1 ? "has" : "have"} had no activity for 14 days or more.` : "No open deal has gone 14 days without activity.", rows);

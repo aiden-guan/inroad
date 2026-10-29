@@ -142,7 +142,7 @@ describe("tools", () => {
 
   it("lists only the tools a key's scopes allow, in a fixed order", async () => {
     // New tools are appended, never inserted, so callers' prompt caches over the earlier ones keep hitting.
-    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth", "get_copy_guide", "check_copy", "check_graphic", "ask_inroad"];
+    const read = ["get_icp", "get_playbook", "score_accounts", "search_records", "get_next_actions", "get_account", "find_warm_paths", "list_intros", "get_growth", "get_copy_guide", "check_copy", "check_graphic", "ask_inroad", "get_forecast", "list_plays"];
     expect(await names(tokens.read)).toEqual(read);
     expect(await names(tokens.records)).toEqual([
       "get_icp",
@@ -163,6 +163,8 @@ describe("tools", () => {
       "check_copy",
       "check_graphic",
       "ask_inroad",
+      "get_forecast",
+      "list_plays",
     ]);
     expect(await names(tokens.drafts)).toEqual([
       "get_icp",
@@ -184,6 +186,8 @@ describe("tools", () => {
       "check_copy",
       "check_graphic",
       "ask_inroad",
+      "get_forecast",
+      "list_plays",
     ]);
   });
 
@@ -255,6 +259,19 @@ describe("tools", () => {
     expect(input.result?.content?.[0].text).toBe("Invalid input. input: Send query, domain, email or linkedin_url.");
     const missing = await call("get_account", { domain: "nobody.example" });
     expect(missing.result).toMatchObject({ isError: true, content: [{ text: "No company with that domain. Use search_records." }] });
+  });
+
+  it("reads the forecast and the plays with any key, computed in code", async () => {
+    const f = (await call("get_forecast", {})).result?.structuredContent as { commit_usd: number; best_case_usd: number; deals: { id: string; category: string; risks: unknown[] }[]; plan: { verdict: string } };
+    expect(f.commit_usd).toBeLessThanOrEqual(f.best_case_usd);
+    expect(f.deals.map((d) => d.category)).toEqual(expect.arrayContaining(["best_case"]));
+    expect(f.plan.verdict).toBe("behind");
+    const one = (await call("get_forecast", { deal_id: f.deals[0].id })).result?.structuredContent as { deals: unknown[] };
+    expect(one.deals).toHaveLength(1);
+    const plays = (await call("list_plays", { play_id: "champion_moved", limit: 2 })).result?.structuredContent as { plays: { id: string; running: boolean; matches: { domain: string }[] }[] };
+    expect(plays.plays).toHaveLength(1);
+    expect(plays.plays[0]).toMatchObject({ id: "champion_moved", running: true });
+    expect(plays.plays[0].matches.map((m) => m.domain)).toEqual(expect.arrayContaining(["glassmoor.example"]));
   });
 
   it("adds accounts and people to the workspace on disk, skipping free mail and suppressed domains", async () => {

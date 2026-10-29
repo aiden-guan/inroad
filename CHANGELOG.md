@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Revenue (`/revenue`): a quarterly target; commit, best case and pipeline called deal by deal from evidence, with owner overrides; floor, call and ceiling; the exact chance of reaching the target; coverage and next-period coverage; week-over-week changes from weekly snapshots; the plan from the gap back to first meetings, with the new-pipeline cutoff and a channel-by-channel view; what's working by source, signal and persona; loss patterns.
+- Deal risk with one fix per risk (slips, overdue or unconfirmed next steps, thin threading, no economic buyer, stalls, silence, no price discussed), on Revenue and in each deal's sheet.
+- Plays (`/plays`): 13 signal-based plays with live matches, a backtest against won and lost deals, what each one skipped and why, and attributed results. Running plays put cards on Today; pausing one takes them off.
+- A weekly GTM update (workflow `gtm_update`) for the CEO, board or team, with its numbers table built in code.
+- Agent keys choose the model and thinking level for the new `ask_inroad` tool (MCP and `POST /api/v1/ask`).
+- Ask answers forecast and at-risk questions in code; MCP and REST add `get_forecast` and `list_plays`.
+- Research notes: `docs/research/12-revenue-operating-system.md` and `docs/research/13-gtm-engineering-and-plays.md`.
+
 ---
 
 ## [v0.2.15] — 2026-10-28

@@ -29,7 +29,9 @@ import {
   Settings,
   Sparkles,
   Sunrise,
+  Target,
   UserPlus,
+  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -473,6 +475,12 @@ export function CommandPalette() {
                 <Item value="log a call debrief notes transcript" icon={<Phone className="size-4" />} onSelect={() => run(() => router.push("/companies?view=talking&log=1"))}>
                   Log a call
                 </Item>
+                <Item value="set revenue target quota number quarter forecast" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue?target=1"))}>
+                  Set the revenue target
+                </Item>
+                <Item value="weekly update board investor ceo report forecast" icon={<FileText className="size-4" />} onSelect={() => run(() => router.push("/revenue#update-label"))}>
+                  Write the weekly GTM update
+                </Item>
                 <Item value="research search web sources companies" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research"))}>Search the web and research companies</Item>
                 <Item value="find new companies discover accounts prospects" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
                   Find new companies to talk to
@@ -533,11 +541,17 @@ export function CommandPalette() {
                 <Item value="today" icon={<Sunrise className="size-4" />} onSelect={() => run(() => router.push("/today"))} keys="G T">
                   Today
                 </Item>
+                <Item value="revenue forecast pipeline commit coverage quota number" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue"))} keys="G V">
+                  Revenue
+                </Item>
                 <Item value="creators communities influencers partners newsletters" icon={<Megaphone className="size-4" />} onSelect={() => run(() => router.push("/partners"))} keys="G R">
                   Creators and communities
                 </Item>
                 <Item value="companies" icon={<Building2 className="size-4" />} onSelect={() => run(() => router.push("/companies"))} keys="G C">
                   Companies
+                </Item>
+                <Item value="plays signals triggers programs automation" icon={<Zap className="size-4" />} onSelect={() => run(() => router.push("/plays"))} keys="G Y">
+                  Plays
                 </Item>
                 <Item value="intros warm introductions connectors" icon={<Handshake className="size-4" />} onSelect={() => run(() => router.push("/intros"))} keys="G N">
                   Intros

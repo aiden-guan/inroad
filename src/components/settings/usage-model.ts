@@ -25,6 +25,7 @@ export const WORKFLOW_META: Record<WorkflowId, { label: string; tiers: ModelTier
   enrich: { label: "Free signals", tiers: ["none"] },
   partners: { label: "Creators and communities", tiers: ["operator"] },
   agent_ask: { label: "Agent questions", tiers: ["operator", "strategist", "fast"] },
+  gtm_update: { label: "Weekly GTM updates", tiers: ["operator"] },
 };
 
 export function workflowLabel(id: WorkflowId): string {

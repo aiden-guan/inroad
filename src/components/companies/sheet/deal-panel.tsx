@@ -27,6 +27,11 @@ import {
 } from "@/lib/deals/rules";
 import { addDays, daysBetween, newId, nowISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Account, type Deal, type MutualActionPlan, type Person, type PersonaRole, type Stage } from "@/lib/domain/types";
+import { BAND_LABEL, BAND_TONE, RiskList } from "@/components/revenue/risk-list";
+import { CallMenu } from "@/components/revenue/deal-calls";
+import { callDeal } from "@/lib/revenue/forecast";
+import type { RiskCode } from "@/lib/revenue/risk";
+import { openStage, periodOf, revenueStats } from "@/lib/revenue/stats";
 import { MeetingsSection } from "./meetings";
 import { QualificationCardView } from "./qualification";
 import { Callout, CommitInput, HoldButton, ROLE_LABEL, Section } from "./shared";
@@ -35,6 +40,7 @@ export function DealPanel({ deal, account, today, focusLog }: { deal: Deal; acco
   return (
     <div className="space-y-9">
       <StageControl deal={deal} today={today} />
+      <ForecastRisk deal={deal} today={today} />
       <NextStep deal={deal} today={today} />
       <QualificationCardView deal={deal} today={today} />
       <MeetingsSection deal={deal} account={account} today={today} focusLog={focusLog} />
@@ -42,6 +48,49 @@ export function DealPanel({ deal, account, today, focusLog }: { deal: Deal; acco
       <Tasks deal={deal} today={today} />
       <Plan deal={deal} account={account} today={today} />
     </div>
+  );
+}
+
+/* ─────────────────────────────── Forecast & risk ─────────────────────────────── */
+
+/** Inside the sheet, a fix that would open this same sheet scrolls to the section where it's made. */
+const IN_SHEET: Partial<Record<RiskCode, string>> = {
+  no_next_step: "deal-next-step",
+  next_step_overdue: "deal-next-step",
+  next_step_unconfirmed: "deal-next-step",
+  no_champion: "deal-people",
+  plan_behind: "deal-plan",
+  no_pilot_criteria: "deal-pilot",
+  unpaid_pilot: "deal-pilot",
+};
+
+/** The deal review in one place: how the forecast calls it, its health, and each risk with the fix. */
+function ForecastRisk({ deal, today }: { deal: Deal; today: string }) {
+  const { ws } = useWorkspace();
+  const call = useMemo(() => {
+    if (!ws || !openStage(deal.stage)) return null;
+    return callDeal(ws, deal, revenueStats(ws, today), periodOf(ws.revenue?.target, today), today);
+  }, [ws, deal, today]);
+  if (!call) return null;
+  return (
+    <Section
+      label="Forecast and risk"
+      right={
+        <span className="flex items-center gap-2">
+          <span className={cn("text-[12px] font-medium", BAND_TONE[call.band])}>
+            {BAND_LABEL[call.band]} · <span className="font-mono tnum">{call.health}</span>
+          </span>
+          <CallMenu c={call} />
+        </span>
+      }
+    >
+      <p className="mb-1 text-[12.5px] leading-5 text-fg-3">
+        {money(call.amount.usd)}
+        {call.amount.source === "average" ? " (typical deal, until an amount is set)" : ""} · closes {shortDate(call.closeDate)}
+        {call.closeEstimated ? " (estimated)" : ""} · {call.inPeriod ? "in" : "outside"} {periodOf(ws?.revenue?.target, today).label} · {call.why}
+      </p>
+      <RiskList risks={call.risks} deal={deal} jump={IN_SHEET} />
+    </Section>
   );
 }
 
@@ -263,14 +312,14 @@ function NextStep({ deal, today }: { deal: Deal; today: string }) {
 
   if (!ns) {
     return (
-      <section className="rounded-lg bg-danger-subtle/60 p-3 ring-1 ring-danger/20">
+      <section id="deal-next-step" className="scroll-mt-14 rounded-lg bg-danger-subtle/60 p-3 ring-1 ring-danger/20">
         <p className="text-[13px] font-medium text-danger">No dated next step. Treat this deal as a soft no until one is booked.</p>
         {form}
       </section>
     );
   }
   return (
-    <section className={cn("rounded-lg p-3 ring-1", overdue ? "bg-danger-subtle/60 ring-danger/20" : "bg-surface ring-border")}>
+    <section id="deal-next-step" className={cn("scroll-mt-14 rounded-lg p-3 ring-1", overdue ? "bg-danger-subtle/60 ring-danger/20" : "bg-surface ring-border")}>
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <span className="text-[12px] font-medium text-fg-3">Next step</span>
         {!ns.buyerAgreed && <Badge tone="warning">Not agreed by them</Badge>}
@@ -333,6 +382,7 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
 
   return (
     <Section
+      id="deal-people"
       label="People on this deal"
       right={
         <div className="flex items-center gap-1">
@@ -498,7 +548,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
   if (!map) {
     const target = deal.card?.criticalEvent.date && deal.card.criticalEvent.date > today ? deal.card.criticalEvent.date : addDays(today, 45);
     return (
-      <Section label="Mutual action plan">
+      <Section id="deal-plan" label="Mutual action plan">
         <p className="text-[13px] text-fg-2">
           A dated plan you agree with them, working back from their go-live or decision date. I draft one after a qualifying call, or start from the template now.
         </p>
@@ -511,6 +561,7 @@ function MapEditor({ deal, account, today }: { deal: Deal; account: Account; tod
   const md = mapToMarkdown(map, deal.name, ws?.company?.name);
   return (
     <Section
+      id="deal-plan"
       label={`Mutual action plan · to ${shortDate(map.targetDate)}`}
       right={
         <div className="flex items-center gap-1.5">
@@ -580,7 +631,7 @@ function Pilot({ deal, today }: { deal: Deal; today: string }) {
 
   if (!open) {
     return (
-      <Section label="Pilot">
+      <Section id="deal-pilot" label="Pilot">
         <Button size="sm" onClick={() => setOpen(true)}>
           Write success criteria
         </Button>
@@ -588,7 +639,7 @@ function Pilot({ deal, today }: { deal: Deal; today: string }) {
     );
   }
   return (
-    <Section label="Pilot">
+    <Section id="deal-pilot" label="Pilot">
       <div className="space-y-3">
         <div>
           <Label hint={agreed ? "Agreed in writing" : undefined}>Success criteria</Label>

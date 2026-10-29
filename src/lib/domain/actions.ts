@@ -12,6 +12,7 @@ import type {
   FoundationVersion,
   Experiment,
   GrowthWeek,
+  ForecastCategory,
   GtmEvent,
   Guest,
   ID,
@@ -28,6 +29,7 @@ import type {
   PartnerStage,
   Person,
   PmfSurvey,
+  RevenueTarget,
   SkipReason,
   Stage,
   StudioMaterial,
@@ -131,6 +133,13 @@ export type Action =
   | { type: "deal.update"; id: ID; patch: Partial<Deal>; at: string }
   | { type: "deal.setStage"; id: ID; stage: Stage; at: string; lossReason?: Deal["lossReason"]; nurtureUntil?: string }
   | { type: "deal.setNextStep"; id: ID; nextStep: Deal["nextStep"]; at: string }
+  /** The owner of the number calls a deal's forecast category (null hands it back to the code's call). */
+  | { type: "deal.forecastCall"; id: ID; category: ForecastCategory | null; note?: string; at: string }
+  /** The revenue number (null clears it and the workspace plans on `goal` alone). */
+  | { type: "revenue.setTarget"; target: RevenueTarget | null }
+  | { type: "play.set"; id: string; enabled: boolean; at: string }
+  /** Accounts worked in bulk from a play, kept so the play's results are attributed in code. */
+  | { type: "play.run"; id: string; domains: string[]; at: string }
   | { type: "meeting.upsert"; meeting: Meeting }
   /** Narrow meeting edits that patch the server's copy, so a stale client never overwrites a newer brief or debrief. */
   | { type: "meeting.toggleStar"; id: ID; briefAt: string; index: number }
@@ -622,7 +631,9 @@ export function applyAction(ws: Workspace, action: Action): void {
       forgetPerson(ws, action.id, action.at, action.suppressionId);
       return;
     case "deal.create": {
-      ws.deals[action.deal.id] = action.deal;
+      // Actions are applied twice (optimistically, then on the server), so they're never mutated.
+      const { closeDate, closeDateHistory, createdAt } = action.deal;
+      ws.deals[action.deal.id] = closeDate && !closeDateHistory ? { ...action.deal, closeDateHistory: [{ date: closeDate, at: createdAt }] } : action.deal;
       const acc = ws.accounts[action.deal.accountDomain];
       if (acc) {
         acc.dealId = action.deal.id;
@@ -634,8 +645,41 @@ export function applyAction(ws: Workspace, action: Action): void {
       const deal = need(ws.deals[action.id], "Deal");
       // A close date moved later is a push; Today raises a deal that has slipped twice.
       const pushed = closeDatePushed(deal.closeDate, action.patch.closeDate);
+      const closeDate = action.patch.closeDate;
+      // The first date on file stays as the original, so a slip counts from what was first promised.
+      const history =
+        closeDate && closeDate !== deal.closeDate
+          ? [...(deal.closeDateHistory ?? (deal.closeDate ? [{ date: deal.closeDate, at: deal.createdAt }] : [])), { date: closeDate, at: action.at }].slice(-20)
+          : undefined;
       Object.assign(deal, action.patch, { updatedAt: action.at });
       if (pushed) deal.closeDatePushes = (deal.closeDatePushes ?? 0) + 1;
+      if (history) deal.closeDateHistory = history;
+      return;
+    }
+    case "deal.forecastCall": {
+      const deal = need(ws.deals[action.id], "Deal");
+      if (action.category) deal.forecastCall = { category: action.category, at: action.at, ...(action.note ? { note: action.note.slice(0, 280) } : {}) };
+      else delete deal.forecastCall;
+      deal.updatedAt = action.at;
+      return;
+    }
+    case "revenue.setTarget": {
+      ws.revenue ??= {};
+      if (action.target) ws.revenue.target = action.target;
+      else delete ws.revenue.target;
+      return;
+    }
+    case "play.set": {
+      ws.plays ??= {};
+      ws.plays[action.id] = { ...ws.plays[action.id], enabled: action.enabled, updatedAt: action.at };
+      return;
+    }
+    case "play.run": {
+      ws.plays ??= {};
+      const prev = ws.plays[action.id] ?? { enabled: true, updatedAt: action.at };
+      const domains = [...new Set(action.domains)].slice(0, 50);
+      if (!domains.length) return;
+      ws.plays[action.id] = { ...prev, runs: [...(prev.runs ?? []), { at: action.at, domains }].slice(-30) };
       return;
     }
     case "deal.setStage": {

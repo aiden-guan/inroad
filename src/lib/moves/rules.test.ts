@@ -64,11 +64,13 @@ describe("moves on the sample workspace", () => {
         "mv_connector_con_claire_donovan_2026-10-19 today.intro_draft 58 2026-10-20",
         "mv_review_monday_2026-10-19 today.review_monday 56 2026-10-20",
         "mv_signal_fernwick.example_sig_fw_jd today.cold_draft 55 2026-10-21",
+        "mv_play_closed_lost_revisit_deal_larkspur today.play 50 2026-10-21",
         "mv_li_pkg_bramblecast_linkedin today.linkedin 50 2026-10-21",
         "mv_research_ashgrove.example today.research 50 2026-10-21",
         "mv_research_bramblecast.example today.research 50 2026-10-21",
         "mv_research_glassmoor.example today.research 50 2026-10-21",
         "mv_review_monthly_2026-10 today.review_monthly 46 2026-10-21",
+        "mv_play_lookalike_quayside.example today.play 44 2026-10-21",
         "mv_questions_fq_soc2 today.questions 35 2026-10-21",
         "mv_discover_2026-10-19 today.discover 28 2026-10-21",
       ]
