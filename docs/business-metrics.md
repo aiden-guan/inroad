@@ -2,6 +2,8 @@
 
 Open **Integrations → What tracks your business?** to connect PostHog, Stripe or Polar. Figures appear on **Revenue** and **Growth** automatically.
 
+Consumer companies can also [track a waitlist from Convex, Supabase, Neon or another hosted PostgreSQL database](waitlists.md) directly on Growth or in Integrations.
+
 | Provider | What is imported | Setup |
 | --- | --- | --- |
 | PostHog Cloud (US/EU) | Unique active people over rolling 24-hour, 7-day and 30-day windows | Click **Connect PostHog**, approve read-only access, and you're done. Region and projects are detected. If you have several projects, choose one by name. |

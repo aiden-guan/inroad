@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AgentsCard } from "@/components/agents/agents-card";
+import { WaitlistCard } from "@/components/growth/waitlist";
 import { ImportFlow } from "@/components/import/import-flow";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +95,7 @@ export function IntegrationsHub() {
     const native = [...NATIVE_IDS, ...METRIC_PROVIDER_IDS].filter((id) => ws.integrations[id]?.enabled).length;
     const hooks = new Set(events.filter((e) => e.status !== "duplicate").map((e) => e.source)).size;
     const week = now ? events.filter((e) => e.status !== "duplicate" && now - Date.parse(e.at) < 7 * 86_400_000).length : 0;
-    return { connected: native + hooks + (ws.webhooks.length ? 1 : 0), week };
+    return { connected: native + hooks + (ws.webhooks.length ? 1 : 0) + (ws.company?.market === "consumer" && ws.waitlist?.enabled ? 1 : 0), week };
   }, [ws, events, now]);
 
   if (!ws) return <HubSkeleton />;
@@ -174,6 +175,7 @@ export function IntegrationsHub() {
       </PageHeader>
 
       <MetricSources current={current} onToggle={toggle} />
+      <WaitlistCard />
 
       <div className="mt-6 rounded-lg bg-surface p-4 ring-1 ring-border">
         <p className="text-[14px] font-medium text-fg">Start with your own inbox</p>
