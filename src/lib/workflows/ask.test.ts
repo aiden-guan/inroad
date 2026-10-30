@@ -37,6 +37,8 @@ describe("an Ask thread", () => {
     tape = await useTape("ask-thread");
     const context = { kind: "account" as const, id: DOMAIN.northwind };
     const first = await runWorkflow(ask, { threadId: "thr_test", message: "What should I say to Northwind's CFO about pricing?", context });
+    // Refresh the recording view before inspecting the first turn's actual requests.
+    await tape.refresh();
     const firstTurn = tape.exchanges();
     const second = await runWorkflow(ask, { threadId: "thr_test", message: "And what if she pushes back on the price?", context });
     await expectHealthyRun([first.summary, second.summary], tape);

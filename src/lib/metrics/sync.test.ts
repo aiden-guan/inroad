@@ -3,6 +3,7 @@ import { emptyWorkspace, getSecret, readWorkspace, replaceWorkspace } from "@/li
 import { connectMetrics, disconnectMetrics, pollMetrics, syncMetrics } from "./sync";
 import { POST as connectRoute, DELETE as disconnectRoute } from "@/app/api/metrics/[id]/route";
 import { POST as syncRoute } from "@/app/api/metrics/[id]/sync/route";
+import { currentMetrics, historyFor } from "@/lib/gtm/metrics";
 
 const fetcher = vi.fn<typeof fetch>();
 const KEY = "phx_private_test_key";
@@ -18,6 +19,21 @@ beforeEach(async () => {
 });
 
 describe("metric connection lifecycle", () => {
+  it("records history on successful sync and isolates a replacement account", async () => {
+    fetcher.mockResolvedValueOnce(counts());
+    await connectMetrics("posthog", KEY, config);
+    const first = currentMetrics(readWorkspace()).find((r) => r.provider === "posthog")!;
+    expect(historyFor(readWorkspace(), first).points).toHaveLength(1);
+    fetcher.mockResolvedValueOnce(counts(20)); await syncMetrics("posthog");
+    const next = currentMetrics(readWorkspace()).find((r) => r.provider === "posthog")!;
+    expect(next.id).toBe(first.id);
+    fetcher.mockResolvedValueOnce(counts(99)); await connectMetrics("posthog", KEY, config);
+    const replacement = currentMetrics(readWorkspace()).find((r) => r.provider === "posthog")!;
+    expect(replacement.id).not.toBe(first.id);
+    expect(historyFor(readWorkspace(), replacement).points.map((p) => p.value)).toEqual([99]);
+    expect(readWorkspace().metricHistory?.[first.id]).toBeDefined();
+    expect(JSON.stringify(readWorkspace().metricHistory)).not.toContain(KEY);
+  });
   it("validates and imports before saving, and returns aggregate data without the key", async () => {
     fetcher.mockResolvedValueOnce(counts());
     const response = await connectRoute(request({ key: KEY, config: { ...config, token: "should-not-persist" } }), context());

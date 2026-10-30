@@ -8,6 +8,7 @@
 
 import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
 import type { WaitlistTracking } from "@/lib/waitlist/types";
+import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -2117,6 +2118,10 @@ export interface Workspace {
   integrations: Partial<Record<IntegrationId, IntegrationState>>;
   /** Read-only provider aggregates; independent of manually tracked deals and growth weeks. */
   businessMetrics?: Partial<Record<MetricProviderId, MetricSnapshot>>;
+  /** Observed provider trends; source/account/filter definitions are kept separate. */
+  metricHistory?: Record<string, MetricSeries>;
+  /** The execution plan for each market, with captured baselines and frozen readouts. */
+  gtmInitiatives?: Record<ID, GtmInitiative>;
   webhooks: OutboundWebhook[];
   suppression: Suppression[];
   /**

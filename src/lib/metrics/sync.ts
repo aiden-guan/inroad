@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { fail, type Result } from "@/lib/connectors/types";
 import { getSecret, mutateWorkspace, readSecrets, readWorkspace, setSecrets } from "@/lib/store/workspace";
 import { METRIC_PROVIDERS } from "./catalog";
@@ -6,6 +7,7 @@ import { metricConfig } from "./config";
 import { fetchMetrics } from "./providers";
 import { METRIC_PROVIDER_IDS, type MetricProviderId, type MetricSnapshot } from "./types";
 import { posthogToken, revokePosthog, type PostHogOAuth } from "./posthog-auth";
+import { recordProviderHistory } from "@/lib/gtm/metrics";
 
 export const METRIC_SYNC_MS = 15 * 60_000;
 const SECRET = "apiKey";
@@ -26,11 +28,12 @@ async function saveSnapshot(id: MetricProviderId, snapshot: MetricSnapshot, conf
     const previous = ws.integrations[id];
     ws.integrations[id] = {
       id, enabled: true, connectedAt: connected ? snapshot.syncedAt : previous?.connectedAt,
-      config: { ...(config ?? previous?.config), accountLabel: snapshot.accountLabel, nextMetricSyncAt: new Date(Date.now() + METRIC_SYNC_MS).toISOString() },
+      config: { ...(config ?? previous?.config), metricConnectionId: connected ? randomUUID() : previous?.config.metricConnectionId ?? `legacy:${id}:${previous?.connectedAt ?? ""}`, accountLabel: snapshot.accountLabel, nextMetricSyncAt: new Date(Date.now() + METRIC_SYNC_MS).toISOString() },
       lastSyncAt: snapshot.syncedAt,
     };
     ws.businessMetrics ??= {};
     ws.businessMetrics[id] = snapshot;
+    recordProviderHistory(ws, snapshot, ws.integrations[id]!);
   });
 }
 
