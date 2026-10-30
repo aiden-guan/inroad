@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Connect PostHog Cloud, Stripe and Polar in Integrations to import active users, collected revenue, paying customers, MRR and subscription counts without manually entering them. Connections validate access and import their first snapshot before saving credentials.
+- Connected-source metric cards on Revenue and Growth, with last-sync times, test-data labels, reporting windows and expandable counting definitions. Growth links open the page for the current market.
+- Read-only automatic sync every 15 minutes while Inroad is visible, immediate manual refresh, per-provider backoff and serialized connection changes. Incomplete or failed syncs preserve the previous figures; sample workspaces never contact real providers.
+- Provider setup guide at `docs/business-metrics.md`, including Stripe refund/currency rules, PostHog identity/event filters and Polar's reported metric definitions. Provider aggregates stay separate from deals and historical growth weeks.
+
+### Validation
+- 1,397 tests pass with three skipped; typecheck, lint, dependency audit and the production build pass. Provider adapter and lifecycle tests cover pagination, refunds, identity filtering, incomplete responses, secret handling, backoff and disconnect/sync races.
+- Provider responses are verified with mocks. No live PostHog, Stripe or Polar credentials were used, and no real-account metric accuracy is claimed.
+
 ---
 
 ## [v0.2.17] — 2026-10-29

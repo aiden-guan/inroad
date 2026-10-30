@@ -3,12 +3,12 @@
 import { useEffect } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 
-const POLLED = ["instantly", "smartlead", "lemlist", "hubspot", "attio", "calendly", "calcom"] as const;
-// The server keeps each connector's own cadence (2–5 min); this only says the app is open.
+const POLLED = ["instantly", "smartlead", "lemlist", "hubspot", "attio", "calendly", "calcom", "posthog", "stripe", "polar"] as const;
+// The server keeps each connector's cadence (2–15 min); this only says the app is open.
 const TICK_MS = 60_000;
 
 /**
- * While the app is open in a visible tab, asks the server to read replies and CRM changes from
+ * While the app is open in a visible tab, asks the server to read metrics, replies and CRM changes from
  * connected tools that no webhook can reach. Renders nothing; refreshes the workspace when
  * something new arrived.
  */
@@ -31,10 +31,13 @@ export function ConnectorPoller() {
     };
     const first = setTimeout(() => void tick(), 5_000);
     const timer = setInterval(() => void tick(), TICK_MS);
+    const onVisible = () => { if (document.visibilityState === "visible") void tick(); };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
       clearTimeout(first);
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [active, refresh]);
 
