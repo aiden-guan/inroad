@@ -7,6 +7,7 @@
  */
 
 import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
+import type { WaitlistTracking } from "@/lib/waitlist/types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -1594,6 +1595,7 @@ export interface GtmEvent {
 
 export type IntegrationId =
   | MetricProviderId
+  | "waitlist"
   | "hubspot"
   | "attio"
   | "pipedrive"
@@ -2127,6 +2129,8 @@ export interface Workspace {
   usage: Record<string /* YYYY-MM */, UsageMonth>;
   /** Consumer: one row per week, oldest first. */
   growthLog?: GrowthWeek[];
+  /** Consumer waitlist aggregates; database credentials live only in the secrets store. */
+  waitlist?: WaitlistTracking;
   /** Creators, communities, newsletters, podcasts, press and partner brands or companies, by id. */
   partners?: Record<ID, Partner>;
   /** Consumer: growth experiments, by id. */

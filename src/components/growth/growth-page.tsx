@@ -21,6 +21,7 @@ import { localDate } from "@/lib/moves/util";
 import { GrowthHero } from "./growth-hero";
 import { Numbers } from "./numbers";
 import { WhatItTakes, Working } from "./plan";
+import { WaitlistCard } from "./waitlist";
 
 /**
  * Growth: the number a consumer company is measured on, read the way its Monday growth meeting reads it. The consumer
@@ -45,7 +46,7 @@ export function GrowthPage() {
   }, [ws, today]);
 
   // Nothing logged yet: the form is the page's first job.
-  const empty = !!data && !data.g.latest;
+  const empty = !!data && !data.g.latest && !ws?.waitlist;
   // Opening the form (the header button, `?log=1`) brings it into view once, not on every workspace refresh after.
   const ready = !!data;
   useEffect(() => {
@@ -57,39 +58,9 @@ export function GrowthPage() {
   if (!ws || !data) return <LoadingSignal label="Reading your numbers" className="min-h-[60dvh]" />;
   const { g, pace, funnel, talks, weekStart } = data;
   const logged = hasLoggedLastWeek(ws, today);
+  const waitlistFirst = !!ws.waitlist && !g.latest && !logging;
 
-  return (
-    <div className="page-shell max-w-[1080px]">
-      <PageHeader
-        title="Growth"
-        eyebrow="The number"
-        description={
-          g.goal.current !== null ? (
-            <>
-              {ws.goal.target.toLocaleString("en-US")} {ws.goal.targetLabel} by {shortDate(ws.goal.byDate)}; <span className="font-mono tnum text-fg">{g.goal.current.toLocaleString("en-US")}</span> last week. Every
-              weekly number is counted from the weeks you log. Connected sources keep your active users and revenue up to date.
-            </>
-          ) : (
-            "Your active users and revenue from connected sources, alongside your weekly growth goal, pace and retention readings."
-          )
-        }
-        actions={
-          <Button variant={logged ? "secondary" : "primary"} icon={<FileUp className="size-4" />} onClick={() => setLogging(true)}>
-            {logged ? "Edit last week" : "Log last week"}
-          </Button>
-        }
-      />
-
-      {!isConsumer(ws) && (
-        <p className="mt-6 rounded-md bg-bg-subtle px-3 py-2.5 text-[13px] leading-5 text-fg-2">
-          Growth reads a consumer company&apos;s weekly numbers. You&apos;re set up as a business, so your number lives on{" "}
-          <Link href="/revenue" className="text-fg underline underline-offset-2">
-            Revenue
-          </Link>
-          .
-        </p>
-      )}
-
+  const productGrowth = <>
       <BusinessMetrics mode="growth" />
       <GrowthHero goal={ws.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />
       <Numbers ws={ws} today={today} g={g} logging={logging || empty} onLogging={setLogging} />
@@ -104,6 +75,43 @@ export function GrowthPage() {
           <ReviewBody ws={ws} kind="growth" weekStart={weekStart} />
         </div>
       </section>
+  </>;
+
+  return (
+    <div className="page-shell max-w-[1080px]">
+      <PageHeader
+        title="Growth"
+        eyebrow="The number"
+        description={
+          waitlistFirst ? "Your waitlist total, progress and history, kept in sync with your signup database. Product growth is ready below for when you launch." : g.goal.current !== null ? (
+            <>
+              {ws.goal.target.toLocaleString("en-US")} {ws.goal.targetLabel} by {shortDate(ws.goal.byDate)}; <span className="font-mono tnum text-fg">{g.goal.current.toLocaleString("en-US")}</span> last week. Every
+              weekly number is counted from the weeks you log. Connected sources keep your active users and revenue up to date.
+            </>
+          ) : (
+            "Your waitlist, active users and revenue from connected sources, alongside your weekly growth goal, pace and retention readings."
+          )
+        }
+        actions={
+          <Button variant={logged ? "secondary" : "primary"} icon={<FileUp className="size-4" />} onClick={() => setLogging(true)}>
+            {waitlistFirst ? "Track product growth" : logged ? "Edit last week" : "Log last week"}
+          </Button>
+        }
+      />
+
+      {!isConsumer(ws) && (
+        <p className="mt-6 rounded-md bg-bg-subtle px-3 py-2.5 text-[13px] leading-5 text-fg-2">
+          Growth reads a consumer company&apos;s weekly numbers. You&apos;re set up as a business, so your number lives on{" "}
+          <Link href="/revenue" className="text-fg underline underline-offset-2">
+            Revenue
+          </Link>
+          .
+        </p>
+      )}
+
+      <WaitlistCard />
+      {waitlistFirst ? <details className="mt-8"><summary className="w-fit cursor-pointer py-2 text-[13px] font-medium text-fg-2">Product growth, after launch</summary><div className="mt-5">{productGrowth}</div></details> : productGrowth}
+
     </div>
   );
 }

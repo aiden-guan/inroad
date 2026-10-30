@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Consumer waitlist tracking on Growth and Integrations, with Convex Cloud, Supabase, Neon and other hosted PostgreSQL databases. Paste one deploy key or connection string; Inroad detects the deployment and waitlist table, asking for a named table choice only when necessary.
+- Automatic count refresh every 15 minutes while Inroad is open, manual sync, an optional target, net change with its observation date, and daily history. Database reads fetch metadata and counts without downloading signup records. Failures keep the last good count; disconnecting keeps history and the target.
+- A waitlist-first Growth view before product-growth weeks have been logged. Product metrics and weekly forms remain available under “Product growth, after launch.” Existing product-growth logs stay visible.
+
+### Validation
+- 1,439 unit tests pass with three skipped; typecheck, lint, the production build and the standalone Mac server build pass. The six new browser checks pass at phone and desktop widths, alongside 25 prerequisite checks. Actual adapter requests returned the expected counts from a local Convex backend and a PostgreSQL engine with synthetic records; the PostgreSQL read-only transaction rejected a test write. No private database account was queried.
+
 ---
 
 ## [v0.2.20] — 2026-10-29

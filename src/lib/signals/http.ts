@@ -26,7 +26,7 @@ for (const [prefix, bits] of [["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["64
   BLOCK.addSubnet(prefix, bits, "ipv6");
 }
 
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   return BLOCK.check(ip, net.isIPv4(ip) ? "ipv4" : "ipv6");
 }
 
