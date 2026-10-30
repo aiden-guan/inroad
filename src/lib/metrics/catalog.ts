@@ -12,7 +12,7 @@ export const METRIC_PROVIDERS: Record<MetricProviderId, {
 }> = {
   posthog: {
     name: "PostHog", domain: "posthog.com",
-    blurb: "Active users over 24 hours, 7 days and 30 days, from the activity you choose.",
+    blurb: "Your active users, connected in a few clicks.",
     keyLabel: "Personal API key", placeholder: "phx_…",
     setup: "Create a personal API key for your project in PostHog's account settings. Use your project ID from Project settings, not your public project API key.",
     href: "https://posthog.com/docs/api/personal-api-keys",
@@ -30,8 +30,8 @@ export const METRIC_PROVIDERS: Record<MetricProviderId, {
     name: "Polar", domain: "polar.sh",
     blurb: "Revenue, monthly recurring revenue and active subscriptions from Polar's metrics.",
     keyLabel: "Organization access token", placeholder: "polar_oat_…",
-    setup: "Create an organization access token in Polar → Settings → Developers, then copy your organization ID from its settings.",
-    href: "https://polar.sh/docs/api-reference/metrics/get",
+    setup: "Create an organization access token in Polar → Settings → Developers, with read access to metrics. No organization ID is needed.",
+    href: "https://polar.sh/dashboard",
     scopes: "metrics:read. No write permissions needed.",
   },
 };

@@ -458,6 +458,12 @@ function startUpdater() {
     quit: () => app.quit(),
   });
   ipcMain.handle("updates:get", (event) => (fromInroad(event) ? updater?.get() : null));
+  ipcMain.handle("app:focus", (event) => {
+    if (!fromInroad(event)) return;
+    if (win?.isMinimized()) win.restore();
+    win?.show();
+    win?.focus();
+  });
   ipcMain.handle("updates:check", (event) => (fromInroad(event) ? updater?.check() : null));
   ipcMain.handle("updates:install", (event) => (fromInroad(event) ? updater?.install() : { ok: false, error: "Not allowed." }));
   ipcMain.handle("updates:auto-check", (event, on) => (fromInroad(event) ? updater?.setAutoCheck(on === true) : null));

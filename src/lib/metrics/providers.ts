@@ -21,7 +21,7 @@ function literal(value: string): string {
 }
 
 async function posthog(key: string, cfg: PostHogSettings, now: Date): Promise<Result<MetricSnapshot>> {
-  if (!key.startsWith("phx_")) return fail("validation", "Use a PostHog personal API key (phx_…), not the public project API key.");
+  if (!key.startsWith("phx_") && !key.startsWith("pha_")) return fail("validation", "Use a PostHog personal API key (phx_…), not the public project API key.");
   const at = now.toISOString();
   const end = `toDateTime(${literal(at.slice(0, 19).replace("T", " "))}, 'UTC')`;
   const eventFilter = cfg.activityEvent ? `AND event = ${literal(cfg.activityEvent)}` : "";
@@ -41,7 +41,7 @@ async function posthog(key: string, cfg: PostHogSettings, now: Date): Promise<Re
   const activity = cfg.activityEvent ? `the “${cfg.activityEvent}” event` : "any event";
   return ok({
     provider: "posthog", syncedAt: at, windowStart: new Date(now.getTime() - 30 * DAY).toISOString(), windowEnd: at,
-    accountLabel: `Project ${cfg.projectId} · ${cfg.region.toUpperCase()}`, environment: "live",
+    accountLabel: `${cfg.projectName || `Project ${cfg.projectId}`} · ${cfg.region.toUpperCase()}`, environment: "live",
     metrics: [1, 7, 30].map((days, i) => ({
       key: `active_${days}d`, label: "Active users", value: values[i], period: days === 1 ? "24 hours" : `${days} days`,
       definition: `Unique PostHog people who performed ${activity} in the preceding ${days === 1 ? "24 hours" : `${days} days`}${cfg.identifiedOnly ? ", with $is_identified=true on the event" : ", including anonymous visitors"}.`,
@@ -97,28 +97,30 @@ async function stripe(key: string, cfg: StripeSettings, now: Date): Promise<Resu
   if (!subs.ok) return subs;
   const customers = new Set<string>();
   const currencies = new Set<string>();
-  let collected = 0;
+  const collected = new Map<string, number>();
   for (const charge of charges.value) {
     if (!charge.paid || !charge.captured || charge.created * 1000 < Date.parse(start) || charge.created * 1000 >= now.getTime()) continue;
     const net = Math.max(0, charge.amount_captured - charge.amount_refunded);
     if (net > 0) currencies.add(charge.currency);
-    if (charge.currency !== cfg.currency) continue;
-    collected += net;
+    if (cfg.currency && charge.currency !== cfg.currency) continue;
+    collected.set(charge.currency, (collected.get(charge.currency) ?? 0) + net);
     const id = customerId(charge.customer);
     if (net > 0 && id) customers.add(id);
   }
   const subscribers = new Set(subs.value.filter((s) => s.status === "active").map((s) => customerId(s.customer)).filter(Boolean));
-  const excluded = [...currencies].filter((c) => c !== cfg.currency);
-  const currency = cfg.currency.toUpperCase();
+  const excluded = cfg.currency ? [...currencies].filter((c) => c !== cfg.currency) : [];
+  if (cfg.currency && !collected.has(cfg.currency)) collected.set(cfg.currency, 0);
+  const revenue = [...collected.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([code, value]) => ({ key: `collected_30d_${code}`, label: "Collected revenue", value: stripeMajorUnits(value, code), currency: code.toUpperCase(), period: "30 days", definition: `Captured ${code.toUpperCase()} payments created in the last 30 days, less refunds on those payments as of sync. Before Stripe fees; includes taxes. This is collected cash, not recognized revenue or MRR.` }));
+  if (!revenue.length) revenue.push({ key: "collected_30d", label: "Collected revenue", value: 0, currency: "", period: "30 days", definition: "No captured payments in the last 30 days." });
   return ok({
     provider: "stripe", syncedAt: at, windowStart: start, windowEnd: at,
-    accountLabel: `Stripe · ${currency}`, environment: key.includes("_test_") ? "test" : "live",
+    accountLabel: cfg.currency ? `Stripe · ${cfg.currency.toUpperCase()}` : "Stripe", environment: key.includes("_test_") ? "test" : "live",
     metrics: [
-      { key: "collected_30d", label: "Collected revenue", value: stripeMajorUnits(collected, cfg.currency), currency, period: "30 days", definition: `Captured ${currency} payments created in the last 30 days, less refunds on those payments as of sync. Before Stripe fees; includes taxes. This is collected cash, not recognized revenue or MRR.` },
-      { key: "paying_customers_30d", label: "Paying customers", value: customers.size, period: "30 days", definition: `Distinct Stripe customer IDs with a positive, refund-adjusted ${currency} payment in the last 30 days. Guest payments without a customer ID are excluded.` },
+      ...revenue,
+      { key: "paying_customers_30d", label: "Paying customers", value: customers.size, period: "30 days", definition: `Distinct Stripe customer IDs with a positive, refund-adjusted payment in the last 30 days${cfg.currency ? ` in ${cfg.currency.toUpperCase()}` : ", across all currencies"}. Guest payments without a customer ID are excluded.` },
       { key: "subscribed_customers", label: "Subscribed customers", value: subscribers.size, period: "Current", definition: "Distinct customer IDs with an active subscription, across all currencies. Includes free plans; excludes trialing, past-due, paused and canceled subscriptions. Multiple subscriptions count as one customer." },
     ],
-    notes: [`Payments are reported in ${currency} only. No exchange-rate conversions are applied.`, ...(excluded.length ? [`Payments in ${excluded.map((c) => c.toUpperCase()).sort().join(", ")} are excluded from revenue and paying-customer counts. Change the reporting currency to view them.`] : []), "Refunds on payments created before the 30-day window are outside this cash-collection figure."],
+    notes: [cfg.currency ? `Payments are reported in ${cfg.currency.toUpperCase()} only. No exchange-rate conversions are applied.` : "Currencies are detected automatically and shown separately, without exchange-rate conversions. Customers paying in several currencies count once.", ...(excluded.length ? [`Payments in ${excluded.map((c) => c.toUpperCase()).sort().join(", ")} are excluded from revenue and paying-customer counts. Change the reporting currency to view them.`] : []), "Refunds on payments created before the 30-day window are outside this cash-collection figure."],
   });
 }
 
@@ -126,7 +128,8 @@ async function polar(key: string, cfg: PolarSettings, now: Date): Promise<Result
   if (!key.startsWith("polar_oat_")) return fail("validation", "Use a Polar organization access token (polar_oat_…).");
   const at = now.toISOString();
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - 29 * DAY).toISOString();
-  const params = new URLSearchParams({ start_date: start.slice(0, 10), end_date: at.slice(0, 10), interval: "day", timezone: "UTC", organization_id: cfg.organizationId });
+  const params = new URLSearchParams({ start_date: start.slice(0, 10), end_date: at.slice(0, 10), interval: "day", timezone: "UTC" });
+  if (cfg.organizationId) params.set("organization_id", cfg.organizationId);
   for (const metric of ["revenue", "monthly_recurring_revenue", "active_subscriptions"]) params.append("metrics", metric);
   const response = await request({ tool: "Polar", url: `https://api.polar.sh/v1/metrics/?${params}`, headers: { authorization: `Bearer ${key}` }, secrets: [key], retries: 1 });
   if (!response.ok) return response;
@@ -135,7 +138,7 @@ async function polar(key: string, cfg: PolarSettings, now: Date): Promise<Result
   const totals = parsed.data.totals;
   return ok({
     provider: "polar", syncedAt: at, windowStart: start, windowEnd: at,
-    accountLabel: `Organization ${cfg.organizationId}`, environment: "live",
+    accountLabel: cfg.organizationId ? `Organization ${cfg.organizationId}` : "Polar", environment: "live",
     metrics: [
       { key: "revenue_30d", label: "Revenue", value: totals.revenue / 100, currency: "USD", period: "30 days · UTC", definition: "Polar's reported revenue total over 30 UTC calendar dates, including today. Currency values are converted from cents to USD." },
       { key: "mrr", label: "Monthly recurring revenue", value: totals.monthly_recurring_revenue / 100, currency: "USD", period: "Current", definition: "Monthly recurring revenue reported by Polar's metrics API for the end of this date range. Uses Polar's subscription and currency definitions." },
