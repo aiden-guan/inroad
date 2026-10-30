@@ -6,6 +6,8 @@
  * (`runs.json`, `threads.json`, `connections.json`) because they are large and rarely read.
  */
 
+import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
+
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
 export type ISODate = string;
@@ -1591,6 +1593,7 @@ export interface GtmEvent {
 /* ─────────────────────────────── Integrations hub ─────────────────────────────── */
 
 export type IntegrationId =
+  | MetricProviderId
   | "hubspot"
   | "attio"
   | "pipedrive"
@@ -2110,6 +2113,8 @@ export interface Workspace {
   briefs: Record<ISODate, Brief>;
   events: Record<ID, GtmEvent>;
   integrations: Partial<Record<IntegrationId, IntegrationState>>;
+  /** Read-only provider aggregates; independent of manually tracked deals and growth weeks. */
+  businessMetrics?: Partial<Record<MetricProviderId, MetricSnapshot>>;
   webhooks: OutboundWebhook[];
   suppression: Suppression[];
   /**

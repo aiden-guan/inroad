@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { BusinessMetrics } from "@/components/revenue/business-metrics";
 import { ReviewBody } from "@/components/today/review-panel";
 import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
@@ -66,10 +67,10 @@ export function GrowthPage() {
           g.goal.current !== null ? (
             <>
               {ws.goal.target.toLocaleString("en-US")} {ws.goal.targetLabel} by {shortDate(ws.goal.byDate)}; <span className="font-mono tnum text-fg">{g.goal.current.toLocaleString("en-US")}</span> last week. Every
-              number here is counted from the weeks you log, not estimated by a model.
+              weekly number is counted from the weeks you log. Connected sources keep your active users and revenue up to date.
             </>
           ) : (
-            "Your goal, the pace to its date, what last week's numbers say, what it takes and what's working. All computed from the weeks you log."
+            "Your active users and revenue from connected sources, alongside your weekly growth goal, pace and retention readings."
           )
         }
         actions={
@@ -89,6 +90,7 @@ export function GrowthPage() {
         </p>
       )}
 
+      <BusinessMetrics mode="growth" />
       <GrowthHero goal={ws.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />
       <Numbers ws={ws} today={today} g={g} logging={logging || empty} onLogging={setLogging} />
       <WhatItTakes ws={ws} g={g} pace={pace} funnel={funnel} talks={talks} />

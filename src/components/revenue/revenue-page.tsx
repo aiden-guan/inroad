@@ -18,6 +18,7 @@ import { Changes, PlanView } from "./plan-view";
 import { TargetDialog } from "./target-dialog";
 import { WeeklyUpdate } from "./weekly-update";
 import { Working } from "./working";
+import { BusinessMetrics } from "./business-metrics";
 
 /**
  * Revenue: the number a Head of GTM is measured on, called the way a forecast meeting calls it.
@@ -53,10 +54,10 @@ export function RevenuePage() {
           target ? (
             <>
               {target.label}: <span className="font-mono tnum text-fg">{money(target.amountUsd)}</span>. Commit <span className="font-mono tnum text-fg">{money(f.commit)}</span>, best case{" "}
-              <span className="font-mono tnum text-fg">{money(f.bestCase)}</span>. Every number here is counted from your deals, not estimated by a model.
+              <span className="font-mono tnum text-fg">{money(f.bestCase)}</span>. The forecast is counted from your deals. Connected sources keep your business metrics up to date.
             </>
           ) : (
-            "The forecast called from your deals: commit, best case and pipeline, what changed, what's at risk and what it takes. All computed from your deals."
+            "Your business metrics from connected sources, alongside the forecast called from your deals: commit, best case and pipeline, what's at risk and what it takes."
           )
         }
         actions={
@@ -76,6 +77,7 @@ export function RevenuePage() {
         </p>
       )}
 
+      <BusinessMetrics />
       <ForecastHero f={f} plan={plan} />
       <Changes changes={changes} since={base?.weekOf} />
       <DealCalls f={f} focus={params.get("d")} />

@@ -17,11 +17,13 @@ import { Skeleton } from "@/components/ui/misc";
 import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isBooking, isCrm, isSequencer, type NativeConnectorId } from "@/lib/connectors/catalog";
 import type { Workspace } from "@/lib/domain/types";
 import type { InboundLogEntry } from "@/lib/hub/types";
+import { METRIC_PROVIDER_IDS } from "@/lib/metrics/types";
 import { BookingKey } from "./booking-key";
 import { CrmPanel } from "./crm-panel";
 import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
 import { ConnectedFooter, KeyConnect } from "./key-connect";
+import { MetricSources } from "./metrics-panel";
 import { OutboundPanel } from "./outbound-panel";
 import { Ago } from "./parts";
 import { Group, IntegrationRow, LinkRow, type RowStatus } from "./row";
@@ -89,7 +91,7 @@ export function IntegrationsHub() {
   const events = useMemo(() => status?.inbound.events ?? [], [status]);
   const summary = useMemo(() => {
     if (!ws) return null;
-    const native = NATIVE_IDS.filter((id) => ws.integrations[id]?.enabled).length;
+    const native = [...NATIVE_IDS, ...METRIC_PROVIDER_IDS].filter((id) => ws.integrations[id]?.enabled).length;
     const hooks = new Set(events.filter((e) => e.status !== "duplicate").map((e) => e.source)).size;
     const week = now ? events.filter((e) => e.status !== "duplicate" && now - Date.parse(e.at) < 7 * 86_400_000).length : 0;
     return { connected: native + hooks + (ws.webhooks.length ? 1 : 0), week };
@@ -170,6 +172,8 @@ export function IntegrationsHub() {
           </p>
         )}
       </PageHeader>
+
+      <MetricSources current={current} onToggle={toggle} />
 
       <div className="mt-6 rounded-lg bg-surface p-4 ring-1 ring-border">
         <p className="text-[14px] font-medium text-fg">Start with your own inbox</p>
