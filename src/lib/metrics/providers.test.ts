@@ -69,6 +69,16 @@ describe("PostHog metrics", () => {
 });
 
 describe("Stripe metrics", () => {
+  it("detects currencies automatically, retains all revenue and counts each customer once", async () => {
+    reply({ data: [charge("ch_usd"), charge("ch_eur", { currency: "eur" })], has_more: false });
+    reply({ data: [], has_more: false });
+    const result = await fetchMetrics("stripe", "rk_live_private_key", {}, NOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.metrics.filter((m) => m.label === "Collected revenue").map((m) => [m.currency, m.value])).toEqual([["EUR", 100], ["USD", 100]]);
+    expect(result.value.metrics.find((m) => m.key === "paying_customers_30d")?.value).toBe(1);
+    expect(result.value.notes.join(" ")).not.toContain("excluded");
+  });
   it("paginates payments and subscriptions, adjusts refunds, deduplicates customers and excludes other currencies", async () => {
     reply({ data: [charge("ch_1"), charge("ch_2", { amount_refunded: 5000 }), charge("ch_eur", { currency: "eur" })], has_more: true });
     reply({ data: [charge("ch_unpaid", { paid: false }), charge("ch_uncaptured", { captured: false }), charge("ch_refunded", { amount_refunded: 10000 }), charge("ch_guest", { customer: null }), charge("ch_3", { customer: { id: "cus_2" } })], has_more: false });
@@ -129,6 +139,12 @@ describe("Stripe metrics", () => {
 });
 
 describe("Polar metrics", () => {
+  it("uses the token's organization without asking for an organization ID or broader read scopes", async () => {
+    reply({ totals: { revenue: 0, monthly_recurring_revenue: 0, active_subscriptions: 0 } });
+    expect((await fetchMetrics("polar", "polar_oat_private_key", {}, NOW)).ok).toBe(true);
+    expect(new URL(String(fetcher.mock.calls[0][0])).searchParams.has("organization_id")).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it("uses a scoped organization query, 30 UTC calendar dates and provider-native MRR", async () => {
     reply({ totals: { revenue: 123456, monthly_recurring_revenue: 234500, active_subscriptions: 19 } });
     const result = await fetchMetrics("polar", "polar_oat_private_key", { organizationId: ORG }, NOW);

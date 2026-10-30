@@ -52,6 +52,7 @@ export interface UpdateStatus {
 
 /** What the Mac app's shell exposes to the page (desktop/app/preload.cjs). Absent in a browser. */
 export interface DesktopBridge {
+  focus?(): Promise<void>;
   updates: {
     get(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;

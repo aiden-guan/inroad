@@ -7,9 +7,11 @@ const PostHogConfig = z.object({
   projectId: z.string().trim().regex(/^\d+$/, "Use the numeric project ID from PostHog.").max(20),
   activityEvent: z.string().trim().max(200).default("$pageview"),
   identifiedOnly: z.boolean().default(true),
+  projectName: z.string().max(300).optional(),
+  authMode: z.enum(["key", "oauth"]).optional(),
 });
-const StripeConfig = z.object({ currency: z.string().trim().regex(/^[a-zA-Z]{3}$/, "Use a three-letter currency code, such as USD.").transform((v) => v.toLowerCase()).default("usd") });
-const PolarConfig = z.object({ organizationId: z.uuid("Use the organization UUID from Polar settings.") });
+const StripeConfig = z.object({ currency: z.string().trim().regex(/^[a-zA-Z]{3}$/, "Use a three-letter currency code, such as USD.").transform((v) => v.toLowerCase()).optional() });
+const PolarConfig = z.object({ organizationId: z.uuid("Use the organization UUID from Polar settings.").optional() });
 
 export type PostHogSettings = z.infer<typeof PostHogConfig>;
 export type StripeSettings = z.infer<typeof StripeConfig>;
