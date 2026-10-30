@@ -41,15 +41,18 @@ describe("metric connection lifecycle", () => {
     expect(getSecret("posthog", "apiKey")).toBe(KEY);
   });
 
-  it("keeps the last good numbers after an API failure and clears the error on recovery", async () => {
+  it.each(["incomplete", "query_error"])("keeps the last good numbers after %s and clears the error on recovery", async (failure) => {
     fetcher.mockResolvedValueOnce(counts());
     await connectMetrics("posthog", KEY, config);
     const snapshot = structuredClone(readWorkspace().businessMetrics?.posthog);
-    fetcher.mockResolvedValueOnce(Response.json({ results: [] }));
+    fetcher.mockResolvedValueOnce(failure === "incomplete"
+      ? Response.json({ results: [] })
+      : Response.json({ detail: "There is no supertype for types String, UInt8: FUNCTION equals(mat_$is_identified, 1_UInt8)" }, { status: 400 }));
     const failed = await syncRoute(request({}), context());
     expect(failed.status).toBe(502);
     expect(readWorkspace().businessMetrics?.posthog).toEqual(snapshot);
     expect(readWorkspace().integrations.posthog?.lastError).toBeDefined();
+    expect(readWorkspace().integrations.posthog?.lastError?.message).not.toMatch(/UInt8|FUNCTION|mat_\$/);
     fetcher.mockResolvedValueOnce(counts(20));
     expect((await syncMetrics("posthog"))?.ok).toBe(true);
     expect(readWorkspace().integrations.posthog?.lastError).toBeUndefined();

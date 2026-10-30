@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+- PostHog active-user imports now handle identified-user properties stored as either strings or booleans, fixing the `String, UInt8` query failure during connection and sync. Anonymous activity remains excluded unless enabled in preferences.
+- PostHog query failures show a short retry message instead of database internals. Authentication, permissions and rate-limit errors retain their specific guidance, and failed syncs keep the last successful figures.
+
+### Validation
+- 1,420 tests pass with three skipped; typecheck, lint and the production build pass. The original type error was reproduced on ClickHouse's public playground; the actual provider query then returned the expected 1-, 7- and 30-day counts against synthetic string and UInt8 properties, excluding anonymous, missing, out-of-window and nonmatching-event records. No private PostHog account was queried.
+
 ---
 
 ## [v0.2.19] — 2026-10-29

@@ -28,7 +28,7 @@ describe("PostHog metrics", () => {
     expect(body.async).toBe(false);
     expect(body.query.kind).toBe("HogQLQuery");
     expect(body.query.query).toContain("uniqExact(person_id)");
-    expect(body.query.query).toContain("properties.$is_identified = true");
+    expect(body.query.query).toContain("lower(toString(properties.$is_identified)) IN ('true', '1')");
     expect(body.query.query).toContain("AND event = '$pageview'");
     expect(body.query.query).toContain("timestamp < toDateTime('2026-10-29 18:00:00', 'UTC')");
     expect(JSON.stringify(result.value)).not.toContain("phx_private_key");
@@ -58,6 +58,21 @@ describe("PostHog metrics", () => {
   it("rejects a public ingestion key without making a request", async () => {
     expect((await fetchMetrics("posthog", "phc_public_key", PROJECT, NOW)).ok).toBe(false);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 422])("keeps generated-query diagnostics out of setup errors (HTTP %s)", async (status) => {
+    reply({ detail: "There is no supertype for types String, UInt8: while executing FUNCTION equals(mat_$is_identified, 1_UInt8)" }, status);
+    const result = await fetchMetrics("posthog", "pha_private_token", PROJECT, NOW);
+    expect(result).toEqual({ ok: false, error: { code: "upstream", status, message: "Couldn't import active users from PostHog. Try again in a moment." } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([[401, "auth"], [403, "forbidden"], [429, "rate_limited"]])("preserves actionable connection errors (HTTP %s)", async (status, code) => {
+    reply({ detail: "Access denied" }, status as number);
+    if (status === 429) reply({ detail: "Access denied" }, 429);
+    const result = await fetchMetrics("posthog", "pha_private_token", PROJECT, NOW);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(code);
   });
 
   it("validates the project path and strips arbitrary hosts and secrets from settings", async () => {
