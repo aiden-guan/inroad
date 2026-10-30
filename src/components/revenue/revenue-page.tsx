@@ -19,6 +19,8 @@ import { TargetDialog } from "./target-dialog";
 import { WeeklyUpdate } from "./weekly-update";
 import { Working } from "./working";
 import { BusinessMetrics } from "./business-metrics";
+import { GtmInitiatives } from "@/components/gtm/initiatives";
+import { PipelineConversion } from "./pipeline-conversion";
 
 /**
  * Revenue: the number a Head of GTM is measured on, called the way a forecast meeting calls it.
@@ -78,10 +80,12 @@ export function RevenuePage() {
       )}
 
       <BusinessMetrics />
+      <GtmInitiatives />
       <ForecastHero f={f} plan={plan} />
       <Changes changes={changes} since={base?.weekOf} />
       <DealCalls f={f} focus={params.get("d")} />
       <PlanView f={f} plan={plan} onSetTarget={() => setTargetOpen(true)} />
+      <PipelineConversion />
       <Working ws={ws} f={f} />
       <WeeklyUpdate ws={ws} today={today} />
 

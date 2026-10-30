@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, Plug, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { MetricValues } from "@/components/integrations/metric-values";
 import { Ago, ToolMark } from "@/components/integrations/parts";
@@ -11,11 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Card, SectionLabel } from "@/components/ui/card";
 import { METRIC_PROVIDERS } from "@/lib/metrics/catalog";
 import { METRIC_PROVIDER_IDS } from "@/lib/metrics/types";
+import { currentMetrics, historyFor, observedChange } from "@/lib/gtm/metrics";
+import { useClock } from "@/components/today/use-today";
 
 export function BusinessMetrics({ mode = "revenue" }: { mode?: "revenue" | "growth" }) {
   const { ws, refresh } = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const now = useClock(60_000);
+  const readings = useMemo(() => ws ? currentMetrics(ws, new Date(now), { pipeline: false }) : [], [ws, now]);
   if (!ws) return null;
   const connected = METRIC_PROVIDER_IDS.filter((id) => ws.integrations[id]?.enabled);
 
@@ -54,10 +58,13 @@ export function BusinessMetrics({ mode = "revenue" }: { mode?: "revenue" | "grow
             const meta = METRIC_PROVIDERS[id];
             const state = ws.integrations[id]!;
             const snapshot = ws.businessMetrics?.[id];
+            const sourceReadings = readings.filter((r) => r.provider === id);
+            const trends = Object.fromEntries(sourceReadings.map((r) => { const series = historyFor(ws, r); return [r.key, { change: observedChange(series, r), points: series.points }]; }));
             return <Card key={id} className="p-5">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><ToolMark name={meta.name} domain={meta.domain} /><Link href={`/integrations#${id}`} className="text-[13px] font-medium hover:underline">{meta.name}</Link>{snapshot?.environment === "test" && <Badge tone="warning">Test data</Badge>}</div><span className="text-[12px] text-fg-3">{state.lastError ? "Last successful sync " : "Synced "}<Ago iso={state.lastSyncAt} /></span></div>
               {state.lastError && <p className="mb-4 rounded-md bg-danger-subtle p-3 text-[12px] leading-5 text-danger">{state.lastError.message} {snapshot && "These are your last successful figures."}</p>}
-              {snapshot ? <MetricValues snapshot={snapshot} /> : <p className="text-[13px] text-fg-3">No figures yet. Sync now to import them.</p>}
+              {!state.lastError && sourceReadings.some((r) => r.problem) && <p role="status" className="mb-4 text-[12px] text-warning">These figures need a fresh sync. Their last successful observation is shown below.</p>}
+              {snapshot ? <MetricValues snapshot={snapshot} trends={trends} /> : <p className="text-[13px] text-fg-3">No figures yet. Sync now to import them.</p>}
             </Card>;
           })}
           <p className="px-1 text-[12px] leading-5 text-fg-3">Refreshes every 15 minutes while Inroad is open. Each source keeps its own definitions; sources are never added together. {mode === "growth" ? "The growth history below uses your logged weeks; rolling provider windows do not overwrite them." : "The deal forecast below uses your tracked deals."}</p>

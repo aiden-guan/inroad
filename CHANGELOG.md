@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Weekly GTM priorities on Revenue and Growth. Enter one title; the form selects an available metric, captures its baseline on the server, and defaults the owner and review date. Optional targets update automatically from connected metrics, waitlist counts or tracked pipeline. Reviewed outcomes stay fixed, metric changes retain earlier baselines and targets, and a copied weekly plan includes owners, dates and source observations.
+- Observed trends for connected business metrics, with actual comparison dates and small history charts. Account, project, activity filter, currency, environment and definition changes keep separate histories. Failed or stale syncs cannot mark initiative targets met.
+- Pipeline creation and stage progression diagnostics: first qualification over two consecutive 30-day calendar windows, known stated deal values, and 90-day stage-entry cohorts. Forward moves, first losses, unresolved deals and undated outcomes remain distinct; rates show their denominator and wait for 10 decided exits. Phone layouts use compact stage cards.
+- Read-only GTM priorities in Ask. Simple priority and overdue lists are answered directly from workspace data without a model call; advice can read the saved execution plan.
+
+### Validation
+- 1,481 unit tests pass with three skipped; typecheck, lint and the production build pass. Eight new browser checks pass using the real initiative API and synthetic provider snapshots, including phone and desktop layouts, clipboard export, automatic progress, fixed readouts and reopened-deal cohort outcomes. No private provider account was queried.
+- The pure pipeline calculation took a warm-run median of 30.8 ms for 10,000 synthetic deals and 77.0 ms for 20,000 deals on the development machine. These timings exclude rendering, storage and network; real business impact is not yet measured.
+
 ---
 
 ## [v0.2.21] — 2026-10-29

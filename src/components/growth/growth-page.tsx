@@ -22,6 +22,7 @@ import { GrowthHero } from "./growth-hero";
 import { Numbers } from "./numbers";
 import { WhatItTakes, Working } from "./plan";
 import { WaitlistCard } from "./waitlist";
+import { GtmInitiatives } from "@/components/gtm/initiatives";
 
 /**
  * Growth: the number a consumer company is measured on, read the way its Monday growth meeting reads it. The consumer
@@ -110,6 +111,7 @@ export function GrowthPage() {
       )}
 
       <WaitlistCard />
+      <GtmInitiatives />
       {waitlistFirst ? <details className="mt-8"><summary className="w-fit cursor-pointer py-2 text-[13px] font-medium text-fg-2">Product growth, after launch</summary><div className="mt-5">{productGrowth}</div></details> : productGrowth}
 
     </div>
