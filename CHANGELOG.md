@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.20] — 2026-10-29
+
 ### Fixed
 - PostHog active-user imports now handle identified-user properties stored as either strings or booleans, fixing the `String, UInt8` query failure during connection and sync. Anonymous activity remains excluded unless enabled in preferences.
 - PostHog query failures show a short retry message instead of database internals. Authentication, permissions and rate-limit errors retain their specific guidance, and failed syncs keep the last successful figures.
