@@ -21,7 +21,8 @@ export function weeklyPlan(ws: Workspace, readings: MetricReading[], now = new D
   for (const item of active) {
     const result = initiativeProgress(item, readings, today);
     const m = item.measurement;
-    const progress = m && result.current ? `${metricValue(m.baseline.value, m.metric)} → ${metricValue(result.current.value, m.metric)}${m.target !== undefined ? `; target ${metricValue(m.target, m.metric)}` : ""}${result.current.n !== undefined ? `; n=${result.current.n} decided exits` : ""}; source observation ${result.current.at}${result.problem ? `; needs attention: ${result.problem}` : ""}` : result.problem ?? "Unmeasured commitment";
+    const context = m ? `${m.metric.label} · ${m.metric.period} · ${m.metric.sourceLabel}${m.metric.test ? " · TEST DATA" : ""}; ` : "";
+    const progress = context + (m && result.current ? `${metricValue(m.baseline.value, m.metric)} → ${metricValue(result.current.value, m.metric)}${m.target !== undefined ? `; target ${metricValue(m.target, m.metric)}` : ""}${result.current.n !== undefined ? `; n=${result.current.n} decided exits` : ""}; source observation ${result.current.at}${result.problem ? `; needs attention: ${result.problem}` : ""}` : result.problem ?? "Unmeasured commitment");
     lines.push(`| ${text(item.title)} | ${text(item.owner)} | ${item.dueOn}${result.overdue ? " (overdue)" : ""} | ${text(progress)} |`);
   }
   if (!active.length) lines.push("| No active initiatives | — | — | — |");
@@ -30,7 +31,7 @@ export function weeklyPlan(ws: Workspace, readings: MetricReading[], now = new D
     for (const item of completed) {
       const outcome = item.outcomes.at(-1)!;
       const m = outcome.measurement;
-      lines.push(`- ${text(item.title)} — reviewed ${outcome.at}${m && outcome.current ? `; ${metricValue(m.baseline.value, m.metric)} → ${metricValue(outcome.current.value, m.metric)}` : ""}${outcome.problem ? `; ${text(outcome.problem)}` : ""}${outcome.note ? `; ${text(outcome.note)}` : ""}`);
+      lines.push(`- ${text(item.title)} — reviewed ${outcome.at}${m ? `; ${text(m.metric.label)} · ${text(m.metric.period)} · ${text(m.metric.sourceLabel)}${m.metric.test ? " · TEST DATA" : ""}` : ""}${m && outcome.current ? `; ${metricValue(m.baseline.value, m.metric)} → ${metricValue(outcome.current.value, m.metric)}${outcome.current.n !== undefined ? `; n=${outcome.current.n} decided exits` : ""}; source observation ${outcome.current.at}` : ""}${outcome.problem ? `; ${text(outcome.problem)}` : ""}${outcome.note ? `; ${text(outcome.note)}` : ""}`);
     }
   }
   lines.push("", "Observed before/after changes do not establish that an initiative caused the result. Completed readouts are saved at review time.");

@@ -163,6 +163,8 @@ describe("initiative API and weekly handoff", () => {
     const report = weeklyPlan(ws, currentMetrics(ws, NOW), NOW);
     expect(report).toContain("10 → 40"); expect(report).not.toContain("9,999");
     expect(report).toContain("Better \\| signup"); expect(report).toContain("do not establish");
+    expect(report).toContain("Active users · 7 days · PostHog · Our app");
+    expect(report).toContain(`source observation ${NOW.toISOString()}`);
   });
 
   it("uses local week boundaries for completed work around UTC midnight", () => {

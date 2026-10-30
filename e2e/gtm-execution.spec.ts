@@ -51,6 +51,7 @@ test("the weekly plan copies current progress, owner and review date", async ({ 
   await expect(page.getByText("Weekly execution plan copied.", { exact: true })).toBeVisible();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain("Make the welcome flow clearer | Me |");
+  expect(copied).toContain("Active users · 7 days · PostHog · Product;");
   expect(copied).toContain("42 → 42; target 100; source observation");
   expect(copied).toContain("Observed before/after changes do not establish");
 });
