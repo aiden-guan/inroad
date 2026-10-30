@@ -7,13 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.19] — 2026-10-29
+
 ### Changed
 - PostHog setup is now **Connect PostHog → approve access**. Inroad uses browser OAuth sign-in, detects the region and projects, connects automatically when there is one project, and asks for one named choice when there are several. No API key, project ID, region or event settings are required up front.
 - Stripe and Polar setup each need one credential and connect immediately on paste. Stripe detects and displays currencies separately, deduplicating customers across them; Polar uses the organization already scoped by its token.
 - Optional activity, identity and currency preferences live after connection and reuse saved credentials. Existing keys and explicit filters are preserved. PostHog renews expiring OAuth access automatically, and the Mac app returns to the foreground once connected.
 
 ### Validation
-- 1,414 tests pass with three skipped; typecheck, lint and the production build pass. Thirty browser flow checks pass, including zero-field PostHog setup at phone and desktop widths, click-and-approve sign-in, project selection and paste-to-connect for Stripe and Polar.
+- 1,414 tests pass with three skipped; typecheck, lint and the production build pass. All 60 browser checks pass in GitHub CI, including zero-field PostHog setup at phone and desktop widths, click-and-approve sign-in, project selection and paste-to-connect for Stripe and Polar. Both Mac builds and the Apple silicon launch check pass.
 - Public native-client registration was accepted by PostHog's live OAuth service. Consent, token exchange, refresh, cancellation and metrics are tested with mocks; no live account access was granted or real-account accuracy claimed.
 
 ---
