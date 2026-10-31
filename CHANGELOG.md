@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - A product tour with four real screenshots (Today, Revenue, Plays, Studio) captured from v0.2.22 in mock mode on the sample workspace, at 1440×900 @2x with Playwright, in `assets/readme/`.
 - The v0.1.0 entry below is regrouped by kind of change instead of listing raw commit subjects.
 
+### Tooling
+- CI's dependency audit now runs `scripts/audit.mjs`. It still fails on any moderate or worse advisory, with one dated exemption: GHSA-g3hv-75wg-m249 (minimatch < 11.0.1), which reaches only ESLint and build tooling, until 2026-12-31. The exemption does not apply in the production tree (`npm audit --omit=dev`), which still has to be clean. The only fix is minimatch 11, and its exports break the ESLint 9 plugins.
+
 ### Validation
 - 1,481 unit tests pass across 143 files, with three skipped (`npx vitest run` on v0.2.22). The README diagram parses with Mermaid 11.4.1. Every relative link and image in the README resolves, and every `npm run` script it names exists in `package.json`.
 
