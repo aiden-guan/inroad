@@ -1,11 +1,10 @@
-
 <div align="center">
 
 # Inroad
 
-**An AI Head of GTM for founder-led sales — finds who to talk to and why now, drafts every touch with verifiable sources, preps every call, and coordinates outbound pipeline.**
+**An AI Head of GTM for founder-led sales — finds who to talk to and why now, drafts every touch with verifiable sources, preps every call, and runs the revenue number from your own deals.**
 
-[Architecture](#architecture) · [Core Capabilities](#core-capabilities) · [Engineering Deep Dives](#engineering-deep-dives) · [Quick Start](#quick-start) · [Mac App](#the-mac-app) · [Token Economics](#how-it-keeps-token-spend-low)
+[What it does](#what-it-does) · [Tour](#product-tour) · [Capabilities](#core-capabilities) · [Architecture](#architecture) · [Engineering](#engineering-deep-dives) · [Quick start](#getting-started) · [Mac app](docs/MAC-APP.md) · [Docs](#documentation)
 
 <br/>
 
@@ -16,7 +15,7 @@
 
 <br/>
 
-![Inroad Hero Banner](assets/readme/hero.png)
+<img src="assets/readme/hero.png" alt="Inroad: the Today brief and the Revenue call from the built-in sample workspace" width="100%"/>
 
 </div>
 
@@ -26,641 +25,269 @@
 
 **Your first 20 customers, not 20,000 cold emails.**
 
-Inroad automates the operational groundwork that high-performing heads of GTM execute for early-stage companies:
-it discovers high-intent accounts and verifiable buying signals (starting with warm connections already in your network), drafts hyper-targeted touches with primary source citations, prepares deal dossiers for calls, debriefs meetings, maintains pipeline velocity, plans local executive dinners, and runs a focused weekly operating rhythm.
+Inroad does the operating work a strong Head of GTM does at an early-stage company. It finds high-intent accounts and dated buying signals (warm paths in your network first), drafts each touch with its sources attached, prepares a dossier before every call, debriefs meetings, plans local dinners, and keeps a weekly rhythm. For the person who owns the number, it calls the quarter deal by deal from evidence, shows deal risk with the fix, and runs signal-based plays with backtests. The forecast and the plays are computed in code, not by a model.
 
-**You do the selling.** Inroad never sends an email, posts a message, or modifies deal stages autonomously. Every outbound artifact is presented as a draft for founder review and one-click approval.
+**You do the selling.** Inroad never sends an email, posts a message or changes a deal stage on its own. Every outbound artifact is a draft you approve.
 
-**Studio writes the marketing.** Launch posts, homepage heroes, ads, image text, short-video scripts, Show HN and Product Hunt launches, store listings and comparison pages, for founders of any kind of company (B2B, consumer, prosumer, developer tools). It writes from the founder's own material, gives several options built on different moves from campaigns that worked (Wispr Flow, Ramp, Supabase, Linear), and checks every option in code for AI tells, unsourced numbers and platform limits before a blind reader ranks them. The research behind it is in [`docs/research/10-marketing-copy.md`](docs/research/10-marketing-copy.md).
+**It fits the company you run.** Selling to businesses gets Revenue, Companies, Plays, Intros, Partners and Events. Consumer apps, DTC brands and marketplaces get Growth (retention before acquisition) and Creators. Research, Playbook and Studio serve both, and you can switch modes at any time without losing data.
 
-**A campaign library is built in.** Studio has separate Create, Graphics, Campaign library and Your work views. Twenty specific studies explain the campaign, its creative logic and how to adapt it, with 22 credited local previews and three verified, click-to-play official films. Search by brand or problem; filter by audience, approach and reported outcomes. Each study keeps its source, measurement window and limitations beside the result. Relevant approaches are recommended automatically, and your own examples remain optional. Your product claims still come from your own material. Brand settings stay in a drawer, and unfinished briefs survive browsing and browser history. Local previews work offline; films require a connection and publisher availability. The source ledger is in [`docs/research/11-studio-campaign-library.md`](docs/research/11-studio-campaign-library.md).
+**It runs where you choose.** It runs locally in a browser or as a [Mac app](docs/MAC-APP.md), on the AI provider you pick: Anthropic Claude (what it was built and tuned on), OpenAI, Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Vercel or Cloudflare AI Gateway, a local Ollama model, or any OpenAI-compatible API. Your data stays in one folder on your machine.
 
-**Studio also makes the graphics.** Open Studio → Graphics and choose a saved message, or use **Design graphics** on a copy option. Under **AI image → ChatGPT plan**, connect your ChatGPT account through local Codex, then choose **Generate image in ChatGPT**. This creates and saves a downloadable PNG with your ChatGPT allowance, without a prompt-writing or image API call. A recent ChatGPT desktop app or Codex CLI with image generation is required; plan and workspace limits still apply. The connection reuses an existing Codex ChatGPT sign-in when available. Otherwise, Codex manages an official browser sign-in in a separate local auth folder. Inroad never copies OAuth tokens or reads browser cookies, and Disconnect leaves a shared Codex sign-in intact. The ChatGPT route never falls back to an API key.
+---
 
-For a complete graphic with checked typography, choose **Create with → Claude plan** to connect a Claude subscription, or keep **Configured AI provider**. Use **Design 2 graphics**: Claude designs SVG around the approved words, code checks and renders it locally, and Claude reviews the PNG. This can include illustrations and other visuals drawn in code, with no separate picture layer required. The Claude-plan choice also covers copy, prompt writing and repair; it uses the plan's allowance and any enabled extra usage through the official local Claude runtime, with no API-key fallback. The creator choice persists. See [Claude-plan setup and boundaries](docs/STUDIO-CLAUDE.md).
+## Product Tour
 
-Optional picture layers can come from ChatGPT, an upload, or the separately selected **OpenAI API** route with its own API key and billing. Claude can compose around ChatGPT images using the two plans together. Generated images carry AI attribution and cannot be used as real product screenshots. PNG and SVG downloads remain available.
-For a Head of GTM it is also a **revenue operating system**: the number called deal by deal from evidence, the plan behind the gap, deal risk with the fix, signal-based plays with backtests, and the weekly update, all computed in code from your deals.
+All four screens show the built-in sample workspace: Ledgerline and every person, deal and number in it are made up. The pages were captured from v0.2.22 in mock mode.
 
-Connect **PostHog** by signing in, or paste one read-only **Stripe** or **Polar** key, to bring active users, revenue and customers into Revenue and Growth. Inroad detects projects, regions, organizations and currencies; it asks for a named project only when there are several. Optional filters come after connection. Metrics refresh every 15 minutes while the app is open. See [connected business metrics](docs/business-metrics.md) for setup and counting rules.
-
-**Turn the numbers into weekly priorities.** On Revenue or Growth, add an initiative with just a title. Inroad preselects an available metric, saves its baseline, defaults the owner to you and the review date to next week, and updates progress automatically. Add a target if useful, mark the result reviewed to save a fixed readout, or copy the weekly plan for your team. Connected metrics build observed trends as they sync. Revenue also shows new qualified pipeline and stage progression from dated deal histories, with denominators and unresolved deals visible. Ask can read your priorities and overdue items. See [GTM execution and measurement](docs/gtm-execution.md) for definitions and limits.
-
-Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
-
-It runs on the AI provider you choose — Anthropic Claude (what it was built and tuned on), OpenAI, Google Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Vercel AI Gateway, Cloudflare AI Gateway, a local Ollama model, or any OpenAI-compatible API — in a browser or as a [Mac app](#the-mac-app). Save multiple accounts, select models per task or Ask message, and enable automatic task routing in Settings. See [AI connections and routing](docs/AI-ROUTING.md) for setup and gateway requirements.
-
-### Research and existing tools
-
-**Research** in the sidebar brings web search, evidence, connections, monitors and outcomes together. Search with
-source/date filters, inspect the actual queries and pages, reopen recent searches, track useful websites, or run
-playbook-based company qualification. Results share ranking, deduplication, caching, cancellation and daily request
-limits across providers. Missing dates and provider failures remain visible.
-
-Connect read-only MCP tools or OpenAPI GET operations, map their inputs and results, preview nested JSON records,
-and import them through the existing dedupe and suppression rules. Source opt-outs survive imports and undo.
-Salesforce, Pipedrive and Attio CSV presets are included, along with n8n starter workflows and the existing
-Zapier/Make/REST routes. Optional TinyFish browser rendering handles pages that ordinary fetches cannot read.
-
-Saved topic/page monitors include leadership, dormant-deal and meeting-preparation recipes, catch-up after restarts,
-change deduplication, visible errors and pause controls. They run while this computer and Inroad run. Outcomes link
-retained research provenance to accepted accounts, replies, meetings and wins, with unknown costs labeled.
-
-See the [Research guide](docs/RESEARCH.md) for setup, supported protocol scope, templates and verification limits.
-
-### Consumer companies
-
-Inroad also runs a consumer mode for apps, subscriptions, DTC brands, marketplaces, social products and prosumer tools. It picks the mode from your site (store links, a cart, two-sided signup), and you can switch any time from your company name at the top of the sidebar, from ⌘K, or in onboarding and Settings. Switching keeps everything and only changes what Inroad shows and writes: businesses get Revenue, Companies, Plays, Intros, Partners and Events; consumer companies get Growth and Creators. Research, Playbook and Studio serve both. In consumer mode:
-
-- **Retention comes before acquisition.** You log last week's numbers on Growth, and code checks week-4 retention against the bar for your category (DTC uses 90-day repeat purchase), shows the straight-line pace to your goal, and tells you to hold paid spend until retention clears the bar. Activation, the Sean Ellis 40% survey, the quick ratio, CAC and payback are all computed in code.
-- **Creators and communities replace accounts.** The agent keeps only creators and communities whose links appeared in its own search results, and it never stores follower counts it reports. Each one gets one note and one follow-up a week later; if they stay quiet, Inroad suggests letting them go. Briefs must tell creators to disclose, and Inroad asks you to confirm that each paid or gifted post carries `#ad`.
-- **A weekly growth rhythm.** You talk to five users a week, run one ICE-ranked experiment sized with Lehr's rule, and get a Monday growth review.
-- **Consumer marketing rules in the linter.** It covers FTC endorsement disclosure, the 16 CFR 465 fake-review rule, app-store rating rules, health and earnings claims, "free" terms and false urgency.
-
-Businesses use the same list as **Partners**: newsletters, podcasts, communities, people who post for your buyers, and companies that sell to the same buyers, with sponsorship, referral-fee and co-marketing offers and B2B outreach rules.
-
-The sources, figures and their limits are in [`docs/research/10-consumer-gtm.md`](docs/research/10-consumer-gtm.md).
+| Today: the daily brief and five moves | Revenue: the quarter, called from evidence |
+| :---: | :---: |
+| [![Today page with the daily brief, conversation and commit progress, and ranked moves](assets/readme/today.png)](assets/readme/today.png) | [![Revenue page with the forecast call, floor, call and ceiling, chance of hitting target, and what changed](assets/readme/revenue.png)](assets/readme/revenue.png) |
+| **Plays: trigger, backtest, live matches** | **Studio: options checked against format limits** |
+| [![Plays page with the Champion changed jobs play expanded, showing its backtest and two live matches](assets/readme/plays.png)](assets/readme/plays.png) | [![Studio page with a homepage hero option and its per-field word limits](assets/readme/studio.png)](assets/readme/studio.png) |
 
 ---
 
 ## Core Capabilities
 
+### Sell
+
+| Today's Moves | Sourced Deal Dossiers |
+| :--- | :--- |
+| **Five moves a day, ranked**<br/>Reply checks, deal reviews, touch approvals and closeouts are scored from 78 rule types in [`src/lib/moves/rules.ts`](src/lib/moves/rules.ts). The top five (`TOP_MOVES = 5`) arrive with ready-to-send copy. | **Every claim has a source**<br/>Angles, pains and qualification hypotheses link to source URLs and dates. Inferences are labeled as unconfirmed bets. |
+
+| Warm Intro State Machine | Deterministic Signal Radar |
+| :--- | :--- |
+| **Connector etiquette in code**<br/>Intros move through `asked → forwarded → introduced → meeting → done`. Each connector gets one open ask, a 14-day rest and a give-first prompt after 3 asks. No model is involved. | **Code-first research**<br/>Job boards (Greenhouse, Lever, Ashby, Workable), site changes, news, Hacker News, EDGAR and public records are read over plain HTTP before any model is called. |
+
+### Run the number
+
 | Revenue Operating System | Signal-Based Plays |
 | :--- | :--- |
-| **The Number, Called Like a Forecast Meeting**<br/>Set a quarterly target and every open deal is called commit, best case or pipeline from evidence (economic buyer engaged, paper process known, buyer-agreed step within 14 days, no recent close-date push). Shows floor, call and ceiling, the exact chance of hitting the target, coverage, week-over-week changes, and a reverse waterfall from the gap to the first meetings it takes and the last date new pipeline can still close. Small samples are shrunk toward stated priors, never shown as false precision. | **Always-On Programs With an Audit Trail**<br/>Thirteen plays (new leader, hiring for the pain, funding, champion moved, closed-lost by reason, customer referrals, lookalikes, multi-threading…) run in code against your accounts. Each shows its live matches with the dated fact that triggered it, what it skipped and why, a backtest against your own won and lost deals, and the results it produced. Running plays feed Today; pausing one takes its cards off. |
+| **The quarter, called like a forecast meeting**<br/>Each open deal is called commit, best case or pipeline from evidence: economic buyer, paper process, a buyer-agreed step within 14 days, and no recent slip. You get floor, call and ceiling, the chance of hitting target, coverage, and a reverse waterfall back to the meetings needed. Small samples are shrunk toward stated priors. | **13 always-on programs with an audit trail**<br/>Plays cover new leader, hiring for the pain, funding, champion moved, closed-lost by reason, referrals, lookalikes and more. Each shows live matches with the dated trigger, what it skipped and why, a backtest against your won and lost deals, and its results. |
 
-| Deal Inspection | Weekly GTM Update |
+| Deal Inspection | Metrics & Weekly Priorities |
 | :--- | :--- |
-| **Every Risk With Its Fix**<br/>Close-date slips, overdue or unconfirmed next steps, thin threading, no economic buyer, stalled stages and silence are flagged with research-backed thresholds and a one-click fix (or a question already asked in Ask). | **Numbers From Code, Story From the Model**<br/>One click drafts the update for the CEO, board or team: the call, what changed, risks with owners, what's working with its n, next week's focus and asks. The numbers table is built in code, so it can't drift. |
+| **Every risk with its fix**<br/>Slips, overdue or unconfirmed next steps, thin threading, no economic buyer, stalls and silence are flagged against research-backed thresholds, each with a one-click fix. A weekly update for the CEO or board uses a numbers table built in code. | **Read-only PostHog, Stripe and Polar syncs**<br/>Metrics refresh every 15 minutes while the app is open. An initiative captures its baseline and tracks progress automatically. Pipeline creation and stage progression show their denominators. See [business metrics](docs/business-metrics.md) and [GTM execution](docs/gtm-execution.md). |
 
-| Today's Moves & Pipeline Rhythm | Warm Intro State Machine |
-| :--- | :--- |
-| **Actionable 5-Move Queue**<br/>Surfaces at most 5 high-priority actions per day (reply checks, deal reviews, touch approvals, closeouts), each paired with ready-to-send copy. | **Deterministic Relationship Ledger**<br/>Tracks intros end-to-end (ask, forward, intro, meeting, close-the-loop). Enforces connector etiquette: one open ask per connector, 14-day rest intervals, and give-before-get thresholds in code. |
+### Market & research
 
-| Deterministic Signal Radar | Multi-Agent Coordination Hub |
+| Studio | Research Hub |
 | :--- | :--- |
-| **Free, Code-First Research Layer**<br/>Monitors job boards (Greenhouse, Lever, Ashby, Workable), tech stack indicators, news, and Hacker News via plain HTTP before any LLM inference occurs. | **Native Model Context Protocol (MCP)**<br/>Exposes workspace state, playbook positioning, and warm paths to external coding agents and tools via standard MCP tools and REST webhooks. |
+| **Copy that has to pass lint before a reader ranks it**<br/>Studio covers 20 formats with documented platform limits, from launch posts and ads to Show HN and store listings. Every specific must trace to your material. Drafts are linted in code for AI tells, unsourced numbers and "up to" drift, then a blind reader ranks them. It includes a library of 20 campaign studies and SVG graphics rendered locally. See [Studio + Claude plan](docs/STUDIO-CLAUDE.md) and [ChatGPT plan](docs/STUDIO-CHATGPT.md). | **Search, evidence, monitors, outcomes**<br/>Research offers source and date filters, the actual queries and pages shown, saved page monitors, and connected MCP or OpenAPI GET tools. Imports run through dedupe and suppression rules. Retained provenance links accepted accounts to replies, meetings and wins. See the [Research guide](docs/RESEARCH.md). |
 
-| Studio: Marketing Copy That Sounds Human | Copy Tools for Outside Agents |
+| Consumer Growth | Multi-Agent Coordination Hub |
 | :--- | :--- |
-| **Receipts, Moves, Lint, a Blind Reader**<br/>20 formats with real platform limits (each with its source and how it was verified). Every specific must trace to the founder's material or an approved claim. Deterministic lint for AI tells (Wikipedia's signs, Kobak et al. excess vocabulary, density scoring), "up to" vs "on average" drift and unproven superlatives. | **`get_copy_guide` and `check_copy`**<br/>Claude Code, Cursor or n8n get the same format specs, moves and receipts over MCP and REST, and lint their own drafts at zero token cost to Inroad. |
-
-| Event & Executive Dinner Planning | Sourced Deal Dossiers |
-| :--- | :--- |
-| **Geographic Prospect Clustering**<br/>Visualizes pipeline deals and customers on a local map. Set a dinner venue and radius to instantly generate scored guest lists and tailored invites. | **Verifiable Provenance**<br/>Every angle, prospect pain point, and qualification hypothesis links to exact source URLs and dates. Speculative inferences are stamped as unconfirmed bets. |
+| **Retention before acquisition**<br/>Week-4 retention is checked against your category's bar, plus activation, the Sean Ellis 40% survey, quick ratio, CAC and payback, all computed in code. Creator briefs require disclosure, and the linter covers FTC endorsement and 16 CFR 465 rules. A [waitlist counter](docs/waitlists.md) reads Convex, Supabase or Postgres. See the [consumer research](docs/research/10-consumer-gtm.md). | **An MCP server and REST API with agent keys**<br/>Claude Code, Cursor, ChatGPT, Meta Muse or n8n can call 21 tools, including `ask_inroad`, `get_playbook`, `find_warm_paths`, `get_forecast`, `list_plays`, `check_copy` and `add_accounts`. HubSpot, Attio, Instantly, Smartlead, lemlist and Cal.com/Calendly sync by webhook, or by polling when no webhook can reach the app. |
 
 ---
 
 ## Architecture
 
-Inroad is structured around a local-first reactive model where deterministic signal scrapers, atomic JSON storage, and a multi-tiered LLM orchestration loop interact through typed boundaries.
+Inroad is a single-user Next.js 16 app that runs on the founder's machine. A launcher binds it to loopback. Plain-code layers gather facts and make every decision, and a model is called only to write. State lives in atomic JSON files in one data folder.
 
 ```mermaid
 flowchart LR
-    subgraph Client["Client Surface (Next.js 16 / React 19)"]
-        UI["Today / Moves / Board UI"]
-        CmdK["Command Palette (Ask ⌘K)"]
-        SSEListener["SSE Stream Consumer"]
+    subgraph Client["Client"]
+        Browser["Browser · Next.js 16 / React 19<br/>Today, Revenue, Plays, Studio, Research"]
+        Desktop["Mac app · Electron shell<br/>desktop/app/main.cjs"]
+        Agents["Peer agents<br/>Claude Code, Cursor, n8n"]
     end
 
-    subgraph Gateway["Application Layer & Integrations"]
-        API["Route Handlers (/api/*)"]
-        MCPEndpoint["MCP Server & REST Gateway"]
-        WebhookHandler["Webhook Dispatcher"]
+    subgraph Boundary["Local trust boundary"]
+        Launcher["Launcher · scripts/serve.mjs<br/>127.0.0.1 + x-inroad-peer"]
+        Proxy["src/proxy.ts<br/>locality, origin, Sec-Fetch checks"]
     end
 
-    subgraph Core["Execution Engine"]
-        Engine["Agent Engine (src/lib/ai/engine.ts)"]
-        SignalPipeline["Signal Fetchers (src/lib/signals/*)"]
-        SSRFGuard["Guarded Undici Dispatcher"]
-        IntroSM["Intro & Move State Machine"]
+    subgraph App["Application"]
+        Routes["Route handlers · /api/*"]
+        AgentAPI["MCP · /api/mcp<br/>REST · /api/v1 · hooks"]
+        Workflows["Workflows · src/lib/workflows"]
+        Rules["Code layer<br/>revenue · plays · moves · intros · quality"]
+        Hub["Connector hub · polling + webhooks<br/>src/lib/hub"]
+        Metrics["Metric sync · src/lib/metrics"]
     end
 
-    subgraph Storage["Persistence Layer (data folder)"]
-        FileDB["Atomic FileDB (JSON Store)"]
-        SecretVault["Secrets (secrets.json + OS credential store)"]
+    subgraph AI["Model layer"]
+        Engine["Anthropic engine<br/>src/lib/ai/engine.ts"]
+        Compat["OpenAI-compatible adapter<br/>src/lib/ai/openai-compat.ts"]
     end
 
-    UI -->|REST / Mutations| API
-    CmdK -->|Prompt Stream| API
-    SSEListener <---|Event Stream (SSE)| Engine
+    subgraph Storage["Data folder · .data/ or GTM_DATA_DIR"]
+        FileDB["FileDB · atomic JSON"]
+        Secrets["secrets.json · OS credential store"]
+        Backups["backups/ · daily + pre-change"]
+    end
 
-    MCPEndpoint <-->|External Tools & Agents| API
-    API --> Engine
-    API --> IntroSM
+    Signals["SSRF-guarded fetch<br/>src/lib/signals/http.ts"]
 
-    Engine -->|Web / News / Job Signals| SignalPipeline
-    SignalPipeline --> SSRFGuard
-    SSRFGuard -->|Sanitized HTTP| ExternalWeb[("Public Web")]
-
-    Engine -->|LLM Inference (Opus / Sonnet / Haiku)| ClaudeAPI[("Anthropic API or OpenAI-compatible provider")]
-    IntroSM --> FileDB
-    Engine --> FileDB
-    API --> SecretVault
+    Browser --> Launcher
+    Desktop --> Launcher
+    Agents -->|"bearer agent key"| Launcher
+    Launcher --> Proxy
+    Proxy --> Routes
+    Proxy --> AgentAPI
+    Routes --> Workflows
+    AgentAPI --> Rules
+    Workflows --> Rules
+    Workflows --> Engine
+    Workflows --> Compat
+    Workflows --> Signals
+    Signals --> Web[("Public web")]
+    Engine --> Claude[("Anthropic API")]
+    Compat --> Others[("Other providers · Ollama")]
+    Hub --> Tools[("CRMs · sequencers · Slack")]
+    Metrics --> Providers[("PostHog · Stripe · Polar")]
+    Rules --> FileDB
+    Workflows --> FileDB
+    Hub --> FileDB
+    Metrics --> FileDB
+    Routes --> Secrets
+    FileDB --> Backups
 ```
 
 ### End-to-End Execution Flow
 
-1. **Intake & Signal Scanning**: A scheduled task or founder prompt triggers `src/lib/signals/http.ts` to crawl public company endpoints, career portals (Greenhouse, Ashby, Lever), and news feeds using an SSRF-hardened HTTP client.
-2. **Deterministic Pre-Processing**: Signal parsers extract structured events (new leadership hires, platform migrations, seed funding) and summarize them into a compact plaintext digest entirely in Node.js runtime code.
-3. **Multi-Tier Agent Reasoning**: The compiled digest is handed to `src/lib/ai/engine.ts`. On Anthropic, the engine dispatches synthesis to Claude (Opus 5.5 for ICP positioning, Sonnet 5.5 for draft generation, Haiku 5.5 for triage), and prompts use structured cache breakpoints to prevent re-billing stable system contexts. Every other provider goes through the OpenAI-compatible Chat Completions API (`src/lib/ai/openai-compat.ts`) with the model you pick; see [Choosing your AI provider](#choosing-your-ai-provider).
-4. **Validation & Quality Gates**: The agent invokes zod-validated tools (`submit_playbook`, `draft_touch`). Terminal tools halt generation and stream structured JSON through `src/lib/quality/gates.ts` to verify length constraints, link presence, and tone guidelines.
-5. **Atomic Persistence & UI Event Stream**: Validated moves and deal updates are committed to the data folder (`.data/` by default) using write-and-rename atomic semantics via `src/lib/store/file-db.ts` and pushed to the client over Server-Sent Events (SSE).
+1. **Request enters through the launcher.** `scripts/serve.mjs` listens on 127.0.0.1 and stamps each request with its real socket address. `src/proxy.ts` rejects anything that is not local, same-origin or an authenticated agent route.
+2. **Code gathers the facts.** A workflow in `src/lib/workflows/` reads company sites, job boards, news and public records through `src/lib/signals/http.ts`, then dedupes, scores and compresses them into a digest.
+3. **A model writes.** The digest goes to `src/lib/ai/engine.ts`, or to `openai-compat.ts` for other providers. On Anthropic, the task tier picks Opus 5.5 (positioning), Sonnet 5.5 (research and drafting) or Haiku 5.5 (classification and short rewrites) per `src/lib/ai/models.ts`. Stable system blocks carry cache breakpoints.
+4. **Output must pass schema and quality gates.** Terminal tools (`submit_*`) are zod-validated. A submit that breaks its caps gets at most two resubmits. Drafts then pass `src/lib/quality/gates.ts` and the Studio linter.
+5. **State is committed atomically and streamed.** Results are written to the data folder by write-and-rename in `src/lib/store/file-db.ts` and streamed over SSE. Each run ends with a receipt like `Worked for 1m 52s · 9 sources · $0.04`.
 
 ---
 
 ## Engineering Deep Dives
 
-### 1. SSRF Guard with Anti-DNS-Rebinding Dispatcher
+### 1. Localhost Is the Attack Surface
 
-- **Problem**: Inroad ingests arbitrary website URLs and webhook targets submitted by external agents, webhooks, and founder inputs. Standard Node.js `fetch` is vulnerable to Server-Side Request Forgery (SSRF) and DNS rebinding attacks where a public host name resolves to a private IP (e.g. `127.0.0.1`, cloud metadata `169.254.169.254`, or IPv4-mapped IPv6 `::ffff:127.0.0.1`) after initial validation.
-- **Approach**: Implemented a custom `undici` Agent with a `guardedLookup` hook in `src/lib/signals/http.ts`. The resolver checks every resolved IP against an explicit `net.BlockList` of IPv4/IPv6 private, link-local, loopback, and CGNAT subnets at socket connection time, repeating the verification across every HTTP redirect hop.
-- **Why**: Pre-validating URLs via a standalone `dns.resolve()` call leaves a time-of-check to time-of-use (TOCTOU) gap that DNS rebinding exploits. Hooking resolution inside socket connection guarantees that the actual connected remote address is validated.
-- **Tradeoff**: Increases outbound request latency by ~10–20ms for double DNS lookups and prevents indexing intranet test servers without explicit loopback exemptions in test fixtures.
+- **Problem**: A local web app is reachable from every website the founder visits. A page can fire cross-site POSTs at `localhost` to add an exfiltration webhook. DNS rebinding can point an attacker's hostname at `127.0.0.1`. A timing probe on `/api/favicon` can reveal which companies are on the list. Once a tunnel is on for webhooks, the port is public, and `X-Forwarded-*` headers are client-controlled.
+- **Approach**: The launcher (`scripts/serve.mjs`) listens on 127.0.0.1 only and overwrites `x-inroad-peer` with the socket's real address. `src/proxy.ts` then requires a loopback peer and a local `Host` header. It rejects cross-site and same-site reads by `Sec-Fetch-Site`, and rejects any state-changing request whose `Origin` is not Inroad's own. Only the routes that authenticate every call themselves (`/api/mcp`, `/api/v1`, `/api/hooks/[source]/[secret]`) pass through a tunnel. Started without the launcher, the app refuses every page and explains how to start it correctly.
+- **Why**: Next.js does not hand the proxy the socket, and any header can be forged by another device on the network. Locality decided by a stamped socket address cannot be spoofed by a caller.
+- **Tradeoff**: A bare `next dev` or `next start` is unusable by design, and Inroad cannot run on serverless or shared hosts. Anything already running on the same computer can still reach the app, so the computer itself is the trust boundary ([details](docs/OPERATIONS.md#only-this-computer)).
 
-### 2. Tiered LLM Orchestration with Two-Point Prompt Caching
+### 2. SSRF Guard Checked at Connect Time
 
-- **Problem**: Generating thorough account dossiers and multi-touch outbound campaigns consumes large token volumes when full system instructions, ICP definitions, and company dossiers are repeatedly re-sent across conversational turns.
-- **Approach**: Built a single streaming loop (`src/lib/ai/engine.ts`) enforcing strict model separation and prompt-cache architecture. Heavy positioning tasks run on Opus 5.5, research synthesis runs on Sonnet 5.5, and rapid screening runs on Haiku 5.5. System prompts are structured into ordered blocks where cache breakpoints (`cache_control`) are placed on the immutable foundation and ICP blocks, while dynamic per-account signals are isolated to user turns.
-- **Why**: Flat monolithic prompt chains inflate token costs linearly with conversation depth. Hierarchical block caching allows 70–85% of input tokens to hit Anthropic prompt cache reads at a 90% discount.
-- **Tradeoff**: Editing the core ICP definition or system prompt invalidates the cache for downstream requests, incurring a one-time cold write penalty.
+- **Problem**: Inroad fetches URLs that come from founders, imports, webhooks and external agents. A hostname that passes validation can resolve to `127.0.0.1`, `169.254.169.254` or an IPv4-mapped IPv6 address by the time the socket opens (DNS rebinding).
+- **Approach**: `src/lib/signals/http.ts` builds a `net.BlockList` of private, loopback, link-local and CGNAT ranges, including IPv6 forms that embed IPv4 (NAT64, 6to4). It installs a `guardedLookup` on a custom `undici` Agent. Redirects are followed manually (`redirect: "manual"`), and every hop is checked again. API tokens and custom auth headers are dropped when a redirect changes origin, including an HTTPS → HTTP downgrade.
+- **Why**: Checking a URL with a separate `dns.resolve()` leaves a time-of-check/time-of-use gap. Checking inside the connect-time lookup validates the address the socket actually uses.
+- **Tradeoff**: Research can never read an intranet or loopback page, even on purpose. Local AI endpoints such as Ollama use the provider client instead.
 
-### 3. Pure-Code Warm Intro Engine & Connector Etiquette Ledger
+### 3. Prompt Caching That Tests Hold in Place
 
-- **Problem**: Using generative LLMs to manage relationship state, intro timings, and nudge cadences frequently results in inconsistent status evaluations, duplicated messages, and boundary violations (e.g. badgering mutual contacts).
-- **Approach**: Built a deterministic finite-state machine in `src/lib/intros/rules.ts` that manages the intro lifecycle (`asked` → `forwarded` → `introduced` → `meeting` → `done`). The engine maintains an explicit give/get ledger with strict timing constants (`connectorRest: 14 days`, `nudgeAfter: 5 days`, `giveFirstAfter: 3 asks`).
-- **Why**: Connector etiquette requires deterministic guarantees that cannot fail due to model drift or hallucinations. Running relationship rules in TypeScript ensures 0 token cost, instant evaluation, and verifiable invariants tested across 14 regression cases.
-- **Tradeoff**: Rules require explicit code modifications to change timing thresholds rather than prompt-based natural language adjustments.
+- **Problem**: Multi-turn tool loops re-send the same system prompt, ICP and dossier on every turn. Strict tool schemas reject `maxLength`, `minimum` and similar constraints, and every resubmitted tool call re-bills the whole conversation.
+- **Approach**: `src/lib/ai/engine.ts` orders system blocks from most to least stable. It puts breakpoints on the last block, and on the second-to-last when there are three or more, then lets the top-level marker follow the conversation so turn N reads turn N−1, within the 4-breakpoint limit. `strictSafe()` moves unsupported size constraints into field descriptions, and zod enforces them after the call, with at most two resubmits. Recorded workflow "tapes" in `src/test/fixtures/anthropic/` replay in the unit suite. A request whose cache TTL, `max_tokens`, effort or tool set differs from the tape fails the test.
+- **Why**: Cache reads bill at 0.05× input on Opus 5.5 and 0.1× on Sonnet and Haiku 5.5 (`src/lib/ai/models.ts`). A silent cache break is therefore expensive and invisible, so it is caught in CI rather than on the invoice.
+- **Tradeoff**: Editing a stable block or a tool definition invalidates the cache, and changing a workflow's prompts means re-recording its tapes (`npm run tapes:record`).
 
 ---
 
 ## How It Keeps Token Spend Low
 
-Inroad enforces strict token economics to ensure sustainable operating costs:
-
-1. **Code Gathers, Claude Writes**: Public company websites, career portals (Greenhouse, Lever, Ashby, Workable), news, and DNS records are scraped via plain HTTP, cached locally, and compressed into compact digests before any model invocation.
-2. **Model Tiering by Cognitive Complexity**:
-   - **Opus 5.5**: High-level positioning and ICP strategy definition.
-   - **Sonnet 5.5**: Deep research synthesis and personalized draft composition.
-   - **Haiku 5.5**: Candidate screening, classification, and metadata extraction.
-   - **TypeScript**: Ranking, scoring, deduplication, and syntax linting (0 tokens).
-3. **Capped Search Fallback**: Direct scraping is prioritized; external web searches are limited to fallback queries with strict call quotas.
-4. **Prompt Cache Breakpoints**: Static system context and workspace definitions remain warm in cache across turns.
-5. **External Agent Token Decoupling**: When peer agents (Cursor, Claude Code) interact via Inroad's MCP server, their host environments fund their own inference.
-6. **Rule-Driven Warm Intros**: Relationship workflows, follow-up timers, and connector cooldowns run completely in code.
-7. **Offline Geocoding & Mapping**: Over 200 startup hubs are mapped using offline coordinates and mathematical radius calculations; map tiles load via OpenFreeMap with zero model involvement.
-8. **Structured People Lookup**: Employee identification and email resolution leverage direct API integrations (Apollo, FullEnrich) with credit limits instead of expensive LLM search loops.
-
-Every execution outputs a transparent receipt:
-`Worked for 1m 52s · 9 sources · $0.04`
+1. **Code gathers, the model writes.** Sites, career portals, news, DNS and public records are fetched over HTTP, cached and compressed before any model call. See [`docs/research/08-token-cost-architecture.md`](docs/research/08-token-cost-architecture.md).
+2. **Each task gets the cheapest capable model.** Opus 5.5 handles positioning and hard judgment, Sonnet 5.5 research synthesis and drafting, Haiku 5.5 classification and extraction. TypeScript does ranking, scoring, dedupe, intros, forecasts, plays and linting at 0 tokens.
+3. **Instant answers skip the model.** Ask answers forecast, at-risk, priority and overdue questions directly from workspace data.
+4. **Search is capped.** Direct reads come first, and external web search has a daily request limit (100 by default, set under Settings → Web search).
+5. **Peer agents pay for their own inference.** When an agent calls Inroad over MCP, its host pays for the model. Tools like `check_copy` lint at zero cost to Inroad.
+6. **Maps and people data stay off the model.** A built-in gazetteer of 216 places in `src/lib/geo/places.ts` places leads offline. People lookup uses Apollo or FullEnrich credits instead of search loops.
+7. **Every run shows its cost.** Receipts and a monthly budget appear under Settings → Usage. Off Anthropic, spend is counted only for models with a known price, and an unknown price is never shown as $0.
 
 ---
 
 ## Technology Stack
 
-### Client Layer
-- **Framework**: Next.js 16 (App Router, Server Actions)
-- **UI Primitives**: React 19, Radix UI (Dialog, Dropdown, Popover, Tooltip), cmdk
-- **Styling & Motion**: Tailwind CSS 4, Motion 14, `@number-flow/react`
-
-### Orchestration & AI
-- **LLM SDK**: `@anthropic-ai/sdk` with adaptive thinking integration; every other provider through the OpenAI-compatible Chat Completions API
-- **Model Tiers**: Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5 on Anthropic; elsewhere, the model you pick and its smaller sibling
-- **Validation**: Zod 4 for tool schemas and runtime type safety
-- **Agent Integration**: Model Context Protocol (MCP) server over Streamable HTTP (`/api/mcp`) and a REST API, both authenticated with agent keys
-
-### Signals & Security
-- **HTTP Client**: `undici` with custom `guardedLookup` and `net.BlockList` anti-SSRF protections
-- **HTML Parsing**: `node-html-parser` for high-throughput DOM digestion
-- **Mapping**: MapLibre GL, OpenFreeMap tiles, and local geometric distance algorithms
-
-### Persistence & Storage
-- **Workspace Store**: Local-first atomic JSON persistence (`src/lib/store/file-db.ts`)
-- **Secrets Management**: AI provider keys in the system credential store via `@napi-rs/keyring` (or an AES-256-GCM encrypted file where there is none); connector keys in `secrets.json`; neither ever reaches the browser
-
-### Desktop & Testing
-- **Mac App**: Electron and electron-builder (`desktop/`)
-- **Tests**: Vitest (unit tests and recorded workflow replays), Playwright (browser end to end)
+| Layer | Choices |
+| :--- | :--- |
+| **Client** | Next.js 16 App Router, React 19, Radix UI (Dialog, Dropdown, Popover, Tooltip), cmdk, Tailwind CSS 4, Motion, `@number-flow/react`, MapLibre GL with OpenFreeMap tiles |
+| **AI** | `@anthropic-ai/sdk` with adaptive thinking; an OpenAI-compatible Chat Completions adapter for every other provider; per-task and per-message model routing ([AI routing](docs/AI-ROUTING.md)) |
+| **Validation** | Zod 4 for tool schemas, API bodies and runtime types |
+| **Agent interface** | MCP over Streamable HTTP (`/api/mcp`) and a REST API (`/api/v1`), both authenticated with hashed agent keys |
+| **Signals & security** | `undici` with a connect-time `guardedLookup` and `net.BlockList`; `node-html-parser`; a loopback-only launcher with a request proxy |
+| **Persistence** | Atomic local JSON (`src/lib/store/file-db.ts`); AI keys in the OS credential store via `@napi-rs/keyring` or an AES-256-GCM file; connector keys in `secrets.json`; none reach the browser |
+| **Desktop** | Electron and electron-builder (`desktop/`), with a SHA-256-verified self-updater |
+| **Testing** | Vitest (unit and recorded-tape replays), Playwright (browser end to end), calibration evals for the critic and reply classifier |
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 20.9 or newer (24 is what CI uses; `.nvmrc` says so for `nvm use`)
-- npm (version 10 or later)
-- A key for the AI provider you choose (optional with the built-in mock server, and Ollama needs none)
+
+- Node.js 20.9 or newer (CI uses 24; `.nvmrc` pins it for `nvm use`)
+- npm (v10 or later)
+- A key for your AI provider. You don't need one for the built-in mock, and Ollama needs none.
 
 ### Quick Start
 
-1. **Clone and install dependencies**:
-   ```bash
-   git clone https://github.com/aiden-guan/inroad.git
-   cd inroad
-   npm install
-   ```
+```bash
+git clone https://github.com/aiden-guan/inroad.git
+cd inroad
+npm install
+npm run dev
+```
 
-2. **Configure environment**:
-   ```bash
-   cp .env.example .env.local
-   # Optionally add a provider key (e.g. ANTHROPIC_API_KEY), or paste it on the first screen
-   ```
+Open [http://localhost:3000](http://localhost:3000) and paste a provider key on the first screen. The provider follows the key's format (`sk-ant-…` Anthropic, `sk-proj-…` OpenAI, `AIza…` Gemini, `gsk_…` Groq, `sk-or-…` OpenRouter, and so on). To look around first, choose **Explore a sample workspace**. It is labeled as made up everywhere, and **Start with my company** leaves it in one click.
 
-3. **Start development server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) to start.
+Prefer a key in the environment? Copy [`.env.example`](.env.example) to `.env.local` and set `ANTHROPIC_API_KEY`. A key saved in the app takes precedence.
 
-Inroad runs on the AI provider you choose: paste a key on the first screen (or in Settings → General → AI provider)
-and the provider follows the key. See [Choosing your AI provider](#choosing-your-ai-provider). Want to look around first? Choose
-**Explore a sample workspace**; it's labelled as made up everywhere, and **Start with my company** leaves it in one
-click.
+### Zero-Key Mock Mode
 
-For using Inroad every day (a production server, where your data lives, backups, a public URL that doesn't change),
-see [Running Inroad day to day](#running-inroad-day-to-day).
+A mock of the Anthropic, OpenAI-compatible and Firecrawl APIs ships with the repository. It runs each workflow's tools the way a model would, bills realistic token and cache usage, and can fail on demand.
 
-### Choosing your AI provider
+```bash
+npm run mock:anthropic   # terminal 1: mock APIs on :4010
+npm run dev:mock         # terminal 2: Inroad on :3100 with its own data folder (.data-mock)
+```
 
-| Provider | Key looks like | Notes |
-|---|---|---|
-| Anthropic (Claude) | `sk-ant-…` | What Inroad was built and tuned on: built-in web search, prompt caching, the best results. |
-| OpenAI | `sk-proj-…` | |
-| Google Gemini | `AIza…` | A Google AI Studio key. |
-| xAI (Grok) | `xai-…` | |
-| Groq | `gsk_…` | Open models (Llama, Qwen, gpt-oss) on fast hardware. |
-| OpenRouter | `sk-or-…` | Hundreds of models from one key; its model list includes prices, so spend is counted. |
-| Mistral, DeepSeek, Together AI | | |
-| Ollama | no key | Models running on your own computer, free and private. Pick one that supports tools. |
-| Other | | Any OpenAI-compatible API: paste its base URL (https, or http on this computer) and key. |
+Fault injection, the request log and Windows usage are covered in [Testing and the offline mock](docs/TESTING.md).
 
-Everything but Anthropic goes through the OpenAI-compatible Chat Completions API. When you connect, Inroad checks the
-key by reading the models it can use, picks one to run everything (and its smaller sibling, like `…-mini`, for quick
-sorting and rewrites), and lets you change it or split models by task in Settings.
+### Mac App
 
-Two differences off Anthropic:
+Download **Inroad-mac-arm64** or **Inroad-mac-x64** from the latest green **Actions → Mac app** run, or from a tagged **Release**. Builds are ad hoc signed until a Developer ID is configured, so macOS asks you to allow them once under **Privacy & Security**. Installed apps update themselves from GitHub Releases after a SHA-256 and signature check. Building, signing and releasing are covered in [The Mac app](docs/MAC-APP.md).
 
-- **Web search** is chosen independently under Settings → General → Web search: Firecrawl, DeepSeek, TinyFish,
-  Tavily, Exa, Brave Search, or a custom HTTP search adapter. Existing Firecrawl connections keep working. Without
-  a search connection, research reads company sites, filings and public records but cannot search the web. Pages
-  are read by this app. Search charges are separate from model token usage.
-- **Spend** is counted only for models with a known price. Anthropic's are built in and OpenRouter publishes its own;
-  for the rest, add the price per million tokens under Settings → AI provider → Prices, or the receipts and monthly
-  budget can't count real money (they say so instead of showing $0 as free). Set a spend limit with your provider too.
+### Everyday Use
 
-Web search keys saved in Settings use the existing local integration secret store (`secrets.json`), separate from
-workspace exports and backups. **Test search** makes one request and may use provider credits. Choosing **Off**
-disables external search for compatible models; Claude retains its built-in search. See the
-[provider contracts, competitor research, and compatibility roadmap](docs/research/frontrunner-tinyfish-compatibility.md)
-for the custom adapter format and the limits of connecting arbitrary tools.
-
-The prompts were written and tested on Claude. Other capable models (with tool calling) work through the same
-workflows; small local models may need a retry now and then.
-
-**Where your key is kept.** In your computer's credential store: macOS Keychain, Windows Credential Manager, or the
-Secret Service (GNOME Keyring, KWallet) on Linux. Where there's none (a headless server, a container), it's an
-AES-256-GCM encrypted file (`ai-keys.json`, with its own random key in `ai-keys.secret`, both readable by your user
-only). The current ad hoc signed Mac builds also use that encrypted file: without a consistent Developer ID,
-macOS can repeatedly ask for the login password when the Next.js server reads Keychain. Existing Keychain keys
-are imported on first use; macOS may ask once per existing key for that transfer. Later launches read the encrypted
-copy without opening Keychain. Developer ID builds keep the OS store, and locally migrated keys remain local until
-replaced. The encrypted file and its random encryption key are both protected by your account's file permissions,
-rather than Keychain's per-application access controls. Either way the API key is never sent to the browser after you save it (you see the provider and the last four
-characters), never in a backup or an export, and sent only to the provider you chose. A key saved by an earlier version
-of Inroad in `settings.json` is moved into the credential store the first time Inroad reads it.
+For a production server, data folder location, backups, one-click updates and a stable public URL for webhooks, see [Running Inroad day to day](docs/OPERATIONS.md).
 
 ---
 
-### Zero-Key Offline Mock Mode
+## Configuration
 
-A mock of the AI APIs (Anthropic's and the OpenAI-compatible one) ships with the repo, so you can click through every
-workflow for free. In mock mode, choosing OpenAI in Settings talks to the mock too, with any key:
+Everything can be set in the app. Environment variables are for servers and scripts; the full table is in [OPERATIONS.md](docs/OPERATIONS.md#environment-variables).
 
-```bash
-npm run mock:anthropic   # terminal 1 — fake Claude (and fake Firecrawl) on :4010
-npm run dev:mock         # terminal 2 — Inroad on :3100 with its own data folder (.data-mock)
-```
+| Variable | Purpose |
+| :--- | :--- |
+| `GTM_DATA_DIR` | Data folder (default `.data/` in the repository; point it somewhere your computer backs up) |
+| `ANTHROPIC_API_KEY` | Anthropic key, if not pasted in the app. Other providers follow the same pattern. |
+| `PORT` | Server port (default 3000) |
+| `INROAD_SIGNING_SECRET` | Signing secret for outgoing webhooks (Zapier, Slack, n8n) |
+| `INROAD_UPDATE_CHECK` | `off` stops automatic update checks |
 
-Both work the same in bash, zsh, PowerShell and cmd: `dev:mock` is a small Node launcher, not shell syntax. To move
-the mock, set `MOCK_PORT` for both commands.
-
-The mock works each workflow's tools the way a model would, from what the request contains (it quotes your site,
-saves the bet section by section, screens every candidate, records evidence before it writes a dossier), and it
-bills like the API: token counts that follow the request, prompt caching (5-minute and 1-hour), web-search counts,
-and reasoning that counts toward `max_tokens`. It also fails on demand, so error states can be clicked through:
-
-```bash
-MOCK_FAULT=credit npm run mock:anthropic      # every request: out of credits
-curl -X POST localhost:4010/__mock/faults -d '{"faults":[{"type":"overloaded","times":4}]}'
-```
-
-In PowerShell, set the variable first: `$env:MOCK_FAULT = "credit"; npm run mock:anthropic` (in cmd,
-`set MOCK_FAULT=credit` and then the command). The same goes for every `NAME=value command` line below.
-
-Faults: `credit`, `org_disabled`, `auth`, `permission`, `model_unavailable`, `too_large`, `context_too_long`,
-`rate_limit`, `overloaded`, `server_error`, `bad_request`, `reject_betas`, `reject_strict`, `overloaded_midstream`,
-`refusal`, `refusal_fallback`, `pause_turn`, `max_tokens`, `no_submit`, `invalid_submit`. `GET /__mock/requests`
-lists what the app sent. Discovery and research still read real websites and job boards, so they need a network.
-
-- In mock mode, any key prefix `fc-` simulates connected Firecrawl services; `fc-terms…` shows what happens when a data
-  provider's terms haven't been accepted yet.
-- Data is stored in `.data-mock/` and never overwrites production workspaces.
-
----
-
-## The Mac app
-
-Inroad is also a Mac app: the same Inroad in its own window, no Terminal needed. It runs its server inside the app,
-on this Mac only, keeps your work in `~/Library/Application Support/Inroad/Workspace`, and your AI key in the Mac
-Keychain.
-
-**Get it.** On GitHub, open **Actions → Mac app**, pick the latest green run, and download **Inroad-mac-arm64**
-(Apple silicon: M1 and later) or **Inroad-mac-x64** (Intel). Tagged versions (`v0.2.0`) are also attached to a
-**Release**. Open the `.dmg` and drag Inroad into Applications.
-
-**The first time you open it.** Until the app is signed with an Apple Developer ID (below), macOS blocks it as coming
-from an unidentified developer. Open it once, then go to **System Settings → Privacy & Security**, find the line
-saying Inroad was blocked, and choose **Open Anyway**. Or, in Terminal: `xattr -dr com.apple.quarantine
-/Applications/Inroad.app`. You only do this once per version.
-
-**Day to day.** Closing the window keeps Inroad in the Dock; quitting stops its server. **Inroad → Settings…** (⌘,)
-opens Settings; **Help** opens the data folder and the server log (`~/Library/Application Support/Inroad/Logs`).
-**Inroad → Open at Login** starts it when you log in, so hooks, the public URL and agents keep reaching it. Opened
-from the disk image or Downloads, Inroad offers to move itself to Applications. If its server quits after running a
-while, the app starts it again by itself (once in ten minutes) and puts you back on the page you were on.
-
-**Updates, in one click.** Every 6 hours (and from **Inroad → Check for Updates…** or Settings → General → Updates)
-the app asks GitHub for the latest release. A newer one downloads in the background, is checked against the SHA-256
-GitHub publishes for it (or the release's `SHA256SUMS.txt`), and then by macOS: a valid signature, from the same
-developer as the copy you have when that copy is signed, and the version it claims. When it's ready, the sidebar says
-so: **Restart to update** backs up your workspace, quits, swaps the new app in where the old one was and opens it. If
-the swap fails, the old app is put back and opened. Your data and Keychain key aren't touched. This works for ad hoc
-builds too (Electron's own updater only installs into apps signed with a Developer ID). It needs Inroad in a folder
-your account can change (Applications, for an admin account); otherwise Settings says why and links the download.
-Automatic checks can be turned off in Settings. A check tells GitHub your IP address and which version you run,
-as any download would, and nothing about your work.
-
-**Build it yourself on a Mac:**
-
-```bash
-npm ci
-npm run desktop:server -- --platform darwin --arch arm64   # the app's server (x64 for Intel)
-npm run desktop:dist -- --arm64 -c.mac.identity=-          # desktop/dist/Inroad-<version>-arm64.dmg
-npm run desktop:dev                                        # or run the shell from the repository
-npm run desktop:test                                       # check the shell (on Linux: xvfb-run npm run desktop:test)
-```
-
-**Signing for release.** A paid Apple Developer Program membership gives you a Developer ID Application certificate.
-Add these repository secrets and the Mac app workflow signs every build and has Apple notarize it, so it opens like any
-app from the internet: `MAC_CERTIFICATE` (the certificate exported as .p12, base64), `MAC_CERTIFICATE_PASSWORD`,
-`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. Before the first release, change `appId` in
-`desktop/electron-builder.yml` to a reverse-DNS name you own. The Mac App Store would need App Sandbox, which this
-build doesn't use.
-
-**Publishing an update.** `npm run release -- 0.2.0` sets the version in `package.json`, `package-lock.json` and
-`desktop/app/package.json`, moves the changelog's Unreleased notes under `v0.2.0`, commits and tags. Pushing the tag
-(`git push origin main v0.2.0`) runs the Mac app workflow, which refuses a tag that doesn't match those versions,
-builds both chips and publishes the release with `SHA256SUMS.txt`. Installed apps find it within 6 hours. Keep signing
-the same way from release to release: an app signed with a Developer ID only accepts updates signed by the same team.
-
----
-
-## Verification & Testing
-
-Inroad maintains an offline, deterministic Vitest suite covering all domain logic, reducers, and safety gates:
-
-```bash
-# Run complete test suite
-npm test
-
-# Run tests in interactive watch mode
-npm run test:watch
-
-# Run TypeScript compilation check (on a fresh checkout, run `npx next typegen` once first)
-npm run typecheck
-
-# Run linter
-npm run lint
-```
-
-### Test Suite Highlights
-- **Coverage**: 1,146 tests across 109 files (about 27 seconds in one measured run).
-- **Hermetic Execution**: Each test runs in an isolated ephemeral filesystem directory; system clock is locked to `America/Los_Angeles`.
-- **Network Isolation**: Outbound network requests to non-localhost addresses are rejected during test runs.
-- **Workflow Replays**: The main workflows (the first run with the discovery it starts, Find companies, research, drafts
-  and replies, and an Ask thread) replay recorded Anthropic exchanges ("tapes", `src/test/fixtures/anthropic`). Each
-  also checks that no run fell back to compatibility mode, nothing was cut off at `max_tokens`, every submit tool was
-  called and every receipt costs what the usage says. Replay checks the requests the code sends now, not the recorded
-  ones: a request whose cache TTL, `max_tokens`, effort or tool set differs from the tape's fails the test.
-
-After changing a workflow's prompts or tools (or the mock), re-record its tapes from the mock and commit them:
-
-```bash
-npm run tapes:record            # all of them
-npm run tapes:record -- dossier # one file
-```
-
-### End to end in a browser
-
-```bash
-npx playwright install chromium   # once
-npm run e2e
-```
-
-[Playwright](https://playwright.dev) walks a founder's first session in Chromium: paste a site and a sentence on the
-welcome screen, watch the bet get written, land on Today, then add a company and read its researched dossier. Then, at
-390px on that workspace, Today and the dossier must fit without sideways scroll, and research the API turns down (an
-out-of-credits fault queued on the mock) must say why once, in plain words, with the Add credits link. Last, it tries
-the sample workspace (labelled as made up, left with one click) and brings the founder's own work back from the backup
-taken before the sample replaced it. It starts the mock and the app (through the launcher, as `npm run dev` does) on
-ports 4301 and 3301 (`E2E_MOCK_PORT`, `E2E_APP_PORT`) with a fresh data folder (a new temp
-folder, or `E2E_DATA_DIR`, emptied first) and with outbound DNS off (`e2e/offline.cjs`), so it reads nothing from the
-web, spends nothing and runs the same on every machine. A preinstalled Chromium is used when
-`PLAYWRIGHT_BROWSERS_PATH` points at one. Traces and screenshots of a failure land in `test-results/`.
-
-### Live smoke (real API, not in CI)
-
-Before a release, run the same workflow tests once against the real Anthropic API. It costs about $1–1.50 and can't
-cost more than its cap (default $3): a local proxy holds the key and refuses any request whose worst case (its prompt
-uncached, all of `max_tokens`, every allowed search and a refusal fallback) would cross the cap.
-
-```bash
-INROAD_LIVE=1 ANTHROPIC_API_KEY=sk-ant-… npm run smoke:live
-INROAD_LIVE=1 ANTHROPIC_API_KEY=sk-ant-… npm run smoke:live -- --record   # also save real tapes
-INROAD_LIVE=1 ANTHROPIC_API_KEY=sk-ant-… npm run smoke:live -- --cap 1.5  # tighter cap
-npm run smoke:live -- --mock                                              # the whole run against the mock, free
-```
-
-On top of each test's own assertions it fails if compatibility mode ever triggers, a run that needs a submit tool
-ends without one, a response is cut off, the second Ask turn doesn't read the prompt cache, or a receipt disagrees
-with the usage the API reported. `--record` writes the real responses to `src/test/fixtures/anthropic/live/`; the
-offline suite replays whichever tape of a workflow was recorded last, the real one or the mock's, so it replays real
-wire shapes until `npm run tapes:record` records that workflow again.
-
-### Draft-quality evals
-
-```bash
-npm run eval:critic     # the critic's calibration gate: accept ≥70% of emails that got replies, reject ≥85% of AI-SDR ones
-npm run eval:classify   # the reply reader against a hand-labeled bench: ≥95% agreement, ≤3% of live replies dropped
-```
-
-Both call the real API when a key is set (about $0.10 and $0.05) and fail when the gate fails; with no key they do
-nothing, and `EVAL_MOCK=1` runs them against the mock to check the plumbing. CI runs them against the mock on every push,
-and against the real model when the repository has an `ANTHROPIC_API_KEY` secret. The bundled calibration emails model the
-patterns but aren't real: put permissioned ones in `calibration.json` (and critic references in `references.json`) in
-the data folder to use them instead. Settings → Usage shows how drafting is going on your own work (critic pass rate,
-edit distance, flagged evidence, first-run timings), computed on your machine.
-
-### Continuous integration
-
-CI (`.github/workflows/ci.yml`) runs on every push and pull request: `npm ci`, `next typegen`, `tsc --noEmit`,
-`eslint src`, `npm test`, the evals and `next build`, and the browser tests above as a separate `e2e` job that uploads
-the Playwright report when it fails. The Mac app is built by `.github/workflows/desktop.yml` on GitHub's Mac runners.
-
----
-
-## Running Inroad day to day
-
-Inroad is a single-user app that runs on your own computer, and it is built that way on purpose (SPEC non-goal 6):
-your prospects, notes and keys never sit on someone else's server.
-
-### The production server
-
-```bash
-npm run build      # once (an update from Settings builds again by itself)
-npm start          # http://localhost:3000; `npm start -- -p 3001` for another port
-```
-
-It's faster and lighter than `npm run dev`. To have it running whenever you are, make `npm start` (run in this
-folder) a login item: a LaunchAgent on macOS, a Task Scheduler task "at log on" on Windows, a systemd user service on
-Linux. Webhooks, the public URL and remote agents only reach Inroad while the computer is awake and Inroad is running;
-while it's open, connected sequencers, booking tools and CRMs are also polled every few minutes, so nothing is lost
-when a webhook can't get through.
-
-### Updating
-
-Settings → General → Updates shows the commits on GitHub that this copy doesn't have yet, and the sidebar says when
-there are some. **Update now** does the rest:
-
-1. It backs up the workspace (Settings → Data → Backups lists it as "Before an update").
-2. The launcher (`scripts/serve.mjs`) stops the server and shows an "Updating Inroad" page on the same port, which the
-   open tab follows step by step.
-3. It fast-forwards the branch this copy follows (`git merge --ff-only`), runs `npm ci` when `package-lock.json` or
-   `package.json` changed, and `next build` under `npm start`.
-4. It starts Inroad again, and the tab reloads into the new version.
-
-If installing or building fails, it puts the commit it was on back (`git reset --hard` to it), installs and builds
-that again and starts it, so you're back where you were; Settings and a message say what failed. It only ever moves
-forward: it won't update while one of Inroad's own tracked files is changed on this computer, or when this copy has
-commits that aren't on GitHub, and says what to do instead (untracked files, like `.data/`, are never touched).
-Anything running when you update (research, drafts) stops, so the button asks first. A check is a `git fetch` of
-the branch this copy follows, every 6 hours while Inroad runs; turn it off in Settings. Started without the launcher
-(a bare `next start`), Inroad can't restart itself, so it shows the commands instead: `git pull`, `npm ci`,
-`npm run build`. A new version of the launcher itself takes effect the next time you run `npm start`.
-
-### Only this computer
-
-`npm run dev` and `npm start` go through `scripts/serve.mjs`, which listens on 127.0.0.1 only, so other devices on
-your network can't connect at all. It also stamps every request with the address its connection really comes from,
-and Inroad decides "this is the founder's computer" from that, never from headers a caller can write. Started any
-other way (a bare `next dev` listens on every interface), Inroad refuses every page and says how to start it.
-`INROAD_HOST=0.0.0.0` (or `-- -H …`) listens elsewhere, for a VM or a container; other devices then reach only the
-endpoints that check a key or secret on every call (MCP, the REST API and hook URLs).
-
-The computer itself is the trust boundary: while Inroad runs, anything on it that can open a connection to
-127.0.0.1, including another user account on a shared computer, can use the app as you do (read the workspace,
-download a backup). The data files are readable by your user only, but that protects them on disk, not through the
-running app. Run Inroad on a computer only you use.
-
-### Where your data lives
-
-Everything is a set of JSON files in one folder: `.data/` inside this repository unless `GTM_DATA_DIR` says
-otherwise. Deleting or re-cloning the repository, or `git clean -xfd`, deletes `.data/` with it, so point
-`GTM_DATA_DIR` at a folder of its own, ideally one your computer already backs up:
+**Keep your data outside the repository.** By default, data lives in `.data/` inside this folder, so deleting or re-cloning the repository (or `git clean -xfd`) deletes it too. Give it a folder of its own:
 
 ```bash
 GTM_DATA_DIR="$HOME/Library/Application Support/Inroad" npm start   # macOS
 GTM_DATA_DIR="$HOME/.local/share/inroad" npm start                  # Linux
 ```
 
-```powershell
-$env:GTM_DATA_DIR = "$env:APPDATA\Inroad"; npm start                # Windows PowerShell
+On Windows PowerShell: `$env:GTM_DATA_DIR = "$env:APPDATA\Inroad"; npm start`. Settings → Data shows which folder is in use.
+
+---
+
+## Verification & Testing
+
+```bash
+npm test             # Vitest: unit tests and recorded workflow replays, offline
+npm run typecheck    # tsc --noEmit (run `npx next typegen` once on a fresh checkout)
+npm run lint         # ESLint
+npm run e2e          # Playwright, against the mock with outbound DNS disabled
 ```
 
-Settings → Data shows which folder is in use. The files are readable by your user only (0600, folder 0700), and
-Inroad's own older files are tightened when it starts (anything else in the folder is left alone). That keeps other accounts from reading them on disk; while Inroad is
-running, the app itself answers anyone on this computer (see "Only this computer" above). Your AI provider key is in
-the system credential store (or `ai-keys.json`, encrypted), connector keys and the named tunnel's token in
-`secrets.json`, agent keys (hashed) in `keys.json`: those belong to this computer and are never in a backup or an
-export.
+- **Unit suite**: 1,481 tests across 143 files passing, 3 skipped, measured at v0.2.22. Each test gets an ephemeral data directory. The clock is pinned to `America/Los_Angeles`, and non-localhost network calls are rejected.
+- **Workflow replays**: The main workflows replay recorded API exchanges and fail if a run falls back to compatibility mode, is cut off at `max_tokens`, misses its submit tool, or produces a receipt that disagrees with the usage.
+- **Evals**: `npm run eval:critic` and `npm run eval:classify` gate the draft critic and reply classifier against calibration sets. CI runs them against the mock, and against the real model when an `ANTHROPIC_API_KEY` secret is set.
+- **Live smoke** (not in CI): `npm run smoke:live` runs the workflow tests against the real API behind a cost-capped proxy.
+- **CI**: `.github/workflows/ci.yml` runs typegen, typecheck, lint, tests, evals, `next build` and a separate Playwright job on every push. `.github/workflows/desktop.yml` builds the Mac app.
 
-**What leaves your machine:** calls to your AI provider with the context a task needs (none with Ollama); free public
-lookups that carry company names and domains (company websites, job boards, news, Hacker News, DNS); place names to
-OpenStreetMap (can be turned off) and map tiles from OpenFreeMap; update checks to GitHub (a `git fetch`, or the Mac
-app reading the latest release; nothing about your work, and they can be turned off); and what you push to the tools
-you connect. Company
-icons are first letters unless you turn on fetching each company's icon from its own site (Settings → General); no
-favicon service ever sees your list.
-
-### Backups
-
-- **Automatic:** a copy of every workspace file each day you open Inroad and before every reset, sample, restore or update,
-  gzipped in `backups/` inside the data folder. Each is kept for 14 days at most (and no more than the last 14 daily
-  and 10 others), so someone whose details you delete is gone from them within 14 days.
-- **Download:** Settings → Data → **Download backup** gives one JSON file with everything: playbook, companies,
-  people, deals, drafts, Ask threads, LinkedIn connections, imports and run history.
-- **Restore:** Settings → Data → Backups restores any automatic backup or a downloaded file, here or on another
-  computer, after backing up what's there. A workspace JSON exported by an older version restores too. Your
-  suppression list survives a restore: anyone who unsubscribed, bounced or asked to be deleted after the backup was
-  made stays suppressed, and anyone who asked to have their details deleted is deleted again from what the backup
-  brings back. That holds across a reset or the sample too: before either replaces your workspace, its opt-outs are
-  added to `opt-outs.json` in the data folder, which nothing replaces and every restore reads.
-
-The automatic backups live in the data folder, so they don't survive deleting it: keep a downloaded backup somewhere
-else now and then.
-
-### A public URL that doesn't change
-
-Cloud tools (Calendly, Cal.com, Clay, Zapier, n8n) and remote agents (Meta Muse) need a public https address to
-reach Inroad. Integrations → **Enable public URL** starts a Cloudflare tunnel (`cloudflared` must be installed; the
-page shows the command). A quick tunnel needs no account but gets a new address every start, so tools stop reaching
-Inroad until you paste the new one. **Keep the same address after restarts** sets up a named tunnel on your own domain
-(free with a Cloudflare account): one address forever, started again by itself whenever Inroad starts. Only MCP, the
-REST API and hook URLs answer through either kind.
-
-No public URL? Instantly, Smartlead, lemlist, HubSpot and Attio are polled for replies and changes while Inroad is
-open, and Calendly and Cal.com can be connected with a key so bookings are polled too (Calendly's webhooks need a
-paid plan anyway).
-
-### What it can't do
-
-Inroad can't be deployed to Vercel, a serverless platform or a shared host, and two people can't share one
-workspace. Every page and internal API answers only the computer it runs on; data is files on local disk (read-only
-or temporary on serverless); each server process keeps its own copy of each file in memory, so two processes would
-overwrite each other; research runs keep working after the request that started them has been answered, which
-serverless platforms stop; and the tunnel is a child process. A hosted, multi-user Inroad would need a login and a
-real database; that isn't v1.
-
-### Environment variables
-
-| Variable | What it does |
-|---|---|
-| `GTM_DATA_DIR` | The data folder (default `.data/` in this repository). |
-| `ANTHROPIC_API_KEY` | Your Anthropic key, if you'd rather not paste it in the app. A key saved in the app wins. |
-| `OPENAI_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` | Other providers' keys, the same way. `OPENAI_API_KEY` also paints Studio's image layers when no OpenAI key is saved under Settings → General. |
-| `INROAD_AI_PROVIDER`, `INROAD_AI_MODEL`, `INROAD_AI_BASE_URL`, `INROAD_AI_KEY` | Pick a provider without the app (servers, scripts): its id (`openai`, `gemini`, `xai`, `groq`, `openrouter`, `mistral`, `deepseek`, `together`, `ollama`, `custom`), the model, and for `custom` the base URL and key. The choice in Settings wins. |
-| `OPENAI_BASE_URL` | Send OpenAI calls (chat and Studio images) somewhere else (a gateway); `npm run dev:mock` points it at the mock. |
-| `INROAD_KEYCHAIN` | `off` skips the OS store. `prefer-file` imports existing keys once and then uses the encrypted file (the default for ad hoc Mac builds). `on` explicitly selects the OS store for new keys. |
-| `INROAD_UPDATE_CHECK` | `off` stops this server from asking GitHub for updates by itself; Settings → Updates → Check now still asks. |
-| `FIRECRAWL_API_KEY` | A Firecrawl key for web search off Anthropic, if it is not saved under Web search or connected under Integrations. |
-| `INROAD_SEARCH_PROVIDER` | External search provider: `auto` (default), `off`, `firecrawl`, `deepseek`, `tinyfish`, `tavily`, `exa`, `brave`, `custom`, or `connected`. A saved selection wins. DeepSeek requires an explicit choice. |
-| `TINYFISH_API_KEY`, `TAVILY_API_KEY`, `EXA_API_KEY`, `BRAVE_SEARCH_API_KEY` | Search provider keys; DeepSeek search uses `DEEPSEEK_API_KEY` or the saved DeepSeek model key. |
-| `INROAD_SEARCH_CONNECTION_ID` | Id of an enabled MCP/OpenAPI connection with a mapped search capability, when using `connected` without saved settings. |
-| `INROAD_SEARCH_URL`, `INROAD_SEARCH_KEY` | Full custom search adapter URL and optional bearer key. Receives `{query, limit}` and returns `{results: [{url, title, description}]}`. HTTPS, or HTTP on loopback. |
-| `PORT` | The port (default 3000; `-- -p` works too). |
-| `INROAD_HOST` | The address to listen on (default 127.0.0.1). |
-| `ANTHROPIC_BASE_URL`, `FIRECRAWL_API_URL` | Where those APIs are; `npm run dev:mock` points both at the mock. |
-| `MOCK_PORT` | The mock's port (default 4010), for `npm run mock:anthropic` and `npm run dev:mock`. |
+Details for each command are in [Testing and the offline mock](docs/TESTING.md).
 
 ---
 
@@ -668,56 +295,66 @@ real database; that isn't v1.
 
 ```text
 inroad/
-├── desktop/                     # The Mac app: Electron shell and its updater, electron-builder config, its tests
-├── docs/                        # Architecture specs and GTM research notes
-│   ├── SPEC.md                  # Comprehensive product specification
-│   └── research/                # Operator interviews, API evaluations, token studies
-├── e2e/                         # Playwright browser tests, offline against the mock
-├── public/                      # Static brand and icon assets
-├── scripts/                     # Launcher (serve.mjs) and its updater, mock AI APIs, live smoke, tape recorder, evals, desktop build, release
+├── desktop/                  # Mac app: Electron shell, updater, credentials, electron-builder config
+├── docs/                     # Guides (operations, testing, AI routing, metrics) and the product SPEC
+│   └── research/             # Sourced research behind each feature: GTM playbook, token costs, plays, copy
+├── e2e/                      # Playwright browser tests, offline against the mock
+├── scripts/                  # Launcher (serve.mjs), mock AI APIs, live smoke, tape recorder, evals, release
 ├── src/
-│   ├── app/                     # Next.js 16 App Router pages and API routes
-│   │   ├── api/                 # Endpoints: companies, deals, intros, mcp, settings
-│   │   ├── companies/           # Account dossiers, stage tracking, warm paths
-│   │   ├── events/              # Executive dinner and roundtable planning
-│   │   ├── intros/              # Relationship ledger and warm intro board
-│   │   ├── playbook/            # Founder ICP, messaging bets, and objections
-│   │   └── studio/              # Marketing and launch copy from the founder's material
-│   ├── components/              # React UI components organized by domain surface
-│   │   ├── today/               # Daily 5-move queue and scoreboard
-│   │   ├── shell/               # Navigation, command palette, and run feeds
-│   │   └── map/                 # Interactive geospatial prospect clustering
-│   ├── lib/                     # Core business logic and infrastructure
-│   │   ├── ai/                  # Agent engine, providers (Anthropic, OpenAI-compatible), prompts, SSE streaming
-│   │   ├── consumer/            # Consumer mode: market read, benchmarks, growth math, creator rules, compliance
-│   │   ├── api-keys/            # MCP server implementation, REST auth, tools
-│   │   ├── connectors/          # Firecrawl, Apollo, and FullEnrich clients
-│   │   ├── domain/              # Workspace entities, actions, and reducer
-│   │   ├── intros/              # Warm intro state machine and etiquette rules
-│   │   ├── moves/               # Daily action generation and priority scoreboard
-│   │   ├── plays/               # Signal-based plays: triggers, matches, backtests, results
-│   │   ├── quality/             # Content safety gates, draft linters, sequences
-│   │   ├── revenue/             # Forecast call, deal risk, reverse-waterfall plan, attribution
-│   │   ├── signals/             # SSRF-guarded HTTP client, job board and news parsers
-│   │   ├── store/               # Atomic local-first JSON database (FileDB), AI key storage
-│   │   └── studio/              # Copy formats, moves, receipts, intake and marketing lint
-│   └── test/                    # Test fixtures, mock servers, and test setup
-├── .env.example                 # Documented environment variable template
-├── package.json                 # Dependency definitions and lifecycle scripts
-├── playwright.config.ts         # Playwright configuration for the browser tests
-└── vitest.config.mts            # Vitest configuration for hermetic test execution
+│   ├── proxy.ts              # Local trust boundary: locality, origin and Sec-Fetch checks
+│   ├── app/
+│   │   ├── (app)/            # Pages: today, revenue, plays, companies, intros, partners, events,
+│   │   │                     #   growth, studio, research, playbook, integrations, settings
+│   │   ├── api/              # Route handlers, MCP (/api/mcp), REST (/api/v1), inbound hooks
+│   │   └── welcome/          # First-run onboarding
+│   ├── components/           # React UI, one folder per surface
+│   ├── lib/
+│   │   ├── ai/               # Anthropic engine, OpenAI-compatible adapter, routing, model pricing
+│   │   ├── workflows/        # Discovery, dossier, compose, prep, debrief, Ask, GTM update, Studio
+│   │   ├── revenue/          # Forecast call, deal risk, reverse waterfall, attribution
+│   │   ├── plays/            # 13 plays: triggers, matches, backtests, results
+│   │   ├── moves/            # Today's move rules and scoreboard
+│   │   ├── intros/           # Warm intro state machine and etiquette rules
+│   │   ├── consumer/         # Consumer mode: growth math, benchmarks, creator compliance
+│   │   ├── studio/           # Copy formats, moves, receipts, lint, SVG graphics
+│   │   ├── signals/          # SSRF-guarded HTTP client, job board, news and records parsers
+│   │   ├── search/           # Research search providers, ranking, budgets
+│   │   ├── metrics/          # PostHog, Stripe and Polar syncs
+│   │   ├── hub/              # Connector webhooks, polling, CRM sync
+│   │   ├── api-keys/         # MCP tools and REST auth
+│   │   ├── quality/          # Draft gates and linters
+│   │   ├── server/           # Launcher, local-request and desktop helpers
+│   │   └── store/            # Atomic FileDB and AI key storage
+│   └── test/                 # Fixtures, recorded tapes and test setup
+├── .env.example              # Environment variable template
+└── vitest.config.mts         # Hermetic Vitest configuration
 ```
+
+---
+
+## Documentation
+
+| Guide | Covers |
+| :--- | :--- |
+| [Running Inroad day to day](docs/OPERATIONS.md) | Production server, updates, data folder, backups, public URL, key storage, all environment variables |
+| [The Mac app](docs/MAC-APP.md) | Download, first open, updates, building, signing and releasing |
+| [Testing and the offline mock](docs/TESTING.md) | Mock faults, tapes, Playwright, live smoke, evals, CI |
+| [AI connections and routing](docs/AI-ROUTING.md) | Multiple accounts, per-task models, AI gateways |
+| [Research guide](docs/RESEARCH.md) | Search providers, monitors, MCP and OpenAPI connections |
+| [Business metrics](docs/business-metrics.md) · [GTM execution](docs/gtm-execution.md) · [Waitlists](docs/waitlists.md) | Metric definitions, initiatives, pipeline diagnostics |
+| [Product spec](docs/SPEC.md) · [Security policy](SECURITY.md) | Scope, non-goals, reporting a vulnerability |
+| [Changelog](CHANGELOG.md) | Every release with its validation |
 
 ---
 
 ## Project Status & Limitations
 
-- **Maturity**: Functional MVP with complete local-first persistence, offline mock test environment, production Next.js 16 build, and a Mac app.
-- **Model Support**: Built and tuned on Anthropic Claude (Opus, Sonnet, Haiku 5.5). OpenAI, Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Ollama and any OpenAI-compatible API run the same workflows through Chat Completions; off Anthropic, web search uses the independently selected search provider and model spend is counted only for models with a known price. External search charges are billed separately by the search provider. Studio graphics can also paint an optional picture layer with OpenAI GPT Image, on a separate OpenAI key the founder saves under Settings → General.
-- **Studio graphics limits**: the OpenAI Images API route was tested against a local mock, not the live Images API. The ChatGPT subscription route was separately verified with one real generated PNG through a local Codex ChatGPT sign-in. Fresh browser sign-in, quota errors and cancellation have mock protocol coverage; account availability and limits vary. OpenAI may require organization verification before GPT Image models work. Graphics render with the fonts installed on your machine (the designs name Georgia, Inter or Helvetica, and Menlo, with fallbacks), so the same SVG can look slightly different on macOS, Windows and Linux.
-- **Single Fixed Workstation**: Data resides in the data folder on the local machine; cross-device multi-tenant cloud synchronization requires an external database adapter. See [What it can't do](#what-it-cant-do).
-- **Email Dispatch Boundary**: Inroad deliberately omits automated SMTP/IMAP senders. All outreach requires manual founder approval to prevent automated spam penalties.
-- **Studio research limits**: the original technique and platform-limit research in `docs/research/10-marketing-copy.md` relied largely on search excerpts because direct fetches were blocked; each limit records its verification method. The campaign library has a separate, updated source and live media ledger in `docs/research/11-studio-campaign-library.md`. Reported campaign outcomes do not establish the conversion effect of a particular line or creative device; founders still need to test their own options against paid conversions.
+- **Maturity**: Functional MVP with tagged releases (v0.2.22 as of 2026-10-30), a Mac app, and CI covering unit, browser and eval checks. No usage, revenue or conversion results are claimed. Reported campaign outcomes in Studio's library are the publishers' own, not evidence that a given line converts.
+- **Single user, single machine**: Inroad cannot be deployed to Vercel, serverless or a shared host, and two people cannot share a workspace. A hosted version would need a login and a real database ([why](docs/OPERATIONS.md#what-it-cant-do)).
+- **Model support**: The prompts were written and tested on Claude. Other tool-calling models run the same workflows through Chat Completions, and small local models may need occasional retries. Off Anthropic, web search uses a separately chosen provider.
+- **No sending**: There is deliberately no SMTP or IMAP sender. All outreach waits for your approval.
+- **Unsigned builds**: Mac builds are ad hoc signed until a Developer ID is added, so macOS asks once per version.
+- **Studio graphics**: The OpenAI Images route is tested against a local mock only. The ChatGPT-plan route was verified with one real PNG. Fonts depend on the machine rendering the SVG.
 
 ---
 
