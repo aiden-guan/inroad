@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Documentation
+- The README is rebuilt as an overview: a four-paragraph summary, capability grids grouped by Sell, Run the number and Market & research, an architecture diagram that includes the launcher, request proxy, provider adapters, connector hub and metric syncs, and a documentation index.
+- Fixed the architecture diagram. The previous version did not parse in Mermaid 11 (parentheses inside an edge label), so GitHub could not draw it.
+- The operating manuals moved out of the README into their own guides, with their wording intact: [`docs/OPERATIONS.md`](docs/OPERATIONS.md) (production server, updates, data folder, backups, public URL, key storage, every environment variable), [`docs/MAC-APP.md`](docs/MAC-APP.md) and [`docs/TESTING.md`](docs/TESTING.md) (mock faults, tapes, Playwright, live smoke, evals, CI).
+- Engineering deep dives now cover the local trust boundary (`scripts/serve.mjs` and `src/proxy.ts`), the connect-time SSRF guard, and prompt caching with strict-schema handling and tape replays.
+- Corrected claims that the code does not support. Removed "Server Actions", since no `"use server"` module exists. Removed the unsourced "~10–20 ms" lookup overhead and "70–85% cache hit" figures. The cache price is now stated as 0.05×/0.1× of input, from `src/lib/ai/models.ts`. The MCP tool count is corrected to 21, and the test count is updated from 1,146 to 1,481.
+- A product tour with four real screenshots (Today, Revenue, Plays, Studio) captured from v0.2.22 in mock mode on the sample workspace, at 1440×900 @2x with Playwright, in `assets/readme/`.
+- The v0.1.0 entry below is regrouped by kind of change instead of listing raw commit subjects.
+
+### Validation
+- 1,481 unit tests pass across 143 files, with three skipped (`npx vitest run` on v0.2.22). The README diagram parses with Mermaid 11.4.1. Every relative link and image in the README resolves, and every `npm run` script it names exists in `package.json`.
+
 ---
 
 ## [v0.2.22] — 2026-10-30
@@ -355,22 +367,20 @@ This version was not published; the browser release gate caught a stale phone an
 ## [v0.1.0] — 2026-10-22
 
 ### Summary
-Production presentation showcase pass with architecture specifications, hermetic test verification, and repository hygiene.
+The first working version: an AI Head of GTM for founder-led sales that finds who to talk to and why now, drafts every touch with its sources, and keeps the founder in control of every send.
 
-### Detailed Changes
+### Added
+- The core app: playbook, Today's moves, sourced company dossiers, compose and Ask on a local-first JSON store (`8e3caf2`).
+- People data through Firecrawl Alexandria (`9b31a94`).
+- Intros: double opt-in intros from the ask to the thank-you, with connector etiquette enforced in code (`467f01c`).
+- The lead map and event Nearby, for planning dinners around where prospects are (`3a02fab`).
+- Polling for connected tools when no webhook can reach the app, and a one-click public URL (`1ff14f2`).
 
-#### Tooling & Hygiene
+### Fixed
+- The open items from the first review pass (`858ab3c`).
 
-- **General**: Bring the merged test suite up to date (`4eaf632`)
-- **General**: Merge branch 'claude/recursing-germain-1c583f': Vitest suite and CI (`21f67b5`)
-- **General**: Merge branch 'claude/polling-public-url': polling sync and one-click public URL (`d0079eb`)
-- **General**: Add the lead map, event Nearby, and ease-of-use polish (`3a02fab`)
-- **General**: Add Intros: double opt-in intros from the ask to the thank-you (`467f01c`)
-- **General**: Add people data through Firecrawl Alexandria (`9b31a94`)
-- **General**: Add a Vitest suite and CI (`7725fe1`)
-- **General**: Poll connected tools when no webhook can reach the app, and add a one-click public URL (`1ff14f2`)
-- **General**: Close the open items from the review pass (`858ab3c`)
-- An AI Head of GTM for founder-led sales (`8e3caf2`)
+### Tooling
+- A Vitest suite and CI (`7725fe1`), brought up to date after the feature branches merged (`4eaf632`).
 
-### Verification Proof
-All 17 Vitest test suites (365 tests) passing offline; validate_readme.py passed in strict mode.
+### Validation
+- 17 Vitest test files (365 tests) pass offline.

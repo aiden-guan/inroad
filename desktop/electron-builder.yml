@@ -1,6 +1,6 @@
 # Inroad for Mac. Build the server first (npm run desktop:server -- --platform darwin --arch arm64), then
 # `npm run desktop:dist -- --arm64`. Signing and notarizing happen when the signing environment is set (see
-# README, "The Mac app"); without it the app is signed ad hoc, which runs after the first-open steps there.
+# docs/MAC-APP.md); without it the app is signed ad hoc, which runs after the first-open steps there.
 appId: app.inroad.desktop
 productName: Inroad
 copyright: Copyright © 2026 Inroad
