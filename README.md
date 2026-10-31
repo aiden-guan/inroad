@@ -15,7 +15,7 @@
 
 <br/>
 
-![Inroad Hero Banner](assets/readme/hero.png)
+<img src="assets/readme/hero.png" alt="Inroad: the Today brief and the Revenue call from the built-in sample workspace" width="100%"/>
 
 </div>
 
