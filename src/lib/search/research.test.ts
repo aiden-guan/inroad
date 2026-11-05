@@ -50,6 +50,15 @@ describe("the research service", () => {
     expect(readWorkspace().accounts["invented.org"]).toBeUndefined();
   });
 
+  it("keeps a monitor's scheduled searches out of Recent research, but keeps their receipts", async () => {
+    saveSearchSetup({ provider: "tavily", key: "tavily-test-key" });
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json({ results: [hit] })));
+    const mine = await researchWeb(ResearchInput.parse({ query: "finance software" }));
+    const scheduled = await researchWeb(ResearchInput.parse({ query: "new sales leader", fresh: true }), undefined, { session: false });
+    expect(readAutomation().sessions.map((s) => s.receiptId)).toEqual([mine.receiptId]);
+    expect(readAutomation().receipts.map((r) => r.id)).toEqual(expect.arrayContaining([mine.receiptId, scheduled.receiptId]));
+  });
+
   it("uses Claude's native search when available, rejects invented sources, and books the real model/search cost", async () => {
     vi.spyOn(client, "activeProvider").mockReturnValue({
       id: "anthropic",

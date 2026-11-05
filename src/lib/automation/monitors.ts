@@ -58,7 +58,7 @@ async function execute(monitor: Monitor, abort: AbortController, epoch: number) 
   try {
     let hash: string, urls: string[], summary: string;
     if (monitor.kind === "topic") {
-      const result = await researchWeb(ResearchInput.parse({ query: monitor.query, fresh: true, limit: 20 }), abort.signal);
+      const result = await researchWeb(ResearchInput.parse({ query: monitor.query, fresh: true, limit: 20 }), abort.signal, { session: false });
       if (result.warnings.some((warning) => !warning.startsWith("Some sources") && !warning.startsWith("No results")))
         throw new Error(result.warnings.join(" "));
       const matching = result.results.filter(
