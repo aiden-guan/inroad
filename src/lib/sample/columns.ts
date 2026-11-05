@@ -53,6 +53,9 @@ function usageCells(c: Clock): Seed[] {
     { domain: DOMAIN.ashgrove, value: true, confidence: "high", sources: [site(DOMAIN.ashgrove, "Global IoT connectivity, billed per active device.", read)], note: "Billed per active device each month.", costUsd: 0.0013, pages: 4 },
     { domain: DOMAIN.glassmoor, value: true, confidence: "high", sources: [site(DOMAIN.glassmoor, "Priced per 1,000 queries.", read)], note: "Charged per 1,000 search queries.", costUsd: 0.0011, pages: 3 },
     { domain: DOMAIN.hollowpine, value: true, confidence: "high", sources: [site(DOMAIN.hollowpine, "Pay per 1,000 sends.", read)], note: "Charged per 1,000 emails sent.", costUsd: 0.0011, pages: 2 },
+    // The two prospects the sample's custom play fires on (./plays.ts); their descriptions carry these lines.
+    { domain: "tallyhook.example", value: true, confidence: "high", sources: [site("tallyhook.example", "Priced per transaction.", read)], note: "Charged per payment transaction processed.", costUsd: 0.0012, pages: 3 },
+    { domain: "mossbank.example", value: true, confidence: "high", sources: [site("mossbank.example", "Pay per GB processed.", read)], note: "Charged per GB of data its pipelines process.", costUsd: 0.0012, pages: 3 },
     {
       domain: DOMAIN.cinderpath,
       value: true,

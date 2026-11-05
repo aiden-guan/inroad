@@ -313,7 +313,7 @@ describe("putting a theme to work", () => {
     const v = buyerVoice(ws, TODAY);
     const t = v.themes.find((x) => x.key === "pain:mismatch")!;
     const material = studioMaterial(ws, v, t, at(0));
-    expect(material[0]).toMatchObject({ kind: "fact", text: `Buyers raised "${t.label}" in 3 of 15 conversations since Aug 7.` });
+    expect(material[0]).toMatchObject({ kind: "fact", text: `Buyers raised "${t.label}" in 3 of 16 conversations since Aug 7.` });
     const quotes = material.filter((m) => m.kind === "quote");
     expect(quotes.length).toBe(3);
     expect(quotes.every((q) => q.permission === "anonymized_only" && !/Ava|Tom|Ben/.test(q.source ?? ""))).toBe(true);
@@ -325,7 +325,7 @@ describe("putting a theme to work", () => {
     const ws = sample();
     const v = buyerVoice(ws, TODAY);
     const q = askAboutTheme(v, v.themes.find((x) => x.key === "objection:build")!);
-    expect(q).toContain('"Our data team could build it": 4 of 15 conversations, 3 deals');
+    expect(q).toContain('"Our data team could build it": 4 of 16 conversations, 3 deals');
     expect(q).toContain("too early to call");
     expect(askAboutAlternative(alt(ws, "named:netsuite"))).toContain("won 0, lost 1, open 1");
   });
@@ -335,7 +335,7 @@ describe("the summary page", () => {
   it("goes into the Playbook export with counts, one quote a theme and roles, never names", () => {
     const md = playbookMarkdown(sample(), TODAY);
     expect(md).toContain("## What buyers say");
-    expect(md).toContain("- **Usage tie-out eats days every close** (pain): 6 of 15 conversations, 6 deals.");
+    expect(md).toContain("- **Usage tie-out eats days every close** (pain): 6 of 16 conversations, 6 deals.");
     expect(md).toContain("- NetSuite _(not in this playbook yet)_: 2 conversations; won 0, lost 1, open 1");
     const section = md.slice(md.indexOf("## What buyers say"), md.indexOf("## Voice"));
     expect(section).not.toMatch(/Grace Liu|Ava Whitman|Ben Adler|Dana Okafor|Maya Okonkwo/);
