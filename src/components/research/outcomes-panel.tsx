@@ -1,28 +1,28 @@
 "use client";
 import { Button } from "@/components/ui/button";
+import { outcomesLine } from "./outcomes-model";
 import type { AutomationController } from "./use-automation";
 
 export function OutcomesPanel({ automation }: { automation: AutomationController }) {
   const metrics = automation.data?.metrics ?? [];
+  const line = outcomesLine(metrics);
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[18px] font-medium">Research cost and outcomes</h2>
-          <p className="mt-2 max-w-[70ch] text-[13px] leading-6 text-fg-2">
-            Requests, failures and accepted websites from the last 90 days, linked to replies, meetings and won deals in this workspace. An account can be
-            associated with multiple providers; these counts show association.
+        <div className="min-w-0 flex-1 basis-72">
+          <h2 className="text-[18px] font-medium">What research led to</h2>
+          <p className="mt-2 max-w-[70ch] text-[14px] leading-[22px] text-fg">
+            {line ?? "Nothing yet. Search, scan for intent and track the companies worth a look; their replies, meetings and wins show up here."}
+          </p>
+          <p className="mt-2 max-w-[70ch] text-[12.5px] leading-[19px] text-fg-3">
+            Counted from the last 90 days of requests, linked to replies, meetings and won deals in this workspace. A company found by two sources counts for both, so
+            these show association, not cause.
           </p>
         </div>
         <Button size="sm" variant="secondary" onClick={() => void automation.reload()}>
           Refresh outcomes
         </Button>
       </div>
-      {!metrics.length && (
-        <p className="rounded-lg bg-bg-subtle p-5 text-[13px] text-fg-3">
-          Search, read sources, and track useful company websites to start collecting evidence.
-        </p>
-      )}
       {metrics.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-left text-[12px]">
@@ -62,10 +62,12 @@ export function OutcomesPanel({ automation }: { automation: AutomationController
         Unknown provider charges remain unknown. Claude native cost includes its model tokens and search; external search and browser charges are separate
         from model usage. Small samples cannot establish that a provider or signal improves win rates.
       </p>
-      <section className="space-y-3">
-        <h3 className="text-[15px] font-medium">Recent operations</h3>
+      <details className="group space-y-3">
+        <summary className="cursor-pointer text-[14px] font-medium text-fg-2 hover:text-fg">
+          Every request ({Math.min(30, automation.data?.receipts.length ?? 0)} most recent)
+        </summary>
         {automation.data?.receipts.slice(0, 30).map((receipt) => (
-          <article key={receipt.id} className="rounded-lg border border-border p-3">
+          <article key={receipt.id} className="mt-3 rounded-lg p-3 ring-1 ring-inset ring-border">
             <div className="flex flex-wrap justify-between gap-2">
               <p className="text-[12px] font-medium">
                 {receipt.provider} · {receipt.kind}
@@ -82,7 +84,7 @@ export function OutcomesPanel({ automation }: { automation: AutomationController
             {receipt.error && <p className="mt-1 text-[12px] text-danger">{receipt.error}</p>}
           </article>
         ))}
-      </section>
+      </details>
     </div>
   );
 }

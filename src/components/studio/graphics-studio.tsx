@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, ImageIcon, PenLine } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/misc";
@@ -28,6 +28,7 @@ export function GraphicsStudio({
   onSelect,
   onWrite,
   onEdit,
+  creator,
 }: {
   ws: Workspace;
   pieceId?: string | null;
@@ -35,6 +36,8 @@ export function GraphicsStudio({
   onSelect: (pieceId: string, optionId: string) => void;
   onWrite: () => void;
   onEdit: (pieceId: string) => void;
+  /** Who designs: the compact Create with control, shown with the design controls it affects. */
+  creator?: ReactNode;
 }) {
   const pieces = useMemo(
     () => Object.values(ws.studio.pieces)
@@ -116,9 +119,12 @@ export function GraphicsStudio({
             </Button>
           </aside>
           <div className="min-w-0" role="region" aria-label="Graphic design controls">
-            <h3 className="flex items-center gap-2 text-[14px] font-semibold text-fg">
-              <ImageIcon aria-hidden className="size-4" /> Design your graphic
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <h3 className="flex items-center gap-2 text-[14px] font-semibold text-fg">
+                <ImageIcon aria-hidden className="size-4" /> Design your graphic
+              </h3>
+              {creator}
+            </div>
             <VisualPanel key={option.id} ws={ws} piece={piece} option={option} />
           </div>
         </div>

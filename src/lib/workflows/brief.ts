@@ -155,10 +155,13 @@ async function writeBrief(ctx: WorkflowContext<BriefArgs>) {
   await ctx.mutate((draft) => {
     const visibleNow = visibleMoves(draft.moves, today);
     const prev = draft.briefs[today];
+    // A later run the same day adds its lines to the morning's (newest first, up to 3) instead of replacing them:
+    // "nothing new clears the bar" at 4 pm mustn't wipe what was worth knowing at 8 am.
+    const kept = (prev?.matters ?? []).filter((p) => !matters.some((m) => m.text === p.text || (!!m.url && m.url === p.url)));
     draft.briefs[today] = {
       ...(prev ?? { date: today, kind: "daily", matters: [], seen: [] }),
       greeting: codeGreeting(draft, visibleNow, now),
-      matters,
+      matters: [...matters, ...kept].slice(0, 3),
       runId: ctx.runId,
       generatedAt: new Date().toISOString(),
       seen: [...new Set([...(prev?.seen ?? []), ...news.map((n) => n.key)])],

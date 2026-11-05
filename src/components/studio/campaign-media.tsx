@@ -27,7 +27,7 @@ function PreviewImage({
   return failed ? (
     <div className="absolute inset-0 flex flex-col justify-end bg-bg-subtle p-5 text-left">
       <p className="font-serif text-[25px] leading-8 text-fg">{fallback}</p>
-      <p className="mt-2 text-[11px] leading-4 text-fg-3">
+      <p className="mt-2 text-[12px] leading-4 text-fg-3">
         Publisher preview unavailable. The full study is available below.
       </p>
     </div>
@@ -198,7 +198,7 @@ export function CampaignMediaGallery({ id }: { id: string }) {
           ))}
         </div>
       )}
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-2 text-[11px] leading-4">
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-2 text-[12px] leading-4">
         <a
           href={media.sourceUrl}
           target="_blank"

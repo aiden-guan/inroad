@@ -37,7 +37,7 @@ export function SourceChip({
       <RP.Trigger asChild>
         <button
           className={cn(
-            "inline-flex h-5 max-w-[min(14rem,100%)] items-center gap-1 rounded-xs bg-surface px-1 align-[1px] text-[11px] text-fg-2 ring-1 ring-border",
+            "inline-flex h-5 max-w-[min(14rem,100%)] items-center gap-1 rounded-xs bg-surface px-1 align-[1px] text-[12px] text-fg-2 ring-1 ring-border",
             "transition-[background-color,box-shadow] duration-150 ease-out-quad hover:bg-accent-subtle hover:ring-accent/30",
             className,
           )}
@@ -85,7 +85,7 @@ export function MarginNote({ url, publishedAt, quote, className }: { url: string
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={cn("group block border-l border-accent/40 pl-2.5 text-[11.5px] leading-[16px] text-fg-3 transition-colors hover:border-accent hover:text-fg-2", className)}
+      className={cn("group block border-l border-accent/40 pl-2.5 text-[12px] leading-[17px] text-fg-3 transition-colors hover:border-accent hover:text-fg-2", className)}
     >
       <span className="font-mono text-fg-2">
         {host}

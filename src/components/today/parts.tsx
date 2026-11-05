@@ -24,7 +24,7 @@ import {
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useActiveRuns, useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -184,6 +184,14 @@ export function RunInline({
 export function HoldButton({ onConfirm, children, ms = 900 }: { onConfirm: () => void; children: ReactNode; ms?: number }) {
   const [holding, setHolding] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Esc or a collapse mid-hold unmounts the button: the hold is abandoned, never completed.
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+    },
+    [],
+  );
   const begin = () => {
     if (timer.current) return;
     setHolding(true);
@@ -212,6 +220,7 @@ export function HoldButton({ onConfirm, children, ms = 900 }: { onConfirm: () =>
       onKeyUp={(e) => {
         if (e.key === "Enter" || e.key === " ") cancel();
       }}
+      onPointerCancel={cancel}
       onBlur={cancel}
       className="relative inline-flex h-8 select-none items-center overflow-hidden rounded-sm px-3 text-[13px] font-medium text-danger ring-1 ring-danger/30 transition-transform duration-100 active:scale-[0.97]"
     >

@@ -192,7 +192,7 @@ function GuestDetail({ ev, g, ws }: { ev: GtmEvent; g: Guest; ws: Workspace }) {
         <div>
           <p className="font-medium text-fg-3">Why them</p>
           {g.scoreParts ? (
-            <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11.5px] tnum">
+            <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[12px] tnum">
               <dt className="text-fg-3">Fit</dt>
               <dd className="text-fg">{g.scoreParts.fit.toFixed(2)}</dd>
               <dt className="text-fg-3">Seniority</dt>
@@ -228,7 +228,7 @@ function GuestDetail({ ev, g, ws }: { ev: GtmEvent; g: Guest; ws: Workspace }) {
             {g.competitorConflict}
           </p>
         )}
-        {day && g.invitedOn && <p className="font-mono text-[11.5px] text-fg-3">Invited {g.invitedOn}</p>}
+        {day && g.invitedOn && <p className="font-mono text-[12px] text-fg-3">Invited {g.invitedOn}</p>}
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
           {acc && (
             <Link href={`/companies?c=${encodeURIComponent(acc.domain)}`} className="inline-flex items-center gap-1 text-fg-2 underline-offset-4 hover:text-fg hover:underline">
@@ -270,7 +270,7 @@ function GuestRow({ ev, g, ws, open, onToggle }: { ev: GtmEvent; g: Guest; ws: W
               {g.mustAttend && <span className="hidden size-1.5 shrink-0 rounded-full bg-fg sm:inline-block" title="Must-attend" aria-label="Must-attend" />}
               {g.competitorConflict && <TriangleAlert className="size-3.5 shrink-0 text-warning" aria-label="Competitor conflict" />}
             </span>
-            <span className="block truncate text-[12.5px] text-fg-3">{[g.name ? g.title : null, company].filter(Boolean).join(" · ")}</span>
+            <span className="block truncate text-[12.5px] text-fg-3" title={[g.name ? g.title : null, company].filter(Boolean).join(" · ")}>{[g.name ? g.title : null, company].filter(Boolean).join(" · ")}</span>
           </span>
         </button>
         <span className="hidden items-center gap-1.5 lg:flex">
@@ -278,7 +278,7 @@ function GuestRow({ ev, g, ws, open, onToggle }: { ev: GtmEvent; g: Guest; ws: W
           {deal && <Badge>{STAGE_LABELS[deal.stage]}</Badge>}
           {g.warmPath && g.role === "prospect" && !deal && <Badge tone="outline">Warm</Badge>}
         </span>
-        <span className="hidden w-7 text-right font-mono text-[11.5px] tnum text-fg-3 sm:block" title="Score">
+        <span className="hidden w-7 text-right font-mono text-[12px] tnum text-fg-3 sm:block" title="Score">
           {g.role === "connector" ? "" : g.score}
         </span>
         <StatusMenu g={g} onSet={(s) => void actions.setStatus(g, s)} />
@@ -328,8 +328,8 @@ function AddGuest({ ev, ws }: { ev: GtmEvent; ws: Workspace }) {
             <button onClick={() => add(p)} className="flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-bg-subtle focus-visible:bg-bg-subtle">
               <Favicon domain={p.accountDomain} size={18} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] text-fg">{p.name}</span>
-                <span className="block truncate text-[11.5px] text-fg-3">
+                <span className="block truncate text-[13px] text-fg" title={p.name}>{p.name}</span>
+                <span className="block truncate text-[12px] text-fg-3">
                   {p.title} · {ws.accounts[p.accountDomain]?.name ?? p.accountDomain}
                 </span>
               </span>
@@ -431,7 +431,7 @@ export function GuestsTab({ ev }: { ev: GtmEvent }) {
             ))}
             {!sections.length && <p className="text-[13px] text-fg-3">No guests with this status.</p>}
           </div>
-          <p className="mt-6 hidden text-[11.5px] text-fg-3 md:block">
+          <p className="mt-6 hidden text-[12px] text-fg-3 md:block">
             <kbd className="font-mono">J</kbd>/<kbd className="font-mono">K</kbd> to move, <kbd className="font-mono">Enter</kbd> to open a guest.
           </p>
         </>

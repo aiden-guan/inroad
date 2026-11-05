@@ -75,6 +75,36 @@ describe("pipeline creation and stage cohorts", () => {
     expect(pipelinePulse(ws, NOW).rows.find((r) => r.stage === "qualified")?.advanced).toBe(0);
   });
 
+  it("counts a move to nurture as a decided exit that didn't move forward, not a loss", () => {
+    const ws = workspace();
+    for (let i = 0; i < 6; i++) ws.deals[`f${i}`] = makeDeal(`f${i}`, `f${i}.com`, { stage: "proposal", stageHistory: [event("qualified", "2026-10-01"), event("proposal", "2026-10-11")] });
+    for (let i = 0; i < 2; i++) ws.deals[`l${i}`] = makeDeal(`l${i}`, `l${i}.com`, { stage: "lost", stageHistory: [event("qualified", "2026-10-01"), event("lost", "2026-10-09")] });
+    for (let i = 0; i < 2; i++) ws.deals[`n${i}`] = makeDeal(`n${i}`, `n${i}.com`, { stage: "nurture", stageHistory: [event("qualified", "2026-10-01"), event("nurture", "2026-10-09")] });
+    // Back from nurture later: the first exit still decided it.
+    ws.deals.back = makeDeal("back", "back.com", { stage: "proposal", stageHistory: [event("qualified", "2026-10-02"), event("nurture", "2026-10-05"), event("proposal", "2026-10-20")] });
+    // Parked with no dated move: an outcome without a date, never "waiting".
+    ws.deals.undated = makeDeal("undated", "undated.com", { stage: "nurture", stageHistory: [event("qualified", "2026-10-03")] });
+    const row = pipelinePulse(ws, NOW).rows.find((r) => r.stage === "qualified")!;
+    expect(row).toMatchObject({ entered: 12, advanced: 6, lost: 2, nurtured: 3, decided: 11, waiting: 0, unknown: 1 });
+    // 6 of 11, not the 6 of 8 that leaving nurture out would claim.
+    expect(row.conversion).toBeCloseTo(6 / 11);
+    expect(row.entered).toBe(row.decided + row.waiting + row.unknown);
+  });
+
+  it("leaves out stage entries a file couldn't date", () => {
+    const ws = workspace();
+    const imported = "2026-10-28T17:03:11.123Z";
+    ws.deals.a = makeDeal("a", "a.com", { stage: "proposal", stageHistory: [{ stage: "proposal", at: imported }], imported: { at: imported, from: "deals.csv", stage: "proposal", unknown: ["created", "stage_date"] } });
+    ws.deals.b = makeDeal("b", "b.com", { stage: "qualified", stageHistory: [event("talking", "2026-09-20"), { stage: "qualified", at: imported }], imported: { at: imported, from: "deals.csv", stage: "qualified", unknown: ["stage_date"] } });
+    const pulse = pipelinePulse(ws, NOW);
+    // Learning of two deals today isn't two new qualified deals today.
+    expect(pulse.recent.count).toBe(0);
+    expect(pulse.undatedQualified).toBe(2);
+    expect(pulse.rows.find((r) => r.stage === "proposal")?.entered).toBe(0);
+    // b's dated start counts; its exit has no date, so its outcome is unknown rather than waiting.
+    expect(pulse.rows.find((r) => r.stage === "talking")).toMatchObject({ entered: 1, unknown: 1, waiting: 0 });
+  });
+
   it("never substitutes an average or a later quote for an explicitly stated zero", () => {
     expect(knownDealValue(makeDeal("a", "a.com", { amountUsd: 0, priceQuotes: [{ at: "2026-10-01", amountUsd: 100 }] }))).toBe(0);
     expect(knownDealValue(makeDeal("a", "a.com", { amountUsd: -1 }))).toBeNull();

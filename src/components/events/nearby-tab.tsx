@@ -181,10 +181,10 @@ export function NearbyTab({ ev }: { ev: GtmEvent }) {
                   if (!list.length) return null;
                   return (
                     <section key={g.key}>
-                      <p className="flex items-baseline gap-1.5 px-1 text-[11.5px] font-medium text-fg-3">
+                      <p className="flex items-baseline gap-1.5 px-1 text-[12px] font-medium text-fg-3">
                         {g.label} <span className="font-mono tnum">{list.length}</span>
                       </p>
-                      {g.hint && <p className="px-1 text-[11.5px] text-fg-4">{g.hint}</p>}
+                      {g.hint && <p className="px-1 text-[12px] text-fg-4">{g.hint}</p>}
                       <ul className="mt-1.5 space-y-1">
                         <AnimatePresence initial={false}>
                           {list.map((p) => (
@@ -210,15 +210,15 @@ export function NearbyTab({ ev }: { ev: GtmEvent }) {
                               <Favicon domain={p.domain} name={p.company} size={18} />
                               <div className="min-w-0 flex-1">
                                 <p className="flex items-center gap-1.5 truncate text-[13px]">
-                                  <span className="truncate font-medium text-fg">{p.name}</span>
+                                  <span className="truncate font-medium text-fg" title={p.name}>{p.name}</span>
                                   {p.warm && (
                                     <Tooltip content="You know them, or have a warm path in">
                                       <Handshake className="size-3 shrink-0 text-accent" aria-label="Warm" />
                                     </Tooltip>
                                   )}
-                                  {p.tier === "A" && <span className="shrink-0 font-mono text-[10.5px] text-fg-3">A</span>}
+                                  {p.tier === "A" && <span className="shrink-0 font-mono text-[12px] text-fg-3">A</span>}
                                 </p>
-                                <p className="truncate text-[11.5px] text-fg-3">
+                                <p className="truncate text-[12px] text-fg-3">
                                   {p.kind === "person" ? [p.title, p.company].filter(Boolean).join(" · ") : "Nobody named yet"}
                                   {p.byHq && p.kind === "person" && (
                                     <Tooltip content="Placed by their company's HQ; they may work elsewhere.">
@@ -227,7 +227,7 @@ export function NearbyTab({ ev }: { ev: GtmEvent }) {
                                   )}
                                 </p>
                               </div>
-                              <span className="shrink-0 font-mono text-[11px] tnum text-fg-3">{formatDistance(p.km, miles)}</span>
+                              <span className="shrink-0 font-mono text-[12px] tnum text-fg-3">{formatDistance(p.km, miles)}</span>
                               {p.personId ? (
                                 guestsByPerson.has(p.personId) ? (
                                   <Badge tone="outline">
@@ -263,7 +263,7 @@ export function NearbyTab({ ev }: { ev: GtmEvent }) {
 function Legend() {
   const dot = (cls: string) => <span aria-hidden className={cn("inline-block size-2.5 rounded-full ring-2 ring-bg", cls)} />;
   return (
-    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11.5px] text-fg-3">
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[12px] text-fg-3">
       <span className="flex items-center gap-1.5">{dot("bg-accent")} Pipeline</span>
       <span className="flex items-center gap-1.5">{dot("bg-fg")} Prospect</span>
       <span className="flex items-center gap-1.5">{dot("bg-success")} Customer</span>
@@ -323,7 +323,7 @@ function NearApollo({ ev, near }: { ev: GtmEvent; near: string }) {
         </div>
       ) : (
         <>
-          <p className="px-1 text-[11.5px] font-medium text-fg-3">
+          <p className="px-1 text-[12px] font-medium text-fg-3">
             On Apollo near {near.split(",")[0]} <span className="font-mono tnum">{found.total && found.total > found.people.length ? `${found.people.length} of ${found.total}` : found.people.length}</span>
           </p>
           <ul className="mt-1.5 space-y-1">
@@ -336,7 +336,7 @@ function NearApollo({ ev, near }: { ev: GtmEvent; near: string }) {
                       {p.firstName} {p.lastName}
                     </span>
                   </p>
-                  <p className="truncate text-[11.5px] text-fg-3">{[p.title, p.companyName].filter(Boolean).join(" · ")}</p>
+                  <p className="truncate text-[12px] text-fg-3" title={[p.title, p.companyName].filter(Boolean).join(" · ")}>{[p.title, p.companyName].filter(Boolean).join(" · ")}</p>
                 </div>
                 {p.personId ? (
                   <Badge tone="outline">

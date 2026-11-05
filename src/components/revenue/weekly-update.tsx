@@ -42,7 +42,7 @@ export function WeeklyUpdate({ ws, today }: { ws: Workspace; today: string }) {
   const gmail = latest ? gmailComposeUrl(ws, { subject: latest.subject, body: plain(latest) }) : null;
 
   return (
-    <section className="mt-12" aria-labelledby="update-label">
+    <section id="weekly-update" className="mt-12 scroll-mt-24" aria-labelledby="update-label">
       <SectionLabel right={<Segmented value={audience} onChange={setAudience} options={AUDIENCES} layoutId="update-audience" />}>
         <span id="update-label">Weekly update</span>
       </SectionLabel>
@@ -54,7 +54,8 @@ export function WeeklyUpdate({ ws, today }: { ws: Workspace; today: string }) {
               <h3 className="min-w-0 flex-1 text-[14px] font-medium text-fg">{latest.subject}</h3>
               <span className="font-mono text-[11.5px] text-fg-3">Week of {shortDay(latest.weekOf)}</span>
             </header>
-            <Markdown className="[&_table]:my-2 [&_table]:max-w-[560px] [&_table]:font-mono [&_table]:text-[12.5px] [&_td]:pr-4">{latest.body}</Markdown>
+            {/* Tables scroll inside the card on a phone instead of pushing the page wide. */}
+            <Markdown className="[&_table]:my-2 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:font-mono [&_table]:text-[12.5px] [&_td]:whitespace-nowrap [&_td]:pr-4 sm:[&_table]:max-w-[560px]">{latest.body}</Markdown>
             <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
               {gmail && (
                 <a

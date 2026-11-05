@@ -1,7 +1,7 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRightLeft,
   ArrowUpDown,
@@ -9,12 +9,15 @@ import {
   Briefcase,
   CalendarClock,
   Check,
+  Columns3,
   EyeOff,
   FileText,
   Layers,
   MessageCircleQuestion,
   PenLine,
+  Plus,
   Rocket,
+  Sparkles,
   Star,
   TriangleAlert,
   UserPlus,
@@ -23,23 +26,46 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button, IconButton } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
 import { Kbd } from "@/components/ui/kbd";
-import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
+import { Menu, MenuCheckItem, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { EmptyState } from "@/components/ui/misc";
 import { SourceChip } from "@/components/ui/source";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
 import { plural } from "@/lib/client/format";
-import { nowISO, todayISO } from "@/lib/domain/ids";
+import { LIMITS, type ColumnCell, type ColumnJob, type ResearchColumn, type SavedView, type ViewFilters, type ViewState } from "@/lib/columns/types";
+import { answerKey, answerOptions, cellLabel, cellState, compareCells, estimateRest, shortQuestion, sortChoices } from "@/lib/columns/values";
+import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Action } from "@/lib/domain/actions";
 import type { Account as AccountT, ICPCriterion, Signal, SignalType, Workspace } from "@/lib/domain/types";
 import { listItem } from "@/lib/motion";
+import { BulkBar } from "./columns/bulk-bar";
+import { ResearchCell, type CellRun } from "./columns/cell";
+import { ColumnComposer, type ComposerRow } from "./columns/composer";
+import { downloadCsv, exportCsv } from "./columns/csv";
+import { ColumnHeader } from "./columns/header";
+import {
+  BUILTIN_SORTS,
+  BUILTIN_SORT_LABEL,
+  DEFAULT_SORT,
+  cleanState,
+  defaultState,
+  filterCount,
+  isBuiltinSort,
+  nudge,
+  sameState,
+  suggestName,
+  viewState,
+  type BuiltinSort,
+} from "./columns/table-state";
+import { useColumns, useColumnsPolling } from "./columns/use-columns";
+import { ViewTabs } from "./columns/view-tabs";
 import { DismissPopover } from "./dismiss-panel";
 import { FilterMenu } from "./filter-menu";
 import {
@@ -60,9 +86,6 @@ import {
   type DismissReason,
   type ProspectStatus,
 } from "./lib";
-
-type SortKey = "priority" | "fit" | "signal" | "added";
-const SORT_LABEL: Record<SortKey, string> = { priority: "Priority", fit: "Fit", signal: "Newest signal", added: "Recently added" };
 
 const SIGNAL_ICON: Record<SignalType, LucideIcon> = {
   first_hire: UserPlus,
@@ -87,16 +110,45 @@ const SIGNAL_ICON: Record<SignalType, LucideIcon> = {
 
 const TIER_RANK: Record<AccountT["tier"], number> = { A: 0, B: 1, C: 2 };
 
-// Desktop columns: select · company · tier · fit · why now · warm · roles · status.
-const GRID = "md:grid-cols-[16px_minmax(0,1.3fr)_20px_30px_minmax(0,2.3fr)_84px] lg:grid-cols-[16px_minmax(0,1.3fr)_20px_30px_minmax(0,2.3fr)_40px_40px_84px]";
-
-const rowId = (domain: string) => `prospect-${domain.replace(/[^a-z0-9]/gi, "-")}`;
-
 interface Row {
   a: AccountT;
   status: ProspectStatus;
   top?: Signal;
 }
+
+const BUILTIN_CMP: Record<BuiltinSort, (x: Row, y: Row) => number> = {
+  priority: (x, y) =>
+    (isScored(x.a) ? TIER_RANK[x.a.tier] : 3) - (isScored(y.a) ? TIER_RANK[y.a.tier] : 3) || priority(y.a) - priority(x.a) || x.a.name.localeCompare(y.a.name),
+  fit: (x, y) => y.a.fitScore - x.a.fitScore || priority(y.a) - priority(x.a),
+  signal: (x, y) => (y.top?.date ?? "").localeCompare(x.top?.date ?? "") || priority(y.a) - priority(x.a),
+  added: (x, y) => y.a.addedAt.localeCompare(x.a.addedAt),
+};
+
+/*
+ * Columns, desktop: lead (select · company) · tier · fit · why now · [warm · roles at lg] · status · research
+ * columns · "+". The template lives in CSS variables so research columns can be added at runtime. With research
+ * columns the table may grow wider than the page: it scrolls sideways and the company stays pinned on the left.
+ */
+const RESEARCH_W = 136;
+/** "Why now" is the reason to act: with research columns it keeps room for the headline and its source, and the table scrolls sideways instead. */
+const WHY_MIN = 300;
+const GRID = "md:[grid-template-columns:var(--cols-md)] lg:[grid-template-columns:var(--cols-lg)]";
+
+function gridVars(n: number): CSSProperties {
+  const tail = `${n ? ` repeat(${n}, ${RESEARCH_W}px)` : ""} 32px`;
+  const md = n ? `minmax(184px,1fr) 20px 30px minmax(${WHY_MIN}px,2fr) 84px${tail}` : `minmax(0,1.15fr) 20px 30px minmax(0,2.6fr) 84px${tail}`;
+  const lg = n ? `minmax(200px,1fr) 20px 30px minmax(${WHY_MIN}px,2fr) 40px 40px 84px${tail}` : `minmax(0,1.1fr) 20px 30px minmax(0,2.7fr) 40px 40px 84px${tail}`;
+  // Sum of the minimum tracks, the gaps (12px) and the row's side padding (24px).
+  const minMd = 184 + 20 + 30 + WHY_MIN + 84 + n * RESEARCH_W + 32 + (5 + n) * 12 + 24;
+  const minLg = 200 + 20 + 30 + WHY_MIN + 40 + 40 + 84 + n * RESEARCH_W + 32 + (7 + n) * 12 + 24;
+  return { "--cols-md": md, "--cols-lg": lg, "--minw-md": `${minMd}px`, "--minw-lg": `${minLg}px` } as CSSProperties;
+}
+
+/** The pinned company cell needs an opaque background equal to the row's: surface at 40% over the page. */
+const PIN_BG = "md:bg-[color:color-mix(in_oklab,var(--surface)_40%,var(--bg))] md:group-hover:bg-bg-subtle";
+const PIN = "md:sticky md:left-0 md:z-[2] md:-ml-3 md:pl-3 md:group-data-[scrolled]/table:shadow-[1px_0_0_var(--border)]";
+
+const rowId = (domain: string) => `prospect-${domain.replace(/[^a-z0-9]/gi, "-")}`;
 
 type Measurable = { getBoundingClientRect: () => DOMRect };
 
@@ -122,6 +174,15 @@ function sharedTrait(accounts: AccountT[], criteria: ICPCriterion[]): string | n
   return failed ? `Fails: ${failed.text}`.slice(0, 120) : null;
 }
 
+/** ?viewId= lives in the URL; the native history API updates useSearchParams without a round trip. */
+function setViewParam(id: string | null) {
+  const next = new URLSearchParams(window.location.search);
+  if (id) next.set("viewId", id);
+  else next.delete("viewId");
+  const qs = next.toString();
+  window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+}
+
 export function Prospects({
   ws,
   today,
@@ -136,21 +197,60 @@ export function Prospects({
   emptyAction: React.ReactNode;
 }) {
   const { dispatch } = useWorkspace();
-  const { start, runs } = useRuns();
+  const { start, stop, runs } = useRuns();
   const router = useRouter();
+  const params = useSearchParams();
+  const { data: colData, apply, refresh: refreshColumns } = useColumns();
 
-  const [tiers, setTiers] = useState<Set<AccountT["tier"]>>(new Set());
-  const [signalTypes, setSignalTypes] = useState<Set<SignalType>>(new Set());
-  const [statuses, setStatuses] = useState<Set<ProspectStatus>>(new Set());
-  const [sources, setSources] = useState<Set<string>>(new Set());
-  const [sort, setSort] = useState<SortKey>("priority");
   const [cursor, setCursor] = useState<string | null>(null);
   const [kbd, setKbd] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dismissing, setDismissing] = useState<string[] | null>(null);
   const [settled, setSettled] = useState(false);
+  const [composer, setComposer] = useState<{ scope: "visible" | "selected"; editing: ResearchColumn | null } | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [work, setWork] = useState<{ key: string; state: ViewState } | null>(null);
   const anchor = useRef<Measurable>({ getBoundingClientRect: () => new DOMRect() });
+  const composerAnchor = useRef<Measurable>({ getBoundingClientRect: () => new DOMRect() });
   const lastClicked = useRef<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const tableActive = useRef(false);
+
+  /* ─────────── Research columns and saved views ─────────── */
+
+  const columnRuns = Object.values(runs).filter((r) => r.workflow === "research_column" && (r.status === "running" || r.status === "queued"));
+  const jobs: ColumnJob[] = useMemo(() => colData?.jobs ?? [], [colData]);
+  useColumnsPolling(columnRuns.length > 0 || jobs.length > 0);
+
+  const columnsAll = useMemo(() => colData?.columns ?? [], [colData]);
+  const colById = useMemo(() => new Map(columnsAll.map((c) => [c.id, c])), [columnsAll]);
+  const cells = useMemo(() => colData?.cells ?? {}, [colData]);
+  const views = useMemo(() => colData?.views ?? [], [colData]);
+  const viewId = params.get("viewId");
+  const active = views.find((v) => v.id === viewId) ?? null;
+  const key = active?.id ?? "all";
+  const base = useMemo(() => (active ? cleanState(viewState(active), columnsAll) : defaultState(colData)), [active, columnsAll, colData]);
+  const working = useMemo(() => (work && work.key === key ? cleanState(work.state, columnsAll) : base), [work, key, columnsAll, base]);
+  // The default view's columns are its own layout (hide and move save at once); a saved view's are part of it.
+  const state: ViewState = useMemo(() => (active ? working : { ...working, columns: base.columns }), [active, working, base]);
+  const dirty = active ? !sameState(state, base) : filterCount(state.filters) > 0 || state.sort.key !== DEFAULT_SORT.key || state.sort.dir !== DEFAULT_SORT.dir;
+  const update = (fn: (s: ViewState) => ViewState) => setWork({ key, state: fn(state) });
+  const f = state.filters;
+
+  // Loading the sample, a reset or a restore replaces the workspace and its columns together.
+  useEffect(() => {
+    void refreshColumns();
+  }, [ws.createdAt, refreshColumns]);
+
+  // A link to a view that was deleted lands on the default view.
+  useEffect(() => {
+    if (viewId && colData && !colData.views.some((v) => v.id === viewId)) setViewParam(null);
+  }, [viewId, colData]);
+
+  const shownCols = useMemo(() => state.columns.map((id) => colById.get(id)).filter((c): c is ResearchColumn => !!c), [state.columns, colById]);
+
+  /* ─────────── Rows ─────────── */
 
   const touched = useMemo(() => touchIndex(ws.activities), [ws.activities]);
   const all = useMemo<Row[]>(
@@ -162,29 +262,36 @@ export function Prospects({
   );
 
   const sourceKey = (a: AccountT) => (a.source === "integration" ? `integration:${a.sourceDetail ?? ""}` : a.source === "csv_import" ? "csv_import" : a.source);
-  const visibleStatus = (s: ProspectStatus) => (statuses.size ? statuses.has(s) : s !== "dismissed");
+  const statusSet = useMemo(() => new Set(f.statuses), [f.statuses]);
+  const visibleStatus = (s: ProspectStatus) => (statusSet.size ? statusSet.has(s) : s !== "dismissed");
 
   const rows = useMemo(() => {
+    const tiers = new Set(f.tiers);
+    const signals = new Set(f.signals);
+    const sources = new Set(f.sources);
+    const answers = Object.entries(f.answers).filter(([id, keys]) => keys.length && colById.has(id));
     const out = all.filter(
       (r) =>
         visibleStatus(r.status) &&
         (!tiers.size || (isScored(r.a) && tiers.has(r.a.tier))) &&
-        (!signalTypes.size || r.a.signals.some((s) => signalTypes.has(s.type) && (s.type === "sensitive" || signalDecay(s, today) > 0))) &&
-        (!sources.size || sources.has(sourceKey(r.a))),
+        (!signals.size || r.a.signals.some((s) => signals.has(s.type) && (s.type === "sensitive" || signalDecay(s, today) > 0))) &&
+        (!sources.size || sources.has(sourceKey(r.a))) &&
+        answers.every(([id, keys]) => keys.includes(answerKey(colById.get(id)!, cells[id]?.[r.a.domain]))),
     );
-    const cmp: Record<SortKey, (x: Row, y: Row) => number> = {
-      priority: (x, y) =>
-        (isScored(x.a) ? TIER_RANK[x.a.tier] : 3) - (isScored(y.a) ? TIER_RANK[y.a.tier] : 3) || priority(y.a) - priority(x.a) || x.a.name.localeCompare(y.a.name),
-      fit: (x, y) => y.a.fitScore - x.a.fitScore || priority(y.a) - priority(x.a),
-      signal: (x, y) => (y.top?.date ?? "").localeCompare(x.top?.date ?? "") || priority(y.a) - priority(x.a),
-      added: (x, y) => y.a.addedAt.localeCompare(x.a.addedAt),
-    };
-    return out.sort(cmp[sort]);
+    const sortKey = state.sort.key;
+    const col = sortKey.startsWith("col:") ? colById.get(sortKey.slice(4)) : undefined;
+    const cmp = isBuiltinSort(sortKey)
+      ? BUILTIN_CMP[sortKey]
+      : col
+        ? (x: Row, y: Row) => compareCells(col, cells[col.id]?.[x.a.domain], cells[col.id]?.[y.a.domain], state.sort.dir) || BUILTIN_CMP.priority(x, y)
+        : BUILTIN_CMP.priority;
+    return out.sort(cmp);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, tiers, signalTypes, statuses, sources, sort, today]);
+  }, [all, f, state.sort, colById, cells, today, statusSet]);
 
   // Filter options with counts (over the non-dismissed set unless dismissed is being shown).
-  const pool = useMemo(() => all.filter((r) => visibleStatus(r.status)), [all, statuses]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pool = useMemo(() => all.filter((r) => visibleStatus(r.status)), [all, statusSet]); // eslint-disable-line react-hooks/exhaustive-deps
+  const poolDomains = useMemo(() => pool.map((r) => r.a.domain), [pool]);
   const tierOptions = (["A", "B", "C"] as const).map((t) => ({ value: t, label: `Tier ${t}`, count: pool.filter((r) => isScored(r.a) && r.a.tier === t).length }));
   const signalOptions = useMemo(() => {
     const counts = new Map<SignalType, number>();
@@ -202,18 +309,23 @@ export function Prospects({
     }
     return [...m.entries()].sort((a, b) => b[1].count - a[1].count).map(([value, v]) => ({ value, label: v.label, count: v.count }));
   }, [pool]);
+  /** Filter chips for research columns: yes/no and pick-one columns shown here with an answer, and any column already filtered. */
+  const answerFilters = useMemo(
+    () =>
+      columnsAll
+        .filter((c) => (f.answers[c.id]?.length ?? 0) > 0 || (state.columns.includes(c.id) && (c.type === "yes_no" || c.type === "pick_one") && poolDomains.some((d) => cellState(cells[c.id]?.[d]) === "answered")))
+        .map((c) => ({ c, options: answerOptions(c, cells[c.id], poolDomains) })),
+    [columnsAll, f.answers, state.columns, poolDomains, cells],
+  );
 
-  const filtered = tiers.size + signalTypes.size + statuses.size + sources.size > 0;
-  const clearFilters = () => {
-    setTiers(new Set());
-    setSignalTypes(new Set());
-    setStatuses(new Set());
-    setSources(new Set());
-  };
+  const filtered = filterCount(f) > 0;
+  const setFilters = (patch: Partial<ViewFilters>) => update((s) => ({ ...s, filters: { ...s.filters, ...patch } }));
+  const setAnswerFilter = (id: string, keys: string[]) => update((s) => ({ ...s, filters: { ...s.filters, answers: { ...s.filters.answers, [id]: keys } } }));
+  const clearFilters = () => update((s) => ({ ...s, filters: { tiers: [], signals: [], statuses: [], sources: [], answers: {} } }));
 
   const idx = cursor ? rows.findIndex((r) => r.a.domain === cursor) : -1;
 
-  /* ─────────── Actions ─────────── */
+  /* ─────────── Account actions ─────────── */
 
   const isTracked = (a: AccountT) => a.status === "tracked" || a.watch;
 
@@ -283,8 +395,8 @@ export function Prospects({
 
   // Three dismissals for the same reason in a week → offer an anti-ICP line (the founder decides).
   const proposeAntiIcp = (reason: DismissReason, just: AccountT[]) => {
-    const f = ws.foundation;
-    if (!f || !["not_icp", "too_small", "too_big"].includes(reason)) return;
+    const fdn = ws.foundation;
+    if (!fdn || !["not_icp", "too_small", "too_big"].includes(reason)) return;
     const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const same = [
       ...just,
@@ -299,7 +411,7 @@ export function Prospects({
         ? `Too small to buy yet (like ${names.join(", ")})`
         : reason === "too_big"
           ? `Too big for founder-led sales (like ${names.join(", ")})`
-          : sharedTrait(same, f.icp.criteria);
+          : sharedTrait(same, fdn.icp.criteria);
     if (!text) {
       if (same.length - just.length >= 3) return; // asked when the third one landed
       toast(`That's ${same.length} dismissed as “${label}” this week.`, {
@@ -309,7 +421,7 @@ export function Prospects({
       });
       return;
     }
-    const antiIcp = f.icp.antiIcp;
+    const antiIcp = fdn.icp.antiIcp;
     const dupe = antiIcp.some((x) =>
       reason === "not_icp" ? x.text.toLowerCase() === text.toLowerCase() : x.reason.startsWith("You dismissed") && x.text.toLowerCase().startsWith(text.toLowerCase().slice(0, 12)),
     );
@@ -333,6 +445,7 @@ export function Prospects({
 
   const toggleSelect = (domain: string, e: MouseEvent) => {
     e.stopPropagation();
+    tableActive.current = true;
     setSelected((s) => {
       const next = new Set(s);
       const on = !next.has(domain);
@@ -353,14 +466,172 @@ export function Prospects({
     lastClicked.current = domain;
   };
 
-  /* ─────────── Keyboard: J/K move · Enter open · T track · X dismiss ─────────── */
+  /* ─────────── Research column actions ─────────── */
+
+  const runFor = (columnId: string) => jobs.filter((j) => j.columnId === columnId);
+  const queued = useMemo(() => {
+    const out = new Map<string, { active: Set<string>; waiting: Set<string> }>();
+    for (const j of jobs) {
+      const cur = out.get(j.columnId) ?? { active: new Set<string>(), waiting: new Set<string>() };
+      for (const d of j.active) cur.active.add(d);
+      for (const d of j.domains) cur.waiting.add(d);
+      out.set(j.columnId, cur);
+    }
+    return out;
+  }, [jobs]);
+  const cellRun = (columnId: string, domain: string, cell: ColumnCell | undefined): CellRun => {
+    const q = queued.get(columnId);
+    if (!q) return null;
+    if (q.active.has(domain)) return "running";
+    return q.waiting.has(domain) && (!cell || cell.error) ? "queued" : null;
+  };
+
+  const ask = (column: ResearchColumn, domains: string[], force: boolean) => {
+    const list = [...new Set(domains)].slice(0, LIMITS.domains);
+    if (!list.length) return;
+    void start("research_column", { columnId: column.id, domains: list, force }, { notify: list.length > 1 });
+    if (domains.length > list.length) toast(`Asking the first ${list.length} of ${domains.length}`, { description: "One run asks up to 500 companies. Ask again for the rest when it's done." });
+  };
+
+  const openComposer = (el: Element | null, scope: "visible" | "selected", editing: ResearchColumn | null = null) => {
+    // A hidden anchor (the header's + on a phone) measures as nothing: open from the top of the page instead.
+    const measured = el?.getBoundingClientRect();
+    const rect = measured && (measured.width || measured.height) ? measured : new DOMRect(window.innerWidth / 2, 120, 0, 0);
+    composerAnchor.current = { getBoundingClientRect: () => rect };
+    setComposer({ scope, editing });
+  };
+
+  const createColumn = async (column: ResearchColumn) => {
+    // Made inside a saved view, the column joins that view (saved with it, whatever else is unsaved).
+    const ops: Parameters<typeof apply>[0] = [{ type: "column.add", column }];
+    if (active) ops.push({ type: "view.save", view: { ...active, columns: [...active.columns, column.id], updatedAt: nowISO() } });
+    const ok = await apply(ops);
+    if (ok && active && work?.key === active.id) setWork({ key: active.id, state: { ...work.state, columns: [...work.state.columns, column.id] } });
+    return ok;
+  };
+
+  const updateColumn = async (column: ResearchColumn, patch: Pick<ResearchColumn, "question" | "type" | "options" | "instructions">) => {
+    for (const j of runFor(column.id)) void stop(j.runId);
+    return apply([{ type: "column.update", id: column.id, patch, at: nowISO() }]);
+  };
+
+  const deleteColumn = (column: ResearchColumn) => {
+    if (!colData) return;
+    for (const j of runFor(column.id)) void stop(j.runId);
+    const snapshot = {
+      column,
+      index: colData.columns.findIndex((c) => c.id === column.id),
+      cells: colData.cells[column.id] ?? {},
+      hidden: colData.hidden.includes(column.id),
+      views: colData.views.filter((v) => v.columns.includes(column.id)).map((v) => ({ id: v.id, index: v.columns.indexOf(column.id) })),
+    };
+    const answers = Object.values(snapshot.cells).filter((c) => !c.error).length;
+    void apply([{ type: "column.delete", id: column.id }]);
+    toast(`Deleted “${shortQuestion(column.question, 40)}”`, {
+      description: answers ? `With its ${plural(answers, "answer")}.` : undefined,
+      action: { label: "Undo", onClick: () => void apply([{ type: "column.restore", ...snapshot }]) },
+    });
+  };
+
+  const setColumnShown = (id: string, show: boolean) => {
+    if (active) update((s) => ({ ...s, columns: show ? [...s.columns.filter((x) => x !== id), id] : s.columns.filter((x) => x !== id) }));
+    else void apply([{ type: "column.hide", id, hidden: !show }]);
+  };
+
+  const moveColumn = (id: string, by: -1 | 1) => {
+    if (active) return update((s) => ({ ...s, columns: nudge(s.columns, id, by) }));
+    const i = state.columns.indexOf(id);
+    const neighbor = state.columns[i + by];
+    if (i === -1 || !neighbor) return;
+    void apply([{ type: "column.move", id, to: columnsAll.findIndex((c) => c.id === neighbor) }]);
+  };
+
+  /* ─────────── View actions ─────────── */
+
+  const selectView = (id: string | null) => {
+    setWork(null);
+    setSaveOpen(false);
+    setViewParam(id);
+  };
+
+  const saveView = () => {
+    if (!active) return setSaveOpen(true);
+    void apply([{ type: "view.save", view: { ...active, filters: state.filters, sort: state.sort, columns: state.columns, updatedAt: nowISO() } }]).then((ok) => ok && setWork(null));
+    toast(`Saved “${active.name}”`);
+  };
+
+  const saveAsView = (name: string) => {
+    const view: SavedView = { id: newId("view"), name, filters: state.filters, sort: state.sort, columns: state.columns, createdAt: nowISO() };
+    void apply([{ type: "view.save", view }]).then((ok) => {
+      if (!ok) return;
+      setWork(null);
+      setViewParam(view.id);
+    });
+  };
+
+  const deleteView = (view: SavedView) => {
+    const index = views.findIndex((v) => v.id === view.id);
+    if (active?.id === view.id) selectView(null);
+    void apply([{ type: "view.delete", id: view.id }]);
+    toast(`Deleted the view “${view.name}”`, { action: { label: "Undo", onClick: () => void apply([{ type: "view.restore", view, index }]).then((ok) => ok && setViewParam(view.id)) } });
+  };
+
+  /* ─────────── Bulk ─────────── */
+
+  const selectedRows = [...rows.filter((r) => selected.has(r.a.domain)), ...all.filter((r) => selected.has(r.a.domain) && !rows.includes(r))];
+  const trackedSel = selectedRows.filter((r) => r.status !== "dismissed" && isTracked(r.a)).map((r) => r.a.domain);
+  const untrackedSel = selectedRows.filter((r) => !(r.status !== "dismissed" && isTracked(r.a))).map((r) => r.a.domain);
+  const missingSel = Object.fromEntries(columnsAll.map((c) => [c.id, selectedRows.filter((r) => { const s = cellState(cells[c.id]?.[r.a.domain]); return s === "empty" || s === "failed"; }).length]));
+
+  const exportSelected = () => {
+    const out = selectedRows.map((r) => ({
+      name: r.a.name,
+      domain: r.a.domain,
+      tier: isScored(r.a) ? r.a.tier : "",
+      fit: isScored(r.a) ? r.a.fitScore : null,
+      status: PROSPECT_STATUS_LABEL[r.status],
+      whyNow: r.top?.headline ?? "",
+      whyNowDate: r.top?.date ?? "",
+      whyNowUrl: r.top?.url ?? "",
+      warm: r.a.warmPathCount,
+      openRoles: r.a.enrichment ? r.a.enrichment.openRoles : null,
+    }));
+    downloadCsv(exportCsv(out, shownCols, cells), `inroad-companies-${today}.csv`);
+    toast(`Exported ${plural(out.length, "company", "companies")}`, { description: shownCols.length ? `With ${plural(shownCols.length, "research column")}, their confidence and sources.` : undefined });
+  };
+
+  /* ─────────── Keyboard: J/K move · Enter open · T track · X dismiss · ⌘A select · Esc clear · ⌘S save view ─────────── */
 
   useEffect(() => {
-    if (sheetOpen || dismissing) return;
+    const onDown = (e: PointerEvent) => {
+      tableActive.current = !!tableRef.current?.contains(e.target as Node);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, []);
+
+  useEffect(() => {
+    if (sheetOpen || dismissing || composer) return;
     let lastG = 0;
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || inOverlay(e.target)) return;
+      if (e.defaultPrevented || isTyping(e.target) || inOverlay(e.target)) return;
       const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+        if (k === "a" && rows.length && (tableActive.current || kbd || selected.size > 0)) {
+          e.preventDefault();
+          setSelected(new Set(rows.map((r) => r.a.domain)));
+        } else if (k === "s" && dirty) {
+          e.preventDefault();
+          saveView();
+        }
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "Escape" && selected.size) {
+        e.preventDefault();
+        setSelected(new Set());
+        return;
+      }
       if (k === "g") {
         lastG = e.timeStamp;
         return;
@@ -377,6 +648,7 @@ export function Prospects({
         const next = rows[Math.max(0, Math.min(rows.length - 1, from + d))];
         setCursor(next.a.domain);
         setKbd(true);
+        tableActive.current = true;
         // Drop stale focus so Enter, T and X act on the highlighted row, not the last-clicked control.
         const ae = document.activeElement as HTMLElement | null;
         if (ae && ae !== document.body) ae.blur();
@@ -413,15 +685,50 @@ export function Prospects({
   const dismissTitle =
     dismissing && dismissing.length === 1 ? `Why dismiss ${ws.accounts[dismissing[0]]?.name ?? dismissing[0]}?` : `Why dismiss ${dismissing?.length ?? 0} companies?`;
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.a.domain));
+  const n = shownCols.length;
+  const sortLabel = isBuiltinSort(state.sort.key)
+    ? BUILTIN_SORT_LABEL[state.sort.key]
+    : (() => {
+        const c = colById.get(state.sort.key.slice(4));
+        return c ? shortQuestion(c.question, 22) : BUILTIN_SORT_LABEL.priority;
+      })();
+  const composerRows: ComposerRow[] = (composer?.scope === "selected" ? selectedRows : rows).map((r) => ({ domain: r.a.domain, name: r.a.name }));
+  const visibleDomains = rows.map((r) => r.a.domain);
+  const statusLabel = (v: string) => PROSPECT_STATUS_LABEL[v as ProspectStatus] ?? v;
+  const signalLabel = (v: string) => SIGNAL_LABEL[v as SignalType] ?? v;
 
   return (
     <div className="pb-24">
+      <ViewTabs
+        views={views}
+        activeId={active?.id ?? null}
+        dirty={dirty}
+        suggest={suggestName(state, columnsAll, { status: statusLabel, signal: signalLabel })}
+        saveOpen={saveOpen}
+        onSaveOpenChange={setSaveOpen}
+        onSelect={selectView}
+        onSave={saveView}
+        onSaveAs={saveAsView}
+        onDiscard={() => setWork(null)}
+        onRename={(id, name) => {
+          const v = views.find((x) => x.id === id);
+          if (v) void apply([{ type: "view.save", view: { ...v, name, updatedAt: nowISO() } }]);
+        }}
+        onDelete={(id) => {
+          const v = views.find((x) => x.id === id);
+          if (v) deleteView(v);
+        }}
+      />
+
       {/* Toolbar */}
       <div className="-mx-1 flex flex-wrap items-center gap-2 px-1 py-1">
-        <FilterMenu label="Tier" options={tierOptions} value={tiers} onChange={setTiers} />
-        <FilterMenu label="Signal" options={signalOptions} value={signalTypes} onChange={setSignalTypes} />
-        <FilterMenu label="Status" options={statusOptions} value={statuses} onChange={setStatuses} />
-        <FilterMenu label="Source" options={sourceOptions} value={sources} onChange={setSources} />
+        <FilterMenu label="Tier" options={tierOptions} value={new Set(f.tiers as AccountT["tier"][])} onChange={(next) => setFilters({ tiers: [...next] })} />
+        <FilterMenu label="Signal" options={signalOptions} value={new Set(f.signals as SignalType[])} onChange={(next) => setFilters({ signals: [...next] })} />
+        <FilterMenu label="Status" options={statusOptions} value={new Set(f.statuses as ProspectStatus[])} onChange={(next) => setFilters({ statuses: [...next] })} />
+        <FilterMenu label="Source" options={sourceOptions} value={new Set(f.sources)} onChange={(next) => setFilters({ sources: [...next] })} />
+        {answerFilters.map(({ c, options }) => (
+          <FilterMenu key={c.id} label={shortQuestion(c.question, 26)} options={options} value={new Set(f.answers[c.id] ?? [])} onChange={(next) => setAnswerFilter(c.id, [...next])} />
+        ))}
         {filtered && (
           <button onClick={clearFilters} className="h-7 shrink-0 rounded-sm px-2 text-[12.5px] text-fg-3 transition-colors hover:text-fg">
             Clear
@@ -429,82 +736,185 @@ export function Prospects({
         )}
         <span className="flex-1" />
         <span className="shrink-0 font-mono text-[11.5px] tnum text-fg-3">{rows.length}</span>
+        {columnsAll.length > 0 && (
+          <Menu
+            trigger={
+              <button className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-[12.5px] font-medium text-fg-2 transition-colors hover:bg-bg-subtle hover:text-fg">
+                <Columns3 className="size-3.5" />
+                <span className="hidden sm:inline">Columns</span>
+                <span className="font-mono text-[11px] tnum text-fg-3">
+                  {n}/{columnsAll.length}
+                </span>
+              </button>
+            }
+          >
+            <MenuLabel>Research columns {active ? "in this view" : "shown"}</MenuLabel>
+            {columnsAll.map((c) => (
+              <MenuCheckItem key={c.id} checked={state.columns.includes(c.id)} onCheckedChange={(on) => setColumnShown(c.id, on)}>
+                <span className="block max-w-64 truncate">{shortQuestion(c.question, 48)}</span>
+              </MenuCheckItem>
+            ))}
+            <MenuSeparator />
+            <MenuItem icon={<Plus className="size-3.5" />} onSelect={() => openComposer(document.getElementById("add-column"), "visible")}>
+              New column…
+            </MenuItem>
+          </Menu>
+        )}
         <Menu
           trigger={
-            <button className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-[12.5px] font-medium text-fg-2 transition-colors hover:bg-bg-subtle hover:text-fg">
-              <ArrowUpDown className="size-3.5" />
-              {SORT_LABEL[sort]}
+            <button className="inline-flex h-7 max-w-48 shrink-0 items-center gap-1.5 rounded-sm px-2 text-[12.5px] font-medium text-fg-2 transition-colors hover:bg-bg-subtle hover:text-fg">
+              <ArrowUpDown className="size-3.5 shrink-0" />
+              <span className="truncate">{sortLabel}</span>
             </button>
           }
         >
           <MenuLabel>Sort by</MenuLabel>
-          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-            <MenuItem key={k} onSelect={() => setSort(k)} icon={sort === k ? <Check className="size-3.5" /> : <span />}>
-              {SORT_LABEL[k]}
+          {BUILTIN_SORTS.map((k) => (
+            <MenuItem key={k} onSelect={() => update((s) => ({ ...s, sort: { key: k, dir: "desc" } }))} icon={state.sort.key === k ? <Check className="size-3.5" /> : <span />}>
+              {BUILTIN_SORT_LABEL[k]}
             </MenuItem>
           ))}
+          {shownCols.length > 0 && <MenuSeparator />}
+          {shownCols.map((c) => {
+            const first = sortChoices(c.type)[0];
+            return (
+              <MenuItem key={c.id} onSelect={() => update((s) => ({ ...s, sort: { key: `col:${c.id}`, dir: first.dir } }))} icon={state.sort.key === `col:${c.id}` ? <Check className="size-3.5" /> : <span />} hint={first.label}>
+                <span className="block max-w-48 truncate">{shortQuestion(c.question, 32)}</span>
+              </MenuItem>
+            );
+          })}
         </Menu>
-      </div>
-
-      {/* Column labels */}
-      <div className={cn("mt-4 hidden h-10 items-center gap-3 rounded-t-lg border-b border-border bg-bg-subtle px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
-        <button
-          role="checkbox"
-          aria-checked={allSelected}
-          aria-label="Select all"
-          onClick={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.a.domain)))}
-          className={cn("flex size-3.5 items-center justify-center rounded-[4px] ring-1 ring-border-strong transition-colors", allSelected && "bg-primary ring-primary")}
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Sparkles className="size-3.5 text-accent-text" />}
+          onClick={(e) => openComposer(e.currentTarget, "visible")}
+          className={cn("h-7 px-2 text-[12.5px]", columnsAll.length > 0 && "md:hidden")}
         >
-          {allSelected && <Check className="size-2.5 text-primary-fg" strokeWidth={3} />}
-        </button>
-        <span>Company</span>
-        <Tooltip content="A: strong fit and a fresh reason now. B: strong fit, no fresh reason yet. C: partial fit, strong signal.">
-          <span className="cursor-default">Tier</span>
-        </Tooltip>
-        <Tooltip content="How well they match your ICP criteria, 0–100. Unknown counts as half.">
-          <span className="cursor-default">Fit</span>
-        </Tooltip>
-        <span>Why now</span>
-        <Tooltip content="People you know there, from your network import">
-          <span className="hidden cursor-default lg:block">Warm</span>
-        </Tooltip>
-        <Tooltip content="Open roles on their job board">
-          <span className="hidden cursor-default lg:block">Roles</span>
-        </Tooltip>
-        <span>Status</span>
+          Ask every company
+        </Button>
       </div>
 
-      {rows.length === 0 ? (
-        <EmptyState title="Nothing matches these filters." action={<Button onClick={clearFilters}>Clear filters</Button>} />
-      ) : (
-        <ul onMouseMove={() => kbd && setKbd(false)} aria-label="Prospects" className="divide-y divide-border rounded-b-xl bg-surface/40">
-          {rows.map((r, i) => (
-            <ProspectRow
-              key={r.a.domain}
-              row={r}
-              index={i}
-              animate={!settled && i < 8}
-              onEntered={i === Math.min(rows.length, 8) - 1 ? () => setSettled(true) : undefined}
-              focused={kbd && i === idx}
-              selected={selected.has(r.a.domain)}
-              selecting={selected.size > 0}
-              ws={ws}
-              today={today}
-              onOpen={() => {
-                setCursor(r.a.domain);
-                onOpen(r.a.domain);
-              }}
-              onSelect={(e) => toggleSelect(r.a.domain, e)}
-              onTrack={() => track([r.a.domain], !(isTracked(r.a) && r.status !== "dismissed"))}
-              onDismiss={(el) => openDismiss([r.a.domain], el)}
-              onRestore={() => void dispatch({ type: "account.restore", domain: r.a.domain })}
-            />
-          ))}
-        </ul>
-      )}
+      {/* Table: header and rows scroll sideways together; the company stays pinned. */}
+      <div ref={tableRef} className="mt-4">
+        <div
+          data-scrolled={scrolled || undefined}
+          onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 0)}
+          className="group/table overflow-x-auto overscroll-x-contain rounded-xl"
+        >
+          <div style={gridVars(n)} className={cn(n > 0 && "md:min-w-[var(--minw-md)] lg:min-w-[var(--minw-lg)]")}>
+            {/* Column labels */}
+            <div className={cn("hidden h-10 items-center gap-3 rounded-t-lg border-b border-border bg-bg-subtle px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
+              <div className={cn("flex min-w-0 items-center gap-3 md:bg-bg-subtle", PIN)}>
+                <button
+                  role="checkbox"
+                  aria-checked={allSelected}
+                  aria-label="Select all"
+                  onClick={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.a.domain)))}
+                  className={cn("flex size-3.5 shrink-0 items-center justify-center rounded-[4px] ring-1 ring-border-strong transition-colors", allSelected && "bg-primary ring-primary")}
+                >
+                  {allSelected && <Check className="size-2.5 text-primary-fg" strokeWidth={3} />}
+                </button>
+                <span>Company</span>
+              </div>
+              <Tooltip content="A: strong fit and a fresh reason now. B: strong fit, no fresh reason yet. C: partial fit, strong signal.">
+                <span className="cursor-default">Tier</span>
+              </Tooltip>
+              <Tooltip content="How well they match your ICP criteria, 0–100. Unknown counts as half.">
+                <span className="cursor-default">Fit</span>
+              </Tooltip>
+              <span>Why now</span>
+              <Tooltip content="People you know there, from your network import">
+                <span className="hidden cursor-default lg:block">Warm</span>
+              </Tooltip>
+              <Tooltip content="Open roles on their job board">
+                <span className="hidden cursor-default lg:block">Roles</span>
+              </Tooltip>
+              <span>Status</span>
+              {shownCols.map((c, i) => {
+                const missing = visibleDomains.filter((d) => {
+                  const s = cellState(cells[c.id]?.[d]);
+                  return (s === "empty" || s === "failed") && !queued.get(c.id)?.waiting.has(d);
+                });
+                const measured = Object.values(cells[c.id] ?? {});
+                const per = measured.length ? estimateRest(measured, 1) : null;
+                const priced = per && !per.unpriced;
+                return (
+                  <div key={c.id} id={`colhead-${c.id}`} className="flex min-w-0 items-center">
+                    <ColumnHeader
+                      column={c}
+                      sort={state.sort}
+                      onSort={(dir) => update((s) => ({ ...s, sort: { key: `col:${c.id}`, dir } }))}
+                      options={answerOptions(c, cells[c.id], poolDomains)}
+                      filter={f.answers[c.id] ?? []}
+                      onFilter={(keys) => setAnswerFilter(c.id, keys)}
+                      jobs={runFor(c.id)}
+                      onStop={() => runFor(c.id).forEach((j) => void stop(j.runId))}
+                      empty={missing.length}
+                      visible={visibleDomains.length}
+                      fillUsd={priced ? per.restUsd * missing.length : null}
+                      againUsd={priced ? per.restUsd * visibleDomains.length : null}
+                      onFill={() => ask(c, missing, false)}
+                      onAskAll={() => ask(c, visibleDomains, true)}
+                      onEdit={() => openComposer(document.getElementById(`colhead-${c.id}`), "visible", c)}
+                      onMove={(by) => moveColumn(c.id, by)}
+                      canMove={{ left: i > 0, right: i < shownCols.length - 1 }}
+                      onHide={() => setColumnShown(c.id, false)}
+                      onDelete={() => deleteColumn(c)}
+                    />
+                  </div>
+                );
+              })}
+              <Tooltip content="Ask every company a question">
+                <button
+                  id="add-column"
+                  aria-label="Add a research column"
+                  onClick={(e) => openComposer(e.currentTarget, "visible")}
+                  className="flex size-7 items-center justify-center rounded-sm text-fg-3 transition-colors hover:bg-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >
+                  <Plus className="size-4" />
+                </button>
+              </Tooltip>
+            </div>
+
+            {rows.length === 0 ? (
+              <EmptyState title="Nothing matches these filters." action={<Button onClick={clearFilters}>Clear filters</Button>} />
+            ) : (
+              <ul onMouseMove={() => kbd && setKbd(false)} aria-label="Prospects" className="divide-y divide-border rounded-b-xl bg-surface/40">
+                {rows.map((r, i) => (
+                  <ProspectRow
+                    key={r.a.domain}
+                    row={r}
+                    index={i}
+                    animate={!settled && i < 8}
+                    onEntered={i === Math.min(rows.length, 8) - 1 ? () => setSettled(true) : undefined}
+                    focused={kbd && i === idx}
+                    selected={selected.has(r.a.domain)}
+                    selecting={selected.size > 0}
+                    ws={ws}
+                    today={today}
+                    columns={shownCols}
+                    cells={cells}
+                    cellRun={cellRun}
+                    onAsk={(c, force) => ask(c, [r.a.domain], force)}
+                    onOpen={() => {
+                      setCursor(r.a.domain);
+                      onOpen(r.a.domain);
+                    }}
+                    onSelect={(e) => toggleSelect(r.a.domain, e)}
+                    onTrack={() => track([r.a.domain], !(isTracked(r.a) && r.status !== "dismissed"))}
+                    onDismiss={(el) => openDismiss([r.a.domain], el)}
+                    onRestore={() => void dispatch({ type: "account.restore", domain: r.a.domain })}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
 
       {rows.length > 0 && (
-        <p className="mt-4 hidden items-center gap-3 text-[11.5px] text-fg-3 md:pointer-fine:flex">
+        <p className="mt-4 hidden flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-fg-3 md:pointer-fine:flex">
           <span className="flex items-center gap-1">
             <Kbd>J</Kbd>
             <Kbd>K</Kbd> move
@@ -518,33 +928,39 @@ export function Prospects({
           <span className="flex items-center gap-1">
             <Kbd>X</Kbd> dismiss
           </span>
+          <span className="flex items-center gap-1">
+            <Kbd>⌘A</Kbd> select all
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd>⇧</Kbd> click for a range
+          </span>
         </p>
       )}
 
-      {/* Bulk bar */}
-      <AnimatePresence>
-        {selected.size > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.23, 1, 0.32, 1] } }}
-            exit={{ opacity: 0, y: 4, transition: { duration: 0.12 } }}
-            className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4"
-          >
-            <div className="pointer-events-auto flex items-center gap-1.5 rounded-lg bg-surface-raised p-1.5 pl-3 shadow-lg ring-1 ring-border">
-              <span className="mr-1 font-mono text-[12px] tnum text-fg-2">{selected.size} selected</span>
-              <Button size="sm" variant="primary" icon={<Star className="size-3.5" />} onClick={() => (track([...selected], true), setSelected(new Set()))}>
-                Track {selected.size}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={(e) => openDismiss([...selected], e.currentTarget)}>
-                Dismiss…
-              </Button>
-              <IconButton label="Clear selection" onClick={() => setSelected(new Set())}>
-                <X className="size-3.5" />
-              </IconButton>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <BulkBar
+        count={selected.size}
+        tracked={trackedSel.length}
+        untracked={untrackedSel.length}
+        columns={columnsAll}
+        missing={missingSel}
+        onTrack={() => {
+          track(untrackedSel, true);
+          setSelected(new Set());
+        }}
+        onUntrack={() => {
+          track(trackedSel, false);
+          setSelected(new Set());
+        }}
+        onDismiss={(el) => openDismiss([...selected], el)}
+        onAsk={(c, onlyMissing) => {
+          const domains = selectedRows.map((r) => r.a.domain).filter((d) => !onlyMissing || ["empty", "failed"].includes(cellState(cells[c.id]?.[d])));
+          if (!state.columns.includes(c.id)) setColumnShown(c.id, true);
+          ask(c, domains, !onlyMissing);
+        }}
+        onNewColumn={(el) => openComposer(el, "selected")}
+        onExport={exportSelected}
+        onClear={() => setSelected(new Set())}
+      />
 
       <DismissPopover
         open={!!dismissing}
@@ -555,6 +971,18 @@ export function Prospects({
           if (dismissing) dismiss(dismissing, reason, note);
           setDismissing(null);
         }}
+      />
+
+      <ColumnComposer
+        open={!!composer}
+        onOpenChange={(o) => !o && setComposer(null)}
+        anchor={composerAnchor}
+        rows={composerRows}
+        scope={composer?.scope ?? "visible"}
+        data={colData}
+        editing={composer?.editing}
+        onCreate={createColumn}
+        onUpdate={updateColumn}
       />
     </div>
   );
@@ -571,6 +999,10 @@ function ProspectRow({
   selecting,
   ws,
   today,
+  columns,
+  cells,
+  cellRun,
+  onAsk,
   onOpen,
   onSelect,
   onTrack,
@@ -587,6 +1019,10 @@ function ProspectRow({
   selecting: boolean;
   ws: Workspace;
   today: string;
+  columns: ResearchColumn[];
+  cells: Record<string, Record<string, ColumnCell>>;
+  cellRun: (columnId: string, domain: string, cell: ColumnCell | undefined) => CellRun;
+  onAsk: (column: ResearchColumn, force: boolean) => void;
   onOpen: () => void;
   onSelect: (e: MouseEvent) => void;
   onTrack: () => void;
@@ -601,11 +1037,16 @@ function ProspectRow({
   const Icon = top ? SIGNAL_ICON[top.type] : null;
   const criteria = ws.foundation?.icp.criteria ?? [];
   const teams = a.enrichment?.rolesByTeam.slice(0, 3).map((t) => `${t.team} ${t.count}`).join(" · ");
+  // On a phone the research columns become one line under the company: the first two answers.
+  const answered = columns
+    .map((c) => ({ c, cell: cells[c.id]?.[a.domain] }))
+    .filter((x) => cellState(x.cell) === "answered")
+    .slice(0, 2);
 
   const why = top ? (
     <span className="flex min-w-0 items-center gap-1.5">
       {Icon && <Icon className="size-3.5 shrink-0 text-fg-3" aria-label={SIGNAL_LABEL[top.type]} />}
-      <span className="min-w-0 truncate text-fg-2" title={top.headline}>
+      <span className="min-w-0 flex-1 truncate text-fg-2" title={top.headline}>
         {top.headline}
       </span>
       <SourceChip
@@ -614,7 +1055,7 @@ function ProspectRow({
         quote={ev?.quote}
         claim={ev?.claim}
         confidence={ev?.confidence}
-        className="relative z-[1] shrink-0"
+        className="relative z-[1] max-w-[7.5rem] shrink-0"
       />
     </span>
   ) : (
@@ -633,8 +1074,13 @@ function ProspectRow({
       animate="show"
       onAnimationComplete={onEntered}
       aria-selected={focused || undefined}
+      onClick={(e) => {
+        // The whole row opens the sheet, except its own controls and anything in a popover opened from it.
+        if ((e.target as HTMLElement).closest("button,a,input,[role=checkbox],[data-cell],[data-radix-popper-content-wrapper]")) return;
+        onOpen();
+      }}
       className={cn(
-        "group relative flex items-center gap-3 px-3 py-2.5 text-[13px] md:grid md:min-h-14 md:py-2.5",
+        "group relative flex cursor-pointer items-center gap-3 px-3 py-2.5 text-[13px] md:grid md:min-h-14 md:py-2.5",
         GRID,
         "transition-colors duration-100 hover:bg-bg-subtle",
         focused && "bg-bg-subtle shadow-[inset_2px_0_0_var(--fg-3)]",
@@ -642,38 +1088,30 @@ function ProspectRow({
         dismissed && "opacity-60",
       )}
     >
-      {/* Select */}
-      <button
-        role="checkbox"
-        aria-checked={selected}
-        aria-label={`Select ${a.name}`}
-        onClick={onSelect}
-        className={cn(
-          "relative z-[1] hidden size-3.5 items-center justify-center rounded-[4px] ring-1 ring-border-strong transition-[opacity,background-color] duration-100 md:flex",
-          selected ? "bg-primary opacity-100 ring-primary" : selecting ? "opacity-100" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100",
-        )}
-      >
-        {selected && <Check className="size-2.5 text-primary-fg" strokeWidth={3} />}
-      </button>
-
-      {/* Company (the whole row opens the sheet) */}
-      <div className="flex min-w-0 flex-1 items-center gap-2.5 md:flex-none">
-        <Tooltip content={`Found via ${sourceText(a)}${a.sourceDetail && a.source !== "integration" && a.source !== "csv_import" ? ` · ${a.sourceDetail}` : ""}`}>
+      {/* Select · company. Pinned on the left when the table scrolls sideways. */}
+      <div className={cn("flex min-w-0 flex-1 items-center gap-3 md:flex-none", PIN, focused || selected ? "md:bg-bg-subtle" : PIN_BG)}>
+        <button
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={`Select ${a.name}`}
+          onClick={onSelect}
+          className={cn(
+            "relative z-[1] hidden size-3.5 shrink-0 items-center justify-center rounded-[4px] ring-1 ring-border-strong transition-[opacity,background-color] duration-100 md:flex",
+            selected ? "bg-primary opacity-100 ring-primary" : selecting ? "opacity-100" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100",
+          )}
+        >
+          {selected && <Check className="size-2.5 text-primary-fg" strokeWidth={3} />}
+        </button>
+        <Tooltip content={`${a.domain} · found via ${sourceText(a)}${a.sourceDetail && a.source !== "integration" && a.source !== "csv_import" ? ` · ${a.sourceDetail}` : ""}`}>
           <span className="relative z-[1] flex shrink-0">
             <Favicon domain={a.domain} name={a.name} size={20} />
           </span>
         </Tooltip>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <button
-              onClick={onOpen}
-              className="min-w-0 max-w-full shrink-0 truncate text-left font-medium text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline"
-            >
-              {a.name}
-            </button>
-            {/* The name wins the space; the domain truncates first and hides when there's no room. */}
-            <span className="hidden min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg-3 xl:inline">{a.domain}</span>
-          </div>
+          {/* The name gets the space; the domain is in the icon's tooltip and the source chip, not repeated here. */}
+          <button onClick={onOpen} className="block min-w-0 max-w-full truncate text-left font-medium text-fg outline-none focus-visible:underline">
+            {a.name}
+          </button>
           {/* Phone: why-now under the name, with the age instead of the full source chip */}
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] md:hidden">
             {top ? (
@@ -686,6 +1124,15 @@ function ProspectRow({
               why
             )}
           </div>
+          {answered.length > 0 && (
+            <p className="mt-0.5 flex min-w-0 gap-2.5 text-[11.5px] text-fg-3 md:hidden">
+              {answered.map(({ c, cell }) => (
+                <span key={c.id} className="min-w-0 truncate">
+                  {shortQuestion(c.question, 22)}: <span className="text-fg-2">{cellLabel(cell)}</span>
+                </span>
+              ))}
+            </p>
+          )}
         </div>
       </div>
 
@@ -771,7 +1218,16 @@ function ProspectRow({
           )}
         </span>
       </div>
+
+      {/* Research columns */}
+      {columns.map((c) => {
+        const cell = cells[c.id]?.[a.domain];
+        return (
+          <div key={c.id} className="hidden min-w-0 md:flex">
+            <ResearchCell column={c} cell={cell} run={cellRun(c.id, a.domain, cell)} company={a.name} onAsk={(force) => onAsk(c, force)} />
+          </div>
+        );
+      })}
     </motion.li>
   );
 }
-

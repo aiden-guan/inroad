@@ -31,6 +31,7 @@ import type {
   PartnerStage,
   Person,
   PmfSurvey,
+  ReplyIntent,
   RevenueTarget,
   SkipReason,
   Stage,
@@ -47,9 +48,15 @@ import { debriefReferrals } from "@/lib/deals/referrals";
 import { closeDatePushed, newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 import { touchTags } from "@/lib/learning/tags";
+import { skipTarget } from "@/lib/learning/targeting";
+import { defaultRemindOn } from "@/lib/replies/remind";
 import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
 import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample, noteToneOff } from "@/lib/quality/voice";
 import { lintOption } from "@/lib/studio/receipts";
+import { applyCustomPlayAction, forgetCard, noteCardDone, noteWorked } from "@/lib/plays/custom";
+import type { CustomPlayAction } from "@/lib/plays/recipe-types";
+import { dismissBattlecard, markBattlecardSaved } from "@/lib/voice/state";
+import type { VoiceBattlecard } from "@/lib/voice/types";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -115,13 +122,15 @@ export type Action =
   | { type: "connector.markList"; id: ID; marked: string[]; at: string }
   | { type: "intro.create"; intro: Intro }
   /** Move an intro to a stage (forward, or reopened). Dates, history and the intro_made activity follow in code. */
-  | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID }
+  | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID; meetingOn?: string }
   /** The founder sent the note behind a move: a nudge, the reply to the intro, the thank-you. Give: `side` asks or nudges one side. */
   | { type: "intro.mark"; id: ID; field: "nudgedOn" | "repliedOn" | "thankedOn" | "askedOn"; at: string; side?: 0 | 1 }
   /** Give: one side said yes or no. Nothing moves to the other side until both said yes. */
   | { type: "intro.consent"; id: ID; side: 0 | 1; consent: IntroSide["consent"]; at: string }
   | { type: "intro.remove"; id: ID }
   | { type: "evidence.flagWrong"; id: ID; note?: string; at: string }
+  /** Undo of "Wrong?": the source counts again. */
+  | { type: "evidence.unflag"; id: ID }
   | { type: "account.add"; account: Account }
   | { type: "account.update"; domain: string; patch: Partial<Account> }
   | { type: "account.track"; domain: string; watch: boolean }
@@ -134,6 +143,18 @@ export type Action =
   | { type: "deal.create"; deal: Deal }
   | { type: "deal.update"; id: ID; patch: Partial<Deal>; at: string }
   | { type: "deal.setStage"; id: ID; stage: Stage; at: string; lossReason?: Deal["lossReason"]; nurtureUntil?: string }
+  /**
+   * Undo of one stage move (`stage` at `at`): the deal goes back exactly as it was and the history entry the move
+   * added is removed, so days in stage and the pipeline's stage history never see a move that didn't happen.
+   * Does nothing when the deal has moved again since.
+   */
+  | {
+      type: "deal.revertStage";
+      id: ID;
+      stage: Stage;
+      at: string;
+      previous: { stage: Stage; lossReason?: Deal["lossReason"]; nurtureUntil?: string; updatedAt: string; lastActivityAt: string; accountStatus?: Account["status"] };
+    }
   | { type: "deal.setNextStep"; id: ID; nextStep: Deal["nextStep"]; at: string }
   /** The owner of the number calls a deal's forecast category (null hands it back to the code's call). */
   | { type: "deal.forecastCall"; id: ID; category: ForecastCategory | null; note?: string; at: string }
@@ -142,13 +163,16 @@ export type Action =
   | { type: "play.set"; id: string; enabled: boolean; at: string }
   /** Accounts worked in bulk from a play, kept so the play's results are attributed in code. */
   | { type: "play.run"; id: string; domains: string[]; at: string }
+  /** Plays the founder wrote: drafts, versions, rollbacks and skip lessons (src/lib/plays/custom.ts). */
+  | CustomPlayAction
   | { type: "meeting.upsert"; meeting: Meeting }
   /** Narrow meeting edits that patch the server's copy, so a stale client never overwrites a newer brief or debrief. */
   | { type: "meeting.toggleStar"; id: ID; briefAt: string; index: number }
   | { type: "meeting.patchDebrief"; id: ID; generatedAt: string; patch: { recap?: { subject: string; body: string }; appliedAt?: string; referralDomain?: { index: number; domain: string } } }
   | { type: "outreach.editStep"; packageId: ID; step: number; subject?: string | null; body?: string }
   | { type: "outreach.useAlternate"; packageId: ID; index: number }
-  | { type: "outreach.approveStep"; packageId: ID; step: number; at: string; activityId: ID }
+  /** `remindOn`: "Remind me if no reply" (unset = the default for this step, null = off). */
+  | { type: "outreach.approveStep"; packageId: ID; step: number; at: string; activityId: ID; remindOn?: string | null }
   | { type: "outreach.skipStep"; packageId: ID; step: number }
   /** Full swap of step 1 with an alternate angle (spans, POV, claims and angle travel with the text). */
   | { type: "outreach.swapAlternate"; packageId: ID; index: number }
@@ -164,11 +188,23 @@ export type Action =
   | { type: "activity.log"; activity: Activity }
   /** Undo for a logged activity (e.g. "Invite sent" on a LinkedIn draft). */
   | { type: "activity.remove"; id: ID }
-  | { type: "move.done"; id: ID }
-  | { type: "move.skip"; id: ID; reason: SkipReason }
-  | { type: "move.snooze"; id: ID; until: string }
+  | { type: "move.done"; id: ID; at?: string }
+  /** Stamps what the card targeted, so skips can change targeting (src/lib/learning/targeting.ts). */
+  | { type: "move.skip"; id: ID; reason: SkipReason; at?: string }
+  /** `untilReply`: wakes early when this person writes back. */
+  | { type: "move.snooze"; id: ID; until: string; at?: string; untilReply?: ID }
   /** Undo for done / skip / snooze. */
   | { type: "move.reopen"; id: ID }
+  /** "What I've learned" → Undo: these skips stop counting toward targeting (ignore: false counts them again). */
+  | { type: "move.learn"; ids: ID[]; ignore: boolean }
+  /** Changes or turns off "Remind me if no reply" on a send (null = off). */
+  | { type: "activity.setRemind"; id: ID; on: string | null }
+  /** Out of office or "not now": follow-ups to them wait until this date (null lifts it). */
+  | { type: "activity.setHold"; id: ID; until: string | null }
+  /** The founder corrects how a reply reads (null hands it back to the reads). */
+  | { type: "reply.setIntent"; id: ID; intent: ReplyIntent | null }
+  /** "What I've learned" → Undo on tone notes: the examples go, the skipped cards stay skipped. */
+  | { type: "voice.forgetToneOff"; ats: string[] }
   /** "Check replies": marks touches replied / no reply / bounced / not sent (null clears the mark). */
   | { type: "activity.markOutcome"; ids: ID[]; outcome: NonNullable<Activity["outcome"]> | null; at: string }
   /** "Let it go" on a yes that has no deal: Today stops chasing the booking (null opens it again). */
@@ -209,7 +245,10 @@ export type Action =
   | { type: "experiment.update"; id: ID; patch: Partial<Omit<Experiment, "id" | "createdAt">>; at: string }
   | { type: "experiment.remove"; id: ID }
   | { type: "pmf.log"; survey: PmfSurvey }
-  | { type: "pmf.remove"; id: ID };
+  | { type: "pmf.remove"; id: ID }
+  /** Buyer voice: a battlecard draft saved to Objections, or set aside (null undoes either). */
+  | { type: "buyerVoice.markSaved"; key: string; saved: VoiceBattlecard["saved"] | null }
+  | { type: "buyerVoice.dismiss"; key: string; at: string | null };
 
 export class ActionError extends Error {}
 
@@ -288,7 +327,8 @@ function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "i
   intro.updatedAt = a.at;
   if (a.outcome) intro.outcome = a.outcome;
   if (a.stage === "forwarded") intro.forwardedOn ??= on;
-  if (a.stage === "meeting") intro.meetingOn ??= on;
+  // The day of the meeting, when the founder said it; else the day it was recorded.
+  if (a.stage === "meeting") intro.meetingOn ??= a.meetingOn ?? on;
   if (a.stage === "done" || a.stage === "declined" || a.stage === "no_answer") intro.closedOn = on;
   else delete intro.closedOn;
   if (a.stage === "declined") intro.declinedBy = a.declinedBy ?? intro.declinedBy;
@@ -309,8 +349,8 @@ function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "i
       source: "founder",
     });
   }
-  // Reopening (a "no answer" that came back) keeps the original dates; only a fresh forward restarts its clock.
-  if (was === "no_answer" && a.stage === "forwarded") intro.forwardedOn = on;
+  // Reopening (a "no answer" or a pass that came back) keeps the original dates; only a fresh forward restarts its clock.
+  if ((was === "no_answer" || was === "declined") && a.stage === "forwarded") intro.forwardedOn = on;
 }
 
 function upsertBy<T extends { id: string }>(list: T[], item: T) {
@@ -342,6 +382,9 @@ function setPath(target: unknown, path: (string | number)[], value: unknown) {
   if (last === "__proto__" || last === "constructor" || last === "prototype") throw new ActionError("Invalid path");
   node[last] = value;
 }
+
+/** A calendar date, `YYYY-MM-DD` (not "", not a timestamp). */
+const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** Applies an action to a mutable draft. Throws ActionError on invalid input. */
 export function applyAction(ws: Workspace, action: Action): void {
@@ -587,6 +630,9 @@ export function applyAction(ws: Workspace, action: Action): void {
       ev.flaggedWrong = { at: action.at, note: action.note };
       return;
     }
+    case "evidence.unflag":
+      if (ws.evidence[action.id]) delete ws.evidence[action.id].flaggedWrong;
+      return;
     case "account.add":
       if (!ws.accounts[action.account.domain]) ws.accounts[action.account.domain] = action.account;
       return;
@@ -666,7 +712,18 @@ export function applyAction(ws: Workspace, action: Action): void {
       return;
     }
     case "revenue.setTarget": {
+      const t = action.target;
+      // An empty custom date (or an end before the start) would leave Revenue, Today and the forecast on a period that never ends.
+      if (t && !(t.amountUsd > 0 && isDay(t.periodStart) && isDay(t.periodEnd) && t.periodStart <= t.periodEnd)) {
+        throw new ActionError("A revenue target needs an amount, a start date and an end date on or after it.");
+      }
       ws.revenue ??= {};
+      // A target for a different period keeps the one it replaces as history (one entry per period, the last 8).
+      const prev = ws.revenue.target;
+      if (action.target && prev && (prev.periodStart !== action.target.periodStart || prev.periodEnd !== action.target.periodEnd)) {
+        const same = (t: RevenueTarget) => t.periodStart === prev.periodStart && t.periodEnd === prev.periodEnd;
+        ws.revenue.pastTargets = [...(ws.revenue.pastTargets ?? []).filter((t) => !same(t)), prev].slice(-8);
+      }
       if (action.target) ws.revenue.target = action.target;
       else delete ws.revenue.target;
       return;
@@ -678,12 +735,25 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "play.run": {
       ws.plays ??= {};
-      const prev = ws.plays[action.id] ?? { enabled: true, updatedAt: action.at };
+      const prev = ws.plays[action.id] ?? { enabled: !ws.customPlays?.[action.id], updatedAt: action.at };
       const domains = [...new Set(action.domains)].slice(0, 50);
       if (!domains.length) return;
       ws.plays[action.id] = { ...prev, runs: [...(prev.runs ?? []), { at: action.at, domains }].slice(-30) };
+      // The run log is the last 30; who it worked is kept for good, so results never shrink.
+      noteWorked(ws, action.id, domains, action.at);
       return;
     }
+    case "customPlay.upsert":
+    case "customPlay.edit":
+    case "customPlay.commit":
+    case "customPlay.rollback":
+    case "customPlay.discardDraft":
+    case "customPlay.dismissLesson":
+    case "customPlay.archive":
+    case "customPlay.remove":
+      if (action.type !== "customPlay.upsert") need(ws.customPlays?.[action.id], "Play");
+      applyCustomPlayAction(ws, action);
+      return;
     case "deal.setStage": {
       const deal = need(ws.deals[action.id], "Deal");
       if (deal.stage === action.stage) return;
@@ -691,9 +761,27 @@ export function applyAction(ws: Workspace, action: Action): void {
       deal.stageHistory.push({ stage: action.stage, at: action.at });
       deal.updatedAt = deal.lastActivityAt = action.at;
       if (action.stage === "lost") deal.lossReason = action.lossReason ?? deal.lossReason;
-      if (action.stage === "nurture") deal.nurtureUntil = action.nurtureUntil ?? addDays(todayISO(), 60);
+      // A cleared date input sends "": without a real date the nurture rule never brings the deal back.
+      if (action.stage === "nurture") deal.nurtureUntil = isDay(action.nurtureUntil) ? action.nurtureUntil : addDays(todayISO(), 60);
       const acc = ws.accounts[deal.accountDomain];
       if (acc) acc.status = action.stage === "won" ? "customer" : "in_pipeline";
+      return;
+    }
+    case "deal.revertStage": {
+      const deal = need(ws.deals[action.id], "Deal");
+      const last = deal.stageHistory.at(-1);
+      if (deal.stage !== action.stage || last?.stage !== action.stage || last.at !== action.at) return;
+      const p = action.previous;
+      deal.stageHistory.pop();
+      deal.stage = p.stage;
+      if (p.lossReason) deal.lossReason = p.lossReason;
+      else delete deal.lossReason;
+      if (p.nurtureUntil) deal.nurtureUntil = p.nurtureUntil;
+      else delete deal.nurtureUntil;
+      deal.updatedAt = p.updatedAt;
+      deal.lastActivityAt = p.lastActivityAt;
+      const acc = ws.accounts[deal.accountDomain];
+      if (acc && p.accountStatus) acc.status = p.accountStatus;
       return;
     }
     case "deal.setNextStep": {
@@ -767,6 +855,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       step.status = "sent";
       step.sentAt = action.at;
       const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+      // "Remind me if no reply": on by default, from the sequence's spacing or four working days.
+      const remindOn = action.remindOn !== undefined ? action.remindOn : defaultRemindOn(pkg, step, action.at);
       const asDrafted = step.original ? `${step.original.subject ?? ""}\n${step.original.body}` : undefined;
       const distance = asDrafted === undefined ? 0 : editDistance(asDrafted, `${step.subject ?? ""}\n${step.body}`);
       ws.activities.push({
@@ -785,6 +875,7 @@ export function applyAction(ws: Workspace, action: Action): void {
         // Signal, frame, POV, persona, subject style and bet arm: what the learning reviews compare.
         ...touchTags(ws, pkg, step, action.at),
         editDistance: distance,
+        ...(remindOn !== undefined && remindOn !== null ? { remindOn } : action.remindOn === null ? { remindOn: null } : {}),
       });
       // Every edit before sending is the founder showing how they write.
       if (step.original) learnFromEdit(ws, { before: step.original.body, after: step.body, subjectBefore: step.original.subject, subjectAfter: step.subject, distance }, action.at);
@@ -798,7 +889,10 @@ export function applyAction(ws: Workspace, action: Action): void {
         if (answer && !answer.dealId) answer.dealId = ws.accounts[pkg.accountDomain]?.dealId;
       }
       for (const move of Object.values(ws.moves)) {
-        if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "done";
+        if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) {
+          move.status = "done";
+          move.settledAt = action.at;
+        }
       }
       return;
     }
@@ -848,7 +942,10 @@ export function applyAction(ws: Workspace, action: Action): void {
       }
       ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
       for (const move of Object.values(ws.moves)) {
-        if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "open";
+        if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) {
+          move.status = "open";
+          delete move.settledAt;
+        }
       }
       // The card the founder finished by approving, whether or not it carried the draft link (gone moves are skipped).
       for (const id of action.moveIds ?? []) {
@@ -856,6 +953,7 @@ export function applyAction(ws: Workspace, action: Action): void {
         if (move?.status === "done") {
           move.status = "open";
           delete move.autoDone;
+          delete move.settledAt;
         }
       }
       // Undoing an intro ask also undoes the intro it opened, if nothing has happened on it since.
@@ -901,8 +999,8 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "activity.log": {
       ws.activities.push(action.activity);
       const a = action.activity;
-      // A reply cancels the rest of that person's open sequence.
-      if (a.kind === "reply_received" && a.personId) {
+      // A reply cancels the rest of that person's open sequence. An out-of-office only holds it.
+      if (a.kind === "reply_received" && a.personId && a.sentiment !== "ooo" && a.intent !== "ooo") {
         for (const pkg of Object.values(ws.outreach)) {
           if (pkg.personId !== a.personId) continue;
           for (const s of pkg.steps) if (s.status === "draft") s.status = "cancelled_by_reply";
@@ -915,26 +1013,83 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "activity.remove":
       ws.activities = ws.activities.filter((a) => a.id !== action.id);
       return;
-    case "move.done":
-      need(ws.moves[action.id], "Move").status = "done";
+    case "move.done": {
+      const move = need(ws.moves[action.id], "Move");
+      move.status = "done";
+      // A play's card counts toward the play's results for good, not just while the card is on file.
+      noteCardDone(ws, move);
+      if (action.at) move.settledAt = action.at;
       return;
+    }
     case "move.skip": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "skipped";
       move.skipReason = action.reason;
+      if (action.at) move.settledAt = action.at;
+      // Who and what it was about, as it stands now: the learning outlives the person or the signal.
+      move.skipTarget = skipTarget(ws, move);
       return;
     }
     case "move.snooze": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "snoozed";
       move.snoozedUntil = action.until;
+      if (action.at) move.settledAt = action.at;
+      if (action.untilReply) move.untilReply = { personId: action.untilReply, since: action.at ?? move.createdAt };
+      else delete move.untilReply;
       return;
     }
+    case "move.learn": {
+      for (const id of action.ids) {
+        const move = ws.moves[id];
+        if (!move) continue;
+        if (action.ignore) move.learnIgnored = true;
+        else delete move.learnIgnored;
+      }
+      return;
+    }
+    case "activity.setRemind": {
+      const a = need(
+        ws.activities.find((x) => x.id === action.id),
+        "Activity",
+      );
+      a.remindOn = action.on;
+      return;
+    }
+    case "activity.setHold": {
+      const a = need(
+        ws.activities.find((x) => x.id === action.id),
+        "Reply",
+      );
+      if (action.until) a.holdUntil = action.until;
+      else delete a.holdUntil;
+      return;
+    }
+    case "reply.setIntent": {
+      const a = need(
+        ws.activities.find((x) => x.id === action.id),
+        "Reply",
+      );
+      if (action.intent) a.intent = action.intent;
+      else delete a.intent;
+      return;
+    }
+    case "voice.forgetToneOff":
+      if (ws.voice?.toneOff) {
+        const drop = new Set(action.ats);
+        ws.voice.toneOff = ws.voice.toneOff.filter((t) => !drop.has(t.at));
+      }
+      return;
     case "move.reopen": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "open";
       delete move.skipReason;
       delete move.snoozedUntil;
+      forgetCard(ws, move);
+      delete move.settledAt;
+      delete move.skipTarget;
+      delete move.untilReply;
+      delete move.learnIgnored;
       // An undone "tone off" skip takes its example back out of the voice card.
       if (ws.voice?.toneOff) ws.voice.toneOff = ws.voice.toneOff.filter((t) => t.moveId !== action.id);
       return;
@@ -1157,6 +1312,18 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "pmf.remove":
       ws.pmfSurveys = (ws.pmfSurveys ?? []).filter((x) => x.id !== action.id);
       return;
+    case "buyerVoice.markSaved":
+      markBattlecardSaved(ws, action.key, action.saved);
+      return;
+    case "buyerVoice.dismiss":
+      dismissBattlecard(ws, action.key, action.at);
+      return;
+    default: {
+      // A type this server doesn't know (a tab left open across an update): change nothing, and say so. A new
+      // Action without a case here fails typecheck on the `never`.
+      const unknown: never = action;
+      console.warn(`[actions] Ignored an unknown action: ${JSON.stringify((unknown as { type?: unknown }).type)}`);
+    }
   }
 }
 

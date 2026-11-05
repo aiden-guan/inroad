@@ -59,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         // A key hint means nothing on a phone or a touch screen: shown only with a keyboard-sized layout and a mouse.
         <kbd
           className={cn(
-            "ml-0.5 hidden font-mono text-[11px] opacity-60 md:pointer-fine:inline",
+            "ml-0.5 hidden font-mono text-[12px] opacity-70 md:pointer-fine:inline",
             (variant === "primary" || variant === "agent") && "opacity-70",
           )}
         >

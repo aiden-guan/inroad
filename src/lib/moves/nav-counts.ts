@@ -1,7 +1,8 @@
 import { isConsumer } from "@/lib/consumer/market";
 import { consumerChannelPlan } from "@/lib/consumer/plan";
 import type { ID, Move, Workspace } from "@/lib/domain/types";
-import { TOP_MOVES, visibleMoves } from "./rules";
+import { deskLayout } from "./desk";
+import { visibleMoves } from "./rules";
 import { goalWins } from "./scoreboard";
 
 /**
@@ -9,10 +10,13 @@ import { goalWins } from "./scoreboard";
  * so the founder never sees two answers to "how much is waiting?".
  */
 
-/** What Today shows: at most TOP_MOVES cards ("ready"), the rest folded under Later. */
-export function todayCounts(moves: Record<ID, Move>, today: string): { ready: number; later: number } {
-  const n = visibleMoves(moves, today).length;
-  return { ready: Math.min(n, TOP_MOVES), later: Math.max(0, n - TOP_MOVES) };
+/**
+ * What Today shows ("ready"): the replies lane, the top moves and every overdue move; the rest is folded under Later.
+ * Pass `ws` so a reply card counts in the lane only when its reply is on file, as Today lays it out.
+ */
+export function todayCounts(moves: Record<ID, Move>, today: string, ws?: Pick<Workspace, "activities">): { ready: number; later: number } {
+  const desk = deskLayout(visibleMoves(moves, today), ws);
+  return { ready: desk.replies.length + desk.top.length + desk.overdue.length, later: desk.later.length };
 }
 
 /** Customers, as the Customers tab lists them: companies with a won deal, plus customers that came in without one. */

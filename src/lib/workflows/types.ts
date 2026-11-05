@@ -30,6 +30,11 @@ export interface WorkflowDef<A = unknown> {
   title: (args: A, ws: Workspace) => string;
   /** The entity this run is about, so its sheet can show the live log. */
   ref?: (args: A) => EntityRef | undefined;
+  /**
+   * Which work this is, for the run registry: starting it again while a run with the same key is in flight (a
+   * double click, Enter twice, two tabs) returns that run instead of paying for another. Default: the exact args.
+   */
+  key?: (args: A) => string;
   /** Heavy runs (web research) count against the concurrency limit; light ones start immediately. */
   heavy?: boolean;
   run: (ctx: WorkflowContext<A>) => Promise<unknown>;

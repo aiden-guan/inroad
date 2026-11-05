@@ -75,6 +75,17 @@ describe("source-bound metric history", () => {
     for (const value of [0, -100]) expect(observedChange({ ...reading, points: [{ at: "2026-10-20T12:00:00.000Z", value }] }, reading)?.percent).toBeNull();
   });
 
+  it("keeps one reading per local day: an evening sync isn't overwritten by the next morning's", () => {
+    // 6:30 pm on Oct 20 in Los Angeles is already Oct 21 in UTC, like the 9 am sync the next morning.
+    let points = recordDaily([], { at: "2026-10-19T16:00:00.000Z", value: 5 });
+    points = recordDaily(points, { at: "2026-10-21T01:30:00.000Z", value: 10 });
+    points = recordDaily(points, { at: "2026-10-21T16:00:00.000Z", value: 12 });
+    expect(points.map((p) => p.value)).toEqual([5, 10, 12]);
+    // A later sync on the same local day (7 pm Oct 21) replaces that day's reading.
+    points = recordDaily(points, { at: "2026-10-22T02:00:00.000Z", value: 13 });
+    expect(points.map((p) => p.value)).toEqual([5, 10, 13]);
+  });
+
   it("ignores out-of-order or invalid readings without mutating earlier points", () => {
     const points = [{ at: NOW.toISOString(), value: 10 }];
     expect(recordDaily(points, { at: "2026-10-20T12:00:00.000Z", value: 0 })).toEqual(points);

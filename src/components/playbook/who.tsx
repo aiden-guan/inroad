@@ -15,7 +15,7 @@ import type { DetectionMethod, ICP, ICPCriterion, Persona, PersonaRole, SegmentB
 import { spring } from "@/lib/motion";
 import { usePlaybook } from "./context";
 import { RefreshSub } from "./refresh";
-import { BET_TOUCHES, DETECTION_LABELS, ROLE_LABELS, SIGNAL_LABELS, betProgress, hypothesisSentence, plural, provenance } from "./model";
+import { BET_TOUCHES, DETECTION_LABELS, ROLE_LABELS, SIGNAL_LABELS, betProgress, betSizeBand, hypothesisSentence, plural, provenance } from "./model";
 import { AddRow, Choice, Editable, FieldLabel, RemoveButton, ResearchCite, Section, Stamp, StringList, Sub, TagList, undoable } from "./ui";
 
 const KIND_LABELS: Record<ICPCriterion["kind"], string> = {
@@ -54,6 +54,8 @@ function SegmentBetBlock() {
   const consumer = isConsumer(ws);
   // Consumer bets are judged on their users' retention, not on cold touches.
   const progress = consumer ? null : betProgress(ws, icp.segmentLockedAt);
+  // A size the bet already states ("…with 50–300 people") shows as the value, marked, until the founder confirms it.
+  const sizeFromBet = !icp.employeeBand || icp.employeeBand === "mixed" ? betSizeBand(icp) : null;
 
   const setSlot = (key: keyof ICP["hypothesis"], value: string) => {
     const next = { ...h, [key]: value };
@@ -149,14 +151,28 @@ function SegmentBetBlock() {
           <dt>
             <FieldLabel>Company size</FieldLabel>
           </dt>
-          <dd className="flex items-center gap-2 text-[13px] text-fg-3">
+          <dd className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-fg-3">
             <Choice
               label="Company size"
-              value={icp.employeeBand ?? "mixed"}
+              value={sizeFromBet ?? icp.employeeBand ?? "mixed"}
               options={{ lt50: "Under 50", "50_300": "50–300", gt300: "300+", mixed: "Not set" }}
               onChange={(v) => set(["icp", "employeeBand"], v)}
             />
-            employees · sets your price anchors
+            employees ·
+            {sizeFromBet ? (
+              <>
+                <span>from the bet</span>
+                <button
+                  type="button"
+                  onClick={() => set(["icp", "employeeBand"], sizeFromBet)}
+                  className="rounded-xs text-[12.5px] font-medium text-fg-2 underline underline-offset-2 transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >
+                  Confirm
+                </button>
+              </>
+            ) : (
+              <span>sets your price anchors</span>
+            )}
           </dd>
         </div>
       </dl>

@@ -16,6 +16,7 @@ import { CopyButton, Skeleton } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { MarginNote, SourceChip } from "@/components/ui/source";
 import { WorkLog } from "@/components/ui/work-log";
+import { RemindControl } from "@/components/today/remind-toggle";
 import { cn } from "@/lib/client/cn";
 import { ledger } from "@/lib/intros/rules";
 import { firstName, shortDate } from "@/lib/client/format";
@@ -282,6 +283,8 @@ function DraftBody({
             : `Marked as sent${person ? ` to ${firstName(person.name)}` : ""}. Copied to your clipboard.`;
       toast(sentTo, {
         duration: 10_000,
+        // "Remind me if no reply", pre-checked: the day comes from the sequence's spacing, else four working days.
+        description: <RemindControl activityId={activityId} />,
         // Undo also reopens the card this approval finished (onApproved marks it done).
         action: { label: "Undo", onClick: () => void dispatch({ type: "outreach.unapproveStep", packageId: pkg.id, step: step.step, activityId, ...(moveId ? { moveIds: [moveId] } : {}) }) },
       });

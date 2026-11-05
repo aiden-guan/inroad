@@ -3,6 +3,7 @@
 import { ArrowLeftRight, ArrowRight, ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { cn } from "@/lib/client/cn";
 import type { Intro, Workspace } from "@/lib/domain/types";
@@ -40,20 +41,22 @@ export function Stepper({ intro }: { intro: Intro }) {
           />
         </li>
       ))}
-      <li className="ml-1.5 text-[11.5px] text-fg-3">{ended ?? steps[at]}</li>
+      <li className="ml-1.5 text-[12px] text-fg-3">{ended ?? steps[at]}</li>
     </ol>
   );
 }
 
+/**
+ * Whose move it is, in the kit's badge. One meaning per color across Intros: blue is your move, amber is late or
+ * needs something first, green is ready to ask, grey is waiting, and an outline only describes.
+ */
 function OwnerChip({ next }: { next: IntroNext }) {
-  if (next.owner === "you")
-    return (
-      <span className="inline-flex h-5 items-center rounded-full bg-accent-subtle px-2 text-[11.5px] font-medium text-accent-text">
-        Your move{next.overdueDays ? ` · ${next.overdueDays}d late` : ""}
-      </span>
-    );
+  if (next.owner === "you") {
+    const late = next.overdueDays ?? 0;
+    return late > 0 ? <Badge tone="warning">Your move · {late} {late === 1 ? "day" : "days"} late</Badge> : <Badge tone="info">Your move</Badge>;
+  }
   if (next.owner === null) return null;
-  return <span className="inline-flex h-5 items-center rounded-full bg-bg-subtle px-2 text-[11.5px] text-fg-3 ring-1 ring-border">Waiting</span>;
+  return <Badge tone="neutral">Waiting</Badge>;
 }
 
 /**
@@ -65,9 +68,9 @@ export function IntroTitle({ intro, ws }: { intro: Intro; ws: Workspace }) {
     const [a, b] = intro.sides ?? [];
     return (
       <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 sm:flex-nowrap">
-        <span className="font-medium text-fg sm:truncate">{a?.name}</span>
+        <span className="font-medium text-fg sm:truncate" title={a?.name}>{a?.name}</span>
         <ArrowLeftRight className="size-3.5 shrink-0 text-fg-3" aria-label="and" />
-        <span className="font-medium text-fg sm:truncate">{b?.name}</span>
+        <span className="font-medium text-fg sm:truncate" title={b?.name}>{b?.name}</span>
       </span>
     );
   }

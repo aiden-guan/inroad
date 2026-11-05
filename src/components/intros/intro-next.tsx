@@ -1,15 +1,15 @@
 "use client";
 
 import { ArrowUpRight, Check } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { gmailComposeUrl } from "@/components/compose/handoff";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/field";
+import { Input, Textarea } from "@/components/ui/field";
 import { CopyButton, Segmented } from "@/components/ui/misc";
 import type { Action } from "@/lib/domain/actions";
-import { newId, nowISO } from "@/lib/domain/ids";
+import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Intro, IntroStage, Workspace } from "@/lib/domain/types";
 import { targetFirstName, targetLabel, type IntroAction, type IntroNext } from "@/lib/intros/rules";
 import { messageFor } from "@/lib/intros/templates";
@@ -153,8 +153,16 @@ function MessageBox({ ws, msg }: { ws: Workspace; msg: ReturnType<typeof message
     <div className="rounded-md bg-surface ring-1 ring-border">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5 text-[12px] text-fg-3">
         <span>{msg.where}</span>
-        {msg.to && <span className="truncate font-mono text-[11.5px]">{msg.to}</span>}
-        {msg.subject && <span className="truncate">“{msg.subject}”</span>}
+        {msg.to && (
+          <span className="min-w-0 truncate font-mono text-[12px]" title={msg.to}>
+            {msg.to}
+          </span>
+        )}
+        {msg.subject && (
+          <span className="min-w-0 truncate" title={msg.subject}>
+            “{msg.subject}”
+          </span>
+        )}
         {msg.optional && <span className="ml-auto">Optional</span>}
       </div>
       <Textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="Message" className="min-h-28 rounded-none bg-transparent px-3 py-2.5 text-[13.5px] leading-[21px] ring-0 hover:ring-0" />
@@ -183,6 +191,9 @@ export function StageControls({ intro, compact }: { intro: Intro; compact?: bool
   const go = (stage: IntroStage, extra: Partial<Extract<Action, { type: "intro.advance" }>> = {}) =>
     void dispatch({ type: "intro.advance", id: intro.id, stage, at: nowISO(), activityId: stage === "introduced" ? newId("act") : undefined, ...extra });
   const consent = (side: 0 | 1, value: "yes" | "no") => void dispatch({ type: "intro.consent", id: intro.id, side, consent: value, at: nowISO() });
+  // "Meeting booked" asks when, so Today doesn't ask how it went before it has happened.
+  const [booking, setBooking] = useState<string | null>(null);
+  const dateId = useId();
 
   const options: { label: string; run: () => void; tone?: "quiet" }[] = [];
   if (intro.kind === "give") {
@@ -205,7 +216,7 @@ export function StageControls({ intro, compact }: { intro: Intro; compact?: bool
         options.push({ label: `${t} passed`, run: () => go("declined", { declinedBy: "target" }), tone: "quiet" });
         break;
       case "introduced":
-        options.push({ label: "Meeting booked", run: () => go("meeting") });
+        options.push({ label: "Meeting booked", run: () => setBooking(todayISO()) });
         options.push({ label: `${t} went quiet`, run: () => go("no_answer"), tone: "quiet" });
         break;
       case "meeting":
@@ -216,6 +227,30 @@ export function StageControls({ intro, compact }: { intro: Intro; compact?: bool
         options.push({ label: "They came back", run: () => go("forwarded"), tone: "quiet" });
         break;
     }
+  }
+  if (booking !== null) {
+    return (
+      <form
+        className="flex flex-wrap items-center gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!booking) return;
+          go("meeting", { meetingOn: booking });
+          setBooking(null);
+        }}
+      >
+        <label htmlFor={dateId} className="text-[12px] text-fg-3">
+          When is the meeting?
+        </label>
+        <Input id={dateId} type="date" value={booking} onChange={(e) => setBooking(e.target.value)} className="h-7 w-auto px-2 font-mono text-[12px]" autoFocus />
+        <Button size="xs" variant="primary" type="submit" disabled={!booking}>
+          Save
+        </Button>
+        <Button size="xs" variant="ghost" type="button" onClick={() => setBooking(null)} className="text-fg-3">
+          Cancel
+        </Button>
+      </form>
+    );
   }
   if (!options.length) return null;
   return (

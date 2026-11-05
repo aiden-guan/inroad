@@ -1,5 +1,5 @@
 import { addDays, daysBetween, weekOf } from "@/lib/domain/ids";
-import { STAGE_LABELS, type Deal, type ForecastCategory, type ForecastSnapshot, type ISODate, type Workspace } from "@/lib/domain/types";
+import { STAGE_LABELS, type Deal, type ForecastCategory, type ForecastSnapshot, type ISODate, type RevenueTarget, type Workspace } from "@/lib/domain/types";
 import { conversationsBetween } from "@/lib/moves/scoreboard";
 import { first } from "@/lib/moves/util";
 import { dealRisks, healthBand, healthOf, type Risk } from "./risk";
@@ -7,6 +7,9 @@ import {
   closedOn,
   daysInStage,
   dealAmount,
+  endedTarget,
+  importUnknown,
+  liveTarget,
   nextPeriod,
   openStage,
   PRIORS,
@@ -135,6 +138,30 @@ export function callDeal(ws: Workspace, deal: Deal, stats: RevenueStats, period:
   };
 }
 
+/** What an open deal is missing for the forecast to trust it: a current close date, an amount, a dated next step, two contacts. */
+export type DealGap = "close_date" | "close_passed" | "amount" | "next_step" | "next_step_overdue" | "contacts";
+
+export const GAP_LABELS: Record<DealGap, string> = {
+  close_date: "No close date",
+  close_passed: "Close date passed",
+  amount: "No amount",
+  next_step: "No dated next step",
+  next_step_overdue: "Next step overdue",
+  contacts: "Fewer than two contacts",
+};
+
+export function dealGaps(c: DealCall, today: ISODate): DealGap[] {
+  const d = c.deal;
+  const out: DealGap[] = [];
+  if (!d.closeDate) out.push("close_date");
+  else if (d.closeDate < today) out.push("close_passed");
+  if (c.amount.source === "average") out.push("amount");
+  if (!d.nextStep?.date) out.push("next_step");
+  else if (d.nextStep.date < today) out.push("next_step_overdue");
+  if (d.contacts.length < 2) out.push("contacts");
+  return out;
+}
+
 /* ─────────────────────────────── The forecast ─────────────────────────────── */
 
 export interface Forecast {
@@ -169,9 +196,23 @@ export interface Forecast {
   coverageNeeded: number;
   calls: DealCall[];
   next: { start: ISODate; end: ISODate; pipeline: number; coverage: number | null };
+  /**
+   * The saved target once its period is over: the forecast has rolled to the quarter running now, which has no
+   * target yet. Kept so the page can say how that period ended and offer its number as this one's default.
+   */
+  ended: { target: RevenueTarget; wonUsd: number; deals: number } | null;
 }
 
 const sum = (calls: DealCall[]) => calls.reduce((n, c) => n + c.amount.usd, 0);
+
+/** Won deals that closed inside [start, end], at their amounts (or the typical deal, for the few with none). */
+function wonBetween(deals: Deal[], start: ISODate, end: ISODate, avgDeal: Observed): { usd: number; deals: Deal[] } {
+  const won = deals.filter((d) => {
+    const on = closedOn(d);
+    return d.stage === "won" && !!on && on >= start && on <= end;
+  });
+  return { usd: won.reduce((n, d) => n + dealAmount(d, avgDeal).usd, 0), deals: won };
+}
 
 /** How often deals in each category close in the period, until two quarters of snapshots can calibrate them. */
 export const CATEGORY_ODDS: Record<ForecastCategory, number> = { commit: 0.9, best_case: 0.5, pipeline: 0.15, omitted: 0 };
@@ -202,17 +243,19 @@ export function chanceToReach(need: number, deals: { usd: number; p: number }[])
 }
 
 export function computeForecast(ws: Workspace, today: ISODate): Forecast {
-  const target = ws.revenue?.target;
-  const period = periodOf(target, today);
+  const saved = ws.revenue?.target;
+  // A target governs its own period only. Once that's over, the forecast calls the quarter running now.
+  const target = liveTarget(saved, today);
+  const period = periodOf(saved, today);
   const stats = revenueStats(ws, today);
   const deals = Object.values(ws.deals);
   const calls = deals.filter((d) => openStage(d.stage)).map((d) => callDeal(ws, d, stats, period, today));
 
-  const wonDeals = deals.filter((d) => {
-    const on = closedOn(d);
-    return d.stage === "won" && !!on && on >= period.start && on <= period.end;
-  });
-  const closedWonUsd = wonDeals.reduce((n, d) => n + dealAmount(d, stats.avgDealUsd).usd, 0);
+  const won = wonBetween(deals, period.start, period.end, stats.avgDealUsd);
+  const closedWonUsd = won.usd;
+  const over = endedTarget(saved, today);
+  const overWon = over ? wonBetween(deals, over.periodStart, over.periodEnd, stats.avgDealUsd) : null;
+  const ended = over && overWon ? { target: over, wonUsd: overWon.usd, deals: overWon.deals.length } : null;
 
   const live = calls.filter((c) => c.category !== "omitted");
   const commit = closedWonUsd + sum(live.filter((c) => c.category === "commit"));
@@ -220,17 +263,19 @@ export function computeForecast(ws: Workspace, today: ISODate): Forecast {
   const openInPeriod = sum(live);
   const amount = target?.amountUsd ?? 0;
   const remaining = Math.max(0, amount - closedWonUsd);
-  // 3× until enough quarters of snapshots exist to use a measured conversion (docs/research/12 §B6).
-  const coverageNeeded = target?.coverageTarget ?? PRIORS.coverage;
+  // 3× until enough quarters of snapshots exist to use a measured conversion (docs/research/12 §B6). A planning
+  // assumption, so it carries over from an ended target.
+  const coverageNeeded = saved?.coverageTarget ?? PRIORS.coverage;
 
   const np = nextPeriod(period);
   const nextOpen = calls.filter((c) => c.closeDate >= np.start && c.closeDate <= np.end);
   const nextPipeline = sum(nextOpen);
 
   const call = closedWonUsd + live.reduce((n, c) => n + c.amount.usd * CATEGORY_ODDS[c.category], 0);
-  const complete = calls.filter((c) => !!c.deal.closeDate && c.deal.closeDate >= today && c.amount.source !== "average" && !!c.deal.nextStep?.date && c.deal.nextStep.date >= today && c.deal.contacts.length >= 2).length;
+  const complete = calls.filter((c) => !dealGaps(c, today).length).length;
   const since = addDays(today, -27);
-  const created = deals.filter((d) => startedOn(d) >= since);
+  // A deal from a file without a created date started at some unknown point, not on the day it was imported.
+  const created = deals.filter((d) => startedOn(d) >= since && !importUnknown(d, "created"));
   const createdUsd = created.reduce((n, d) => n + dealAmount(d, stats.avgDealUsd).usd, 0);
   const weeksInPeriod = Math.max(1, Math.round((daysBetween(period.start, period.end) + 1) / 7));
 
@@ -240,7 +285,7 @@ export function computeForecast(ws: Workspace, today: ISODate): Forecast {
     hasTarget: amount > 0,
     target: amount,
     stats,
-    closedWon: { usd: closedWonUsd, deals: wonDeals },
+    closedWon: { usd: closedWonUsd, deals: won.deals },
     commit,
     bestCase,
     pipeline: closedWonUsd + openInPeriod,
@@ -255,6 +300,7 @@ export function computeForecast(ws: Workspace, today: ISODate): Forecast {
     coverageNeeded,
     calls: calls.sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category) || b.amount.usd - a.amount.usd),
     next: { ...np, pipeline: nextPipeline, coverage: amount > 0 ? nextPipeline / amount : null },
+    ended,
   };
 }
 
@@ -343,7 +389,9 @@ export function computePlan(ws: Workspace, f: Forecast, now: Date): RevenuePlan 
     return {
       ...base,
       verdict: "no_target",
-      headline: "Set a revenue target and I'll work backward to the meetings it takes.",
+      headline: f.ended
+        ? `${f.ended.target.label} ended ${shortDay(f.ended.target.periodEnd)} with ${money(f.ended.wonUsd)} won against ${money(f.ended.target.amountUsd)}. Set ${f.period.label}'s target and I'll work backward to the meetings it takes.`
+        : "Set a revenue target and I'll work backward to the meetings it takes.",
       expected,
       gap: 0,
       dealsNeeded: 0,
@@ -357,7 +405,7 @@ export function computePlan(ws: Workspace, f: Forecast, now: Date): RevenuePlan 
     };
   }
   if (f.remaining <= 0) {
-    return { ...base, verdict: "hit", headline: `${period.label} is closed: ${money(f.closedWon.usd)} won against ${money(f.target)}.`, expected, gap: 0, dealsNeeded: 0, qualifiedNeeded: 0, meetingsNeeded: 0, cutoff, weeksToCutoff, meetingsPerWeekNeeded: null, levers: [], byChannel: [] };
+    return { ...base, verdict: "hit", headline: `Target reached: ${money(f.closedWon.usd)} won against ${money(f.target)} for ${period.label}.`, expected, gap: 0, dealsNeeded: 0, qualifiedNeeded: 0, meetingsNeeded: 0, cutoff, weeksToCutoff, meetingsPerWeekNeeded: null, levers: [], byChannel: [] };
   }
 
   const gap = Math.max(0, f.remaining - expected);
@@ -421,8 +469,18 @@ export function takeSnapshot(f: Forecast, takenAt: string): ForecastSnapshot {
     bestCase: f.bestCase,
     pipeline: f.pipeline,
     call: f.call,
-    deals: f.calls.map((c) => ({ id: c.deal.id, name: c.deal.name, stage: c.deal.stage, category: c.category, amountUsd: c.amount.usd, closeDate: c.closeDate })),
+    deals: f.calls.map((c) => ({ id: c.deal.id, name: c.deal.name, stage: c.deal.stage, category: c.category, amountUsd: c.amount.usd, closeDate: c.closeDate, closeEstimated: c.closeEstimated })),
   };
+}
+
+/**
+ * Whether a snapshot's close date was one the deal really had. Snapshots now say; older ones stored code's estimate
+ * for undated deals without saying so, so for those the date has to appear in the deal's own close-date record.
+ */
+function realCloseDate(was: ForecastSnapshot["deals"][number], deal: Deal | undefined): boolean {
+  if (!was.closeDate) return false;
+  if (was.closeEstimated !== undefined) return !was.closeEstimated;
+  return !!deal && (deal.closeDate === was.closeDate || (deal.closeDateHistory ?? []).some((h) => h.date === was.closeDate));
 }
 
 /** The snapshot to compare against: the latest one from before this week. */
@@ -456,10 +514,13 @@ export function forecastChanges(ws: Workspace, prev: ForecastSnapshot | undefine
       else if (deal) out.push({ kind: "dropped", dealId: was.id, name: was.name, text: `${was.name} moved to nurture.`, deltaUsd: -was.amountUsd });
       continue;
     }
-    if (was.closeDate && c.closeDate > was.closeDate && was.category !== "omitted") {
+    // An estimated date slides later every day on its own: only two real dates can show a push.
+    const wasReal = realCloseDate(was, deal);
+    const nowReal = !c.closeEstimated;
+    if (wasReal && nowReal && c.closeDate > was.closeDate! && was.category !== "omitted") {
       const out_ = c.category === "omitted";
-      out.push({ kind: "pushed", dealId: was.id, name: was.name, text: `${was.name} pushed from ${shortDay(was.closeDate)} to ${shortDay(c.closeDate)}${out_ ? ", out of this period" : ""}.`, deltaUsd: out_ ? -was.amountUsd : 0 });
-    } else if (was.closeDate && c.closeDate < was.closeDate && was.category === "omitted" && c.category !== "omitted") {
+      out.push({ kind: "pushed", dealId: was.id, name: was.name, text: `${was.name} pushed from ${shortDay(was.closeDate!)} to ${shortDay(c.closeDate)}${out_ ? ", out of this period" : ""}.`, deltaUsd: out_ ? -was.amountUsd : 0 });
+    } else if (nowReal && was.category === "omitted" && c.category !== "omitted" && (!wasReal || c.closeDate < was.closeDate!)) {
       out.push({ kind: "pulled", dealId: was.id, name: was.name, text: `${was.name} pulled into this period (${shortDay(c.closeDate)}).`, deltaUsd: c.amount.usd });
     }
     if (RANK[c.category] !== RANK[was.category] && !(was.category === "omitted" || c.category === "omitted")) {

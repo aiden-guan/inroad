@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { activitySourceFor, inboundSourceName } from "@/lib/connectors/catalog";
+import { newDeal } from "@/lib/deals/rules";
 import { applyAction } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Activity, ActivityKind, Deal, Meeting, Person, Workspace } from "@/lib/domain/types";
@@ -382,6 +383,24 @@ function parseCalcom(payload: unknown): Normalized {
   return n;
 }
 
+/**
+ * The founder's calendar feed (src/lib/calendar/sync.ts): occurrences already sorted and mapped to bookings
+ * there, one per meeting and company, with that company's guests first.
+ */
+function parseCalendar(payload: unknown): Normalized {
+  const n = emptyNorm();
+  for (const item of (Array.isArray(payload) ? payload : [payload]).slice(0, MAX_ROWS)) {
+    if (!isObj(item)) continue;
+    const id = str(item.id);
+    if (!id) continue;
+    const attendees = (Array.isArray(item.attendees) ? item.attendees : []).filter(isObj).map((a) => ({ email: normalizeEmail(a.email) ?? undefined, name: str(a.name) }));
+    const title = str(item.title) ?? "Meeting";
+    if (item.action === "canceled") n.bookings.push({ externalId: id, action: "canceled", title, attendees });
+    else n.bookings.push({ externalId: id, action: "created", title, startsAt: str(item.startsAt), attendees });
+  }
+  return n;
+}
+
 export function parseInbound(source: string, payload: unknown, at = nowISO()): Normalized {
   switch (source) {
     case "instantly":
@@ -394,6 +413,8 @@ export function parseInbound(source: string, payload: unknown, at = nowISO()): N
       return parseCalendly(payload);
     case "calcom":
       return parseCalcom(payload);
+    case "calendar":
+      return parseCalendar(payload);
     default:
       return parseGeneric(payload, at);
   }
@@ -712,10 +733,11 @@ function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: L
         name: account.name,
         stage: "talking",
         stageHistory: [{ stage: "talking", at }],
-        source: "inbound",
+        // A calendar invite doesn't say who reached out: the company's own source stands, as for a deal added by hand.
+        source: source === "calendar" ? newDeal(account, "", at).source : "inbound",
         contacts: [{ personId: person.id }],
         meetingIds: [],
-        notes: `Started from a ${via} booking.`,
+        notes: source === "calendar" ? "Started from a meeting on your calendar." : `Started from a ${via} booking.`,
         createdAt: at,
         updatedAt: at,
         lastActivityAt: at,
@@ -723,12 +745,36 @@ function applyNormalized(ws: Workspace, source: string, n: Normalized, ledger: L
       applyAction(ws, { type: "deal.create", deal });
     } else if (!deal.contacts.some((c) => c.personId === person.id)) deal.contacts.push({ personId: person.id });
 
-    const meeting: Meeting = { id: newId("mtg"), dealId: deal.id, title: b.title, startsAt, attendees: [{ personId: person.id, name: person.name, ...(person.title ? { title: person.title } : {}) }] };
+    // Everyone else on the invite: their colleagues join the deal; anyone else (a personal address, another company) is listed by name.
+    const attendees: Meeting["attendees"] = [{ personId: person.id, name: person.name, ...(person.title ? { title: person.title } : {}) }];
+    for (const other of guests) {
+      if (other === guest) continue;
+      if (companyDomainOf(other.email) === domain) {
+        if (askedToBeDeleted(ws, other.email)) continue;
+        const made = ensurePerson(ws, { domain, email: other.email, name: other.name }, { via, source: "integration" });
+        if (made.created) counts.people++;
+        if (attendees.some((a) => a.personId === made.person.id)) continue;
+        if (!deal.contacts.some((c) => c.personId === made.person.id)) deal.contacts.push({ personId: made.person.id });
+        attendees.push({ personId: made.person.id, name: made.person.name, ...(made.person.title ? { title: made.person.title } : {}) });
+      } else if (other.name || other.email) attendees.push({ name: other.name ?? other.email!.split("@")[0] });
+    }
+
+    // The same call already on the deal (a Calendly booking that's also on the calendar, or one added by hand): link it, don't add a twin.
+    const twin = deal.meetingIds.map((id) => ws.meetings[id]).find((m) => m && Math.abs(Date.parse(m.startsAt) - Date.parse(startsAt)) < 10 * 60_000);
+    if (twin) {
+      ledger.refs[refK(b.externalId)] = { id: twin.id, at };
+      if (!twin.attendees.length) twin.attendees = attendees;
+      counts.skipped++;
+      continue;
+    }
+
+    const meeting: Meeting = { id: newId("mtg"), dealId: deal.id, title: b.title, startsAt, attendees, ...(source === "calendar" ? { source: "calendar" as const } : {}) };
     applyAction(ws, { type: "meeting.upsert", meeting });
     ledger.refs[refK(b.externalId)] = { id: meeting.id, at };
     counts.meetings++;
     // No prep card here: on the meeting day the moves engine adds one that shows the brief and expires after the call.
-    ws.activities.push({ id: newId("act"), at, kind: "note", personId: person.id, accountDomain: domain, dealId: deal.id, channel: "integration", summary: `${person.name} booked “${clip(b.title, 80)}” for ${meetingTime(startsAt)} via ${via}`, source: "webhook_in" });
+    const said = source === "calendar" ? `On your calendar: “${clip(b.title, 80)}” with ${person.name}, ${meetingTime(startsAt)}` : `${person.name} booked “${clip(b.title, 80)}” for ${meetingTime(startsAt)} via ${via}`;
+    ws.activities.push({ id: newId("act"), at, kind: "note", personId: person.id, accountDomain: domain, dealId: deal.id, channel: "integration", summary: said, source: "webhook_in" });
   }
 
   return { counts, alerts, replies, labels, kinds, canceled };

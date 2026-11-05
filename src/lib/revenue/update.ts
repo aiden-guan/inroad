@@ -22,7 +22,11 @@ export function updateFacts(ws: Workspace, f: Forecast, plan: RevenuePlan, now: 
   const sb = computeScoreboard(ws, now);
   const facts = [
     `Period: ${f.period.label}, ${shortDay(f.period.start)} to ${shortDay(f.period.end)}, ${f.period.weeksLeft} weeks left.`,
-    f.hasTarget ? `Target: ${money(f.target)} new annual contract value.` : "No revenue target is set.",
+    f.hasTarget
+      ? `Target: ${money(f.target)} new annual contract value.`
+      : f.ended
+        ? `No target is set for ${f.period.label} yet. The last one, ${f.ended.target.label}, ended ${shortDay(f.ended.target.periodEnd)} with ${money(f.ended.wonUsd)} won against ${money(f.ended.target.amountUsd)}.`
+        : "No revenue target is set.",
     `Closed won this period: ${money(f.closedWon.usd)} (${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}).`,
     `Commit (closed won + commit deals): ${money(f.commit)}.`,
     `Best case (commit + best-case deals): ${money(f.bestCase)}.`,
@@ -44,7 +48,7 @@ export function updateFacts(ws: Workspace, f: Forecast, plan: RevenuePlan, now: 
     ...bySource(ws, f.stats)
       .filter((r) => r.deals > 0)
       .slice(0, 3)
-      .map((r) => `${r.label}: ${r.deals} deals, ${r.won} won, ${money(r.wonUsd)} won${r.winRate ? `, win rate ${r.won} of ${r.winRate.n} closed` : ""}, ${money(r.openUsd)} open.`),
+      .map((r) => `${r.label}: ${r.deals} deals, ${r.won} won, ${money(r.wonUsd)} won${r.winRate ? `, win rate ${Math.round(r.winRate.value * r.winRate.n)} of ${r.winRate.n} closed` : ""}, ${money(r.openUsd)} open.`),
     ...bySignal(ws, SIGNAL_LABELS)
       .filter((r) => r.touched > 0 && r.key !== "none")
       .slice(0, 3)

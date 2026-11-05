@@ -12,6 +12,7 @@ import { DIMENSION_LABELS, TARGETING_DIMENSIONS, betEndsOn, inferDimension } fro
 import { shortDay } from "@/lib/moves/util";
 import { revisionStale } from "@/lib/playbook/revision";
 import type { Brief, EntityRef, ReviewProposal, Workspace } from "@/lib/domain/types";
+import { LearnedList } from "./learned";
 import { applyLabel, proposalActions } from "./proposals";
 import { RunInline } from "./parts";
 
@@ -56,10 +57,21 @@ export function ReviewBody({ ws, kind, weekStart }: { ws: Workspace; kind: Revie
           label={RUN_LABELS[kind]}
           hint={kind === "monthly" ? "Costs about $0.50" : "Costs about $0.05"}
         />
+        {kind === "friday" && <Learned ws={ws} />}
       </div>
     );
   }
   return <ReviewDoc ws={ws} review={review} kind={kind} />;
+}
+
+/** The learning review shows what skips taught Today, the same list as Today's "Learned" (src/lib/learning/targeting.ts). */
+function Learned({ ws }: { ws: Workspace }) {
+  return (
+    <section aria-label="What I've learned" className="space-y-2 border-t border-border pt-4">
+      <h3 className="text-[12px] font-medium text-fg-3">What I&apos;ve learned from your skips</h3>
+      <LearnedList ws={ws} today={todayISO()} />
+    </section>
+  );
 }
 
 export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; kind: ReviewKind }) {
@@ -85,6 +97,7 @@ export function ReviewDoc({ ws, review, kind }: { ws: Workspace; review: Brief; 
           <p className="text-[12px] text-fg-3">Nothing changes until you apply it. Stages only move when you say so.</p>
         </div>
       )}
+      {kind === "friday" && <Learned ws={ws} />}
       <RunInline workflow="review" args={{ kind }} runRef={reviewRef(kind)} label="Run it again" variant="secondary" />
     </div>
   );

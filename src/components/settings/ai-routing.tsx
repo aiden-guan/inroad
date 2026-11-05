@@ -3,12 +3,13 @@
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { AI_TASKS, type AiConnection, type AiRouting, type AiTask, type ModelTarget, type RoutingStatus } from "@/lib/ai/routing-types";
 import { PROVIDERS, providerById, type ProviderId } from "@/lib/ai/providers";
 import { forgetActiveProvider } from "@/lib/client/ai-provider";
 import { Group, Row } from "./parts";
 
-const selectClass = "w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[13px] text-fg disabled:opacity-50";
+const selectClass = "w-full";
 
 export function AiRoutingGroup({ reload, revision }: { reload: () => void; revision?: unknown }) {
   const [status, setStatus] = useState<RoutingStatus>();
@@ -44,12 +45,12 @@ export function AiRoutingGroup({ reload, revision }: { reload: () => void; revis
     void updateRouting({ tasks });
   };
   return <Group id="ai-routing" title="AI connections and task routing"
-    hint="Save any number of accounts, local servers, or gateways. Each keeps its own credentials and models. Task choices take priority over automatic routing."
+    hint="Save more than one AI account, a model running on this computer, or a gateway. Each keeps its own key and models. A model you pick for a task always comes first."
     right={<Button size="sm" disabled={busy} onClick={() => setEditing("new")}>Add connection</Button>}>
     {error && <p className="px-4 py-3 text-[13px] text-danger" role="alert">{error}</p>}
     {!status && !error && <p className="px-4 py-3 text-[13px] text-fg-3">Loading connections…</p>}
     {status?.connections.map((c) => <Row key={c.id} label={c.name}
-      hint={`${providerById(c.provider)?.name} · ${c.model} · ${status.ready[c.id] ? c.key ? `saved key ${c.key.hint}` : c.provider === "ollama" ? "local server" : "server credentials" : "disabled or missing credentials"}${c.auto ? " · eligible for automatic routing" : ""}`}>
+      hint={`${providerById(c.provider)?.name} · ${c.model} · ${status.ready[c.id] ? c.key ? `saved key ${c.key.hint}` : c.provider === "ollama" ? "running on this computer" : "key set up on this computer" : "off, or missing its key"}${c.auto ? " · used when routing automatically" : ""}`}>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" disabled={busy || !status.ready[c.id]} onClick={() => void updateRouting({ defaultConnectionId: c.id })}>
           {(routing?.defaultConnectionId ?? "legacy") === c.id ? "Default" : "Make default"}
@@ -64,19 +65,19 @@ export function AiRoutingGroup({ reload, revision }: { reload: () => void; revis
     {editing && <ConnectionEditor key={editing === "new" ? "new" : editing.id} connection={editing === "new" ? undefined : editing} busy={busy}
       cancel={() => { setEditing(undefined); setError(""); }} save={async (connection) => { if (await post({ action: "save", connection })) setEditing(undefined); }} />}
     {status && routing && <>
-      <Row label="Routing mode" hint="Automatic routing uses enabled connections, task strengths, configured tier models, and known prices. It estimates fit; it does not run model benchmarks.">
-        <select aria-label="AI routing mode" className={selectClass} value={routing.mode} disabled={busy} onChange={(e) => void updateRouting({ mode: e.target.value as AiRouting["mode"] })}>
-          <option value="manual">Default and task selections</option><option value="auto">Automatic task routing</option>
-        </select>
+      <Row label="Routing mode" hint="Automatic picks a connection for each task from what you said each one is good for, its models and known prices. It's an estimate, not a test of the models.">
+        <Select aria-label="AI routing mode" className={selectClass} value={routing.mode} disabled={busy} onChange={(e) => void updateRouting({ mode: e.target.value as AiRouting["mode"] })}>
+          <option value="manual">Your default and task picks</option><option value="auto">Pick automatically for each task</option>
+        </Select>
       </Row>
-      {routing.mode === "auto" && <Row label="Routing preference" hint="Quality prefers task fit. Balanced breaks fit ties by price. Lowest cost prefers known prices; unknown prices are never treated as free.">
-        <select aria-label="Routing preference" className={selectClass} value={routing.policy} disabled={busy} onChange={(e) => void updateRouting({ policy: e.target.value as AiRouting["policy"] })}>
-          <option value="quality">Task fit</option><option value="balanced">Balanced</option><option value="cost">Lowest known cost</option>
-        </select>
+      {routing.mode === "auto" && <Row label="Routing preference" hint="Best fit picks what suits the task. Balanced uses price to break a tie. Lowest cost picks the cheapest known price and never treats an unknown price as free.">
+        <Select aria-label="Routing preference" className={selectClass} value={routing.policy} disabled={busy} onChange={(e) => void updateRouting({ policy: e.target.value as AiRouting["policy"] })}>
+          <option value="quality">Best fit</option><option value="balanced">Balanced</option><option value="cost">Lowest known cost</option>
+        </Select>
       </Row>}
       <details className="px-4 py-3">
         <summary className="cursor-pointer text-[13px] font-medium">Choose a model for each task</summary>
-        <p className="mt-2 text-[12px] text-fg-3">Choices apply to future runs. Image generation keeps its separate image provider setting. Web-search sources stay in Search settings.</p>
+        <p className="mt-2 text-[12px] text-fg-3">Choices apply to the next runs. Images keep their own setting under Images, and web search keeps its own under Web search.</p>
         <div className="mt-3 space-y-3">{Object.entries(AI_TASKS).map(([id, label]) => {
           const task = id as AiTask;
           const target = routing.tasks[task];
@@ -84,14 +85,14 @@ export function AiRoutingGroup({ reload, revision }: { reload: () => void; revis
           return <div key={task} className="grid items-start gap-2 sm:grid-cols-[160px_1fr]">
             <label htmlFor={`route-${task}`} className="pt-2 text-[13px]">{label}</label>
             <div className="space-y-2">
-              <select id={`route-${task}`} className={selectClass} disabled={busy} value={target?.connectionId ?? ""} onChange={(e) => setTask(task, e.target.value ? { connectionId: e.target.value } : undefined)}>
+              <Select id={`route-${task}`} className={selectClass} disabled={busy} value={target?.connectionId ?? ""} onChange={(e) => setTask(task, e.target.value ? { connectionId: e.target.value } : undefined)}>
                 <option value="">Follow routing mode</option>
                 {status.connections.map((c) => <option key={c.id} value={c.id} disabled={!status.ready[c.id]}>{c.name}</option>)}
-              </select>
-              {connection && <select aria-label={`${label} model`} className={selectClass} disabled={busy || Boolean(connection.cloudflare?.dynamicRoute)} value={target?.model ?? ""} onChange={(e) => setTask(task, { connectionId: connection.id, ...(e.target.value ? { model: e.target.value } : {}) })}>
-                <option value="">Use this connection’s tier models</option>
+              </Select>
+              {connection && <Select aria-label={`${label} model`} className={selectClass} disabled={busy || Boolean(connection.cloudflare?.dynamicRoute)} value={target?.model ?? ""} onChange={(e) => setTask(task, { connectionId: connection.id, ...(e.target.value ? { model: e.target.value } : {}) })}>
+                <option value="">This connection&apos;s usual models</option>
                 {[...new Set([connection.model, ...Object.values(connection.models), ...connection.available])].map((model) => <option key={model} value={model}>{model}</option>)}
-              </select>}
+              </Select>}
             </div>
           </div>;
         })}</div>
@@ -133,9 +134,9 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
   }}>
     <p className="text-[13px] font-medium">{connection ? `Edit ${connection.name}` : "Add an AI connection"}</p>
     <label className="block space-y-1 text-[12px] text-fg-2"><span>Provider</span>
-      <select aria-label="Connection provider" className={selectClass} disabled={Boolean(connection) || busy} value={provider} onChange={(e) => { setProvider(e.target.value as ProviderId); setModel(""); setModels({}); setInputPrice(""); setOutputPrice(""); }}>
+      <Select aria-label="Connection provider" className={selectClass} disabled={Boolean(connection) || busy} value={provider} onChange={(e) => { setProvider(e.target.value as ProviderId); setModel(""); setModels({}); setInputPrice(""); setOutputPrice(""); }}>
         {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
+      </Select>
     </label>
     {field("Connection name", name, setName, { placeholder: `${preset.name} · work account`, maxLength: 100 })}
     {preset.needsKey && field("API key", key, setKey, { type: "password", autoComplete: "new-password", placeholder: connection?.key ? `Keep saved key ${connection.key.hint}` : preset.placeholder })}
@@ -157,7 +158,7 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
       setOutputPrice(String(connection?.prices[value]?.output ?? ""));
     }, { list: `${id}-models`, placeholder: provider === "vercel" || provider === "cloudflare" ? "provider/model" : "Enter a tool-capable chat model ID", disabled: Boolean(dynamicRoute) && provider === "cloudflare" })}
     <datalist id={`${id}-models`}>{connection?.available.map((m) => <option key={m} value={m} />)}</datalist>
-    <details><summary className="cursor-pointer text-[12px]">Tier models, prices, and context limit</summary>
+    <details><summary className="cursor-pointer text-[12px]">Models per kind of task, prices and context limit</summary>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         {(["strategist", "operator", "fast"] as const).map((tier) => <div key={tier}>{field(`${tier === "strategist" ? "Reasoning" : tier === "operator" ? "Research and writing" : "Fast tasks"} model`, models[tier] ?? "", (value) => setModels((prev) => {
           const next = { ...prev }; if (value.trim()) next[tier] = value.trim(); else delete next[tier]; return next;

@@ -1,17 +1,23 @@
 "use client";
 import { useNow } from "@/components/integrations/use-hub";
-import { useEffect, useState } from "react";
+import { BellRing, CalendarClock, Radar, RotateCcw, UserRoundCog } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { relativeTime } from "@/lib/client/format";
 import type { Monitor } from "@/lib/automation/types";
 import { controlClass, type AutomationController } from "./use-automation";
 
-export function MonitorsPanel({ automation, initialQuery }: { automation: AutomationController; initialQuery: string }) {
+type Kind = Monitor["kind"];
+const KIND_LABEL: Record<Kind, string> = { topic: "Web search topic", page: "One public page", intent: "People asking for it" };
+
+export function MonitorsPanel({ automation, initialQuery, onIntent }: { automation: AutomationController; initialQuery: string; onIntent?: () => void }) {
   const { ws } = useWorkspace();
   const now = useNow();
   const [name, setName] = useState("");
-  const [kind, setKind] = useState<"topic" | "page">("topic");
+  const [kind, setKind] = useState<Kind>("topic");
   const [recipe, setRecipe] = useState<Monitor["recipe"]>("custom");
   const [query, setQuery] = useState(initialQuery);
   const [keywords, setKeywords] = useState("");
@@ -21,6 +27,7 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const reload = automation.reload;
+  const hasIntent = !!automation.data?.monitors.some((m) => m.kind === "intent");
   useEffect(() => {
     const timer = window.setInterval(() => void reload(), 30_000);
     return () => window.clearInterval(timer);
@@ -36,10 +43,19 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
       setBusy(false);
     }
   }
-  function chooseRecipe(value: Monitor["recipe"]) {
+  function chooseRecipe(value: Monitor["recipe"] | "intent") {
+    setEditing(undefined);
+    if (value === "intent") {
+      setRecipe("custom");
+      setKind("intent");
+      setName("People asking for it");
+      setQuery("Research → Intent queries from your playbook");
+      setKeywords("");
+      setInterval("1440");
+      return;
+    }
     setRecipe(value);
     setKind("topic");
-    setEditing(undefined);
     const account = Object.values(ws?.accounts ?? {}).find((a) => a.watch)?.domain ?? "";
     const dormant = Object.values(ws?.deals ?? {}).find((d) => d.stage === "lost" || d.stage === "nurture")?.accountDomain ?? account;
     if (value === "leadership") {
@@ -61,6 +77,11 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
       setQuery(`${domain} company news product announcements`.trim());
       setKeywords("");
     }
+    if (value === "custom") {
+      setName("");
+      setQuery(initialQuery);
+      setKeywords("");
+    }
   }
   function edit(monitor: Monitor) {
     setEditing(monitor.id);
@@ -71,20 +92,47 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
     setKeywords(monitor.keywords.join(", "));
     setInterval(String(monitor.intervalMinutes));
   }
+  const recipes: { id: Monitor["recipe"] | "intent"; icon: ReactNode; title: string; body: string; hidden?: boolean }[] = [
+    { id: "intent", icon: <Radar className="size-4" />, title: "People asking for it", body: "Every day, new posts that mention your buyer's problem. Free sources, no AI until you scan.", hidden: hasIntent },
+    { id: "leadership", icon: <UserRoundCog className="size-4" />, title: "Leadership changes", body: "A new leader at a company you track, the moment it's announced." },
+    { id: "revival", icon: <RotateCcw className="size-4" />, title: "Dormant-deal revival", body: "Funding, launches or expansion at a lost or parked deal." },
+    { id: "meeting", icon: <CalendarClock className="size-4" />, title: "Meeting preparation", body: "News about the company you're meeting next." },
+  ];
   return (
     <div className="space-y-6">
-      <p className="rounded-lg bg-bg-subtle p-4 text-[13px] leading-6 text-fg-2">
-        Monitors run while Inroad and this computer are awake. After a restart, each overdue monitor catches up once. The first successful check records a
-        baseline; later meaningful changes appear here. No outreach is sent.
-      </p>
-      {ws?.sample && <p className="text-[12px] text-fg-3">Automatic checks pause in the sample workspace.</p>}
-      <section className="space-y-4 rounded-xl border border-border bg-surface p-5">
-        <h2 className="text-[17px] font-medium">{editing ? "Edit monitor" : "Create a monitor"}</h2>
+      <section>
+        <h2 className="text-[18px] font-medium text-fg">Get told when something changes</h2>
+        <p className="mt-1 max-w-[70ch] text-[13px] leading-6 text-fg-2">
+          Pick what to watch. The first check records a baseline; after that only new changes show up here. Nothing is sent to anyone. Checks run while Inroad and
+          this computer are awake, and catch up once after a restart.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {recipes
+            .filter((r) => !r.hidden)
+            .map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => chooseRecipe(r.id)}
+                className="flex flex-col items-start gap-1.5 rounded-xl bg-surface p-4 text-left shadow-xs ring-1 ring-inset ring-border transition-[box-shadow,background-color] hover:bg-surface-raised hover:ring-border-strong"
+              >
+                <span className="text-fg-3">{r.icon}</span>
+                <span className="text-[14px] font-medium text-fg">{r.title}</span>
+                <span className="text-[12.5px] leading-[18px] text-fg-2">{r.body}</span>
+              </button>
+            ))}
+        </div>
+        {ws?.sample && <p className="mt-3 text-[12px] text-fg-3">The sample&apos;s monitors are examples; automatic checks pause in the sample workspace.</p>}
+      </section>
+
+      <section className="space-y-4 rounded-xl bg-surface p-5 shadow-xs ring-1 ring-inset ring-border">
+        <h2 className="text-[16px] font-medium">{editing ? "Edit monitor" : "Create a monitor"}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-[12px] text-fg-2">
             Recipe
-            <select aria-label="Monitor recipe" className={controlClass} value={recipe} onChange={(e) => chooseRecipe(e.target.value as Monitor["recipe"])}>
+            <select aria-label="Monitor recipe" className={controlClass} value={kind === "intent" ? "intent" : recipe} onChange={(e) => chooseRecipe(e.target.value as Monitor["recipe"] | "intent")}>
               <option value="custom">Custom monitor</option>
+              {(!hasIntent || kind === "intent") && <option value="intent">People asking for it</option>}
               <option value="leadership">Leadership changes</option>
               <option value="revival">Dormant-deal revival</option>
               <option value="meeting">Meeting preparation</option>
@@ -96,9 +144,10 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
           </label>
           <label className="text-[12px] text-fg-2">
             Watch
-            <select aria-label="Monitor type" className={controlClass} value={kind} onChange={(e) => setKind(e.target.value as "topic" | "page")}>
-              <option value="topic">Web search topic</option>
-              <option value="page">One public page</option>
+            <select aria-label="Monitor type" className={controlClass} value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+              <option value="topic">{KIND_LABEL.topic}</option>
+              <option value="page">{KIND_LABEL.page}</option>
+              {(!hasIntent || kind === "intent") && <option value="intent">{KIND_LABEL.intent}</option>}
             </select>
           </label>
           <label className="text-[12px] text-fg-2">
@@ -110,22 +159,31 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
               <option value="10080">Week</option>
             </select>
           </label>
-          <label className="text-[12px] text-fg-2 sm:col-span-2">
-            {kind === "topic" ? "Search topic" : "Public page URL"}
-            <Input aria-label="Monitor query or URL" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </label>
-          <label className="text-[12px] text-fg-2 sm:col-span-2">
-            Watch for these terms (optional)
-            <Input aria-label="Monitor keywords" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="funding, expansion, new leader" />
-          </label>
+          {kind === "intent" ? (
+            <p className="text-[12.5px] leading-[19px] text-fg-2 sm:col-span-2">
+              Uses the queries and sources on the Intent tab: your buyer&apos;s words, category and competitors, on Hacker News, Stack Exchange, GitHub and Reddit (through
+              your search provider). New posts land here as a change; scan on the Intent tab to have them judged.
+            </p>
+          ) : (
+            <>
+              <label className="text-[12px] text-fg-2 sm:col-span-2">
+                {kind === "topic" ? "Search topic" : "Public page URL"}
+                <Input aria-label="Monitor query or URL" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </label>
+              <label className="text-[12px] text-fg-2 sm:col-span-2">
+                Watch for these terms (optional)
+                <Input aria-label="Monitor keywords" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="funding, expansion, new leader" />
+              </label>
+            </>
+          )}
         </div>
-        <p className="text-[12px] text-fg-3">
-          Topic checks use your search connection and its request limits. Page checks use ordinary HTTP. Keywords narrow the changes that matter.
-        </p>
+        {kind !== "intent" && (
+          <p className="text-[12px] text-fg-3">Topic checks use your search connection and its request limits. Page checks use ordinary HTTP. Terms narrow the changes that matter.</p>
+        )}
         <div className="flex gap-2">
           <Button
             size="sm"
-            disabled={busy || !name.trim() || !query.trim()}
+            disabled={busy || !name.trim() || (kind !== "intent" && !query.trim())}
             loading={busy}
             onClick={() =>
               void run(async () => {
@@ -135,14 +193,17 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
                   input: {
                     name,
                     kind,
-                    query,
+                    query: kind === "intent" ? "Research → Intent queries from your playbook" : query,
                     recipe,
                     intervalMinutes: Number(interval),
                     enabled: editing ? (automation.data?.monitors.find((m) => m.id === editing)?.enabled ?? true) : true,
-                    keywords: keywords
-                      .split(",")
-                      .map((v) => v.trim())
-                      .filter(Boolean),
+                    keywords:
+                      kind === "intent"
+                        ? []
+                        : keywords
+                            .split(",")
+                            .map((v) => v.trim())
+                            .filter(Boolean),
                   },
                 });
                 setEditing(undefined);
@@ -167,15 +228,17 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
       </section>
       <section className="space-y-3">
         <h2 className="text-[16px] font-medium">Your monitors</h2>
-        {!automation.data?.monitors.length && <p className="text-[13px] text-fg-3">No monitors yet. Save a topic or page above.</p>}
+        {!automation.data?.monitors.length && <p className="text-[13px] text-fg-3">No monitors yet. Pick one above.</p>}
         {automation.data?.monitors.map((monitor) => (
-          <article key={monitor.id} className="rounded-lg border border-border bg-surface p-4">
+          <article key={monitor.id} className="rounded-lg bg-surface p-4 ring-1 ring-inset ring-border">
             <div className="flex flex-wrap justify-between gap-3">
-              <div>
-                <h3 className="text-[14px] font-medium">
+              <div className="min-w-0">
+                <h3 className="flex flex-wrap items-center gap-2 text-[14px] font-medium">
+                  {monitor.kind === "intent" && <BellRing aria-hidden className="size-3.5 text-fg-3" />}
                   {monitor.name} · {monitor.enabled ? "Active" : "Paused"}
+                  {monitor.kind === "intent" && <Badge tone="success">Free</Badge>}
                 </h3>
-                <p className="mt-1 break-all text-[12px] text-fg-2">{monitor.query}</p>
+                <p className="mt-1 break-all text-[12px] text-fg-2">{monitor.kind === "intent" ? "The Intent tab's queries, on its free sources" : monitor.query}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => edit(monitor)}>
@@ -188,11 +251,7 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
                   onClick={() =>
                     void run(async () => {
                       const checked = await automation.run<{ checked: number }>({ action: "check_monitor", id: monitor.id });
-                      setMessage(
-                        checked.checked
-                          ? "Monitor checked. See its latest status below."
-                          : "This monitor is already checking. Its status will refresh shortly.",
-                      );
+                      setMessage(checked.checked ? "Monitor checked. See its latest status below." : "This monitor is already checking. Its status will refresh shortly.");
                     })
                   }
                 >
@@ -225,7 +284,7 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
               </div>
             </div>
             <p className="mt-3 text-[11px] text-fg-3">
-              {monitor.lastRunAt ? `Last checked ${new Date(monitor.lastRunAt).toLocaleString()}` : "Waiting for the first check"} ·{" "}
+              {monitor.lastRunAt ? `Last checked ${relativeTime(monitor.lastRunAt)}` : "Waiting for the first check"} ·{" "}
               {monitor.enabled ? `Next ${new Date(monitor.nextRunAt).toLocaleString()}` : "Schedule paused"}
               {monitor.leaseUntil && now !== null && Date.parse(monitor.leaseUntil) > now ? " · Checking…" : ""}
             </p>
@@ -240,37 +299,46 @@ export function MonitorsPanel({ automation, initialQuery }: { automation: Automa
       <section className="space-y-3">
         <h2 className="text-[16px] font-medium">Changes to review</h2>
         {!automation.data?.observations.length && <p className="text-[13px] text-fg-3">Changes will appear after a monitor has established its baseline.</p>}
-        {automation.data?.observations.map((observation) => (
-          <article key={observation.id} className={`rounded-lg border border-border p-4 ${observation.read ? "bg-bg-subtle" : "bg-surface"}`}>
-            <h3 className="text-[14px] font-medium">{observation.title}</h3>
-            <p className="mt-1 text-[11px] text-fg-3">{new Date(observation.at).toLocaleString()}</p>
-            <p className="mt-2 text-[13px] leading-6 text-fg-2">{observation.summary}</p>
-            <div className="mt-2 flex flex-wrap gap-3">
-              {observation.urls.map((url) => (
-                <a key={url} href={url} target="_blank" rel="noreferrer" className="max-w-full break-all text-[12px] underline">
-                  {new URL(url).hostname}
-                </a>
-              ))}
-              <a href={`/research?query=${encodeURIComponent(observation.summary.slice(0, 200))}`} className="text-[12px] underline">
-                Research this signal
-              </a>
-              {!observation.read && (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await automation.run({ action: "read_observation", id: observation.id });
-                    })
-                  }
-                >
-                  Mark reviewed
-                </Button>
-              )}
-            </div>
-          </article>
-        ))}
+        {automation.data?.observations.map((observation) => {
+          const intent = automation.data?.monitors.find((m) => m.id === observation.monitorId)?.kind === "intent";
+          return (
+            <article key={observation.id} className={`rounded-lg p-4 ring-1 ring-inset ring-border ${observation.read ? "bg-bg-subtle" : "bg-surface"}`}>
+              <h3 className="text-[14px] font-medium">{observation.title}</h3>
+              <p className="mt-1 text-[11px] text-fg-3">{new Date(observation.at).toLocaleString()}</p>
+              <p className="mt-2 text-[13px] leading-6 text-fg-2 [overflow-wrap:anywhere]">{observation.summary}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                {observation.urls.map((url) => (
+                  <a key={url} href={url} target="_blank" rel="noreferrer" className="max-w-full break-all text-[12px] underline">
+                    {new URL(url).hostname}
+                  </a>
+                ))}
+                {intent ? (
+                  <button type="button" onClick={onIntent} className="text-[12px] underline">
+                    Review on the Intent tab
+                  </button>
+                ) : (
+                  <a href={`/research?tab=search&query=${encodeURIComponent(observation.summary.slice(0, 200))}`} className="text-[12px] underline">
+                    Research this signal
+                  </a>
+                )}
+                {!observation.read && (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await automation.run({ action: "read_observation", id: observation.id });
+                      })
+                    }
+                  >
+                    Mark reviewed
+                  </Button>
+                )}
+              </div>
+            </article>
+          );
+        })}
       </section>
     </div>
   );

@@ -5,8 +5,14 @@ import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids"
 import { MATERIAL, PIECE } from "@/lib/sample/studio";
 import { NOW, TODAY, at, consumerWorkspace, day, makeMove, makePackage, makePartner, makeStep, makeWeek, makeWorkspace } from "@/test/factories";
 import { buildRevision } from "@/lib/playbook/revision";
+import { playEnabled } from "@/lib/plays/catalog";
+import type { CustomPlay } from "@/lib/plays/recipe-types";
+import { blankRecipe } from "@/lib/plays/recipes";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
+
+/** A play the founder described, not turned on yet. */
+const draftPlay = (id = "cp_test"): CustomPlay => ({ id, createdAt: at(-3), sentence: "When a fit company posts a billing role, write to the controller.", origin: "sentence", versions: [], history: [], draft: blankRecipe(), unsupported: [], assumptions: [], dismissed: [] });
 
 /**
  * The reducer runs twice (optimistically in the browser, then on the server), so it must be pure:
@@ -414,6 +420,14 @@ const cases: Record<Action["type"], () => void> = {
     apply(s, { type: "intro.advance", id, stage: "done", outcome: "pilot", at: at(0) });
     expect(s.intros[id]).toMatchObject({ stage: "done", outcome: "pilot", closedOn: TODAY });
     expect(s.intros[id].history.map((h) => h.stage)).toEqual(expect.arrayContaining(["forwarded", "introduced", "meeting", "done"]));
+
+    // A pass that comes back weeks later starts the check-in clock again, instead of reopening overdue.
+    const other = Object.values(s.intros).find((i) => i.kind === "ask" && i.stage === "asked" && i.id !== id)!.id;
+    apply(s, { type: "intro.advance", id: other, stage: "forwarded", at: at(-20) }, { type: "intro.advance", id: other, stage: "declined", declinedBy: "target", at: at(-18) });
+    expect(s.intros[other]).toMatchObject({ forwardedOn: day(-20), closedOn: day(-18) });
+    apply(s, { type: "intro.advance", id: other, stage: "forwarded", at: at(0) });
+    expect(s.intros[other]).toMatchObject({ stage: "forwarded", forwardedOn: TODAY });
+    expect(s.intros[other].closedOn).toBeUndefined();
   },
 
   "intro.mark": () => {
@@ -450,6 +464,13 @@ const cases: Record<Action["type"], () => void> = {
     const s = apply(ws(), { type: "evidence.flagWrong", id: "ev_ll_home", note: "Old pricing", at: at(0) });
     expect(s.evidence.ev_ll_home.flaggedWrong).toEqual({ at: at(0), note: "Old pricing" });
     expect(() => apply(s, { type: "evidence.flagWrong", id: "ev_missing", at: at(0) })).toThrow("Evidence not found");
+  },
+
+  "evidence.unflag": () => {
+    const s = apply(ws(), { type: "evidence.flagWrong", id: "ev_ll_home", at: at(0) }, { type: "evidence.unflag", id: "ev_ll_home" });
+    expect(s.evidence.ev_ll_home).toEqual(sample.evidence.ev_ll_home);
+    // Already gone (deleted with a person, say): nothing to undo.
+    expect(() => apply(s, { type: "evidence.unflag", id: "ev_missing" })).not.toThrow();
   },
 
   "account.add": () => {
@@ -560,6 +581,12 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.revenue?.target).toEqual(target);
     apply(s, { type: "revenue.setTarget", target: null });
     expect(s.revenue).toEqual({});
+    // An empty custom date, a period that ends before it starts, or no amount: refused, and the target on file stays.
+    apply(s, { type: "revenue.setTarget", target });
+    for (const bad of [{ periodStart: "" }, { periodEnd: "2026-09-30" }, { periodEnd: "2026-12-31T08:00:00.000Z" }, { amountUsd: 0 }]) {
+      expect(() => apply(s, { type: "revenue.setTarget", target: { ...target, ...bad } })).toThrow(ActionError);
+    }
+    expect(s.revenue?.target).toEqual(target);
   },
 
   "play.set": () => {
@@ -573,9 +600,71 @@ const cases: Record<Action["type"], () => void> = {
 
   "play.run": () => {
     const s = apply(makeWorkspace(), { type: "play.run", id: "funding", domains: ["a.example", "a.example", "b.example"], at: at(0) });
-    expect(s.plays?.funding).toEqual({ enabled: true, updatedAt: at(0), runs: [{ at: at(0), domains: ["a.example", "b.example"] }] });
+    expect(s.plays?.funding).toEqual({ enabled: true, updatedAt: at(0), runs: [{ at: at(0), domains: ["a.example", "b.example"] }], worked: { "a.example": { at: at(0) }, "b.example": { at: at(0) } } });
     apply(s, { type: "play.run", id: "funding", domains: [], at: at(1) });
     expect(s.plays?.funding.runs).toHaveLength(1);
+  },
+
+  "customPlay.upsert": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() });
+    expect(s.customPlays?.cp_test).toMatchObject({ id: "cp_test", versions: [], draft: { trigger: { signals: ["jd_names_pain"] } } });
+    // A draft never runs until it's turned on.
+    expect(playEnabled(s, "cp_test")).toBe(false);
+  },
+
+  "customPlay.edit": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.edit", id: "cp_test", recipe: { ...blankRecipe(), name: "Billing hires" }, at: at(0) });
+    expect(s.customPlays?.cp_test.draft?.name).toBe("Billing hires");
+    expect(() => apply(s, { type: "customPlay.edit", id: "cp_missing", recipe: blankRecipe(), at: at(0) })).toThrow("Play not found");
+  },
+
+  "customPlay.commit": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.commit", id: "cp_test", source: "compiled", at: at(0) });
+    expect(s.customPlays?.cp_test).toMatchObject({ versions: [{ version: 1, note: "First version", source: "compiled" }], history: [{ version: 1, at: at(0) }] });
+    expect(s.customPlays?.cp_test).not.toHaveProperty("draft");
+  },
+
+  "customPlay.rollback": () => {
+    const s = apply(
+      makeWorkspace(),
+      { type: "customPlay.upsert", play: draftPlay() },
+      { type: "customPlay.commit", id: "cp_test", source: "compiled", at: at(-2) },
+      { type: "customPlay.edit", id: "cp_test", recipe: { ...blankRecipe(), guardrails: { cooldownDays: 60, maxPerWeek: 5 } }, at: at(-1) },
+      { type: "customPlay.commit", id: "cp_test", source: "edit", at: at(-1) },
+      { type: "customPlay.rollback", id: "cp_test", version: 1, at: at(0) },
+    );
+    expect(s.customPlays?.cp_test.history.map((h) => h.version)).toEqual([1, 2, 1]);
+    expect(s.customPlays?.cp_test.versions[1].note).toBe("Cooldown 30 → 60 days");
+  },
+
+  "customPlay.discardDraft": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.discardDraft", id: "cp_test" });
+    expect(s.customPlays?.cp_test).not.toHaveProperty("draft");
+  },
+
+  "customPlay.dismissLesson": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.dismissLesson", id: "cp_test", key: "cooldown:60", skips: 3, at: at(0) });
+    expect(s.customPlays?.cp_test.dismissed).toEqual([{ key: "cooldown:60", at: at(0), skips: 3 }]);
+  },
+
+  "customPlay.archive": () => {
+    const s = apply(
+      makeWorkspace(),
+      { type: "customPlay.upsert", play: draftPlay() },
+      { type: "customPlay.commit", id: "cp_test", source: "compiled", at: at(-1) },
+      { type: "play.set", id: "cp_test", enabled: true, at: at(-1) },
+    );
+    expect(playEnabled(s, "cp_test")).toBe(true);
+    apply(s, { type: "customPlay.archive", id: "cp_test", archived: true, at: at(0) });
+    expect(playEnabled(s, "cp_test")).toBe(false);
+    expect(s.plays?.cp_test.enabled).toBe(false);
+  },
+
+  "customPlay.remove": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.upsert", play: { ...draftPlay("cp_ran"), versions: [{ version: 1, recipe: blankRecipe(), at: at(-1), note: "First version", source: "compiled" }] } });
+    apply(s, { type: "customPlay.remove", id: "cp_test" }, { type: "customPlay.remove", id: "cp_ran" });
+    // A play that ran keeps its record; only a draft can go.
+    expect(Object.keys(s.customPlays ?? {})).toEqual(["cp_ran"]);
   },
 
   "deal.setStage": () => {
@@ -603,6 +692,31 @@ const cases: Record<Action["type"], () => void> = {
     expect(deal().nurtureUntil).toBe("2026-12-19");
     apply(s, { type: "deal.setStage", id: DEAL.rowanstack, stage: "nurture", nurtureUntil: "2027-01-12", at: at(0) });
     expect(s.deals[DEAL.rowanstack].nurtureUntil).toBe("2027-01-12");
+    // A cleared date input ("") would park it forever: it gets the 60 days instead.
+    apply(s, { type: "deal.setStage", id: DEAL.rowanstack, stage: "qualified", at: at(0) }, { type: "deal.setStage", id: DEAL.rowanstack, stage: "nurture", nurtureUntil: "", at: at(0, "15:00") });
+    expect(s.deals[DEAL.rowanstack].nurtureUntil).toBe("2026-12-19");
+  },
+
+  "deal.revertStage": () => {
+    const s = ws();
+    const deal = () => s.deals[DEAL.saltmarsh];
+    const before = structuredClone(deal());
+    const status = s.accounts[DOMAIN.saltmarsh].status;
+    const previous = { stage: before.stage, lossReason: before.lossReason, nurtureUntil: before.nurtureUntil, updatedAt: before.updatedAt, lastActivityAt: before.lastActivityAt, accountStatus: status };
+    apply(s, { type: "deal.setStage", id: DEAL.saltmarsh, stage: "lost", lossReason: "timing", at: at(0, "11:00") });
+    expect(s.accounts[DOMAIN.saltmarsh].status).toBe("in_pipeline");
+
+    // Undo puts it back exactly: the stage, its dates, and no history entry for a move that was taken back.
+    apply(s, { type: "deal.revertStage", id: DEAL.saltmarsh, stage: "lost", at: at(0, "11:00"), previous });
+    expect(deal()).toEqual(before);
+    expect(s.accounts[DOMAIN.saltmarsh].status).toBe(status);
+
+    // A stale undo (the deal moved again since) changes nothing.
+    apply(s, { type: "deal.setStage", id: DEAL.saltmarsh, stage: "qualified", at: at(0, "12:00") });
+    apply(s, { type: "deal.setStage", id: DEAL.saltmarsh, stage: "proposal", at: at(0, "12:30") });
+    const moved = structuredClone(deal());
+    apply(s, { type: "deal.revertStage", id: DEAL.saltmarsh, stage: "qualified", at: at(0, "12:00"), previous });
+    expect(deal()).toEqual(moved);
   },
 
   "deal.setNextStep": () => {
@@ -806,6 +920,42 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.moves[id].status).toBe("open");
     expect(s.moves[id]).not.toHaveProperty("skipReason");
     expect(s.moves[id]).not.toHaveProperty("snoozedUntil");
+  },
+
+  "move.learn": () => {
+    const id = Object.keys(sample.moves)[0];
+    const s = apply(ws(), { type: "move.skip", id, reason: "wrong_person", at: at(0) }, { type: "move.learn", ids: [id, "mv_missing"], ignore: true });
+    expect(s.moves[id]).toMatchObject({ status: "skipped", learnIgnored: true });
+    apply(s, { type: "move.learn", ids: [id], ignore: false });
+    expect(s.moves[id]).not.toHaveProperty("learnIgnored");
+  },
+
+  "activity.setRemind": () => {
+    const s = apply(ws(), { type: "activity.setRemind", id: "act_025", on: "2026-10-26" });
+    expect(s.activities.find((a) => a.id === "act_025")?.remindOn).toBe("2026-10-26");
+    apply(s, { type: "activity.setRemind", id: "act_025", on: null });
+    expect(s.activities.find((a) => a.id === "act_025")?.remindOn).toBeNull();
+    expect(() => apply(s, { type: "activity.setRemind", id: "act_missing", on: null })).toThrow(ActionError);
+  },
+
+  "activity.setHold": () => {
+    const s = apply(ws(), { type: "activity.setHold", id: "act_034", until: "2026-11-02" });
+    expect(s.activities.find((a) => a.id === "act_034")?.holdUntil).toBe("2026-11-02");
+    apply(s, { type: "activity.setHold", id: "act_034", until: null });
+    expect(s.activities.find((a) => a.id === "act_034")).not.toHaveProperty("holdUntil");
+  },
+
+  "reply.setIntent": () => {
+    const s = apply(ws(), { type: "reply.setIntent", id: "act_034", intent: "objection" });
+    expect(s.activities.find((a) => a.id === "act_034")?.intent).toBe("objection");
+    apply(s, { type: "reply.setIntent", id: "act_034", intent: null });
+    expect(s.activities.find((a) => a.id === "act_034")).not.toHaveProperty("intent");
+  },
+
+  "voice.forgetToneOff": () => {
+    const s = apply(ws(), { type: "voice.noteToneOff", text: "Hope you're well!", at: at(0), moveId: "mv_x" }, { type: "voice.noteToneOff", text: "Circling back!", at: at(0, "11:00") });
+    apply(s, { type: "voice.forgetToneOff", ats: [at(0)] });
+    expect(s.voice?.toneOff?.map((t) => t.text)).toEqual(["Circling back!"]);
   },
 
   "activity.markOutcome": () => {
@@ -1075,6 +1225,21 @@ const cases: Record<Action["type"], () => void> = {
     const s = apply(consumerWorkspace(), { type: "pmf.log", survey: { id: "pmf_1", on: TODAY, answers: 40, veryDisappointed: 12 } }, { type: "pmf.remove", id: "pmf_1" });
     expect(s.pmfSurveys).toEqual([]);
   },
+
+  "buyerVoice.markSaved": () => {
+    const saved = { at: at(0), objectionId: "obj_bv_x", approved: true };
+    const s = apply(ws(), { type: "buyerVoice.markSaved", key: "alt:hire", saved });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].saved).toEqual(saved);
+    apply(s, { type: "buyerVoice.markSaved", key: "alt:hire", saved: null }, { type: "buyerVoice.markSaved", key: "missing", saved });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].saved).toBeUndefined();
+  },
+
+  "buyerVoice.dismiss": () => {
+    const s = apply(ws(), { type: "buyerVoice.dismiss", key: "alt:hire", at: at(0) });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].dismissedAt).toBe(at(0));
+    apply(s, { type: "buyerVoice.dismiss", key: "alt:hire", at: null });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].dismissedAt).toBeUndefined();
+  },
 };
 
 describe("applyAction", () => {
@@ -1094,6 +1259,13 @@ describe("applyAction", () => {
   it("throws ActionError for records that don't exist", () => {
     expect(() => apply(ws(), { type: "move.skip", id: "mv_missing", reason: "other" })).toThrow(ActionError);
     expect(() => apply(ws(), { type: "event.chooseTheme", id: "evt_missing", index: 0 })).toThrow(ActionError);
+  });
+
+  it("leaves the workspace as it is for an action type it doesn't know (a tab older than the server), and says so", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const after = apply(ws(), { type: "deal.teleport", id: DEAL.saltmarsh } as unknown as Action);
+    expect(after).toEqual(ws());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"deal.teleport"'));
   });
 });
 

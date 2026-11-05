@@ -3,18 +3,19 @@
 import { useEffect } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 
-const POLLED = ["instantly", "smartlead", "lemlist", "hubspot", "attio", "calendly", "calcom", "posthog", "stripe", "polar"] as const;
+const POLLED = ["instantly", "smartlead", "lemlist", "hubspot", "attio", "calendly", "calcom", "posthog", "stripe", "polar", "calendar"] as const;
 // The server keeps each connector's cadence (2–15 min); this only says the app is open.
 const TICK_MS = 60_000;
 
 /**
- * While the app is open in a visible tab, asks the server to read metrics, replies and CRM changes from
- * connected tools that no webhook can reach. Renders nothing; refreshes the workspace when
- * something new arrived.
+ * While the app is open in a visible tab, asks the server to read metrics, replies, CRM changes, the
+ * calendar and the waitlist from connected sources that no webhook can reach. Renders nothing; refreshes
+ * the workspace when something new arrived.
  */
 export function ConnectorPoller() {
   const { ws, refresh } = useWorkspace();
-  const active = Boolean(ws && !ws.sample && POLLED.some((id) => ws.integrations[id]?.enabled));
+  // The waitlist keeps its state on the workspace, not under integrations.
+  const active = Boolean(ws && !ws.sample && (POLLED.some((id) => ws.integrations[id]?.enabled) || ws.waitlist?.enabled));
 
   useEffect(() => {
     if (!active) return;

@@ -25,6 +25,7 @@
 import http from "node:http";
 import { clearFaults, httpFault, listFaults, queueFaults, takeFault, TURN_FAULTS } from "./mock/faults.mjs";
 import { firecrawl } from "./mock/firecrawl.mjs";
+import { intent } from "./mock/intent.mjs";
 import { chatCompletions, listModels } from "./mock/openai.mjs";
 import { mockId, planTurn } from "./mock/plan.mjs";
 import { images } from "./mock/studio.mjs";
@@ -133,6 +134,7 @@ async function messages(req, res) {
 
 async function handle(req, res) {
   if (req.url.startsWith("/v2/")) return firecrawl(req, res, DELAY);
+  if (req.url.startsWith("/intent/")) return intent(req, res, DELAY);
   if (req.url.startsWith("/__mock/")) return control(req, res);
   if (req.method === "POST" && req.url.startsWith("/v1/messages/count_tokens")) {
     const body = await readBody(req);

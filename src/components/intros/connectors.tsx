@@ -24,9 +24,10 @@ export const RELATIONSHIP_LABEL: Record<Connector["relationship"], string> = {
   connection: "Connection",
 };
 
-const STATUS: Record<Ledger["status"], { label: (l: Ledger) => string; tone: "success" | "neutral" | "warning" | "outline" }> = {
+/** Same colors as the intro cards: green ready to ask, grey waiting on something, amber needs something first. */
+const STATUS: Record<Ledger["status"], { label: (l: Ledger) => string; tone: "success" | "neutral" | "warning" }> = {
   ready: { label: () => "Ready to ask", tone: "success" },
-  in_flight: { label: () => "Ask in flight", tone: "outline" },
+  in_flight: { label: () => "Ask in flight", tone: "neutral" },
   resting: { label: (l) => `Resting until ${new Date(`${l.restUntil}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, tone: "neutral" },
   give_first: { label: () => "Give first", tone: "warning" },
 };
@@ -62,29 +63,36 @@ function ConnectorRow({ c, l, onEdit }: { c: Connector; l: Ledger; onEdit: () =>
   return (
     <li className="px-4 py-3">
       <div className="flex items-start gap-3">
-        <span aria-hidden className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-2 ring-1 ring-border">
+        <span aria-hidden className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-2 ring-1 ring-border">
           {initials(c.name)}
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px]">
-            <span className="font-medium text-fg">{c.name}</span>
-            <span className="text-fg-3">
+            <span className="min-w-0 font-medium text-fg [overflow-wrap:anywhere]">{c.name}</span>
+            <span className="min-w-0 text-fg-3 [overflow-wrap:anywhere]">
               {RELATIONSHIP_LABEL[c.relationship]}
               {c.company ? ` · ${c.company}` : ""}
             </span>
-            <Tooltip content={l.advice}>
-              <span>
-                <Badge tone={status.tone}>{status.label(l)}</Badge>
-              </span>
-            </Tooltip>
+            {l.advice ? (
+              <Tooltip content={l.advice}>
+                {/* Focusable, so the reason behind the status reaches the keyboard too. */}
+                <span tabIndex={0} className="rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]">
+                  <Badge tone={status.tone}>{status.label(l)}</Badge>
+                </span>
+              </Tooltip>
+            ) : (
+              <Badge tone={status.tone}>{status.label(l)}</Badge>
+            )}
           </p>
           <p className="mt-0.5 text-[12.5px] text-fg-3">{l.line}</p>
           {(c.reach?.length ?? 0) > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {c.reach!.map((r) => (
-                <span key={r} className="rounded-xs bg-bg-subtle px-1.5 py-0.5 text-[11.5px] text-fg-2 ring-1 ring-border">
-                  {r}
-                </span>
+                <Badge key={r} tone="outline" className="max-w-full">
+                  <span className="min-w-0 truncate" title={r}>
+                    {r}
+                  </span>
+                </Badge>
               ))}
             </div>
           )}

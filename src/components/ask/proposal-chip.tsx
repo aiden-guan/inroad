@@ -139,7 +139,7 @@ export function ProposalChip({
             </motion.span>
           ) : (
             <motion.span key="ask" exit={{ opacity: 0, transition: { duration: 0.1 } }} className="flex items-center gap-1">
-              {cost !== null && <span className="hidden font-mono text-[11px] text-fg-3 sm:inline">≈{usd(cost)}</span>}
+              {cost !== null && <span className="hidden font-mono text-[12px] text-fg-3 sm:inline">≈{usd(cost)}</span>}
               <Button size="xs" variant="secondary" onClick={() => void apply()} loading={busy} disabled={!ws}>
                 {APPLY_LABEL[proposal.kind] ?? "Apply"}
               </Button>

@@ -1,0 +1,126 @@
+{
+ "softwarerecs": {
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 287,
+  "items": [
+   {
+    "tags": [
+     "web-apps",
+     "accounting",
+     "billing"
+    ],
+    "owner": {
+     "account_id": 900001,
+     "reputation": 11,
+     "user_id": 800001,
+     "user_type": "registered",
+     "profile_image": "https://www.gravatar.com/avatar/00000000000000000000000000000000?s=256&d=identicon&r=PG",
+     "display_name": "fixture M. Okonjo",
+     "link": "https://softwarerecs.stackexchange.com/users/800001/fixture-m-okonjo"
+    },
+    "is_answered": false,
+    "view_count": 41,
+    "answer_count": 0,
+    "score": 1,
+    "last_activity_date": 1793776200,
+    "creation_date": 1793775600,
+    "question_id": 99001,
+    "link": "https://softwarerecs.stackexchange.com/questions/99001/tool-to-match-usage-events-from-our-warehouse",
+    "title": "Tool to match usage events from our warehouse to invoice line items",
+    "body": "<p>We bill per API call. I need something that ties raw usage events to the invoice line they landed on and flags what never got billed.</p>\n<p>Usage lives in our warehouse; invoices come from a separate billing system. Spreadsheets are what we use today.</p>"
+   }
+  ]
+ },
+ "stackoverflow": {
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 286,
+  "items": [
+   {
+    "tags": [
+     "sql",
+     "dbt",
+     "billing"
+    ],
+    "owner": {
+     "account_id": 900201,
+     "reputation": 11,
+     "user_id": 800201,
+     "user_type": "registered",
+     "profile_image": "https://www.gravatar.com/avatar/00000000000000000000000000000000?s=256&d=identicon&r=PG",
+     "display_name": "fixture Priyanka S.",
+     "link": "https://stackoverflow.com/users/800201/fixture-priyanka-s"
+    },
+    "is_answered": false,
+    "view_count": 61,
+    "answer_count": 0,
+    "score": 1,
+    "last_activity_date": 1793495400,
+    "creation_date": 1793494800,
+    "question_id": 99000201,
+    "link": "https://stackoverflow.com/questions/99000201/reconciling-a-dbt-usage-model-against-billed-invoice",
+    "title": "Reconciling a dbt usage model against billed invoice lines",
+    "body": "<p>Our dbt usage model and what billing actually rated drift apart every month. How do others reconcile the two before the invoice run?</p>\n<pre><code>select customer_id, sum(units) from usage_events group by 1</code></pre>"
+   },
+   {
+    "tags": [
+     "postgresql",
+     "permissions"
+    ],
+    "owner": {
+     "account_id": 900202,
+     "reputation": 11,
+     "user_id": 800202,
+     "user_type": "registered",
+     "profile_image": "https://www.gravatar.com/avatar/00000000000000000000000000000000?s=256&d=identicon&r=PG",
+     "display_name": "fixture devon_p",
+     "link": "https://stackoverflow.com/users/800202/fixture-devon_p"
+    },
+    "is_answered": true,
+    "view_count": 62,
+    "answer_count": 2,
+    "score": 3,
+    "last_activity_date": 1793653800,
+    "creation_date": 1793653200,
+    "question_id": 99000202,
+    "link": "https://stackoverflow.com/questions/99000202/syntax-error-near-usage-when-granting-privileges-in",
+    "title": "Syntax error near USAGE when granting privileges in Postgres",
+    "body": "<p>Running <code>GRANT USAGE ON SCHEMA billing TO analyst;</code> fails with a syntax error. What am I missing?</p>"
+   }
+  ]
+ },
+ "money": {
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 285,
+  "items": [
+   {
+    "tags": [
+     "accounting",
+     "small-business",
+     "audit"
+    ],
+    "owner": {
+     "account_id": 900002,
+     "reputation": 11,
+     "user_id": 800002,
+     "user_type": "registered",
+     "profile_image": "https://www.gravatar.com/avatar/00000000000000000000000000000000?s=256&d=identicon&r=PG",
+     "display_name": "fixture R. Mbeki",
+     "link": "https://money.stackexchange.com/users/800002/fixture-r-mbeki"
+    },
+    "is_answered": false,
+    "view_count": 42,
+    "answer_count": 0,
+    "score": 1,
+    "last_activity_date": 1792314600,
+    "creation_date": 1792314000,
+    "question_id": 99002,
+    "link": "https://money.stackexchange.com/questions/99002/how-should-a-small-saas-company-document-usage",
+    "title": "How should a small SaaS company document usage true-ups for its first audit?",
+    "body": "<p>Our auditors want to see how each usage invoice ties back to the events behind it, and all we have is a spreadsheet per month.</p>\n<p>Is there a standard way to keep that trail?</p>"
+   }
+  ]
+ }
+}

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AskPanel } from "@/components/ask/ask-panel";
+import { ColumnAnswers } from "@/components/companies/list/columns/column-answers";
 import { useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -343,6 +344,7 @@ function Body({
             ) : (
               <EnrichmentView account={account} onResearch={research} researching={active} lastRun={run} />
             ))}
+          {tab === "dossier" && <ColumnAnswers domain={domain} name={account.name} />}
           {tab === "deal" && (deal ? <DealPanel deal={deal} account={account} today={today} focusLog={focusLog} /> : <NoDeal account={account} focusLog={focusLog} onStarted={() => onTab("deal")} />)}
           {tab === "timeline" && <Timeline account={account} deal={deal} />}
           {tab === "ask" && <AskPanel key={askPrefill?.n ?? 0} context={askContext} prefill={askPrefill?.domain === domain && askPrefill.text ? askPrefill.text : undefined} onPrefillSent={onAskPrefillSent} />}

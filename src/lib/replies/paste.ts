@@ -4,6 +4,7 @@ import type { Connection, ID, Workspace } from "@/lib/domain/types";
 import { askedToBeDeleted, ensureAccount, ensurePerson, normalizeEmail } from "@/lib/hub/records";
 import { localDate } from "@/lib/moves/util";
 import { REPLY_WINDOW_DAYS } from "@/lib/moves/replies";
+import { readIntent } from "./intent";
 import { replyBody, type PasteTarget } from "./sender";
 
 export interface PastedReply {
@@ -70,6 +71,9 @@ export function logPastedReply(ws: Workspace, connections: Connection[], input: 
   const domain = person.accountDomain;
   const receivedAt = input.receivedAt && Date.parse(input.receivedAt) <= now.getTime() ? new Date(input.receivedAt).toISOString() : at;
   const activityId = newId("act");
+  const body = replyBody(text).slice(0, 8000);
+  // An auto-reply or an opt-out is certain in code: logged as one, an out-of-office holds their sequence instead of ending it.
+  const certain = readIntent(body)?.intent;
   applyAction(ws, {
     type: "activity.log",
     activity: {
@@ -81,8 +85,9 @@ export function logPastedReply(ws: Workspace, connections: Connection[], input: 
       dealId: ws.accounts[domain]?.dealId,
       channel: "email",
       summary: `Reply from ${person.name}`,
-      body: replyBody(text).slice(0, 8000),
+      body,
       source: "founder",
+      ...(certain === "ooo" || certain === "unsubscribe" ? { sentiment: certain } : {}),
     },
   });
   // Check replies would ask about these touches tomorrow; the founder just answered for them.

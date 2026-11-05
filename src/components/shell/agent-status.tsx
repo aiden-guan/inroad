@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useActiveRuns, useRuns, type RunState } from "@/components/providers/runs-provider";
+import { useRuns, useRunsSelector, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Orb, type OrbState } from "@/components/ui/orb";
 import { Receipt } from "@/components/ui/work-log";
@@ -11,24 +11,42 @@ import { todayISO } from "@/lib/domain/ids";
 import { yourMoves } from "@/lib/intros/rules";
 import { todayCounts } from "@/lib/moves/nav-counts";
 
+/** A run in progress, as the shell shows it: its title and its latest step, never its streamed text. */
+export interface ActiveRun {
+  id: string;
+  title: string;
+  steps: number;
+  last: string;
+}
+
 export interface AgentStatus {
   state: OrbState;
   /** Completed steps across live runs: each one ticks the orb once. */
   ticks: number;
   /** One line: the live run's title, else what's waiting on Today. */
   line: string;
-  active: RunState[];
+  active: ActiveRun[];
   ready: number;
   later: number;
 }
 
+const activeRuns = (runs: Record<string, RunState>): ActiveRun[] =>
+  Object.values(runs)
+    .filter((r) => r.status === "running" || r.status === "queued")
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .map((r) => ({ id: r.id, title: r.title, steps: r.steps.length, last: r.steps.at(-1)?.text ?? "" }));
+
+// The shell changes with a run's steps, not with every token it writes.
+const sameRuns = (a: ActiveRun[], b: ActiveRun[]) =>
+  a.length === b.length && a.every((r, i) => r.id === b[i].id && r.title === b[i].title && r.steps === b[i].steps && r.last === b[i].last);
+
 /** What the agent is doing right now, for the sidebar block and the phone header alike. */
 export function useAgentStatus(): AgentStatus {
   const { ws } = useWorkspace();
-  const active = useActiveRuns();
+  const active = useRunsSelector(activeRuns, sameRuns);
   // Read the clock only once the workspace is here: never while prerendering the shell.
   const { ready, later } = useMemo(() => (ws ? todayCounts(ws.moves, todayISO()) : { ready: 0, later: 0 }), [ws]);
-  const ticks = active.reduce((n, r) => n + r.steps.length, 0);
+  const ticks = active.reduce((n, r) => n + r.steps, 0);
   // Until the workspace loads there's nothing true to say yet (a blank line keeps the height).
   const line = active.length ? active[0].title : !ws ? " " : ready ? `${ready} move${ready === 1 ? "" : "s"} ready for you` : "All caught up";
   return { state: active.length ? "working" : ready ? "needs" : "idle", ticks, line, active, ready, later };
@@ -64,12 +82,12 @@ export function AgentPanel({ status, onNavigate }: { status: AgentStatus; onNavi
     <div className="space-y-2">
       {active.length > 0 && (
         <div>
-          <p className="px-1.5 pb-1 text-[11px] font-medium text-fg-3">In progress · {active.length}</p>
+          <p className="px-1.5 pb-1 text-[12px] font-medium text-fg-3">In progress · {active.length}</p>
           {active.map((r) => (
             <div key={r.id} className="flex items-center gap-2 rounded-sm px-1.5 py-1.5 text-[13px]">
               <Orb state="working" size={14} />
               <span className="min-w-0 flex-1 truncate">{r.title}</span>
-              <span className="truncate font-mono text-[11px] text-fg-3">{r.steps.at(-1)?.text.slice(0, 18)}</span>
+              <span className="max-w-[40%] truncate text-[12px] text-fg-3">{r.last}</span>
             </div>
           ))}
         </div>
@@ -81,7 +99,7 @@ export function AgentPanel({ status, onNavigate }: { status: AgentStatus; onNavi
         </Link>
       )}
       <div>
-        <p className="px-1.5 pb-1 text-[11px] font-medium text-fg-3">Recent</p>
+        <p className="px-1.5 pb-1 text-[12px] font-medium text-fg-3">Recent</p>
         {recent.length === 0 && <p className="px-1.5 py-1 text-[12px] text-fg-3">Nothing yet this session.</p>}
         {recent.map((r) => (
           <div key={r.id} className="rounded-sm px-1.5 py-1">

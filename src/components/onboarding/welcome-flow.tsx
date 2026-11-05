@@ -2,8 +2,8 @@
 
 import { Square } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Orb, type OrbState } from "@/components/ui/orb";
 import { OrbMorph, useWide } from "@/components/ui/orb-morph";
 import { ReasoningStream } from "@/components/ui/reasoning-stream";
 import { useBillingUrl } from "@/lib/client/ai-provider";
+import { nowISO } from "@/lib/domain/ids";
 import type { RunSummary, Workspace } from "@/lib/domain/types";
 import { ease } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
@@ -24,6 +25,7 @@ import { InlineQuestions, WhoBuysPrompt } from "./inline-questions";
 import { KeyBlock, useKeyForm } from "./key-block";
 import { LearnedChips } from "./learned-chips";
 import { PendingRow, ReadingLedger, type ExtraRow } from "./reading-ledger";
+import { PipelineStart } from "./pipeline-start";
 import { StartStep, type StartArgs } from "./start-step";
 import { Canvas, clock, inOverlay, isTyping, runSummary, useLiveRefresh, useNow } from "./shared";
 
@@ -242,10 +244,36 @@ export function WelcomeFlow() {
   const { ws, error, dispatch } = useWorkspace();
   const { runs, start } = useRuns();
   const router = useRouter();
+  const params = useSearchParams();
   const [pending, setPending] = useState<{ runId: string; args: StartArgs } | null>(null);
   const [starting, setStarting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Two ways in: a founder finding first customers (the default), or a Head of GTM with a pipeline (?start=pipeline,
+  // kept in the URL so a reload stays on that path).
+  const [path, setPath] = useState<"founder" | "pipeline">(params.get("start") === "pipeline" ? "pipeline" : "founder");
   const wide = useWide();
+  const choosePath = useCallback((next: "founder" | "pipeline") => {
+    setPath(next);
+    const url = new URL(window.location.href);
+    if (next === "pipeline") url.searchParams.set("start", "pipeline");
+    else url.searchParams.delete("start");
+    window.history.replaceState(window.history.state, "", url);
+    window.scrollTo({ top: 0 });
+  }, []);
+  /** The pipeline path ends here: onboarding is done, and Revenue (or one deal on it) opens. */
+  const finishPipeline = useCallback(
+    async (to: string) => {
+      setLeaving(true);
+      const ok = await dispatch({ type: "onboarding.update", patch: { status: "hired", hiredAt: nowISO() } });
+      if (!ok) {
+        setLeaving(false);
+        return false;
+      }
+      router.push(to);
+      return true;
+    },
+    [dispatch, router],
+  );
 
   const status = ws?.onboarding.status;
   useEffect(() => {
@@ -300,8 +328,10 @@ export function WelcomeFlow() {
   return (
     <Canvas>
       <AnimatePresence mode="wait" initial={false}>
-        {phase === "start" ? (
-          <StartStep key="start" ws={ws} onStart={begin} starting={starting} />
+        {path === "pipeline" && (phase === "start" || (o?.status === "hired" && leaving)) ? (
+          <PipelineStart key="pipeline" ws={ws} onFounder={() => choosePath("founder")} onFinish={finishPipeline} />
+        ) : phase === "start" ? (
+          <StartStep key="start" ws={ws} onStart={begin} starting={starting} onPipeline={() => choosePath("pipeline")} />
         ) : (
           <motion.main
             key="work"

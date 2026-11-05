@@ -66,7 +66,8 @@ describe("periods", () => {
     const p = periodOf(Q4, TODAY);
     expect(p).toMatchObject({ start: "2026-10-01", end: "2026-12-31", label: "Q4 new ARR", daysLeft: 73, weeksLeft: 11 });
     expect(periodOf(undefined, TODAY).label).toBe("Q4 2026");
-    expect(periodOf(Q4, "2027-01-02").daysLeft).toBe(0);
+    // Once the target's period is over, the forecast calls the quarter running now (rollover.test.ts).
+    expect(periodOf(Q4, "2027-01-02")).toMatchObject({ start: "2027-01-01", end: "2027-03-31", label: "Q1 2027", daysLeft: 89 });
   });
 });
 

@@ -24,6 +24,8 @@ import type {
 } from "@/lib/domain/types";
 import { consumerChannelPlan, growthDefaults } from "@/lib/consumer/plan";
 import { introAsksTarget, isColdFirstTouch } from "@/lib/moves/scoreboard";
+import { clip, shortDay } from "@/lib/moves/util";
+import { buyerVoice, heardIn } from "@/lib/voice";
 
 /* ───────────────────────────── Navigation ───────────────────────────── */
 
@@ -62,6 +64,15 @@ export const SECTIONS = [
     ],
   },
   {
+    id: "buyers",
+    label: "Buyer voice",
+    children: [
+      { id: "buyer-themes", label: "What buyers say" },
+      { id: "buyer-alternatives", label: "Alternatives" },
+      { id: "buyer-quotes", label: "Every quote" },
+    ],
+  },
+  {
     id: "voice",
     label: "Voice",
     children: [
@@ -92,7 +103,12 @@ export interface NavSection {
   children: readonly { id: string; label: string }[];
 }
 
-/** The same five sections for a consumer company, with the growth model in place of the sales plan. */
+const section = (id: SectionId): NavSection => SECTIONS.find((s) => s.id === id)!;
+
+/**
+ * The same sections for a consumer company, with the growth model in place of the sales plan. What users said
+ * comes from the founder's notes on user conversations; it's listed only once there are some (`sectionsFor`).
+ */
 export const CONSUMER_SECTIONS: readonly NavSection[] = [
   {
     id: "who",
@@ -104,7 +120,7 @@ export const CONSUMER_SECTIONS: readonly NavSection[] = [
       { id: "personas", label: "Segments" },
     ],
   },
-  SECTIONS[1],
+  section("why"),
   {
     id: "how",
     label: "How we grow",
@@ -117,12 +133,26 @@ export const CONSUMER_SECTIONS: readonly NavSection[] = [
       { id: "assets", label: "Documents" },
     ],
   },
-  SECTIONS[3],
-  SECTIONS[4],
+  {
+    id: "buyers",
+    label: "User voice",
+    children: [
+      { id: "buyer-themes", label: "What users say" },
+      { id: "buyer-quotes", label: "Every note" },
+    ],
+  },
+  section("voice"),
+  section("journal"),
 ];
 
-export function sectionsFor(ws: Pick<Workspace, "company">): readonly NavSection[] {
-  return ws.company?.market === "consumer" ? CONSUMER_SECTIONS : SECTIONS;
+/** Consumer notes from user conversations: what User voice reads. */
+export function hasUserTalks(ws: Pick<Workspace, "activities">): boolean {
+  return ws.activities.some((a) => a.kind === "user_conversation" && !!a.body?.trim());
+}
+
+export function sectionsFor(ws: Pick<Workspace, "company" | "activities">): readonly NavSection[] {
+  if (ws.company?.market !== "consumer") return SECTIONS;
+  return hasUserTalks(ws) ? CONSUMER_SECTIONS : CONSUMER_SECTIONS.filter((s) => s.id !== "buyers");
 }
 
 /* ───────────────────────────── Labels ───────────────────────────── */
@@ -353,6 +383,45 @@ export const BAND_LABELS: Record<NonNullable<ICP["employeeBand"]>, string> = {
   gt300: "300+",
   mixed: "Mixed",
 };
+
+export type SizeBand = Exclude<NonNullable<ICP["employeeBand"]>, "mixed">;
+
+const SIZE_UNIT = "(?:people|employees|staff|ftes?|headcount)";
+
+/** The employee range a phrase states ("50–300 people", "under 50 employees", "300+ staff"), if it states one. */
+function sizeRange(text: string): [number, number] | null {
+  const t = text.toLowerCase().replace(/(\d),(\d)/g, "$1$2");
+  let m = t.match(new RegExp(`(\\d+)\\s*(?:-|–|—|to)\\s*(\\d+)\\s*\\+?\\s*${SIZE_UNIT}`));
+  if (m) return [Number(m[1]), Number(m[2])];
+  m = t.match(new RegExp(`(?:under|fewer than|less than|below|<)\\s*(\\d+)\\s*${SIZE_UNIT}`));
+  if (m) return [1, Number(m[1]) - 1];
+  m = t.match(new RegExp(`(?:over|more than|at least|above|>)\\s*(\\d+)\\s*${SIZE_UNIT}`)) ?? t.match(new RegExp(`(\\d+)\\+\\s*${SIZE_UNIT}`));
+  if (m) return [Number(m[1]), Number.POSITIVE_INFINITY];
+  return null;
+}
+
+function bandOf([lo, hi]: [number, number]): SizeBand | null {
+  if (hi <= 50) return "lt50";
+  if (lo >= 300) return "gt300";
+  if (lo >= 50 && hi <= 300) return "50_300";
+  return null;
+}
+
+/**
+ * The company size the bet itself states (the sentence, the segment, a "50–300 employees" criterion), parsed in code.
+ * Only when every statement agrees: a range that spans two bands, or two bands, means the bet is mixed and nothing is picked.
+ */
+export function betSizeBand(icp: Pick<ICP, "criteria" | "primarySegment" | "hypothesis">): SizeBand | null {
+  const found = new Set<SizeBand>();
+  for (const text of [...icp.criteria.map((c) => c.text), icp.primarySegment, icp.hypothesis.companyGroup, icp.hypothesis.sentence]) {
+    const range = text ? sizeRange(text) : null;
+    if (!range) continue;
+    const band = bandOf(range);
+    if (!band) return null;
+    found.add(band);
+  }
+  return found.size === 1 ? [...found][0] : null;
+}
 
 /* ───────────────────────────── Small helpers ───────────────────────────── */
 
@@ -594,10 +663,13 @@ export const PRICE_BANDS: Record<"lt50" | "50_300" | "gt300", { annual: [number,
 
 export const QUOTES_TO_REPLACE = 5;
 
-export function priceBand(ws: Workspace): { band: "lt50" | "50_300" | "gt300"; assumed: boolean } {
+/** The size that sets the price anchors: the founder's pick, else the size the bet states (`fromBet`), else 50–300 assumed. */
+export function priceBand(ws: Workspace): { band: SizeBand; assumed: boolean; fromBet: boolean } {
   const b = ws.foundation?.icp?.employeeBand;
-  if (b && b !== "mixed") return { band: b, assumed: false };
-  return { band: "50_300", assumed: true };
+  if (b && b !== "mixed") return { band: b, assumed: false, fromBet: false };
+  const stated = ws.foundation ? betSizeBand(parts(ws.foundation).icp) : null;
+  if (stated) return { band: stated, assumed: false, fromBet: true };
+  return { band: "50_300", assumed: true, fromBet: false };
 }
 
 export function quoteLog(ws: Workspace) {
@@ -861,7 +933,9 @@ export function playbookMarkdown(ws: Workspace, today: string): string {
   out.push(consumer ? "## Who it's for" : "## Who we sell to", "", `**${consumer ? "Audience bet" : "Segment bet"}:** ${p.icp.hypothesis.sentence || p.icp.primarySegment}`, "");
   if (p.icp.primarySegment) out.push(`Primary segment: ${p.icp.primarySegment}${p.icp.segmentLockedAt ? ` (locked ${p.icp.segmentLockedAt.slice(0, 10)})` : ""}`);
   if (p.icp.testSlices.length) out.push(`Test slices: ${p.icp.testSlices.join("; ")}`);
-  if (p.icp.employeeBand) out.push(`Company size: ${BAND_LABELS[p.icp.employeeBand]} employees`);
+  const statedSize = !p.icp.employeeBand || p.icp.employeeBand === "mixed" ? betSizeBand(p.icp) : null;
+  if (statedSize) out.push(`Company size: ${BAND_LABELS[statedSize]} employees (from the segment bet)`);
+  else if (p.icp.employeeBand) out.push(`Company size: ${BAND_LABELS[p.icp.employeeBand]} employees`);
   out.push("", "### Criteria", ...li(p.icp.criteria.map((c) => `${c.mustHave ? "**Must:** " : ""}${c.text} _(${c.status}; detect via ${DETECTION_LABELS[c.detection] ?? c.detection})_`)));
   out.push("", consumer ? "### Not for" : "### Not a fit", ...li(p.icp.antiIcp.map((a) => `${a.text}: ${a.reason}`)));
   if (p.icp.triggers.length) out.push("", "### Why-now signals", ...li(p.icp.triggers.map((t) => `${SIGNAL_LABELS[t.type] ?? t.type} (within ${t.windowDays} days): ${t.implication}`)));
@@ -924,9 +998,30 @@ export function playbookMarkdown(ws: Workspace, today: string): string {
   const assets = ws.assets.filter(offerable);
   if (assets.length) out.push("", "### Assets", ...li(assets.map((a) => `${a.title} (${ASSET_KINDS[a.kind].label})${a.url ? `: ${a.url}` : ""}`)));
 
+  out.push(...voiceMarkdown(ws, today, consumer));
+
   out.push("", "## Voice", "");
   if (ws.voice?.summary) out.push(ws.voice.summary, "");
   if (p.messaging.bannedWords.length) out.push(`Never write: ${p.messaging.bannedWords.join(", ")}`, "");
   if (ws.povs.length) out.push("### Points of view", ...li(ws.povs.map((v) => `${v.text} _(${v.evidence})_`)));
   return out.join("\n").replace(/\n{3,}/g, "\n\n") + "\n";
+}
+
+const VOICE_KIND = { objection: "objection", pain: "pain", outcome: "wanted outcome", process: "buying process" } as const;
+
+/** Buyer voice for the export (and "Copy summary"): themes heard in 2+ conversations with one quote each, then the alternatives. Roles, never names. */
+export function voiceMarkdown(ws: Workspace, today: string, consumer = ws.company?.market === "consumer", v = buyerVoice(ws, today)): string[] {
+  const themes = v.themes.filter((t) => heardIn(t) >= 2).slice(0, 8);
+  if (!themes.length) return [];
+  const s = v.summary;
+  const out = ["", consumer ? "## What users say" : "## What buyers say", "", `_Counted in code from ${plural(s.calls + s.talks, "conversation")}${s.replies ? ` and ${plural(s.replies, "reply", "replies")}` : ""}; ${s.verbatim} quotes in their words, ${s.paraphrase} paraphrased. Under about 15 conversations, these are anecdotes._`, ""];
+  for (const t of themes) {
+    const q = t.snippets.find((x) => x.verbatim);
+    out.push(`- **${t.label}** (${VOICE_KIND[t.kind]}): ${heardIn(t)} of ${plural(v.conversations.length, "conversation")}, ${plural(t.deals, "deal")}.${q ? ` “${clip(q.text, 160)}” (${q.title ?? "buyer"}, ${shortDay(q.date)})` : ""}`);
+  }
+  const alts = v.alternatives.filter((a) => heardIn(a) > 0);
+  if (alts.length && !consumer) {
+    out.push("", "### Alternatives buyers named", ...alts.map((a) => `- ${a.name}${a.inPlaybook ? "" : " _(not in this playbook yet)_"}: ${plural(heardIn(a), "conversation")}; won ${a.record.won}, lost ${a.record.lost}, open ${a.record.open}`));
+  }
+  return out;
 }

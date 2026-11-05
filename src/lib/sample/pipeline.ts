@@ -522,6 +522,8 @@ export function meetings(c: Clock): Record<ID, Meeting> {
       startsAt: today,
       attendees: [{ personId: PERSON.ethan, name: "Ethan Brooks", title: "Head of Revenue Accounting" }],
       brief: lumenwireBrief(c),
+      // Both upcoming calls were booked by email and came in from Priya's calendar (src/lib/sample/calendar.ts).
+      source: "calendar",
     },
     {
       id: MEETING.northwindYesterday,
@@ -562,6 +564,7 @@ export function meetings(c: Clock): Record<ID, Meeting> {
         { personId: PERSON.dana, name: "Dana Okafor", title: "Controller" },
         { personId: PERSON.sofia, name: "Sofia Reyes", title: "Head of Data" },
       ],
+      source: "calendar",
     },
     {
       id: MEETING.saltmarshDiscovery,

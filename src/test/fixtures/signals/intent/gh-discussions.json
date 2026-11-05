@@ -1,0 +1,30 @@
+{
+ "data": {
+  "repository": {
+   "discussions": {
+    "nodes": [
+     {
+      "title": "How do you reconcile usage that arrives after the invoice run?",
+      "url": "https://github.com/{{repo}}/discussions/77",
+      "createdAt": "2026-11-03T07:00:00Z",
+      "bodyText": "We bill per trace. Usage that arrives late never gets invoiced and our controller can't explain the variance.",
+      "authorAssociation": "NONE",
+      "author": {
+       "login": "fixture-aamaro"
+      }
+     },
+     {
+      "title": "Roadmap for Q1",
+      "url": "https://github.com/{{repo}}/discussions/76",
+      "createdAt": "2026-11-01T15:00:00Z",
+      "bodyText": "Here is what we're building next.",
+      "authorAssociation": "MEMBER",
+      "author": {
+       "login": "fixture-nwatts"
+      }
+     }
+    ]
+   }
+  }
+ }
+}

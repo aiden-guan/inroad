@@ -17,6 +17,13 @@ export function errorResponse(err: unknown, fallbackStatus = 500): Response {
   return Response.json({ error: err instanceof Error ? err.message : "Something went wrong." }, { status: fallbackStatus });
 }
 
+/** Like Response.json, for a body that's already JSON (the workspace as its last save wrote it): no second stringify. */
+export function jsonText(body: string, init: ResponseInit = {}): Response {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+  return new Response(body, { ...init, headers });
+}
+
 /**
  * What Next.js passes on of a request body when there's a proxy (src/proxy.ts): it buffers the body so
  * both can read it, keeps the first 10 MB (experimental.proxyClientMaxBodySize) and silently drops the

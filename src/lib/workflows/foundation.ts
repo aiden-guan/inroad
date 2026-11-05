@@ -787,6 +787,8 @@ export default defineWorkflow({
     return d ? `Reading ${d}` : "Reading your description";
   },
   ref: () => ({ kind: "playbook", id: "foundation" }),
+  // One bet at a time, whatever the args: a second run's reset would wipe the ledger the first is still writing.
+  key: () => "bet",
   heavy: true,
   run: async (ctx) => {
     const { args } = ctx;

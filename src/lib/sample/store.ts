@@ -18,6 +18,8 @@ import { readOptOuts, rememberOptOuts } from "@/lib/store/opt-outs";
 import { DATA_DIR } from "@/lib/store/settings";
 import { emptyWorkspace, holdsRealWork, migrateWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { sampleConnections, sampleRunSteps, sampleWorkspace } from "./index";
+import { sampleColumns } from "./columns";
+import { sampleAutomation } from "./research";
 
 export { holdsRealWork };
 
@@ -26,7 +28,7 @@ export { holdsRealWork };
  * and keys.json belong to the machine and are never touched; the signal cache holds public web data and
  * is kept. Each replacement saves a backup first when there's real work to lose (src/lib/store/backup.ts).
  */
-const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json", "automation.json"] as const;
+const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json", "automation.json", "columns.json"] as const;
 
 const stepsDB = () =>
   singletonDB<Record<string, RunStep[]>>("runs.json", () => new FileDB<Record<string, RunStep[]>>("runs.json", () => ({})));
@@ -74,7 +76,7 @@ export async function loadSampleWorkspace(): Promise<Workspace> {
   rememberOptOuts(readWorkspace());
   const now = new Date();
   const ws = await replaceWorkspace(sampleWorkspace(now));
-  for (const name of WORKSPACE_FILES) resetDataFile(name, name === "connections.json" ? sampleConnections(now) : null);
+  for (const name of WORKSPACE_FILES) resetDataFile(name, name === "connections.json" ? sampleConnections(now) : name === "columns.json" ? sampleColumns(now) : name === "automation.json" ? sampleAutomation(now) : null);
   await replaceRunSteps(sampleRunSteps(now));
   return ws;
 }

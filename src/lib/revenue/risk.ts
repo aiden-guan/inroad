@@ -1,7 +1,7 @@
 import { daysBetween } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type ISODate, type Workspace } from "@/lib/domain/types";
 import { first, localDate } from "@/lib/moves/util";
-import { closeDateSlips, daysInStage, openStage, type RevenueStats } from "./stats";
+import { closeDateSlips, daysInStage, importUnknown, openStage, type RevenueStats } from "./stats";
 
 /**
  * Deal risk, in code. Each risk is a fact on file (a date, a count, a missing field), says how bad it
@@ -109,7 +109,13 @@ export function dealRisks(ws: Workspace, deal: Deal, stats: RevenueStats, today:
 
   // Two buyer contacts by Qualified, three by Pilot or Proposal: won deals have more people on the buyer side.
   const want = late ? 3 : 2;
-  if (qualifiedPlus && deal.contacts.length < want) {
+  if (qualifiedPlus && !deal.contacts.length && importUnknown(deal, "contacts")) {
+    // The file had no contacts: unknown isn't the same as one thread, so it asks rather than alarms.
+    add("single_threaded", "medium", "No contacts on file", `The import didn't include contacts. Add the people on the buyer side; aim for ${want} at ${STAGE_LABELS[stage]}.`, {
+      label: "Add the buyer's people",
+      href: sheet(deal),
+    });
+  } else if (qualifiedPlus && deal.contacts.length < want) {
     const one = deal.contacts.length <= 1;
     add("single_threaded", one && late ? "high" : "medium", one ? "Single-threaded" : "Thin on the buyer side", `${deal.contacts.length} ${deal.contacts.length === 1 ? "contact" : "contacts"}${one && champ ? ` (${champ})` : ""}; aim for ${want} at ${STAGE_LABELS[stage]}. If one goes quiet, so does the deal.`, {
       label: "Add another thread",
@@ -144,18 +150,22 @@ export function dealRisks(ws: Workspace, deal: Deal, stats: RevenueStats, today:
 
   const inStage = daysInStage(deal, today);
   const typical = stats.stageDays[stage].value;
+  // Counted from the import when the file didn't say when the deal entered its stage: a floor, so "at least".
+  const since = deal.imported?.at;
+  const stageFromImport = !!since && importUnknown(deal, "stage_date") && deal.stageHistory.at(-1)?.at === since && deal.stageHistory.at(-1)?.stage === stage;
   if (inStage > typical * STALL_FACTOR) {
-    add("stalled", inStage > typical * 2 ? "high" : "medium", `Stalled in ${STAGE_LABELS[stage]}`, `${inStage} days here; deals usually move on in about ${Math.round(typical)}.`, {
+    add("stalled", inStage > typical * 2 ? "high" : "medium", `Stalled in ${STAGE_LABELS[stage]}`, `${stageFromImport ? "At least " : ""}${inStage} days here${stageFromImport ? ", counted from the import" : ""}; deals usually move on in about ${Math.round(typical)}.`, {
       label: "Plan the unstick",
-      ask: `${deal.name} has been in ${STAGE_LABELS[stage]} for ${inStage} days. What's the most likely reason, and what's the one move that gets it moving this week?`,
+      ask: `${deal.name} has been in ${STAGE_LABELS[stage]} for ${stageFromImport ? "at least " : ""}${inStage} days. What's the most likely reason, and what's the one move that gets it moving this week?`,
     });
   }
 
   // Late-stage deals go cold faster: a week of silence at Pilot or Proposal means as much as two weeks earlier on.
   const quiet = Math.max(0, daysBetween(localDate(deal.lastActivityAt || deal.updatedAt), today));
   const quietAfter = late ? QUIET_DAYS / 2 : QUIET_DAYS;
+  const quietFromImport = !!since && importUnknown(deal, "activity") && deal.lastActivityAt === since;
   if (quiet >= quietAfter) {
-    add("quiet", quiet >= quietAfter * 1.5 ? "high" : "medium", "Gone quiet", `No activity for ${quiet} days.`, {
+    add("quiet", quiet >= quietAfter * 1.5 ? "high" : "medium", "Gone quiet", quietFromImport ? `No activity on file since the import, ${quiet} days ago.` : `No activity for ${quiet} days.`, {
       label: `Re-engage${via}`,
       ask: `${deal.name} has been quiet for ${quiet} days. Draft a short, specific re-engagement note${via} that gives them a reason to answer.`,
     });

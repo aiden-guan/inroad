@@ -77,7 +77,7 @@ export function ReasoningTrace({ lines, className }: { lines: string[]; classNam
       >
         <ChevronRight className={cn("size-3 transition-transform duration-200 ease-out", open && "rotate-90")} />
         <span className="font-medium">Reasoning</span>
-        <span className="font-mono text-[11px] tnum text-fg-4 transition-colors group-hover:text-fg-3">
+        <span className="font-mono text-[12px] tnum text-fg-3 transition-colors group-hover:text-fg-2">
           {lines.length} {lines.length === 1 ? "thought" : "thoughts"}
         </span>
       </button>

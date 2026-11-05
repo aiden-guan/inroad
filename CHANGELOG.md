@@ -7,6 +7,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- **Research columns on Companies.** Ask every company one question ("Do they bill on usage?"). Inroad tries five rows first and shows what they cost and an estimate for the rest, then fills cells live, three at a time. Each answer keeps its source, quote, date and cost; a quote that code can't find on the fetched page becomes Unknown. Earlier answers, job boards and site scripts answer for free first. Columns sort, filter, hide and reorder; saved views sit in tabs (`?viewId=`); a bulk bar tracks, disqualifies, asks a column or exports CSV for the selection.
+- **Calendar autopilot.** Paste a private iCal address (Google, Outlook, iCloud and others). Every 15 minutes Inroad reads 60 days back and 30 ahead, keeps meetings with people outside the company, matches them to deals through the booking path, and lists new companies to track with one key. Moves and cancellations follow the calendar; what couldn't be read is named.
+- **Debriefs from transcripts.** Drop a Zoom, Meet, Teams, Fathom, Granola, Otter, VTT or SRT transcript on a meeting, in Log a call, in Integrations or from ⌘K. Code reads speakers and talk share, proposes the matching call with its reasons, and the debrief runs with verbatim quotes.
+- **Plays from a sentence.** Describe a play on /plays and a cheap model turns it into an editable recipe: trigger, audience, persona, action, limits and measure. A dry run shows who it would fire on today and why others were skipped, with a backtest against won and lost deals, before it's turned on. Versions keep their own results and roll back; skips propose adjustments with Undo. A live-matches queue leads the page.
+- **Intent radar in Research.** People on Hacker News, Stack Exchange, GitHub issues and Reddit (through your search provider) asking for what you sell, judged once by a cheap model and checked in code: word-for-word quotes, playbook terms, and a company only from the author's own profile. Draft a reply, track the company or mark it not relevant. A developer radar maps forks, issues and pull requests on competitor repos to companies.
+- **Buyer voice in the Playbook.** Objections, pains, outcomes, buying process and competitors from calls and replies, counted in code, with trends, stages, win rate when a theme came up, and the quotes (transcript, email or paraphrase). Battlecards are drafted only from quotes and approved claims. Themes go to messaging, Studio or Ask. Revenue shows what buyers said this month.
+- **Today triage.** A replies lane with intent, a reply-by time and one-key actions for questions, referrals, out-of-office and not-now replies. "Remind me if no reply" on every sent draft, a waiting-on list and snooze until they reply. Three skips with the same reason now lower that persona or signal for 30 days, listed under Learned with Undo. The masthead leads with the number and what changed since your last visit; a clear desk shows what's next.
+- **A first run for a Head of GTM.** Bring open deals from a CSV export or connect HubSpot or Attio, set the quarter's target, and land on a pipeline X-ray and the forecast.
+
+### Changed
+- Revenue leads with the call and the deal-by-deal calls, then what needs fixing, the plan to close the gap and the weekly update. Diagnostics sit in tabs (`?tab=`); the forecast bar is a bullet chart; labels are plain words.
+- The sidebar fits a 1440×800 screen with ⌘K always visible and one number in the footer. Today uses the same number. The sample notice is a strip above the page, and the market switch lives in the company menu.
+- ⌘K puts exact name matches first, searches every company and person, and pins Ask for questions. With a company open, its actions come first.
+- Secondary and tertiary text meet WCAG AA contrast in light mode; text below 12px is gone from the shell, the UI kit, Intros, Partners, Events, Studio, Settings and Ask. A styled select replaces browser dropdowns in the shell and Settings.
+- Intros, Partners (now with sample partners), Events, Studio, Settings and Ask read in plain words, with one badge style and one tab style.
+- The workspace file is saved as compact JSON, about half the CPU per save.
+
+### Fixed
+- A target from an ended quarter no longer pins the forecast; the next quarter starts with last quarter's number filled in.
+- Esc in a field inside a sheet leaves the field instead of closing the sheet.
+- Double clicks no longer start duplicate paid runs, and a failed save can't strand a run.
+- "$25K" is read as 25,000 in deal values, pilot fees, partner fees and targets.
+- A dossier refresh keeps relationship tags and Apollo ids.
+- Board Undo reverts a stage instead of recording a new one; nurture counts as a decided exit; estimated close dates no longer show as pushes.
+- Dates count local days across daylight-saving changes; the forecast test no longer depends on today's date.
+- "Meeting booked" asks for the meeting's date on Today and Intros.
+- Background polls clear "Needs attention" once a connection works, and a waitlist- or calendar-only workspace syncs on its own.
+- Every hard load fetched the workspace twice; streamed run events re-rendered every reader on each token.
+
+### Security
+- The build tools' `minimatch` 9.x and 10.x copies (typescript-eslint, electron-builder) are overridden to 11.0.4 for GHSA-g3hv-75wg-m249; `npm audit` reports no vulnerabilities. Nothing that ships in the app changed.
+
 ---
 
 ## [v0.2.22] — 2026-10-30

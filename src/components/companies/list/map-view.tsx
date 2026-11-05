@@ -8,20 +8,23 @@ import { LeadMap, type MapPin as Pin } from "@/components/map/lead-map";
 import { PlacePicker } from "@/components/map/place-picker";
 import { useLeadPoints, useMiles } from "@/components/map/use-lead-points";
 import { Favicon } from "@/components/ui/favicon";
-import { Segmented, Skeleton } from "@/components/ui/misc";
+import { Skeleton } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { STAGE_LABELS } from "@/lib/domain/types";
 import { metros, nearby, type LeadPoint } from "@/lib/geo/leads";
 import { formatDistance, KM_PER_MI } from "@/lib/geo/places";
 import { listItem, spring } from "@/lib/motion";
 
-type Filter = "all" | "prospect" | "pipeline" | "customer";
+type Group = LeadPoint["group"];
 
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "prospect", label: "Prospects" },
-  { value: "pipeline", label: "Pipeline" },
-  { value: "customer", label: "Customers" },
+/**
+ * The legend is the filter: one row of the same words the Companies tabs use, so the page has a single tab bar
+ * and no second set of counts (the map counts placed pins, people included, which never matched the tabs).
+ */
+const GROUPS: { value: Group; label: string; dot: string }[] = [
+  { value: "prospect", label: "Prospects", dot: "bg-fg" },
+  { value: "pipeline", label: "Talking", dot: "bg-accent" },
+  { value: "customer", label: "Customers", dot: "bg-success" },
 ];
 
 /**
@@ -31,7 +34,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => void; focusDomain?: string | null }) {
   const { points, pending, failed } = useLeadPoints();
   const miles = useMiles();
-  const [filter, setFilter] = useState<Filter>("all");
+  const [hidden, setHidden] = useState<Set<Group>>(new Set());
   const [hovered, setHovered] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [placeFocus, setFocus] = useState<{ lat: number; lng: number; zoom?: number; key: string; label: string } | null>(null);
@@ -44,7 +47,15 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
     [placeFocus, fromUrl],
   );
 
-  const shown = useMemo(() => (points ?? []).filter((p) => filter === "all" || p.group === filter), [points, filter]);
+  const shown = useMemo(() => (points ?? []).filter((p) => !hidden.has(p.group)), [points, hidden]);
+  const placedCompanies = useMemo(() => new Set(shown.map((p) => p.domain)).size, [shown]);
+  const toggle = (g: Group) =>
+    setHidden((cur) => {
+      const next = new Set(cur);
+      if (next.has(g)) next.delete(g);
+      else if (next.size < GROUPS.length - 1) next.add(g); // one group always stays on
+      return next;
+    });
   const byMetro = useMemo(() => metros(shown), [shown]);
   const near = useMemo(() => (focus ? nearby(shown, focus, 40 * KM_PER_MI).slice(0, 12) : []), [shown, focus]);
   const pins: Pin[] = useMemo(
@@ -68,7 +79,6 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented layoutId="map-filter" value={filter} onChange={setFilter} options={FILTERS.map((f) => ({ ...f, count: (points ?? []).filter((p) => f.value === "all" || p.group === f.value).length || undefined }))} />
           <PlacePicker
             placeholder="I'm in… a city or address"
             value={focus?.label}
@@ -79,29 +89,42 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
         <LeadMap
           className="h-[clamp(420px,66vh,720px)]"
           pins={pins}
-          fitKey={`${filter}:${points ? "ready" : "loading"}`}
+          fitKey={`${[...hidden].sort().join(",")}:${points ? "ready" : "loading"}`}
           focus={focus}
           hoveredId={hovered}
           selectedId={selected}
           onHover={setHovered}
           onSelect={setSelected}
         />
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11.5px] text-fg-3">
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden className="inline-block size-2.5 rounded-full bg-accent ring-2 ring-bg" /> Pipeline
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden className="inline-block size-2.5 rounded-full bg-fg ring-2 ring-bg" /> Prospect
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden className="inline-block size-2.5 rounded-full bg-success ring-2 ring-bg" /> Customer
-          </span>
-          <span className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11.5px] text-fg-3" role="group" aria-label="Show on the map">
+          {GROUPS.map((g) => {
+            const on = !hidden.has(g.value);
+            return (
+              <button
+                key={g.value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(g.value)}
+                title={on ? `Hide ${g.label.toLowerCase()}` : `Show ${g.label.toLowerCase()}`}
+                className={cn("flex h-7 items-center gap-1.5 rounded-sm px-1.5 transition-[color,opacity] duration-150 hover:bg-bg-subtle hover:text-fg-2", !on && "opacity-45 line-through decoration-fg-4")}
+              >
+                <span aria-hidden className={cn("inline-block size-2.5 rounded-full ring-2 ring-bg", g.dot)} /> {g.label}
+              </button>
+            );
+          })}
+          <span className="flex items-center gap-1.5 px-1.5">
             <span aria-hidden className="inline-block size-3 rounded-full ring-[1.5px] ring-accent/70" /> Warm
           </span>
-          {pending > 0 && <span className="ml-auto">Placing {pending} more…</span>}
-          {failed && <span className="ml-auto text-danger">Couldn&apos;t load the map&apos;s leads.</span>}
-        </p>
+          <span className="ml-auto px-1">
+            {failed ? (
+              <span className="text-danger">Couldn&apos;t load the map&apos;s leads.</span>
+            ) : pending > 0 ? (
+              `Placing ${pending} more…`
+            ) : points ? (
+              `${placedCompanies} ${placedCompanies === 1 ? "company" : "companies"} placed`
+            ) : null}
+          </span>
+        </div>
       </div>
 
       <aside className="min-w-0 space-y-5">

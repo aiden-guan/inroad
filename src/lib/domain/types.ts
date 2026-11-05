@@ -9,6 +9,9 @@
 import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
 import type { WaitlistTracking } from "@/lib/waitlist/types";
 import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
+import type { CustomPlay } from "@/lib/plays/recipe-types";
+import type { BuyerVoiceState } from "@/lib/voice/types";
+import type { IntentState } from "@/lib/intent/types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -1137,6 +1140,8 @@ export interface Meeting {
   debrief?: Debrief;
   /** Indexes of brief questions the founder starred; they pin to the debrief form. */
   starred?: number[];
+  /** Came from the founder's calendar feed (src/lib/calendar), not a booking tool or a hand entry. */
+  source?: "calendar";
 }
 
 export interface Deal {
@@ -1175,6 +1180,11 @@ export interface Deal {
   forecastCall?: { category: ForecastCategory; at: ISODateTime; note?: string };
   /** Every close date this deal has had, oldest first. Slips are counted from it, never remembered. */
   closeDateHistory?: { date: ISODate; at: ISODateTime }[];
+  /**
+   * The deal came in from a file (a CRM export): when, which file, its stage on arrival, and what the file didn't
+   * say. The import time stands in for unknown dates, and code skips the checks they'd feed (src/lib/revenue/stats.ts).
+   */
+  imported?: { at: ISODateTime; from: string; stage: Stage; unknown?: ("created" | "stage_date" | "activity" | "contacts" | "source")[] };
 }
 
 /* ─────────────────────────────── Revenue ─────────────────────────────── */
@@ -1212,7 +1222,8 @@ export interface ForecastSnapshot {
   pipeline: number;
   /** The call at the time (category-weighted), so forecast accuracy can be scored when the period closes. */
   call?: number;
-  deals: { id: ID; name: string; stage: Stage; category: ForecastCategory; amountUsd: number; closeDate?: ISODate }[];
+  /** `closeEstimated`: the date was code's estimate (it slides as days pass), so it can't show a push. Unset on older snapshots. */
+  deals: { id: ID; name: string; stage: Stage; category: ForecastCategory; amountUsd: number; closeDate?: ISODate; closeEstimated?: boolean }[];
 }
 
 /** The weekly GTM update (for the CEO, the board or the team). Numbers come from code; the model writes the story. */
@@ -1233,6 +1244,12 @@ export interface PlayState {
   updatedAt: ISODateTime;
   /** Accounts worked from this play and when, so results are attributed in code. */
   runs?: { at: ISODateTime; domains: string[] }[];
+  /**
+   * The first time the play worked each company (a bulk run, or one of its Today cards marked done), kept for good
+   * so results never shrink as the run log and old cards roll off. `version`: the founder's play version then;
+   * `moveId`: the card, so undoing it takes this back (src/lib/plays/custom.ts).
+   */
+  worked?: Record<string, { at: ISODateTime; version?: number; moveId?: ID }>;
 }
 
 /* ─────────────────────────────── Activity & the desk ─────────────────────────────── */
@@ -1286,6 +1303,15 @@ export interface Activity {
   editDistance?: number;
   /** Replies only: a yes the founder answered and then let go (no call, and no deal to close as lost). */
   loopClosedAt?: ISODateTime;
+  /** Replies only: how the founder says it reads, when they corrected Today's chip. Wins over every other read. */
+  intent?: ReplyIntent;
+  /**
+   * Founder sends: the day a follow-up comes due if nothing is heard back ("Remind me if no reply"). Set by default
+   * when a draft is marked sent; null means the founder turned the reminder off. Unset on older sends: no reminder.
+   */
+  remindOn?: ISODate | null;
+  /** Replies only (out of office, not now): follow-ups to this person wait until this date, then Today brings them back. */
+  holdUntil?: ISODate;
   /**
    * Set when "Delete their details" anonymised it: `who` is one opaque id per deleted person (in place of
    * personId), `draft` what the touch was (the draft itself is gone), so the cold cap, the per-company
@@ -1351,6 +1377,23 @@ export interface Move {
   autoDone?: true;
   /** The play this move came from, when one did (see `src/lib/plays`). */
   playId?: string;
+  /** When the founder finished, skipped or put it off (today's progress counts these; a skip's learning window starts here). */
+  settledAt?: ISODateTime;
+  /** Skipped: who and what the card was about, stamped at the skip, so what Today learns outlives the person or the signal. */
+  skipTarget?: SkipTarget;
+  /** The founder took this skip back out of what Today learns from ("What I've learned" → Undo). */
+  learnIgnored?: true;
+  /** Snoozed until this person writes back, or `snoozedUntil`, whichever comes first. */
+  untilReply?: { personId: ID; since: ISODateTime };
+}
+
+/** What a skipped card targeted: the persona it was written to and the why-now signal it rested on. */
+export interface SkipTarget {
+  /** A playbook persona (`psn:<id>`), else a buying role (`role:<role>`), else a title (`title:<title>`). */
+  persona?: { key: string; label: string };
+  signalType?: SignalType;
+  domain?: string;
+  personId?: ID;
 }
 
 export interface Scoreboard {
@@ -1433,8 +1476,8 @@ export interface FoundationVersion {
   at: ISODateTime;
   /** What the next version changed, in words. */
   changes: string[];
-  /** rebuild: the bet was written again from the site (a fresh first read). */
-  source: "refresh" | "monthly" | "restore" | "rebuild";
+  /** rebuild: the bet was written again from the site (a fresh first read). voice: a change accepted from Buyer voice. */
+  source: "refresh" | "monthly" | "restore" | "rebuild" | "voice";
   runId?: ID;
   snapshot: Foundation;
 }
@@ -1612,7 +1655,9 @@ export type IntegrationId =
   | "mcp"
   | "gmail"
   | "calendly"
-  | "calcom";
+  | "calcom"
+  /** The founder's own calendar, read from its private iCal address (src/lib/calendar). */
+  | "calendar";
 
 export interface IntegrationState {
   id: IntegrationId;
@@ -1669,7 +1714,11 @@ export type WorkflowId =
   | "studio"
   | "visual"
   | "agent_ask"
-  | "gtm_update";
+  | "gtm_update"
+  | "research_column"
+  | "play_compile"
+  | "buyer_voice"
+  | "intent";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -2143,11 +2192,23 @@ export interface Workspace {
   /** Consumer: Sean Ellis "how would you feel if you could no longer use it?" survey results, oldest first. */
   pmfSurveys?: PmfSurvey[];
   /** The revenue number, weekly forecast snapshots (last 26) and weekly updates (last 12). */
-  revenue?: { target?: RevenueTarget; snapshots?: ForecastSnapshot[]; updates?: GtmUpdate[] };
+  revenue?: {
+    target?: RevenueTarget;
+    /** Targets a new period's target replaced, oldest first, at most 8: last quarter's number stays readable. */
+    pastTargets?: RevenueTarget[];
+    snapshots?: ForecastSnapshot[];
+    updates?: GtmUpdate[];
+  };
+  /** Research → Intent: public posts asking for what the company sells, and the developer radar (src/lib/intent). */
+  intent?: IntentState;
   /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
   plays?: Record<string, PlayState>;
+  /** Plays the founder wrote, by id: recipes with versions (see `src/lib/plays/recipes.ts`). On/off and runs live in `plays`. */
+  customPlays?: Record<string, CustomPlay>;
   /** What each market had when the founder last switched away from it, so switching back restores it. */
   marketMemory?: Partial<Record<Market, MarketMemory>>;
+  /** Buyer voice: cached theme names and battlecard drafts. Every number is recounted in code (src/lib/voice). */
+  buyerVoice?: BuyerVoiceState;
 }
 
 export interface MarketMemory {

@@ -1,0 +1,386 @@
+{
+ "exhaustive": {
+  "nbHits": false,
+  "typo": false
+ },
+ "exhaustiveNbHits": false,
+ "exhaustiveTypo": false,
+ "hitsPerPage": 30,
+ "nbHits": 9,
+ "nbPages": 1,
+ "page": 0,
+ "params": "query=usage+reconciliation&tags=%28story%2Ccomment%29&hitsPerPage=30&advancedSyntax=true&analyticsTags=backend",
+ "processingTimeMS": 20,
+ "processingTimingsMS": {
+  "_request": {
+   "queue": 1,
+   "roundTrip": 16
+  },
+  "afterFetch": {
+   "format": {
+    "total": 1
+   }
+  },
+  "fetch": {
+   "query": 17,
+   "scanning": 1,
+   "total": 19
+  },
+  "total": 20
+ },
+ "query": "usage reconciliation",
+ "serverTimeMS": 23,
+ "hits": [
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_mkessler"
+    },
+    "title": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "Ask HN: How do you reconcile metered usage with what your billing system invoiced?"
+    },
+    "story_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "partial",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "We bill per API call. Every month-end our controller exports usage from the warehouse and VLOOKUPs it against invoice lines. It takes four days and we still book an adjustment we can&#x27;t explain.<p>What do you use? Is there a tool for usage reconciliation, or does everyone build it in dbt?"
+    }
+   },
+   "_tags": [
+    "story",
+    "author_fixture_mkessler",
+    "story_99000101",
+    "ask_hn"
+   ],
+   "author": "fixture_mkessler",
+   "created_at": "2026-11-05T04:00:00Z",
+   "created_at_i": 1793851200,
+   "objectID": "99000101",
+   "updated_at": "2026-11-05T05:00:00Z",
+   "title": "Ask HN: How do you reconcile metered usage with what your billing system invoiced?",
+   "story_text": "We bill per API call. Every month-end our controller exports usage from the warehouse and VLOOKUPs it against invoice lines. It takes four days and we still book an adjustment we can&#x27;t explain.<p>What do you use? Is there a tool for usage reconciliation, or does everyone build it in dbt?",
+   "url": null,
+   "points": 12,
+   "num_comments": 9,
+   "story_id": 99000101,
+   "children": []
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_nkoval"
+    },
+    "title": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "Ask HN: Meterbook or Closewise for the usage line in the close?"
+    },
+    "story_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "partial",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "We&#x27;re re-platforming billing next quarter. Has anyone used Meterbook&#x27;s reconciliation report, or Closewise for the usage line? Our usage lives in the warehouse, not in billing."
+    }
+   },
+   "_tags": [
+    "story",
+    "author_fixture_nkoval",
+    "story_99000102",
+    "ask_hn"
+   ],
+   "author": "fixture_nkoval",
+   "created_at": "2026-11-04T19:00:00Z",
+   "created_at_i": 1793818800,
+   "objectID": "99000102",
+   "updated_at": "2026-11-04T20:00:00Z",
+   "title": "Ask HN: Meterbook or Closewise for the usage line in the close?",
+   "story_text": "We&#x27;re re-platforming billing next quarter. Has anyone used Meterbook&#x27;s reconciliation report, or Closewise for the usage line? Our usage lives in the warehouse, not in billing.",
+   "url": null,
+   "points": 12,
+   "num_comments": 9,
+   "story_id": 99000102,
+   "children": []
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_jlindgren"
+    },
+    "comment_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "We moved to per-token pricing in March and the close went from three days to nine. The usage export alone is a full day.<p>Nobody budgets for this when they change pricing."
+    },
+    "story_title": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "Usage-based pricing is eating finance teams"
+    }
+   },
+   "_tags": [
+    "comment",
+    "author_fixture_jlindgren",
+    "story_99000090"
+   ],
+   "author": "fixture_jlindgren",
+   "created_at": "2026-11-05T00:00:00Z",
+   "created_at_i": 1793836800,
+   "objectID": "99000103",
+   "updated_at": "2026-11-05T01:00:00Z",
+   "comment_text": "We moved to per-token pricing in March and the close went from three days to nine. The usage export alone is a full day.<p>Nobody budgets for this when they change pricing.",
+   "story_title": "Usage-based pricing is eating finance teams",
+   "story_id": 99000090,
+   "parent_id": 99000090,
+   "story_url": null
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_odalys"
+    },
+    "comment_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "We wrote a usage reconciliation script in dbt that only one analyst understands. When she was out during close we booked the variance as an adjustment nobody could explain."
+    },
+    "story_title": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "Usage-based pricing is eating finance teams"
+    }
+   },
+   "_tags": [
+    "comment",
+    "author_fixture_odalys",
+    "story_99000090"
+   ],
+   "author": "fixture_odalys",
+   "created_at": "2026-11-04T03:00:00Z",
+   "created_at_i": 1793761200,
+   "objectID": "99000104",
+   "updated_at": "2026-11-04T04:00:00Z",
+   "comment_text": "We wrote a usage reconciliation script in dbt that only one analyst understands. When she was out during close we booked the variance as an adjustment nobody could explain.",
+   "story_title": "Usage-based pricing is eating finance teams",
+   "story_id": 99000090,
+   "parent_id": 99000090,
+   "story_url": null
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_brightops"
+    },
+    "comment_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "At Brightmeter we bill per GB and our controller spends the first week of every close on the usage export. Metered usage never matches the invoices on the first pass."
+    },
+    "story_title": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "Ask HN: What breaks first when you switch to usage pricing?"
+    }
+   },
+   "_tags": [
+    "comment",
+    "author_fixture_brightops",
+    "story_99000091"
+   ],
+   "author": "fixture_brightops",
+   "created_at": "2026-11-03T05:00:00Z",
+   "created_at_i": 1793682000,
+   "objectID": "99000105",
+   "updated_at": "2026-11-03T06:00:00Z",
+   "comment_text": "At Brightmeter we bill per GB and our controller spends the first week of every close on the usage export. Metered usage never matches the invoices on the first pass.",
+   "story_title": "Ask HN: What breaks first when you switch to usage pricing?",
+   "story_id": 99000091,
+   "parent_id": 99000091,
+   "story_url": null
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_tallystack"
+    },
+    "title": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "Show HN: Tallystack – open-source usage metering for SaaS"
+    },
+    "story_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "partial",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "We built Tallystack to meter usage events and send them to your billing system. It is MIT licensed. Usage reconciliation reports are on the roadmap. Try it and tell us what breaks."
+    }
+   },
+   "_tags": [
+    "story",
+    "author_fixture_tallystack",
+    "story_99000106",
+    "show_hn"
+   ],
+   "author": "fixture_tallystack",
+   "created_at": "2026-11-04T13:00:00Z",
+   "created_at_i": 1793797200,
+   "objectID": "99000106",
+   "updated_at": "2026-11-04T14:00:00Z",
+   "title": "Show HN: Tallystack – open-source usage metering for SaaS",
+   "story_text": "We built Tallystack to meter usage events and send them to your billing system. It is MIT licensed. Usage reconciliation reports are on the roadmap. Try it and tell us what breaks.",
+   "url": null,
+   "points": 12,
+   "num_comments": 9,
+   "story_id": 99000106,
+   "children": []
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_recruiter"
+    },
+    "comment_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "Fernwick | Billing Analyst | NYC or remote | Reconcile metered usage to invoices every month-end. Email jobs at fernwick.example"
+    },
+    "story_title": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "Ask HN: Who is hiring? (November 2026)"
+    }
+   },
+   "_tags": [
+    "comment",
+    "author_fixture_recruiter",
+    "story_99000050"
+   ],
+   "author": "fixture_recruiter",
+   "created_at": "2026-11-03T17:00:00Z",
+   "created_at_i": 1793725200,
+   "objectID": "99000107",
+   "updated_at": "2026-11-03T18:00:00Z",
+   "comment_text": "Fernwick | Billing Analyst | NYC or remote | Reconcile metered usage to invoices every month-end. Email jobs at fernwick.example",
+   "story_title": "Ask HN: Who is hiring? (November 2026)",
+   "story_id": 99000050,
+   "parent_id": 99000050,
+   "story_url": null
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_lessee"
+    },
+    "comment_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "The true-up clause in our lease means we pay for the extra square footage at year end. Usage of the space is measured quarterly."
+    },
+    "story_title": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "Commercial real estate is weird"
+    }
+   },
+   "_tags": [
+    "comment",
+    "author_fixture_lessee",
+    "story_99000060"
+   ],
+   "author": "fixture_lessee",
+   "created_at": "2026-11-02T11:00:00Z",
+   "created_at_i": 1793617200,
+   "objectID": "99000108",
+   "updated_at": "2026-11-02T12:00:00Z",
+   "comment_text": "The true-up clause in our lease means we pay for the extra square footage at year end. Usage of the space is measured quarterly.",
+   "story_title": "Commercial real estate is weird",
+   "story_id": 99000060,
+   "parent_id": 99000060,
+   "story_url": null
+  },
+  {
+   "_highlightResult": {
+    "author": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "fixture_oldtimer"
+    },
+    "comment_text": {
+     "fullyHighlighted": false,
+     "matchLevel": "full",
+     "matchedWords": [
+      "usage"
+     ],
+     "value": "We tie out usage to invoices by hand every month-end and it takes the first week of the close."
+    },
+    "story_title": {
+     "matchLevel": "none",
+     "matchedWords": [],
+     "value": "Usage billing in 2026"
+    }
+   },
+   "_tags": [
+    "comment",
+    "author_fixture_oldtimer",
+    "story_99000010"
+   ],
+   "author": "fixture_oldtimer",
+   "created_at": "2026-09-21T09:00:00Z",
+   "created_at_i": 1789981200,
+   "objectID": "99000109",
+   "updated_at": "2026-09-21T10:00:00Z",
+   "comment_text": "We tie out usage to invoices by hand every month-end and it takes the first week of the close.",
+   "story_title": "Usage billing in 2026",
+   "story_id": 99000010,
+   "parent_id": 99000010,
+   "story_url": null
+  }
+ ]
+}

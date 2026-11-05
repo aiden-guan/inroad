@@ -19,6 +19,10 @@ import studio from "./studio";
 import visual from "./visual";
 import agentAsk from "./agent-ask";
 import gtmUpdate from "./gtm-update";
+import researchColumn from "./research-column";
+import playCompile from "./play-compile";
+import buyerVoice from "./buyer-voice";
+import intent from "@/lib/intent/workflow";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
@@ -40,6 +44,10 @@ export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
   visual: visual,
   agent_ask: agentAsk,
   gtm_update: gtmUpdate,
+  research_column: researchColumn,
+  play_compile: playCompile,
+  buyer_voice: buyerVoice,
+  intent: intent,
 };
 
 export function getWorkflow(id: string): WorkflowDef<unknown> | undefined {
