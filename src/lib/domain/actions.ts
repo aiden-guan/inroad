@@ -309,8 +309,8 @@ function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "i
       source: "founder",
     });
   }
-  // Reopening (a "no answer" that came back) keeps the original dates; only a fresh forward restarts its clock.
-  if (was === "no_answer" && a.stage === "forwarded") intro.forwardedOn = on;
+  // Reopening (a "no answer" or a pass that came back) keeps the original dates; only a fresh forward restarts its clock.
+  if ((was === "no_answer" || was === "declined") && a.stage === "forwarded") intro.forwardedOn = on;
 }
 
 function upsertBy<T extends { id: string }>(list: T[], item: T) {
@@ -342,6 +342,9 @@ function setPath(target: unknown, path: (string | number)[], value: unknown) {
   if (last === "__proto__" || last === "constructor" || last === "prototype") throw new ActionError("Invalid path");
   node[last] = value;
 }
+
+/** A calendar date, `YYYY-MM-DD` (not "", not a timestamp). */
+const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** Applies an action to a mutable draft. Throws ActionError on invalid input. */
 export function applyAction(ws: Workspace, action: Action): void {
@@ -666,6 +669,11 @@ export function applyAction(ws: Workspace, action: Action): void {
       return;
     }
     case "revenue.setTarget": {
+      const t = action.target;
+      // An empty custom date (or an end before the start) would leave Revenue, Today and the forecast on a period that never ends.
+      if (t && !(t.amountUsd > 0 && isDay(t.periodStart) && isDay(t.periodEnd) && t.periodStart <= t.periodEnd)) {
+        throw new ActionError("A revenue target needs an amount, a start date and an end date on or after it.");
+      }
       ws.revenue ??= {};
       if (action.target) ws.revenue.target = action.target;
       else delete ws.revenue.target;
@@ -691,7 +699,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       deal.stageHistory.push({ stage: action.stage, at: action.at });
       deal.updatedAt = deal.lastActivityAt = action.at;
       if (action.stage === "lost") deal.lossReason = action.lossReason ?? deal.lossReason;
-      if (action.stage === "nurture") deal.nurtureUntil = action.nurtureUntil ?? addDays(todayISO(), 60);
+      // A cleared date input sends "": without a real date the nurture rule never brings the deal back.
+      if (action.stage === "nurture") deal.nurtureUntil = isDay(action.nurtureUntil) ? action.nurtureUntil : addDays(todayISO(), 60);
       const acc = ws.accounts[deal.accountDomain];
       if (acc) acc.status = action.stage === "won" ? "customer" : "in_pipeline";
       return;
