@@ -130,15 +130,17 @@ const BUILTIN_CMP: Record<BuiltinSort, (x: Row, y: Row) => number> = {
  * columns the table may grow wider than the page: it scrolls sideways and the company stays pinned on the left.
  */
 const RESEARCH_W = 136;
+/** "Why now" is the reason to act: with research columns it keeps room for the headline and its source, and the table scrolls sideways instead. */
+const WHY_MIN = 300;
 const GRID = "md:[grid-template-columns:var(--cols-md)] lg:[grid-template-columns:var(--cols-lg)]";
 
 function gridVars(n: number): CSSProperties {
   const tail = `${n ? ` repeat(${n}, ${RESEARCH_W}px)` : ""} 32px`;
-  const md = n ? `minmax(184px,1fr) 20px 30px minmax(180px,2fr) 84px${tail}` : `minmax(0,1.15fr) 20px 30px minmax(0,2.6fr) 84px${tail}`;
-  const lg = n ? `minmax(200px,1fr) 20px 30px minmax(200px,2fr) 40px 40px 84px${tail}` : `minmax(0,1.1fr) 20px 30px minmax(0,2.7fr) 40px 40px 84px${tail}`;
+  const md = n ? `minmax(184px,1fr) 20px 30px minmax(${WHY_MIN}px,2fr) 84px${tail}` : `minmax(0,1.15fr) 20px 30px minmax(0,2.6fr) 84px${tail}`;
+  const lg = n ? `minmax(200px,1fr) 20px 30px minmax(${WHY_MIN}px,2fr) 40px 40px 84px${tail}` : `minmax(0,1.1fr) 20px 30px minmax(0,2.7fr) 40px 40px 84px${tail}`;
   // Sum of the minimum tracks, the gaps (12px) and the row's side padding (24px).
-  const minMd = 184 + 20 + 30 + 180 + 84 + n * RESEARCH_W + 32 + (5 + n) * 12 + 24;
-  const minLg = 200 + 20 + 30 + 200 + 40 + 40 + 84 + n * RESEARCH_W + 32 + (7 + n) * 12 + 24;
+  const minMd = 184 + 20 + 30 + WHY_MIN + 84 + n * RESEARCH_W + 32 + (5 + n) * 12 + 24;
+  const minLg = 200 + 20 + 30 + WHY_MIN + 40 + 40 + 84 + n * RESEARCH_W + 32 + (7 + n) * 12 + 24;
   return { "--cols-md": md, "--cols-lg": lg, "--minw-md": `${minMd}px`, "--minw-lg": `${minLg}px` } as CSSProperties;
 }
 
@@ -1044,7 +1046,7 @@ function ProspectRow({
   const why = top ? (
     <span className="flex min-w-0 items-center gap-1.5">
       {Icon && <Icon className="size-3.5 shrink-0 text-fg-3" aria-label={SIGNAL_LABEL[top.type]} />}
-      <span className="min-w-0 truncate text-fg-2" title={top.headline}>
+      <span className="min-w-0 flex-1 truncate text-fg-2" title={top.headline}>
         {top.headline}
       </span>
       <SourceChip
@@ -1053,7 +1055,7 @@ function ProspectRow({
         quote={ev?.quote}
         claim={ev?.claim}
         confidence={ev?.confidence}
-        className="relative z-[1] max-w-[10rem] shrink-0"
+        className="relative z-[1] max-w-[7.5rem] shrink-0"
       />
     </span>
   ) : (
