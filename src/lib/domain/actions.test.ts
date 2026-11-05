@@ -1095,6 +1095,13 @@ describe("applyAction", () => {
     expect(() => apply(ws(), { type: "move.skip", id: "mv_missing", reason: "other" })).toThrow(ActionError);
     expect(() => apply(ws(), { type: "event.chooseTheme", id: "evt_missing", index: 0 })).toThrow(ActionError);
   });
+
+  it("leaves the workspace as it is for an action type it doesn't know (a tab older than the server), and says so", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const after = apply(ws(), { type: "deal.teleport", id: DEAL.saltmarsh } as unknown as Action);
+    expect(after).toEqual(ws());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"deal.teleport"'));
+  });
 });
 
 describe("Undo after Mark as sent on Today", () => {

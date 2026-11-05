@@ -1157,6 +1157,12 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "pmf.remove":
       ws.pmfSurveys = (ws.pmfSurveys ?? []).filter((x) => x.id !== action.id);
       return;
+    default: {
+      // A type this server doesn't know (a tab left open across an update): change nothing, and say so. A new
+      // Action without a case here fails typecheck on the `never`.
+      const unknown: never = action;
+      console.warn(`[actions] Ignored an unknown action: ${JSON.stringify((unknown as { type?: unknown }).type)}`);
+    }
   }
 }
 
