@@ -55,7 +55,10 @@ export function useFlagWrong() {
   const { dispatch } = useWorkspace();
   return useCallback(
     (id: string) => {
-      void dispatch({ type: "evidence.flagWrong", id, at: nowISO() }).then((ok) => ok && toast("Marked wrong. I won't use that source again."));
+      // One click, so one click back: a mis-click mustn't drop a good source for good.
+      void dispatch({ type: "evidence.flagWrong", id, at: nowISO() }).then(
+        (ok) => ok && toast("Marked wrong. I won't use that source again.", { action: { label: "Undo", onClick: () => void dispatch({ type: "evidence.unflag", id }) } }),
+      );
     },
     [dispatch],
   );

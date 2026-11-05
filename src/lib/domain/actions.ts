@@ -122,6 +122,8 @@ export type Action =
   | { type: "intro.consent"; id: ID; side: 0 | 1; consent: IntroSide["consent"]; at: string }
   | { type: "intro.remove"; id: ID }
   | { type: "evidence.flagWrong"; id: ID; note?: string; at: string }
+  /** Undo of "Wrong?": the source counts again. */
+  | { type: "evidence.unflag"; id: ID }
   | { type: "account.add"; account: Account }
   | { type: "account.update"; domain: string; patch: Partial<Account> }
   | { type: "account.track"; domain: string; watch: boolean }
@@ -590,6 +592,9 @@ export function applyAction(ws: Workspace, action: Action): void {
       ev.flaggedWrong = { at: action.at, note: action.note };
       return;
     }
+    case "evidence.unflag":
+      if (ws.evidence[action.id]) delete ws.evidence[action.id].flaggedWrong;
+      return;
     case "account.add":
       if (!ws.accounts[action.account.domain]) ws.accounts[action.account.domain] = action.account;
       return;

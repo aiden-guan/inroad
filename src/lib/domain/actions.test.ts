@@ -460,6 +460,13 @@ const cases: Record<Action["type"], () => void> = {
     expect(() => apply(s, { type: "evidence.flagWrong", id: "ev_missing", at: at(0) })).toThrow("Evidence not found");
   },
 
+  "evidence.unflag": () => {
+    const s = apply(ws(), { type: "evidence.flagWrong", id: "ev_ll_home", at: at(0) }, { type: "evidence.unflag", id: "ev_ll_home" });
+    expect(s.evidence.ev_ll_home).toEqual(sample.evidence.ev_ll_home);
+    // Already gone (deleted with a person, say): nothing to undo.
+    expect(() => apply(s, { type: "evidence.unflag", id: "ev_missing" })).not.toThrow();
+  },
+
   "account.add": () => {
     const s = ws();
     const account = { ...s.accounts[DOMAIN.quayside], domain: "new.example", name: "New Co" };
