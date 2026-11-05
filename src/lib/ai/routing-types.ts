@@ -10,6 +10,7 @@ export const AI_TASKS = {
   partners: "Partner research", studio: "Studio writing", visual: "Visual planning",
   agent_ask: "Agent questions",
   gtm_update: "Weekly GTM update",
+  buyer_voice: "Buyer voice",
 } as const;
 export type AiTask = keyof typeof AI_TASKS;
 export interface ModelTarget { connectionId: string; model?: string }

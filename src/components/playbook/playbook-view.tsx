@@ -11,6 +11,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { todayISO } from "@/lib/domain/ids";
+import { buyerVoice } from "@/lib/voice";
 import { PlaybookContext, type AssetRunArgs, type PlaybookContextValue } from "./context";
 import { PlaybookDocument } from "./document";
 import { ASSET_KINDS, isContentKind, parts, type AssetKind } from "./model";
@@ -27,9 +28,10 @@ function hashAsset(): string | null {
 
 /**
  * Playbook: what the agent believes about the business, editable in place.
- * URL: `#who|why|how|voice|journal` (or any subsection id), `?asset=<id>` opens an asset,
+ * URL: `#who|why|how|buyers|voice|journal` (or any subsection id), `?asset=<id>` opens an asset,
  * `?new=<kind>&deal=<dealId>` opens the new-asset panel (e.g. a pilot proposal from a debrief);
- * `?new=creator_brief&partner=<id>` opens it for one creator.
+ * `?new=creator_brief&partner=<id>` opens it for one creator. Buyer voice: `?theme=<key>` or `?alt=<key>` opens one,
+ * `?kind=objection|pain|outcome|process` filters the themes.
  */
 export function PlaybookView() {
   const { ws, loading, error, dispatch, refresh } = useWorkspace();
@@ -67,6 +69,7 @@ export function PlaybookView() {
   }, [ready, params]);
 
   const assetRuns = useMemo(() => Object.values(runs).filter((r) => r.workflow === "asset").sort((a, b) => b.startedAt - a.startedAt), [runs]);
+  const voice = useMemo(() => (ws ? buyerVoice(ws, today) : null), [ws, today]);
 
   const draftAsset = useCallback(
     async (args: AssetRunArgs) => {
@@ -96,7 +99,7 @@ export function PlaybookView() {
     );
   }
 
-  if (!ws.foundation) {
+  if (!ws.foundation || !voice) {
     return (
       <div className="mx-auto max-w-[720px] px-6 pt-16 md:px-10">
         <EmptyState
@@ -130,6 +133,7 @@ export function PlaybookView() {
     setOpenAsset,
     composer,
     setComposer,
+    voice,
   };
 
   return (

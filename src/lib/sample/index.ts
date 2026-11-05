@@ -28,6 +28,7 @@ import { deals, meetings } from "./pipeline";
 import { ceoUpdate, lastWeekSnapshot, revenueTarget } from "./revenue";
 import { runs, runSteps, usage } from "./runs";
 import { studio } from "./studio";
+import { sampleBuyerVoice, voiceMeetings, withVoiceMeetings } from "./voice";
 
 /**
  * Ledgerline: a fictional seed-stage startup that reconciles usage-billing data with invoices for finance
@@ -68,6 +69,7 @@ function assemble(now: Date): Workspace {
   const peopleById = people(c);
   const accountsByDomain = accounts(c, f.icp.criteria, evidenceList);
   const target = revenueTarget(c);
+  const earlierCalls = voiceMeetings(c);
 
   const ws: Workspace = {
     schemaVersion: 1,
@@ -93,8 +95,8 @@ function assemble(now: Date): Workspace {
     evidence: Object.fromEntries(evidenceList.map((e) => [e.id, e])),
     accounts: accountsByDomain,
     people: peopleById,
-    deals: deals(c),
-    meetings: meetings(c),
+    deals: withVoiceMeetings(deals(c), earlierCalls),
+    meetings: { ...meetings(c), ...earlierCalls },
     outreach: outreach(c),
     activities: activities(c),
     moves: {},
@@ -112,6 +114,7 @@ function assemble(now: Date): Workspace {
   };
   // Written last: the update's numbers are computed from the finished workspace.
   ws.revenue!.updates = [ceoUpdate(ws, c)];
+  ws.buyerVoice = sampleBuyerVoice(ws, c);
   return ws;
 }
 

@@ -21,6 +21,7 @@ import { Working } from "./working";
 import { BusinessMetrics } from "./business-metrics";
 import { GtmInitiatives } from "@/components/gtm/initiatives";
 import { PipelineConversion } from "./pipeline-conversion";
+import { BuyerVoiceCard } from "@/components/voice/buyer-voice-card";
 
 /**
  * Revenue: the number a Head of GTM is measured on, called the way a forecast meeting calls it.
@@ -87,6 +88,7 @@ export function RevenuePage() {
       <PlanView f={f} plan={plan} onSetTarget={() => setTargetOpen(true)} />
       <PipelineConversion />
       <Working ws={ws} f={f} />
+      <BuyerVoiceCard ws={ws} />
       <WeeklyUpdate ws={ws} today={today} />
 
       {targetOpen && <TargetDialog open={targetOpen} onOpenChange={setTargetOpen} today={today} stats={f.stats} />}
