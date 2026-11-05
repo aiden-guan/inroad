@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { marketOf } from "@/lib/consumer/market";
 import { PLATFORM_LABELS, normalizeHandle, partnerCopy, partnerKey, partnerNext, type PartnerCopy } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
+import { parseAmount } from "@/lib/domain/money";
 import type { Market, Partner, PartnerKind, PartnerPlatform } from "@/lib/domain/types";
 import { ChipRadios, PartnerCard } from "./partner-card";
 
@@ -257,12 +258,13 @@ function AddPartner({ copy, onDone }: { copy: PartnerCopy; onDone: () => void })
       return;
     }
     const at = nowISO();
-    const f = Number(followers.replace(/[,\s]/g, ""));
+    // As profiles show it: "18.2K" is 18,200 followers.
+    const f = parseAmount(followers);
     const partner: Partner = {
       id: newId("ptn"),
       kind,
       ...candidate,
-      followers: followers.trim() && Number.isFinite(f) ? f : undefined,
+      followers: f !== null && followers.trim() ? Math.round(f) : undefined,
       fit: fit.trim().slice(0, 160),
       source: "founder",
       stage: "shortlist",

@@ -23,6 +23,8 @@ function usesClaudePlan(workflow: WorkflowId, args: unknown): boolean {
 
 interface LiveRun {
   summary: RunSummary;
+  /** Which work this is (runKey): starting the same work while this runs returns this run. */
+  key: string;
   events: AgentEvent[];
   listeners: Set<(event: AgentEvent) => void>;
   done: boolean;
@@ -144,6 +146,23 @@ export function committedSpend(): number {
   return monthSpend() + [...reserved.values()].reduce((n, v) => n + v, 0);
 }
 
+/**
+ * The work a run does: its workflow plus the workflow's own key (dossier: the company, foundation: the bet), or else
+ * its exact arguments (object keys sorted, so the same request always gives the same key).
+ */
+function runKey<A>(def: WorkflowDef<A>, args: A): string {
+  if (def.key) return `${def.id}:${def.key(args)}`;
+  const sorted = (_: string, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v;
+  return `${def.id}:${JSON.stringify(args ?? null, sorted)}`;
+}
+
+/** The run in flight doing this work. A stopped one is winding down, so it doesn't count: starting again is new work. */
+function inFlight(key: string): LiveRun | undefined {
+  for (const live of state.live.values()) if (live.key === key && !live.done && !live.abort.signal.aborted) return live;
+  return undefined;
+}
+
 export interface StartOptions {
   route?: import("@/lib/ai/routing-types").ModelTarget;
   /**
@@ -156,6 +175,11 @@ export interface StartOptions {
 
 export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: StartOptions = {}): Promise<RunSummary> {
   const args = def.args.parse(rawArgs);
+  // A second start of work already running (a double click, Enter twice, another tab) joins it: one run, one bill.
+  // Checked before any await, and a new run registers before its first await, so two requests can't both start.
+  const key = runKey(def, args);
+  const running = inFlight(key);
+  if (running) return { ...running.summary };
   const claudePlan = usesClaudePlan(def.id, args);
   if (opts.route && !claudePlan) targetProvider(opts.route);
   const ws = readWorkspace();
@@ -176,12 +200,19 @@ export async function startRun<A>(def: WorkflowDef<A>, rawArgs: unknown, opts: S
     startedAt: nowISO(),
     status: def.heavy && state.heavyRunning >= MAX_HEAVY ? "queued" : "running",
   };
-  const live: LiveRun = { summary, events: [], listeners: new Set(), done: false, abort: new AbortController() };
+  const live: LiveRun = { summary, key, events: [], listeners: new Set(), done: false, abort: new AbortController() };
   state.live.set(summary.id, live);
   if (budget > 0) reserved.set(summary.id, hold);
-  await saveSummary(summary);
+  try {
+    await saveSummary(summary);
+  } catch (err) {
+    // It never started: hold no budget and block no later start of the same work.
+    state.live.delete(summary.id);
+    reserved.delete(summary.id);
+    throw err;
+  }
 
-  void execute(def, args, live, opts.route);
+  void execute(def, args, live, opts.route).catch((err) => console.error(`[run ${summary.id}] ${def.id} didn't end cleanly:`, err));
   return summary;
 }
 
@@ -226,7 +257,7 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: i
         const key = monthKey();
         ws.usage[key] ??= { costUsd: 0, runs: 0, byWorkflow: {}, freeSignals: 0 };
         ws.usage[key].freeSignals += count;
-      });
+      }).catch((err) => console.warn(`[run ${live.summary.id}] couldn't count its free lookups:`, err instanceof Error ? err.message : err));
     },
     agent: async <T>(opts: Parameters<WorkflowContext<A>["agent"]>[0]): Promise<RunResult<T>> => {
       const tier: ModelTier = opts.tier ?? "operator";
@@ -255,18 +286,18 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: i
   };
 
   let slot = false;
-  if (def.heavy) {
-    slot = await acquireHeavySlot(live.abort.signal);
-    if (slot && live.summary.status === "queued") {
-      live.summary.status = "running";
-      await saveSummary({ ...live.summary });
-    }
-  }
-
-  emit({ type: "status", text: "Starting" });
   let result: unknown = null;
   let error: { code: string; message: string; requestId?: string; detail?: string } | undefined;
   try {
+    if (def.heavy) {
+      slot = await acquireHeavySlot(live.abort.signal);
+      if (slot && live.summary.status === "queued") {
+        live.summary.status = "running";
+        // Only the sidebar's label: the run goes on if this can't be saved, and its end saves the summary again.
+        await saveSummary({ ...live.summary }).catch((err) => console.warn(`[run ${live.summary.id}] couldn't save that it started:`, err instanceof Error ? err.message : err));
+      }
+    }
+    emit({ type: "status", text: "Starting" });
     // Stopped while queued: end now instead of running against a slot it never got.
     if (live.abort.signal.aborted) throw new AgentError("Stopped.", "stopped");
     result = await def.run(ctx);
@@ -284,71 +315,89 @@ async function execute<A>(def: WorkflowDef<A>, args: A, live: LiveRun, route?: i
     if (slot) releaseHeavySlot();
   }
 
-  const receipt: RunReceipt = {
-    durationMs: Date.now() - started,
-    sources,
-    searches: usage.webSearches,
-    fetches: steps.filter((s) => s.type === "read").length,
-    drafts,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    cacheReadTokens: usage.cacheReadTokens,
-    costUsd,
-    model: topTier,
-    ...(def.id === "visual" && (args as { mode?: string }).mode === "image" ? { modelName: "ChatGPT plan" } : topModelName ? { modelName: topModelName } : {}),
-    ...(unpriced ? { unpriced } : {}),
-    ...(compat ? { compat } : {}),
-  };
+  // The bookkeeping is best-effort (a save can fail: disk full, permissions, a corrupt file), and whatever happens in
+  // it, the run ends: finish() always sends its last events, so no client is left waiting on it.
+  try {
+    const receipt: RunReceipt = {
+      durationMs: Date.now() - started,
+      sources,
+      searches: usage.webSearches,
+      fetches: steps.filter((s) => s.type === "read").length,
+      drafts,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cacheReadTokens: usage.cacheReadTokens,
+      costUsd,
+      model: topTier,
+      ...(def.id === "visual" && (args as { mode?: string }).mode === "image" ? { modelName: "ChatGPT plan" } : topModelName ? { modelName: topModelName } : {}),
+      ...(unpriced ? { unpriced } : {}),
+      ...(compat ? { compat } : {}),
+    };
 
-  const stopped = live.abort.signal.aborted;
-  live.summary = {
-    ...live.summary,
-    status: error ? (stopped ? "stopped" : "error") : "done",
-    endedAt: nowISO(),
-    receipt,
-    error: stopped ? undefined : error,
-  };
+    const stopped = live.abort.signal.aborted;
+    live.summary = {
+      ...live.summary,
+      status: error ? (stopped ? "stopped" : "error") : "done",
+      endedAt: nowISO(),
+      receipt,
+      error: stopped ? undefined : error,
+    };
 
-  await mutateWorkspace((ws) => {
-    const key = monthKey();
-    ws.usage[key] ??= { costUsd: 0, runs: 0, byWorkflow: {}, freeSignals: 0 };
-    ws.usage[key].costUsd += costUsd;
-    ws.usage[key].runs += 1;
-    ws.usage[key].byWorkflow[def.id] = (ws.usage[key].byWorkflow[def.id] ?? 0) + costUsd;
-  }).finally(() => reserved.delete(live.summary.id));
-  await saveSummary(live.summary);
-  // One of the first three finished its research: Today re-prepares before anyone hears it ended, so the draft it
-  // unlocks is already running when the page refreshes, wherever the founder is (moves/prepare).
-  if (def.id === "dossier") {
-    await import("@/lib/moves/prepare")
-      .then((m) => m.prepareAfterRun(live.summary))
-      .catch((err) => console.warn("[today] not prepared after research:", err instanceof Error ? err.message : err));
-  }
-  await stepsDB()
-    .update((all) => {
-      all[live.summary.id] = steps.slice(-300);
-      const ids = Object.keys(all);
-      for (const old of ids.slice(0, Math.max(0, ids.length - 150))) delete all[old];
+    await mutateWorkspace((ws) => {
+      const key = monthKey();
+      ws.usage[key] ??= { costUsd: 0, runs: 0, byWorkflow: {}, freeSignals: 0 };
+      ws.usage[key].costUsd += costUsd;
+      ws.usage[key].runs += 1;
+      ws.usage[key].byWorkflow[def.id] = (ws.usage[key].byWorkflow[def.id] ?? 0) + costUsd;
     })
-    .catch((err) => console.error(`[run ${live.summary.id}] couldn't save its steps:`, err));
+      .catch((err) => console.error(`[run ${live.summary.id}] couldn't book its cost ($${costUsd.toFixed(4)}):`, err))
+      .finally(() => reserved.delete(live.summary.id));
+    await saveSummary(live.summary).catch((err) => console.error(`[run ${live.summary.id}] couldn't save how it ended:`, err));
+    // One of the first three finished its research: Today re-prepares before anyone hears it ended, so the draft it
+    // unlocks is already running when the page refreshes, wherever the founder is (moves/prepare).
+    if (def.id === "dossier") {
+      await import("@/lib/moves/prepare")
+        .then((m) => m.prepareAfterRun(live.summary))
+        .catch((err) => console.warn("[today] not prepared after research:", err instanceof Error ? err.message : err));
+    }
+    await stepsDB()
+      .update((all) => {
+        all[live.summary.id] = steps.slice(-300);
+        const ids = Object.keys(all);
+        for (const old of ids.slice(0, Math.max(0, ids.length - 150))) delete all[old];
+      })
+      .catch((err) => console.error(`[run ${live.summary.id}] couldn't save its steps:`, err));
+  } finally {
+    finish(live, { error, result, costUsd, model: topTier === "none" ? "fast" : topTier });
+  }
+}
 
-  if (error) {
-    // The client maps code "stopped" to status "stopped" (and shows no toast for it).
-    const errEvent: AgentEvent = stopped ? { type: "error", code: "stopped", message: "Stopped." } : { type: "error", ...error };
-    live.events.push(errEvent);
-    for (const l of live.listeners) l(errEvent);
-  } else {
-    const resEvent: AgentEvent = { type: "result", data: result ?? null };
-    live.events.push(resEvent);
-    for (const l of live.listeners) l(resEvent);
+/** A run's last events: how it ended, what it cost, and `done`. Sent even when the bookkeeping before them failed. */
+function finish(live: LiveRun, end: { error?: { code: string; message: string }; result: unknown; costUsd: number; model: ModelTier }) {
+  if (live.done) return;
+  let error = end.error;
+  if (live.summary.status === "running" || live.summary.status === "queued") {
+    // Broke off before it recorded how it ended: never left showing as running.
+    error ??= { code: "unknown", message: "Something went wrong." };
+    live.summary = { ...live.summary, status: "error", endedAt: nowISO(), error };
   }
-  const usageEvent: AgentEvent = { type: "usage", costUsd, model: topTier === "none" ? "fast" : topTier };
-  const doneEvent: AgentEvent = { type: "done" };
-  live.events.push(usageEvent, doneEvent);
-  for (const l of live.listeners) {
-    l(usageEvent);
-    l(doneEvent);
-  }
+  reserved.delete(live.summary.id);
+  const tell = (event: AgentEvent) => {
+    live.events.push(event);
+    for (const l of live.listeners) {
+      try {
+        l(event);
+      } catch (err) {
+        console.warn(`[run ${live.summary.id}] a listener failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+  };
+  // The client maps code "stopped" to status "stopped" (and shows no toast for it).
+  if (live.summary.status === "stopped") tell({ type: "error", code: "stopped", message: "Stopped." });
+  else if (error) tell({ type: "error", ...error });
+  else tell({ type: "result", data: end.result ?? null });
+  tell({ type: "usage", costUsd: end.costUsd, model: end.model });
+  tell({ type: "done" });
   live.done = true;
   // Keep finished runs around briefly so late subscribers can replay, then free memory.
   setTimeout(() => state.live.delete(live.summary.id), 10 * 60_000);

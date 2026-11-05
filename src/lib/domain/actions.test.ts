@@ -420,6 +420,14 @@ const cases: Record<Action["type"], () => void> = {
     apply(s, { type: "intro.advance", id, stage: "done", outcome: "pilot", at: at(0) });
     expect(s.intros[id]).toMatchObject({ stage: "done", outcome: "pilot", closedOn: TODAY });
     expect(s.intros[id].history.map((h) => h.stage)).toEqual(expect.arrayContaining(["forwarded", "introduced", "meeting", "done"]));
+
+    // A pass that comes back weeks later starts the check-in clock again, instead of reopening overdue.
+    const other = Object.values(s.intros).find((i) => i.kind === "ask" && i.stage === "asked" && i.id !== id)!.id;
+    apply(s, { type: "intro.advance", id: other, stage: "forwarded", at: at(-20) }, { type: "intro.advance", id: other, stage: "declined", declinedBy: "target", at: at(-18) });
+    expect(s.intros[other]).toMatchObject({ forwardedOn: day(-20), closedOn: day(-18) });
+    apply(s, { type: "intro.advance", id: other, stage: "forwarded", at: at(0) });
+    expect(s.intros[other]).toMatchObject({ stage: "forwarded", forwardedOn: TODAY });
+    expect(s.intros[other].closedOn).toBeUndefined();
   },
 
   "intro.mark": () => {
@@ -456,6 +464,13 @@ const cases: Record<Action["type"], () => void> = {
     const s = apply(ws(), { type: "evidence.flagWrong", id: "ev_ll_home", note: "Old pricing", at: at(0) });
     expect(s.evidence.ev_ll_home.flaggedWrong).toEqual({ at: at(0), note: "Old pricing" });
     expect(() => apply(s, { type: "evidence.flagWrong", id: "ev_missing", at: at(0) })).toThrow("Evidence not found");
+  },
+
+  "evidence.unflag": () => {
+    const s = apply(ws(), { type: "evidence.flagWrong", id: "ev_ll_home", at: at(0) }, { type: "evidence.unflag", id: "ev_ll_home" });
+    expect(s.evidence.ev_ll_home).toEqual(sample.evidence.ev_ll_home);
+    // Already gone (deleted with a person, say): nothing to undo.
+    expect(() => apply(s, { type: "evidence.unflag", id: "ev_missing" })).not.toThrow();
   },
 
   "account.add": () => {
@@ -566,6 +581,12 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.revenue?.target).toEqual(target);
     apply(s, { type: "revenue.setTarget", target: null });
     expect(s.revenue).toEqual({});
+    // An empty custom date, a period that ends before it starts, or no amount: refused, and the target on file stays.
+    apply(s, { type: "revenue.setTarget", target });
+    for (const bad of [{ periodStart: "" }, { periodEnd: "2026-09-30" }, { periodEnd: "2026-12-31T08:00:00.000Z" }, { amountUsd: 0 }]) {
+      expect(() => apply(s, { type: "revenue.setTarget", target: { ...target, ...bad } })).toThrow(ActionError);
+    }
+    expect(s.revenue?.target).toEqual(target);
   },
 
   "play.set": () => {
@@ -671,6 +692,9 @@ const cases: Record<Action["type"], () => void> = {
     expect(deal().nurtureUntil).toBe("2026-12-19");
     apply(s, { type: "deal.setStage", id: DEAL.rowanstack, stage: "nurture", nurtureUntil: "2027-01-12", at: at(0) });
     expect(s.deals[DEAL.rowanstack].nurtureUntil).toBe("2027-01-12");
+    // A cleared date input ("") would park it forever: it gets the 60 days instead.
+    apply(s, { type: "deal.setStage", id: DEAL.rowanstack, stage: "qualified", at: at(0) }, { type: "deal.setStage", id: DEAL.rowanstack, stage: "nurture", nurtureUntil: "", at: at(0, "15:00") });
+    expect(s.deals[DEAL.rowanstack].nurtureUntil).toBe("2026-12-19");
   },
 
   "deal.revertStage": () => {
@@ -1235,6 +1259,13 @@ describe("applyAction", () => {
   it("throws ActionError for records that don't exist", () => {
     expect(() => apply(ws(), { type: "move.skip", id: "mv_missing", reason: "other" })).toThrow(ActionError);
     expect(() => apply(ws(), { type: "event.chooseTheme", id: "evt_missing", index: 0 })).toThrow(ActionError);
+  });
+
+  it("leaves the workspace as it is for an action type it doesn't know (a tab older than the server), and says so", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const after = apply(ws(), { type: "deal.teleport", id: DEAL.saltmarsh } as unknown as Action);
+    expect(after).toEqual(ws());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"deal.teleport"'));
   });
 });
 

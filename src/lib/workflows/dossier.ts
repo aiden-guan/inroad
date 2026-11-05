@@ -5,7 +5,7 @@ import { AgentError } from "@/lib/ai/errors";
 import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { firstAttemptOnly, Ledger, cleanDate, hostOf, normUrl, readConnections, seenWebUrls, staleAfter, type LedgerSource } from "@/lib/deals/ledger";
 import { jurisdictionOf, rankPaths } from "@/lib/deals/rules";
-import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
+import { daysBetween, localDay, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Angle, ContactPath, Dossier, Evidence, Person, PersonaRole, Signal, Workspace } from "@/lib/domain/types";
 import { accountData, emitHubEvent } from "@/lib/hub";
 import { connectionIdentity, wasForgotten } from "@/lib/people/forget";
@@ -307,6 +307,8 @@ export default defineWorkflow({
   args: z.object({ domain: z.string().min(3).max(253), force: z.boolean().optional() }),
   title: (a, ws) => `Researching ${ws.accounts[toDomain(a.domain) ?? a.domain]?.name ?? a.domain}`,
   ref: (a) => ({ kind: "account", id: toDomain(a.domain) ?? a.domain }),
+  // One company's research at a time: Research and Refresh (force) on the same account are the same work.
+  key: (a) => toDomain(a.domain) ?? a.domain,
   heavy: true,
   run: async (ctx) => {
     const domain = toDomain(ctx.args.domain);
@@ -326,7 +328,7 @@ export default defineWorkflow({
     // Reuse a fresh dossier unless asked, or a strong signal arrived since it was written.
     const existing = account.dossier;
     if (existing && !ctx.args.force && existing.staleAfter >= today) {
-      const since = existing.generatedAt.slice(0, 10);
+      const since = localDay(existing.generatedAt);
       const newStrong = account.signals.some((s) => s.strength >= 3 && s.date > since);
       if (!newStrong) {
         ctx.emit({ type: "status", text: `The dossier from ${since} is still fresh, so I reused it` });
@@ -642,7 +644,10 @@ function persist(w: Workspace, { domain, out, ledger, at, today, runId, digest }
           addPath({ kind: "linkedin", value: l.url, via: "Search result", verified: false, founderConfirmed: false });
         }
       }
+      // Someone on file keeps everything research doesn't rebuild (relationship tags, Apollo id, notes, champion
+      // test…): a refresh only updates what it found, so it never wipes the founder's own facts or buys a contact again.
       const person: Person = {
+        ...existing,
         id: existing?.id ?? newId("per"),
         accountDomain: domain,
         name: p.name.slice(0, 80),
@@ -658,8 +663,6 @@ function persist(w: Workspace, { domain, out, ledger, at, today, runId, digest }
         contactPaths: rankPaths(paths),
         jurisdiction: location ? jurisdictionOf(location) : existing?.jurisdiction && existing.jurisdiction !== "unknown" ? existing.jurisdiction : hqJurisdiction,
         doNotContact: existing?.doNotContact ?? false,
-        champion: existing?.champion,
-        notes: existing?.notes,
         source: existing?.source ?? "web_search",
       };
       w.people[person.id] = person;

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCompat } from "@/lib/ai/engine";
+import { emptyUsage } from "@/lib/ai/models";
 import { fetchJSON, fetchText } from "@/lib/signals/http";
 import { updateConnections } from "@/lib/network/store";
 import { forgetKeys } from "@/lib/people/forget";
@@ -9,9 +10,11 @@ import { useTape, type Tape } from "@/test/anthropic-tape";
 import { freshRun } from "@/test/deterministic";
 import { NOW, TODAY, makeAccount, makePerson, makeWorkspace } from "@/test/factories";
 import { fixture, routeFetches } from "@/test/http-fixtures";
+import { runOffline } from "@/test/offline-workflow";
 import { logLines, runWorkflow } from "@/test/run-workflow";
 import { expectHealthyRun } from "@/test/tape-checks";
 import dossier from "./dossier";
+import type { WorkflowContext } from "./types";
 
 /**
  * W4 end to end on recorded Anthropic exchanges (src/test/anthropic-tape.ts): code gathers Acme's site,
@@ -150,5 +153,54 @@ describe("researching a company", () => {
     const cited = Object.values(ws.evidence).filter((e) => e.url === FILING || e.url.startsWith("https://podcasts.apple.com/"));
     expect(cited.length).toBeGreaterThan(0);
     for (const e of cited) expect(e.sourceType).toBe(e.url === FILING ? "filing" : "podcast");
+  });
+});
+
+describe("researching a company again", () => {
+  /** Stands in for the model: records one quote from Acme's about page and names `name` as the champion, citing it. */
+  const namesChampion = (name: string, title: string) =>
+    (async (opts) => {
+      const record = opts.tools!.find((t) => t.name === "record_evidence")!;
+      const { id } = JSON.parse(
+        await record.run!({ claim: "Acme has 14 people", quote: "We are 14 people in New York and Lisbon.", url: "https://www.acme.com/about-us", sourceType: "first_party", publishedAt: null, confidence: "high" }),
+      ) as { id: string };
+      const result = {
+        snapshot: { plainDescription: "Usage-based invoicing for API companies.", descriptionEvidenceIds: [id], stage: "Seed", funding: null, headcount: null, hq: null },
+        facts: [{ text: "Acme has 14 people.", evidenceIds: [id] }],
+        signals: [],
+        committee: [{ role: "champion", likelyTitles: ["Head of Finance"], people: [{ name, title, evidenceIds: [id], location: null, links: [] }] }],
+        painHypotheses: [],
+        angles: [],
+        discoveryOpeners: [],
+        risks: [],
+        unknowns: [],
+        recommendation: { move: "watch", personName: name, why: "Good fit, nothing happening yet." },
+      };
+      return { result, text: "", messages: [], stopReason: "tool_use", usage: emptyUsage(), costUsd: 0 };
+    }) as WorkflowContext<unknown>["agent"];
+
+  it("updates people already on file without dropping their relationship tags, Apollo id or notes", async () => {
+    const ws = makeWorkspace({
+      accounts: { "acme.com": makeAccount("acme.com", { peopleIds: ["per_kim"] }) },
+      people: {
+        per_kim: makePerson("per_kim", "acme.com", { name: "Kim Lu", title: "Controller", tags: ["design_partner", "past_user"], apolloId: "apo_5f2e", notes: "Met at SaaStr", champion: "coach", source: "integration" }),
+      },
+    });
+    const { ws: after } = await runOffline(dossier, { domain: "acme.com", force: true }, ws, { agent: namesChampion("Kim Lu", "Head of Finance") });
+
+    // The same person, refreshed: what research found is new, what the founder knows is kept.
+    expect(after.accounts["acme.com"].peopleIds).toEqual(["per_kim"]);
+    expect(after.people.per_kim).toMatchObject({
+      title: "Head of Finance",
+      role: "champion",
+      lastSeen: TODAY,
+      tags: ["design_partner", "past_user"],
+      apolloId: "apo_5f2e",
+      notes: "Met at SaaStr",
+      champion: "coach",
+      source: "integration",
+    });
+    expect(after.people.per_kim.evidenceIds).toHaveLength(1);
+    expect(after.accounts["acme.com"].dossier?.recommendation.personId).toBe("per_kim");
   });
 });

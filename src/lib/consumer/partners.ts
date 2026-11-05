@@ -221,7 +221,7 @@ export function partnerNext(p: Partner, today: string): PartnerNext {
       const paidOrGifted = !!p.offer && p.offer.type !== "collab";
       if (p.kind === "creator" && paidOrGifted && p.disclosure !== "confirmed") return { action: "check_disclosure", line: "Check the post says #ad" };
       const liveAt = [...p.stageHistory].reverse().find((h) => h.stage === "live")?.at;
-      const since = liveAt ? daysBetween(liveAt.slice(0, 10), today) : 0;
+      const since = liveAt ? daysBetween(liveAt, today) : 0;
       if (!p.results?.length && since >= 7) return { action: "log_results", line: "Log what it brought: clicks, signups, orders" };
       return { action: null, line: p.results?.length ? "Results logged" : "Live · log results after a week" };
     }

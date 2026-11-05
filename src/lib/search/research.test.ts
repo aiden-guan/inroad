@@ -50,6 +50,31 @@ describe("the research service", () => {
     expect(readWorkspace().accounts["invented.org"]).toBeUndefined();
   });
 
+  it("tracks a page on a company's subdomain as the company, not as a second company named after the page", async () => {
+    saveSearchSetup({ provider: "tavily", key: "tavily-test-key" });
+    const blog = { url: "https://blog.company.org/how-we-close", title: "How we close in 3 days | Company Blog", description: "Our finance team's month-end" };
+    const pages = { url: "https://acme.github.io/sdk", title: "Acme SDK", description: "Usage metering SDK" };
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json({ results: [blog, pages] })));
+    const result = await researchWeb(ResearchInput.parse({ query: "month-end close" }));
+    const post = (hit: typeof blog) =>
+      track(new Request("http://localhost/api/research/track", { method: "POST", body: JSON.stringify({ receiptId: result.receiptId, url: hit.url, name: hit.title, description: hit.description }) }));
+    expect(await (await post(blog)).json()).toEqual({ domain: "company.org" });
+    expect(readWorkspace().accounts["company.org"]).toMatchObject({ name: "Company", sourceUrl: blog.url });
+    expect(readWorkspace().accounts["blog.company.org"]).toBeUndefined();
+    // On a shared host the subdomain is the site.
+    expect(await (await post(pages)).json()).toEqual({ domain: "acme.github.io" });
+    expect(readWorkspace().accounts["acme.github.io"]).toMatchObject({ name: "Acme SDK" });
+  });
+
+  it("keeps a monitor's scheduled searches out of Recent research, but keeps their receipts", async () => {
+    saveSearchSetup({ provider: "tavily", key: "tavily-test-key" });
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json({ results: [hit] })));
+    const mine = await researchWeb(ResearchInput.parse({ query: "finance software" }));
+    const scheduled = await researchWeb(ResearchInput.parse({ query: "new sales leader", fresh: true }), undefined, { session: false });
+    expect(readAutomation().sessions.map((s) => s.receiptId)).toEqual([mine.receiptId]);
+    expect(readAutomation().receipts.map((r) => r.id)).toEqual(expect.arrayContaining([mine.receiptId, scheduled.receiptId]));
+  });
+
   it("uses Claude's native search when available, rejects invented sources, and books the real model/search cost", async () => {
     vi.spyOn(client, "activeProvider").mockReturnValue({
       id: "anthropic",

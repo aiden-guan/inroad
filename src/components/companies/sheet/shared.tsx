@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Info } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { SectionLabel } from "@/components/ui/card";
@@ -55,7 +55,10 @@ export function useFlagWrong() {
   const { dispatch } = useWorkspace();
   return useCallback(
     (id: string) => {
-      void dispatch({ type: "evidence.flagWrong", id, at: nowISO() }).then((ok) => ok && toast("Marked wrong. I won't use that source again."));
+      // One click, so one click back: a mis-click mustn't drop a good source for good.
+      void dispatch({ type: "evidence.flagWrong", id, at: nowISO() }).then(
+        (ok) => ok && toast("Marked wrong. I won't use that source again.", { action: { label: "Undo", onClick: () => void dispatch({ type: "evidence.unflag", id }) } }),
+      );
     },
     [dispatch],
   );
@@ -220,6 +223,13 @@ export function CommitInput({
 export function HoldButton({ onConfirm, children, className, disabled }: { onConfirm: () => void; children: ReactNode; className?: string; disabled?: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [holding, setHolding] = useState(false);
+  // Unmounted mid-hold (Esc closed the sheet or dialog): no pointer-up or key-up ever comes, so never confirm.
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
   const start = () => {
     if (disabled || timer.current) return;
     setHolding(true);

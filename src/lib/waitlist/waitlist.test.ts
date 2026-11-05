@@ -169,6 +169,14 @@ describe("waitlist history", () => {
     expect(detectWaitlist([{ name: "waitlist" }, { name: "early_access" }])).toBeUndefined();
     expect(detectWaitlist([{ name: "waitlist_signups" }, { name: "users" }])).toEqual({ name: "waitlist_signups" });
   });
+  it("keeps one reading per local day, so the next morning's sync doesn't overwrite an evening's", () => {
+    // 6:30 pm on Oct 20 in Los Angeles is already Oct 21 in UTC, like the 9 am sync the next morning.
+    let history: WaitlistReading[] = [];
+    for (const [at, total] of [["2026-10-19T16:00:00.000Z", 5], ["2026-10-21T01:30:00.000Z", 10], ["2026-10-21T16:00:00.000Z", 12]] as const) {
+      history = recordWaitlist(history, { sourceId: "one", at, total });
+    }
+    expect(history.map((r) => r.total)).toEqual([5, 10, 12]);
+  });
   it("reports net decreases, labels short history honestly and isolates sources", () => {
     const state: WaitlistTracking = { enabled: true, connectedAt: "2026-10-01", source: { id: "one", provider: "convex", label: "test", table: { name: "waitlist" } }, current: reading("2026-10-09", 12), history: [reading("2026-10-01", 20), reading("2026-10-08", 100, "other")] };
     expect(waitlistChange(state)).toEqual({ value: -8, since: "2026-10-01T12:00:00.000Z" });

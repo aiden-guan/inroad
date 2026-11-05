@@ -60,7 +60,9 @@ async function execute(monitor: Monitor, abort: AbortController, epoch: number) 
     let hash: string, urls: string[], summary: string;
     if (monitor.kind === "topic" || monitor.kind === "intent") {
       const result =
-        monitor.kind === "intent" ? await intentCandidates(abort.signal) : await researchWeb(ResearchInput.parse({ query: monitor.query, fresh: true, limit: 20 }), abort.signal);
+        monitor.kind === "intent"
+          ? await intentCandidates(abort.signal)
+          : await researchWeb(ResearchInput.parse({ query: monitor.query, fresh: true, limit: 20 }), abort.signal, { session: false });
       if (result.warnings.some((warning) => !warning.startsWith("Some sources") && !warning.startsWith("No results")))
         throw new Error(result.warnings.join(" "));
       const matching = result.results.filter(

@@ -5,7 +5,7 @@ import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { dealContext } from "@/lib/deals/context";
 import { cleanDate, firstAttemptOnly, normUrl, seenWebUrls } from "@/lib/deals/ledger";
 import { CALL_TYPE_LABEL, detectCallType, type CallType } from "@/lib/deals/rules";
-import { daysBetween, nowISO, todayISO } from "@/lib/domain/ids";
+import { daysBetween, localDay, nowISO, todayISO } from "@/lib/domain/ids";
 import { clockTime, localDate } from "@/lib/moves/util";
 import type { Evidence, MeetingBrief, Person } from "@/lib/domain/types";
 import { gatherSignals } from "@/lib/signals";
@@ -202,7 +202,8 @@ export default defineWorkflow({
 
     // Stale or missing dossier: refresh free signals (cached); allow ≤2 web searches only when that comes back thin.
     const stale = !dossier || dossier.staleAfter < today;
-    const since = [dossier?.generatedAt.slice(0, 10), ws.activities.filter((a) => a.accountDomain === deal.accountDomain).map((a) => a.at.slice(0, 10)).sort().at(-1)].filter(Boolean).sort().at(-1);
+    // The founder's local dates: a touch at 6 pm is that day, so news dated the next day still counts as new.
+    const since = [dossier && localDay(dossier.generatedAt), ws.activities.filter((a) => a.accountDomain === deal.accountDomain).map((a) => localDay(a.at)).sort().at(-1)].filter(Boolean).sort().at(-1);
     const newItems: { line: string; url: string }[] = [];
     if (stale && account) {
       ctx.emit({ type: "status", text: `Checking what's new at ${account.name}` });

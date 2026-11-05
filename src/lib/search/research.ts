@@ -121,7 +121,12 @@ async function nativeSearch(input: ResearchInput, signal?: AbortSignal): Promise
   }
 }
 
-async function runResearch(input: ResearchInput, signal?: AbortSignal): Promise<ResearchResponse> {
+/** `session: false` keeps the search out of Recent research (a monitor's scheduled check): its receipt is still kept. */
+export interface ResearchOptions {
+  session?: boolean;
+}
+
+async function runResearch(input: ResearchInput, signal?: AbortSignal, opts: ResearchOptions = {}): Promise<ResearchResponse> {
   const started = Date.now();
   if (input.since && (!Number.isFinite(Date.parse(input.since)) || new Date(input.since).toISOString().slice(0, 10) !== input.since))
     throw new Error("Choose a valid publication date.");
@@ -172,7 +177,8 @@ async function runResearch(input: ResearchInput, signal?: AbortSignal): Promise<
     receiptId: receipt.id,
     durationMs: Date.now() - started,
   };
-  await updateAutomation((data) => {
+  // Recent research is the founder's own searches (20 kept): an hourly monitor would push them all out within a day.
+  if (opts.session !== false) await updateAutomation((data) => {
     data.sessions.unshift({
       ...response,
       id: crypto.randomUUID(),
@@ -246,4 +252,4 @@ export function researchMetrics() {
   });
 }
 
-export const researchWeb = (input: ResearchInput, signal?: AbortSignal) => automationTask(signal, (active) => runResearch(input, active));
+export const researchWeb = (input: ResearchInput, signal?: AbortSignal, opts?: ResearchOptions) => automationTask(signal, (active) => runResearch(input, active, opts));

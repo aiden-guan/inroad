@@ -24,6 +24,11 @@ describe("instant answers about the number", () => {
       expect(a?.rows[0]).toMatchObject({ label: "Target", detail: "$150K · Q4 new ARR" });
       expect(a?.rows.map((r) => r.label)).toEqual(expect.arrayContaining(["Commit", "Best case", "Rowanstack"]));
     }
+    // Millions in M and small amounts in dollars, never "$1500K" or "$0K".
+    ws.revenue = { target: { amountUsd: 1_500_000, periodStart: "2026-10-01", periodEnd: "2026-12-31", label: "Q4 new ARR" } };
+    expect(instantAnswer(ws, "What's the forecast?", NOW)?.rows[0].detail).toBe("$1.5M · Q4 new ARR");
+    for (const d of Object.values(ws.deals)) if (d.stage === "won") d.stage = "lost";
+    expect(instantAnswer(ws, "What's the forecast?", NOW)?.rows.find((r) => r.label === "Closed won")?.detail).toBe("$0");
   });
 
   it("lists risky deals worst first, with the fix", () => {
