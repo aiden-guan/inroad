@@ -1,7 +1,7 @@
 import type { Deal, LossReason, PersonaRole, SignalType, Workspace } from "@/lib/domain/types";
 import { isColdFirstTouch, sampleLabel } from "@/lib/moves/scoreboard";
 import { localDate } from "@/lib/moves/util";
-import { closedOn, dealAmount, median, openStage, reached, startedOn, type RevenueStats } from "./stats";
+import { closedOn, dealAmount, importedClosed, importUnknown, median, openStage, reached, startedOn, type RevenueStats } from "./stats";
 import { daysBetween } from "@/lib/domain/ids";
 
 /**
@@ -23,8 +23,11 @@ export const SOURCE_LABELS: Record<Deal["source"], string> = {
   referral: "Referrals",
 };
 
+/** Deals from a file that had no source column: grouped apart, so a stand-in source never takes their credit. */
+export const IMPORTED_UNKNOWN_SOURCE = "imported";
+
 export interface SourceRow {
-  key: Deal["source"];
+  key: Deal["source"] | typeof IMPORTED_UNKNOWN_SOURCE;
   label: string;
   /** Deals that started from this source. */
   deals: number;
@@ -41,18 +44,23 @@ export interface SourceRow {
 }
 
 export function bySource(ws: Workspace, stats: RevenueStats): SourceRow[] {
-  const groups = new Map<Deal["source"], Deal[]>();
-  for (const d of Object.values(ws.deals)) groups.set(d.source, [...(groups.get(d.source) ?? []), d]);
+  const groups = new Map<SourceRow["key"], Deal[]>();
+  for (const d of Object.values(ws.deals)) {
+    const key = importUnknown(d, "source") ? IMPORTED_UNKNOWN_SOURCE : d.source;
+    groups.set(key, [...(groups.get(key) ?? []), d]);
+  }
   return [...groups.entries()]
     .map(([key, deals]) => {
       const won = deals.filter((d) => d.stage === "won");
       const lost = deals.filter((d) => d.stage === "lost");
       const open = deals.filter((d) => openStage(d.stage));
-      const closed = won.length + lost.length;
-      const cycles = won.map((d) => daysBetween(startedOn(d), closedOn(d) ?? startedOn(d)));
+      // Deals that arrived already won came without the losses beside them, so they stay out of the win rate.
+      const rated = [...won, ...lost].filter((d) => !importedClosed(d));
+      const closed = rated.length;
+      const cycles = won.filter((d) => !importUnknown(d, "created")).map((d) => daysBetween(startedOn(d), closedOn(d) ?? startedOn(d)));
       return {
         key,
-        label: SOURCE_LABELS[key] ?? key,
+        label: key === IMPORTED_UNKNOWN_SOURCE ? "Imported, source not in the file" : (SOURCE_LABELS[key] ?? key),
         deals: deals.length,
         qualified: deals.filter((d) => d.stage === "won" || ["qualified", "pilot", "proposal"].some((s) => reached(d, s as Deal["stage"]))).length,
         won: won.length,
@@ -60,7 +68,7 @@ export function bySource(ws: Workspace, stats: RevenueStats): SourceRow[] {
         open: open.length,
         wonUsd: won.reduce((n, d) => n + dealAmount(d, stats.avgDealUsd).usd, 0),
         openUsd: open.reduce((n, d) => n + dealAmount(d, stats.avgDealUsd).usd, 0),
-        winRate: closed ? { value: won.length / closed, n: closed } : null,
+        winRate: closed ? { value: rated.filter((d) => d.stage === "won").length / closed, n: closed } : null,
         cycleDays: median(cycles),
       };
     })

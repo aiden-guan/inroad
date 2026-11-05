@@ -1,33 +1,136 @@
 "use client";
 
 import { useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AiBadge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DigitPop, TextReveal, fx, useFirstSight } from "@/components/ui/fx";
 import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
 import { money, shortDay, type Forecast, type RevenuePlan } from "@/lib/revenue/forecast";
+import { quarterOf } from "@/lib/revenue/stats";
 
 const USD = { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 } as const;
 
-/** Ink shades only: the accent belongs to the agent, and color in charts is reserved for risk. */
-const SEGMENTS = [
-  { key: "won", label: "Closed won", className: "bg-fg" },
-  { key: "commit", label: "Commit", className: "bg-fg/65" },
-  { key: "best", label: "Best case", className: "bg-fg/35" },
-  { key: "pipeline", label: "Pipeline", className: "bg-fg/12 bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgb(127_127_127/0.12)_4px_5px)]" },
-] as const;
+/**
+ * Ink shades only: the accent belongs to the agent, and color in charts is reserved for risk. Each measure has one
+ * swatch, and the bar and the figures under it use the same one. The measures are running totals, so each band
+ * starts at zero: pipeline holds best case, best case holds commit, commit holds closed won.
+ */
+const SWATCH = {
+  pipeline: "bg-fg/[0.08] ring-1 ring-inset ring-fg/15",
+  best: "bg-fg/[0.2]",
+  commit: "bg-fg/[0.42]",
+  won: "bg-fg",
+} as const;
+
+const TIP_TRIGGER = "cursor-help rounded-[2px] underline decoration-dotted decoration-fg-4 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
+
+/** A label pinned to a point on the bar, on whichever side of it has room. */
+function Pin({ at, children, className, style }: { at: number; children: ReactNode; className?: string; style?: CSSProperties }) {
+  const right = at > 0.6;
+  return (
+    <span
+      className={cn("absolute top-0 whitespace-nowrap font-mono text-[11.5px] tnum", right ? "-translate-x-full pr-1.5 text-right" : "pl-1.5", className)}
+      style={{ left: `${Math.min(100, Math.max(0, at * 100))}%`, ...style }}
+    >
+      {children}
+    </span>
+  );
+}
 
 /**
- * The number, the way it's called in a forecast meeting: what's closed, what's committed, what's
- * possible, against the target. The sentence above the bar is the plan's headline: what it takes.
+ * The bullet chart: the bands are pipeline, best case and commit (each a running total from zero), the solid bar
+ * is closed won, the tall line is the target, the dashed notch is the call, and the hatching between the call and
+ * the target is the gap. A sentence carries the same numbers for screen readers.
  */
-export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
+function BulletChart({ f, play }: { f: Forecast; play: boolean }) {
+  const scale = Math.max(f.target, f.pipeline, f.call, 1) * 1.06;
+  const pos = (n: number) => Math.min(1, Math.max(0, n / scale));
+  const pct = (n: number) => `${pos(n) * 100}%`;
+  const gap = f.hasTarget ? f.target - f.call : 0;
+  const bands = [
+    { key: "pipeline", value: f.pipeline },
+    { key: "best", value: f.bestCase },
+    { key: "commit", value: f.commit },
+  ] as const;
+  const said = [
+    `Closed won ${money(f.closedWon.usd)}`,
+    `commit ${money(f.commit)}`,
+    `best case ${money(f.bestCase)}`,
+    `pipeline ${money(f.pipeline)}`,
+  ].join(", ");
+  const label = `${f.period.label}: ${said}. The call is ${money(f.call)}${f.hasTarget ? ` against a ${money(f.target)} target, ${gap > 0 ? `${money(gap)} short` : `${money(-gap)} over`}` : ""}.`;
+  // Labels stay put once drawn; on the first look they arrive after the bar (the motion kit settles them for reduced motion).
+  const late = (delay: number) => (play ? fx(0, delay) : undefined);
+
+  return (
+    <figure role="img" aria-label={label} className="mt-7">
+      {/* Labels pin to their markers from sm up; on a phone they sit in one line under the bar, where they fit. */}
+      <div aria-hidden className="relative hidden h-5 sm:block">
+        {f.hasTarget && (
+          <Pin at={pos(f.target)} className={cn("text-fg-2", play && "fx-rise")} style={late(1150)}>
+            Target {money(f.target)}
+          </Pin>
+        )}
+      </div>
+      <div aria-hidden className="relative h-12 sm:mt-1">
+        <div className="absolute inset-0 overflow-hidden rounded-md bg-bg-subtle ring-1 ring-inset ring-border">
+          {bands.map((b, i) =>
+            b.value > 0 ? (
+              <div
+                key={b.key}
+                className={cn("absolute inset-y-0 left-0", SWATCH[b.key], play && "fx-wipe")}
+                style={{ width: pct(b.value), ...(play ? fx(0, 150 + i * 170, { animationDuration: "820ms" }) : {}) }}
+              />
+            ) : null,
+          )}
+          {f.closedWon.usd > 0 && (
+            <div className={cn("absolute left-0 top-1/2 h-[34%] -translate-y-1/2 rounded-r-[2px] bg-fg", play && "fx-wipe")} style={{ width: pct(f.closedWon.usd), ...(play ? fx(0, 700, { animationDuration: "700ms" }) : {}) }} />
+          )}
+          {gap > 0 && (
+            <div
+              className={cn("absolute inset-y-0 bg-[repeating-linear-gradient(135deg,transparent_0_5px,rgb(127_127_127/0.3)_5px_6px)]", play && "fx-rise")}
+              style={{ left: pct(f.call), width: `calc(${pct(f.target)} - ${pct(f.call)})`, ...late(1250) }}
+            />
+          )}
+        </div>
+        <div className="absolute -bottom-1 -top-1" style={{ left: pct(f.call) }}>
+          <div className={cn("h-full -translate-x-1/2 border-l-2 border-dashed border-fg", play && "fx-drop")} style={late(1050)} />
+        </div>
+        {f.hasTarget && (
+          <div className="absolute -bottom-2 -top-2" style={{ left: pct(f.target) }}>
+            <div className={cn("h-full w-[3px] -translate-x-1/2 rounded-full bg-fg shadow-[0_0_0_2px_var(--surface)]", play && "fx-drop")} style={late(1150)} />
+          </div>
+        )}
+      </div>
+      <div aria-hidden className="relative mt-2.5 hidden h-5 sm:block">
+        <Pin at={pos(f.call)} className={cn("text-fg", play && "fx-rise")} style={late(1300)}>
+          The call {money(f.call)}
+          {gap > 0 && <span className="text-fg-3"> · {money(gap)} short</span>}
+        </Pin>
+      </div>
+      <div aria-hidden className={cn("mt-2.5 flex flex-wrap justify-between gap-x-4 gap-y-1 font-mono text-[11.5px] tnum sm:hidden", play && "fx-rise")} style={late(1300)}>
+        <span className="text-fg">
+          The call {money(f.call)}
+          {gap > 0 && <span className="text-fg-3"> · {money(gap)} short</span>}
+        </span>
+        {f.hasTarget && <span className="text-fg-2">Target {money(f.target)}</span>}
+      </div>
+    </figure>
+  );
+}
+
+/**
+ * The number, the way it's called in a forecast meeting: what's closed, what's committed, what's possible, against
+ * the target. The sentence above the bar is the plan's headline: what it takes.
+ */
+export function ForecastHero({ f, plan, onSetTarget, onDataQuality }: { f: Forecast; plan: RevenuePlan; onSetTarget: () => void; onDataQuality: () => void }) {
   const reduce = useReducedMotion();
-  // The first look this session is choreographed: the call is read out, the bar draws, the target drops in,
-  // the numbers roll up from zero. After that the page just shows the number.
+  // The first look this session is choreographed: the call is read out, the bands draw, the markers drop in, the
+  // numbers roll up from zero. After that the page just shows the number. The seen flag is written in an effect.
   const play = useFirstSight("revenue-hero") && !reduce;
   const [rolled, setRolled] = useState(!play);
   useEffect(() => {
@@ -35,18 +138,10 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
     const t = setTimeout(() => setRolled(true), 420);
     return () => clearTimeout(t);
   }, [rolled]);
-  const commitOpen = f.commit - f.closedWon.usd;
-  const bestOpen = f.bestCase - f.commit;
-  const pipeOpen = f.pipeline - f.bestCase;
-  const scale = Math.max(f.target, f.pipeline, 1) * 1.04;
-  const pct = (n: number) => `${Math.max(0, (n / scale) * 100)}%`;
-  const parts = [
-    { ...SEGMENTS[0], value: f.closedWon.usd },
-    { ...SEGMENTS[1], value: commitOpen },
-    { ...SEGMENTS[2], value: bestOpen },
-    { ...SEGMENTS[3], value: pipeOpen },
-  ];
   const short = f.hasTarget && f.coverage !== null && f.coverage < f.coverageNeeded;
+  const of = (n: number) => `${Math.round((n / f.target) * 100)}% of target`;
+  const q = quarterOf(f.period.start);
+  const quarterly = q.start === f.period.start && q.end === f.period.end;
 
   return (
     <section aria-label="Forecast" className="mt-8 overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border">
@@ -59,57 +154,39 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
         <p className="max-w-[62ch] text-pretty font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg sm:text-[24px] sm:leading-[33px]">
           <TextReveal text={plan.headline} play={play} step={22} delay={60} />
         </p>
+        {!f.hasTarget && (
+          <Button size="sm" variant="primary" className="mt-4" onClick={onSetTarget}>
+            {f.ended ? `Set the ${f.period.label} target` : "Set a revenue target"}
+          </Button>
+        )}
 
-        <div className="mt-7">
-          <div className="relative h-11">
-            <div className="absolute inset-0 overflow-hidden rounded-md bg-bg-subtle ring-1 ring-inset ring-border">
-              <div className={cn("flex h-full", play && "fx-wipe")} style={play ? fx(0, 380, { animationDuration: "1100ms" }) : undefined}>
-                {parts.map((p) =>
-                  p.value > 0 ? (
-                    <Tooltip key={p.key} content={`${p.label}: ${money(p.value)}`}>
-                      <div tabIndex={-1} className={cn("h-full border-r border-bg/70 last:border-r-0", p.className)} style={{ width: pct(p.value) }} />
-                    </Tooltip>
-                  ) : null,
-                )}
-              </div>
-            </div>
-            {f.hasTarget && (
-              <div className="pointer-events-none absolute -bottom-1.5 -top-1.5" style={{ left: pct(f.target) }}>
-                <div className={cn("h-full w-0.5 -translate-x-1/2 rounded-full bg-fg", play && "fx-drop")} style={play ? fx(0, 1250) : undefined} />
-              </div>
-            )}
-          </div>
-          {f.hasTarget && (
-            <div className="relative mt-2 h-4 text-[11.5px]">
-              {/* The label sits on whichever side of the marker has room. */}
-              <span
-                className={cn("absolute whitespace-nowrap font-mono tnum text-fg-2", f.target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5", play && "fx-rise")}
-                style={{ left: pct(f.target), ...(play ? fx(0, 1350) : {}) }}
-              >
-                Target {money(f.target)}
-              </span>
-            </div>
-          )}
-        </div>
+        <BulletChart f={f} play={play} />
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
-          <Stat label="Closed won" swatch="bg-fg" value={rolled ? f.closedWon.usd : 0} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} />
-          <Stat label="Commit · floor" swatch="bg-fg/65" value={rolled ? f.commit : 0} note={f.hasTarget ? `${Math.round((f.commit / f.target) * 100)}% of target` : "Won + commit"} />
+        <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+          <Stat label="Closed won" swatch={SWATCH.won} value={rolled ? f.closedWon.usd : 0} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} tip="Deals won inside the period." />
+          <Stat
+            label="Commit"
+            swatch={SWATCH.commit}
+            value={rolled ? f.commit : 0}
+            note={f.hasTarget ? of(f.commit) : "Won plus commit deals"}
+            tip="The floor: closed won plus deals that pass every commit test (economic buyer engaged, paper process known, a buyer-agreed step within two weeks, a firm close date)."
+          />
           <Stat
             label="The call"
+            marker
             value={rolled ? f.call : 0}
-            note={f.hasTarget ? `${Math.round((f.call / f.target) * 100)}% of target` : "Category-weighted"}
-            tip="Closed won, plus each deal at its category's odds: commit 90%, best case 50%, pipeline 15%. The odds calibrate once two quarters of snapshots exist."
+            note={f.hasTarget ? of(f.call) : "Each deal at its odds"}
+            tip="Closed won, plus each open deal at its category's odds: commit 90%, best case 50%, pipeline 15%. Starting odds, until two quarters of your own forecasts can check them."
           />
-          <Stat label="Best case · ceiling" swatch="bg-fg/35" value={rolled ? f.bestCase : 0} note={f.hasTarget ? `${Math.round((f.bestCase / f.target) * 100)}% of target` : "Commit + best case"} />
-          <Stat label="Pipeline" swatch="bg-fg/12" value={rolled ? f.pipeline : 0} note={`Stage-weighted ${money(f.weighted)}`} />
+          <Stat label="Best case" swatch={SWATCH.best} value={rolled ? f.bestCase : 0} note={f.hasTarget ? of(f.bestCase) : "Commit plus best-case deals"} tip="The ceiling: commit plus the deals that could still close this period." />
+          <Stat label="Pipeline" swatch={SWATCH.pipeline} value={rolled ? f.pipeline : 0} note={`Worth ${money(f.weighted)} at stage odds`} tip="Closed won plus every open deal dated to close this period." />
         </dl>
         {f.hitChance !== null && f.remaining > 0 && (
           <p className="mt-5 flex flex-wrap items-baseline gap-x-2 border-t border-border pt-4 text-[13px] text-fg-2">
             <DigitPop text={`${Math.round(f.hitChance * 100)}%`} delay={1500} still={!play} className={cn("font-mono text-[18px] font-medium tnum", f.hitChance < 0.3 ? "text-warning" : "text-fg")} />
             <span>chance of reaching {money(f.target)} with the deals open today, at their category odds.</span>
             <Tooltip content="Exact, over every combination of these deals closing or not. It treats deals as independent, which flatters a bad quarter: one budget freeze can hit several at once.">
-              <span tabIndex={0} className="cursor-help text-[12px] text-fg-3 underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+              <span tabIndex={0} className={cn(TIP_TRIGGER, "text-[12px] text-fg-3")}>
                 How this is computed
               </span>
             </Tooltip>
@@ -123,39 +200,38 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
           <span className="font-mono tnum text-fg-2">{f.period.weeksLeft}</span> {f.period.weeksLeft === 1 ? "week" : "weeks"} left
         </span>
         {f.coverage !== null && (
-          <Tooltip content={`Open pipeline closing this period ÷ the ${money(f.remaining)} still to close. Start a period at ${f.coverageNeeded}× until your own snapshots can measure what you need.`}>
-            <span tabIndex={0} className="cursor-help rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-              Coverage <span className={cn("font-mono tnum", short ? "font-medium text-warning" : "text-fg-2")}>{f.coverage.toFixed(1)}×</span>
-              <span className="text-fg-4"> / {f.coverageNeeded}× healthy</span>
+          <Tooltip content={`Open pipeline closing this period, divided by the ${money(f.remaining)} still to close. Start a period near ${f.coverageNeeded}× until your own history shows what you need.`}>
+            <span tabIndex={0} className={TIP_TRIGGER}>
+              Pipeline covers <span className={cn("font-mono tnum", short ? "font-medium text-warning" : "text-fg-2")}>{f.coverage.toFixed(1)}×</span> what&apos;s left
+              <span className="text-fg-4"> · aim for {f.coverageNeeded}×</span>
             </span>
           </Tooltip>
         )}
-        {f.next.coverage !== null && (
-          <Tooltip content={`Pipeline already dated for ${shortDay(f.next.start)}–${shortDay(f.next.end)}, against a target the same size as this one.`}>
-            <span tabIndex={0} className="cursor-help rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-              Next period <span className={cn("font-mono tnum", f.next.coverage < 1 ? "text-warning" : "text-fg-2")}>{f.next.coverage.toFixed(1)}×</span>
+        {(f.hasTarget || f.next.pipeline > 0) && (
+          <Tooltip content={`Open deals dated ${shortDay(f.next.start)}–${shortDay(f.next.end)}.${f.next.coverage !== null ? ` Against a target the same size as this one, that's ${f.next.coverage.toFixed(1)}×.` : ""}`}>
+            <span tabIndex={0} className={TIP_TRIGGER}>
+              Lined up for next {quarterly ? "quarter" : "period"} <span className={cn("font-mono tnum", (f.next.coverage ?? 1) < 1 ? "text-warning" : "text-fg-2")}>{money(f.next.pipeline)}</span>
             </span>
           </Tooltip>
         )}
-        {plan.verdict !== "no_target" && plan.verdict !== "hit" && (
+        {plan.verdict !== "no_target" && plan.verdict !== "hit" && plan.cutoff >= f.today && (
           <span>
-            New pipeline closes in time until <span className="font-mono tnum text-fg-2">{shortDay(plan.cutoff)}</span>
+            New deals can still close this period if they start by <span className="font-mono tnum text-fg-2">{shortDay(plan.cutoff)}</span>
           </span>
         )}
         {f.creation.needPerWeek !== null && (
-          <Tooltip content={`New deals started in the last four weeks (${f.creation.deals}), at their amounts or the typical deal, against what a same-size target next period needs each week at your win rate.`}>
-            <span tabIndex={0} className="cursor-help rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-              Pipeline created{" "}
-              <span className={cn("font-mono tnum", f.creation.perWeek < f.creation.needPerWeek * 0.8 ? "text-warning" : "text-fg-2")}>{money(f.creation.perWeek)}/wk</span>
-              <span className="text-fg-4"> / {money(f.creation.needPerWeek)} needed</span>
+          <Tooltip content={`Deals started in the last four weeks (${f.creation.deals}), at their amounts or the typical deal, against what a same-size target next period needs each week at your win rate.`}>
+            <span tabIndex={0} className={TIP_TRIGGER}>
+              New pipeline <span className={cn("font-mono tnum", f.creation.perWeek < f.creation.needPerWeek * 0.8 ? "text-warning" : "text-fg-2")}>{money(f.creation.perWeek)}</span> a week
+              <span className="text-fg-4"> · {money(f.creation.needPerWeek)} needed</span>
             </span>
           </Tooltip>
         )}
         {f.dataTrust.open > 0 && (
-          <Tooltip content={`${f.dataTrust.complete} of ${f.dataTrust.open} open deals have a current close date, an amount, a dated next step and two contacts. The forecast is only as good as these.`}>
-            <span tabIndex={0} className="cursor-help rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-              Data trust <span className={cn("font-mono tnum", f.dataTrust.score < 50 ? "text-warning" : "text-fg-2")}>{f.dataTrust.score}%</span>
-            </span>
+          <Tooltip content="A deal is fully filled in with a current close date, an amount, a dated next step and two contacts. The forecast is only as good as these.">
+            <button type="button" onClick={onDataQuality} className={cn(TIP_TRIGGER, "cursor-pointer text-left hover:text-fg-2")}>
+              Fully filled in <span className={cn("font-mono tnum", f.dataTrust.score < 50 ? "text-warning" : "text-fg-2")}>{f.dataTrust.complete} of {f.dataTrust.open}</span> deals
+            </button>
           </Tooltip>
         )}
       </div>
@@ -163,20 +239,16 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
   );
 }
 
-function Stat({ label, value, note, swatch, tip }: { label: string; value: number; note: string; swatch?: string; tip?: string }) {
+function Stat({ label, value, note, swatch, marker, tip }: { label: string; value: number; note: string; swatch?: string; marker?: boolean; tip: string }) {
   return (
     <div className="min-w-0">
       <dt className="flex items-center gap-1.5 text-[12px] text-fg-3">
-        {swatch ? <span aria-hidden className={cn("size-2 rounded-[2px] ring-1 ring-inset ring-border", swatch)} /> : <span aria-hidden className="h-px w-2 bg-fg" />}
-        {tip ? (
-          <Tooltip content={tip}>
-            <span tabIndex={0} className="cursor-help underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-              {label}
-            </span>
-          </Tooltip>
-        ) : (
-          label
-        )}
+        {marker ? <span aria-hidden className="h-3 w-0 border-l-2 border-dashed border-fg" /> : <span aria-hidden className={cn("size-2.5 shrink-0 rounded-[2px]", swatch)} />}
+        <Tooltip content={tip}>
+          <span tabIndex={0} className={TIP_TRIGGER}>
+            {label}
+          </span>
+        </Tooltip>
       </dt>
       <dd className="mt-1 font-mono text-[22px] font-medium leading-7 tracking-[-0.01em] text-fg">
         <Num value={value} format={USD} />

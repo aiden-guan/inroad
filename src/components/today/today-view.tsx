@@ -147,8 +147,9 @@ export function Today({ ws }: { ws: Workspace }) {
 
   const scoreboard = useMemo(() => computeScoreboard(ws, new Date(now)), [ws, now]);
   const revenue = useMemo(() => {
-    const t = ws.revenue?.target;
-    return t ? { commit: computeForecast(ws, today).commit, target: t.amountUsd, label: t.label } : null;
+    // A target whose period is over isn't this quarter's number: the masthead waits for the new one.
+    const f = ws.revenue?.target ? computeForecast(ws, today) : null;
+    return f?.hasTarget ? { commit: f.commit, target: f.target, label: f.period.label } : null;
   }, [ws, today]);
   const brief = ws.briefs[today];
   const greeting = brief?.greeting || codeGreeting(ws, visible, new Date(now));

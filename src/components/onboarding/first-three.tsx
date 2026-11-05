@@ -8,7 +8,7 @@ import { useRuns, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
-import { Input, Label } from "@/components/ui/field";
+import { FieldError, Input, Label } from "@/components/ui/field";
 import { SourceChip } from "@/components/ui/source";
 import { duration, usd } from "@/lib/client/format";
 import type { Action } from "@/lib/domain/actions";
@@ -17,7 +17,7 @@ import type { Account, RunSummary, Signal, Workspace } from "@/lib/domain/types"
 import { ease, spring } from "@/lib/motion";
 import { BetDocument } from "./bet-document";
 import { PendingRow } from "./reading-ledger";
-import { rankAccounts, runSummary } from "./shared";
+import { domainOf, rankAccounts, runSummary } from "./shared";
 import { KnownUsers } from "./known-users";
 
 const AGREEMENT = [
@@ -197,9 +197,7 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
             ? "Here’s who I’d talk to first"
             : dError
               ? "I couldn’t finish the search"
-              : idle
-                ? "Next: your first three companies"
-                : "Your GTM plan is ready"}
+              : "Your GTM plan is ready"}
         </h1>
 
         {f?.icp.hypothesis.sentence && (
@@ -216,55 +214,57 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
 
         <KnownUsers ws={ws} />
 
-        <ol className="mt-6 divide-y divide-border border-y border-border" aria-label="Companies to talk to first" aria-live="polite">
-          <AnimatePresence initial={false}>
-            {found.map((a, i) => (
-              <AccountRow key={a.domain} a={a} i={i} talkTo={talkTo} showWarm={showWarm} />
-            ))}
-          </AnimatePresence>
-          {searching && (
-            <li className="py-3">
-              <ul>
-                <PendingRow
-                  verb={n === 0 ? "Finding companies with a dated reason to talk" : `${3 - n} more landing`}
-                  detail={lastStep && lastStep.kind !== "status" ? lastStep.text.slice(0, 60) : undefined}
-                />
-              </ul>
-            </li>
-          )}
-          {!searching && n === 0 && (
-            <li className="py-4">
+        {n > 0 || searching ? (
+          <ol className="mt-6 divide-y divide-border border-y border-border" aria-label="Companies to talk to first" aria-live="polite">
+            <AnimatePresence initial={false}>
+              {found.map((a, i) => (
+                <AccountRow key={a.domain} a={a} i={i} talkTo={talkTo} showWarm={showWarm} />
+              ))}
+            </AnimatePresence>
+            {searching && (
+              <li className="py-3">
+                <ul>
+                  <PendingRow
+                    verb={n === 0 ? "Finding companies with a dated reason to talk" : `${3 - n} more landing`}
+                    detail={lastStep && lastStep.kind !== "status" ? lastStep.text.slice(0, 60) : undefined}
+                  />
+                </ul>
+              </li>
+            )}
+          </ol>
+        ) : (
+          // Never an empty list: say why there are no companies yet, and offer the next step that works without them.
+          <div className="mt-6 rounded-lg bg-bg-subtle/60 p-4 ring-1 ring-inset ring-border sm:p-5" aria-live="polite">
+            <p className="text-[14px] font-medium text-fg">{dError ? "The search stopped before it found anyone." : idle ? "No companies yet." : "No company cleared the bar this time."}</p>
+            <p className="mt-1 text-pretty text-[13px] leading-5 text-fg-2">
+              {dError ??
+                (idle
+                  ? "I list a company only with a dated reason to talk now, like a job post or a funding round. The search hasn't run yet."
+                  : ((dLive?.result as { note?: string } | undefined)?.note ??
+                    "I list a company only with a dated reason to talk now, like a job post or a funding round, and none of the sources I checked had one."))}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
               {dError ? (
-                <>
-                  <p className="text-pretty text-[13.5px] leading-5 text-fg-2">{dError}</p>
-                  <Button className="mt-3" variant="secondary" size="sm" onClick={() => void findCompanies()}>
-                    Try again
-                  </Button>
-                </>
+                <Button variant="secondary" size="sm" onClick={() => void findCompanies()}>
+                  Try again
+                </Button>
               ) : idle ? (
-                <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
-                  Open Today to find your first prospects and review your next actions.
-                </p>
+                <Button variant="secondary" size="sm" loading={finding} onClick={() => void findCompanies()}>
+                  Find my first three
+                </Button>
               ) : (
-                <>
-                  <p className="text-pretty text-[13.5px] leading-5 text-fg-2">
-                    {(dLive?.result as { note?: string } | undefined)?.note ??
-                      "No matches in the sources checked. Try a broader search or import people you already know."}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => void findCompanies(true)}>
-                      Look in more places
-                    </Button>
-                    {/* A list dropped while reading is already in: start from it on Today rather than ask for it again. */}
-                    <Button variant="ghost" size="sm" className="h-auto min-h-7 whitespace-normal py-1 text-left" onClick={() => void hire(net ? "/today" : "/integrations?import=linkedin", [])}>
-                      {net ? "Use my network" : "Import LinkedIn connections"}
-                    </Button>
-                  </div>
-                </>
+                <Button variant="secondary" size="sm" loading={finding} onClick={() => void findCompanies(true)}>
+                  Look in more places
+                </Button>
               )}
-            </li>
-          )}
-        </ol>
+              {/* A list dropped while reading is already in: start from it on Today rather than ask for it again. */}
+              <Button variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal py-1 text-left" onClick={() => void hire(net ? "/today" : "/integrations?import=linkedin", [])}>
+                {net ? "Use my network" : "Import LinkedIn connections"}
+              </Button>
+            </div>
+            <AddCompany disabled={busy} onAdd={(domain) => void hire(`/companies?add=${encodeURIComponent(domain)}`, [])} />
+          </div>
+        )}
 
         {net && (
           <div className="mt-3" aria-live="polite">
@@ -361,6 +361,51 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+/** "Know one already?": a company the founder has in mind, opened (and researched) on Companies. Works with no search. */
+function AddCompany({ onAdd, disabled }: { onAdd: (domain: string) => void; disabled?: boolean }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="mt-4 border-t border-border pt-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const domain = domainOf(value);
+        if (!domain) return setError("That doesn't look like a website. Try something like acme.com.");
+        setError(null);
+        onAdd(domain);
+      }}
+    >
+      <Label htmlFor="first-company" hint="optional">
+        Or start with a company you have in mind
+      </Label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          id="first-company"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="acme.com"
+          inputMode="url"
+          autoCapitalize="none"
+          spellCheck={false}
+          aria-invalid={!!error}
+          aria-describedby="first-company-error"
+          className="h-9 font-mono text-[16px] sm:flex-1 sm:text-[13.5px]"
+        />
+        <Button type="submit" size="md" variant="secondary" disabled={disabled || !value.trim()}>
+          Research it
+        </Button>
+      </div>
+      <div id="first-company-error" aria-live="polite">
+        <FieldError>{error}</FieldError>
+      </div>
+    </form>
   );
 }
 

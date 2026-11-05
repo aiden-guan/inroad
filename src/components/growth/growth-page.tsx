@@ -11,6 +11,8 @@ import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { LoadingSignal } from "@/components/ui/loading";
+import { EmptyState } from "@/components/ui/misc";
+import { useSwitchMarket } from "@/components/shell/market-switch";
 import { PageHeader } from "@/components/ui/page-header";
 import { shortDate } from "@/lib/client/format";
 import { goalPace, hasLoggedLastWeek, readGrowth } from "@/lib/consumer/growth";
@@ -31,7 +33,8 @@ import { GtmInitiatives } from "@/components/gtm/initiatives";
  * growth review, and only when asked.
  */
 export function GrowthPage() {
-  const { ws } = useWorkspace();
+  const { ws, error, refresh } = useWorkspace();
+  const switchTo = useSwitchMarket();
   const now = useClock(60_000);
   const params = useSearchParams();
   const today = todayISO(new Date(now));
@@ -56,7 +59,55 @@ export function GrowthPage() {
     return () => cancelAnimationFrame(frame);
   }, [logging, ready]);
 
-  if (!ws || !data) return <LoadingSignal label="Reading your numbers" className="min-h-[60dvh]" />;
+  if (!ws || !data) {
+    return error ? (
+      <div className="page-shell max-w-[1080px]">
+        <EmptyState
+          title="Couldn't load your workspace"
+          body={`${error} Your data is still on this machine.`}
+          action={
+            <Button variant="primary" onClick={() => void refresh()}>
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    ) : (
+      <LoadingSignal label="Reading your numbers" className="min-h-[60dvh]" />
+    );
+  }
+
+  // A business's number is on Revenue. Growth says so, says how to switch, and shows nothing else.
+  if (!isConsumer(ws)) {
+    return (
+      <div className="page-shell max-w-[1080px]">
+        <PageHeader title="Growth" eyebrow="The number" description="Growth reads a consumer company's weekly numbers: active users, retention and the pace to its goal." />
+        <section aria-labelledby="growth-business-title" className="mt-8 max-w-[720px] rounded-xl bg-surface px-5 py-6 shadow-sm ring-1 ring-inset ring-border sm:px-7">
+          <h2 id="growth-business-title" className="text-balance font-serif text-[21px] leading-[30px] text-fg">
+            You sell to businesses, so your number is on Revenue.
+          </h2>
+          <p className="mt-1.5 text-pretty text-[13.5px] leading-[21px] text-fg-2">There the forecast is called from your deals: commit, best case and pipeline, what needs fixing, and what it takes to close the gap.</p>
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Link href="/revenue" className="inline-flex h-9 items-center rounded-md bg-primary px-3.5 text-[13px] font-medium text-primary-fg shadow-btn transition-[background-color,transform] duration-150 hover:bg-primary-hover active:scale-[0.97]">
+              Open Revenue
+            </Link>
+            {ws.company && (
+              <Button variant="ghost" onClick={() => void switchTo("consumer")}>
+                I sell to consumers
+              </Button>
+            )}
+          </div>
+          <p className="mt-4 text-pretty text-[12.5px] leading-[18px] text-fg-3">
+            You can switch who you sell to any time from your company name at the top of the sidebar, the command menu, or{" "}
+            <Link href="/settings#market" className="text-fg-2 underline underline-offset-2 hover:text-fg">
+              Settings
+            </Link>
+            . Switching keeps everything; it only changes what Inroad shows and writes.
+          </p>
+        </section>
+      </div>
+    );
+  }
   const { g, pace, funnel, talks, weekStart } = data;
   const logged = hasLoggedLastWeek(ws, today);
   const waitlistFirst = !!ws.waitlist && !g.latest && !logging;
@@ -99,16 +150,6 @@ export function GrowthPage() {
           </Button>
         }
       />
-
-      {!isConsumer(ws) && (
-        <p className="mt-6 rounded-md bg-bg-subtle px-3 py-2.5 text-[13px] leading-5 text-fg-2">
-          Growth reads a consumer company&apos;s weekly numbers. You&apos;re set up as a business, so your number lives on{" "}
-          <Link href="/revenue" className="text-fg underline underline-offset-2">
-            Revenue
-          </Link>
-          .
-        </p>
-      )}
 
       <WaitlistCard />
       <GtmInitiatives />

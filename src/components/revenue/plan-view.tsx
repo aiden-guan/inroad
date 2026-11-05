@@ -43,25 +43,9 @@ function Step({ op, label, value, note, strong }: { op?: string; label: React.Re
  * takes, by the date a new first meeting can still close inside the period. Dotted rates are starting
  * defaults until the workspace's own deals replace them.
  */
-export function PlanView({ f, plan, onSetTarget }: { f: Forecast; plan: RevenuePlan; onSetTarget: () => void }) {
-  if (plan.verdict === "no_target") {
-    return (
-      <section className="mt-12" aria-labelledby="plan-label">
-        <SectionLabel>
-          <span id="plan-label">What it takes</span>
-        </SectionLabel>
-        <div className="rounded-xl bg-surface px-5 py-6 ring-1 ring-inset ring-border">
-          <p className="font-serif text-[19px] leading-[28px] text-fg">Give me the number and I&apos;ll work backward to the meetings it takes.</p>
-          <p className="mt-1.5 max-w-[60ch] text-[13.5px] leading-[21px] text-fg-2">
-            A target turns this page into a plan: the gap after expected wins, the deals and first meetings that close it, and the last date new pipeline can still land this period.
-          </p>
-          <button type="button" onClick={onSetTarget} className="mt-4 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-            Set a revenue target
-          </button>
-        </div>
-      </section>
-    );
-  }
+export function PlanView({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
+  // With no target the hero carries the prompt (and the button); a second card here would only repeat it.
+  if (plan.verdict === "no_target") return null;
   if (plan.verdict === "hit") return null;
 
   const perWeek = plan.meetingsPerWeekNeeded;
@@ -195,8 +179,8 @@ export function Changes({ changes, since }: { changes: ForecastChange[]; since?:
         <span id="changes-label">What changed</span>
       </SectionLabel>
       {!since ? (
-        <p className="rounded-lg bg-surface px-5 py-4 text-[13.5px] leading-[21px] text-fg-2 ring-1 ring-inset ring-border">
-          I photograph the forecast on the first open of each week. From next week, every deal that moved, slipped, grew or shrank shows here, with what it did to commit.
+        <p className="px-1 text-[13px] leading-5 text-fg-3">
+          From next week: every deal that moved, slipped, grew or shrank since the forecast&apos;s weekly snapshot, with what it did to commit.
         </p>
       ) : !changes.length ? (
         <p className="rounded-lg bg-surface px-5 py-4 text-[13.5px] text-fg-2 ring-1 ring-inset ring-border">Nothing moved since {shortDay(since)}. A still forecast is usually a stalled one: check the next steps below.</p>

@@ -1175,6 +1175,11 @@ export interface Deal {
   forecastCall?: { category: ForecastCategory; at: ISODateTime; note?: string };
   /** Every close date this deal has had, oldest first. Slips are counted from it, never remembered. */
   closeDateHistory?: { date: ISODate; at: ISODateTime }[];
+  /**
+   * The deal came in from a file (a CRM export): when, which file, its stage on arrival, and what the file didn't
+   * say. The import time stands in for unknown dates, and code skips the checks they'd feed (src/lib/revenue/stats.ts).
+   */
+  imported?: { at: ISODateTime; from: string; stage: Stage; unknown?: ("created" | "stage_date" | "activity" | "contacts" | "source")[] };
 }
 
 /* ─────────────────────────────── Revenue ─────────────────────────────── */
@@ -1212,7 +1217,8 @@ export interface ForecastSnapshot {
   pipeline: number;
   /** The call at the time (category-weighted), so forecast accuracy can be scored when the period closes. */
   call?: number;
-  deals: { id: ID; name: string; stage: Stage; category: ForecastCategory; amountUsd: number; closeDate?: ISODate }[];
+  /** `closeEstimated`: the date was code's estimate (it slides as days pass), so it can't show a push. Unset on older snapshots. */
+  deals: { id: ID; name: string; stage: Stage; category: ForecastCategory; amountUsd: number; closeDate?: ISODate; closeEstimated?: boolean }[];
 }
 
 /** The weekly GTM update (for the CEO, the board or the team). Numbers come from code; the model writes the story. */
@@ -2143,7 +2149,13 @@ export interface Workspace {
   /** Consumer: Sean Ellis "how would you feel if you could no longer use it?" survey results, oldest first. */
   pmfSurveys?: PmfSurvey[];
   /** The revenue number, weekly forecast snapshots (last 26) and weekly updates (last 12). */
-  revenue?: { target?: RevenueTarget; snapshots?: ForecastSnapshot[]; updates?: GtmUpdate[] };
+  revenue?: {
+    target?: RevenueTarget;
+    /** Targets a new period's target replaced, oldest first, at most 8: last quarter's number stays readable. */
+    pastTargets?: RevenueTarget[];
+    snapshots?: ForecastSnapshot[];
+    updates?: GtmUpdate[];
+  };
   /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
   plays?: Record<string, PlayState>;
   /** What each market had when the founder last switched away from it, so switching back restores it. */
