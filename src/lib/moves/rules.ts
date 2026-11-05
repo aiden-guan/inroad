@@ -309,7 +309,8 @@ const REPLY_WINDOW_DAYS = 14;
  * passed. Expired cards are kept as auto-done history for 30 days, then dropped.
  */
 function inboundStale(m: Move, today: string): "expire" | "drop" | null {
-  if (m.rule !== "inbound.reply" && m.rule !== "inbound.booking") return null;
+  // "calendar.new_company": a meeting today or tomorrow with a company that isn't tracked (src/lib/calendar/plan.ts).
+  if (m.rule !== "inbound.reply" && m.rule !== "inbound.booking" && m.rule !== "calendar.new_company") return null;
   if (m.status === "done" || m.status === "skipped") return daysBetween(localDate(m.createdAt), today) > 30 ? "drop" : null;
   const expired = m.rule === "inbound.reply" ? daysSince(m.receivedAt ?? m.createdAt, today) > REPLY_WINDOW_DAYS : m.dueOn < today;
   return expired ? "expire" : null;

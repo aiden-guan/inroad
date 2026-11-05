@@ -934,4 +934,189 @@ const playRecipePlaybook = {
   act: (ctx) => ({ blocks: [call("submit_recipe", recipeFor(ctx))] }),
 };
 
-export const PLAYBOOKS = [snapshotPlaybook, betPlaybook, screenPlaybook, networkPlaybook, candidatesPlaybook, dossierPlaybook, draftPlaybook, linkedinPlaybook, introPlaybook, replyPlaybook, replyReadPlaybook, critiquePlaybook, columnPlaybook, playRecipePlaybook, ...STUDIO_PLAYBOOKS];
+/* ───────────── W8 · debrief: quotes copied from the call, fields that cite them ───────────── */
+
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+
+/** "two thousand five hundred dollars" → 2500, "$2,500" → 2500. */
+function amountIn(text) {
+  const digits = /\$\s?([\d,]+(?:\.\d+)?)\s*(k\b)?/i.exec(text);
+  if (digits) return Math.round(Number(digits[1].replace(/,/g, "")) * (digits[2] ? 1000 : 1));
+  const m = /((?:(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]*)+(?:thousand|hundred)(?:[\s-]+(?:and\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand))*)\s+dollars/i.exec(text);
+  if (!m) return null;
+  let total = 0;
+  let cur = 0;
+  for (const w of m[1].toLowerCase().split(/[\s-]+/)) {
+    if (w === "and") continue;
+    if (w === "hundred") cur = (cur || 1) * 100;
+    else if (w === "thousand") {
+      total += (cur || 1) * 1000;
+      cur = 0;
+    } else cur += NUMBER_WORDS[w] ?? 0;
+  }
+  return total + cur || null;
+}
+
+const WEEKDAY = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+const debriefPlaybook = {
+  name: "debrief",
+  match: (ctx) => has(ctx, "submit_debrief"),
+  act(ctx) {
+    const t = ctx.firstText;
+    const transcript = between(t, "transcript") ?? between(t, "transcript_excerpts");
+    const raw = transcript ?? between(t, "founder_notes") ?? "";
+    const callDate = /on (\d{4}-\d{2}-\d{2})\. Resolve relative dates/.exec(t)?.[1] ?? todayOf(t);
+    const lines = raw
+      .split("\n")
+      .map((l) => /^(?:\[[\d:]+\]\s*)?([^:\[\]]{1,60}):\s+(.+)$/.exec(l.trim()))
+      .filter(Boolean)
+      .map((m) => ({ speaker: m[1].replace(/\s*\([^)]*\)\s*$/, "").trim(), text: m[2].trim() }));
+    // The founder asks the questions.
+    const asks = new Map();
+    for (const l of lines) asks.set(l.speaker, (asks.get(l.speaker) ?? 0) + (l.text.match(/\?/g) ?? []).length);
+    const founder = [...asks.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const sentences = lines.flatMap((l) => (l.text.match(/[^.?!]+[.?!]+/g) ?? [l.text]).map((x) => ({ speaker: l.speaker, text: x.trim() })));
+    const buyer = sentences.filter((x) => x.speaker !== founder);
+    const quotes = [];
+    const push = (hit) => {
+      const q = { id: `q${quotes.length + 1}`, speaker: transcript ? hit.speaker : null, text: hit.text.slice(0, 300) };
+      quotes.push(q);
+      return q;
+    };
+    // The sentence that passes the most tests, earliest first (or latest, for what's agreed at the end).
+    const pick = (tests, { from = buyer, last = false, min = 1 } = {}) => {
+      let top = null;
+      let topScore = 0;
+      for (const x of from) {
+        if (quotes.some((q) => q.text === x.text.slice(0, 300))) continue;
+        const score = tests.reduce((n, re) => n + (re.test(x.text) ? 1 : 0), 0);
+        if (score > topScore || (last && score === topScore && score > 0)) [top, topScore] = [x, score];
+      }
+      return top && topScore >= min ? top : null;
+    };
+    const take = (tests, opts) => {
+      const hit = pick(tests, opts);
+      return hit ? push(hit) : null;
+    };
+    const pain = take([/\b(takes|took|spends?)\b/i, /\b\w+ (days?|hours?|weeks?)\b/i, /\b(tie-out|close|reconcil|spreadsheet|workbook|manual)/i], { min: 2 });
+    const impact = take([/\b(wrote off|write-off|written off|gap|credit)\b/i, /\$|\bdollars?\b|\bpercent\b|%/i], { min: 2 });
+    const spend = take([/\b(contractor|consultant|headcount|hire|hiring|analyst)\b/i, /\b(pay|cost|quarter|role)\b/i], { min: 2 });
+    const critical = take([/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/, /\b(first|deadline|contracts?|go-live|launch)\b/i], { min: 2 });
+    const consequence = take([/\b(if we can'?t|otherwise)\b/i, /\b(fee|board|weakness|miss)\b/i], { min: 2 });
+    const decision = take([/\b(signs?|sign-off|approve)\b/i, /\b(over|anything|budget)\b/i], { min: 2 });
+    const champ = take([/\b(I can bring|I'll (bring|loop|walk)|loop in)\b/i]);
+    const security = take([/\bsecurity review\b/i]);
+    const objection = take([/\b(timing|won't happen|worried|concern)\b/i, /\b(December|year-end|small|setup)\b/i], { min: 2 });
+    const referralQ = take([/\btalk to [A-Z]\w+ [A-Z]\w+ at [A-Z]/]);
+    const mine = sentences.filter((x) => x.speaker === founder);
+    const priceLine = mine.find((x) => amountIn(x.text));
+    const priceQ = priceLine ? push(priceLine) : null;
+    const ask = pick([/\b(monday|tuesday|wednesday|thursday|friday)\b/i, /\b(next step|suggest|working session|would\b.*\bwork)\b/i], { from: mine, last: true, min: 2 });
+    // "Would next Thursday at two work?" names the day; the sentence before it says what the step is.
+    const askAt = ask ? sentences.indexOf(ask) : -1;
+    const proposal = ask && ask.text.split(/\s+/).length <= 8 && sentences[askAt - 1]?.speaker === founder ? { ...sentences[askAt - 1], day: ask.text } : ask ? { ...ask, day: ask.text } : null;
+    const agreed = ask ? take([/\bworks\b/i], { from: buyer.filter((x) => sentences.indexOf(x) > askAt) }) : null;
+    const field = (q, status = "captured", score = 2) => (q ? { value: clip(q.text, 30, 240), quoteIds: [q.id], status, score } : { value: null, quoteIds: [], status: "not_covered", score: 0 });
+    const mainBuyer = [...new Set(buyer.map((x) => x.speaker))][0] ?? null;
+    const eb = /([A-Z][a-z]+),? (?:our|the) (CFO|CEO|VP Finance|COO)/.exec(raw);
+    const named = eb ? `${eb[1]}` : null;
+
+    let nextStep = null;
+    if (proposal) {
+      const day = WEEKDAY.findIndex((d) => new RegExp(`\\b${d}\\b`, "i").test(proposal.day));
+      let date = null;
+      if (day >= 0) {
+        const base = new Date(`${callDate}T12:00:00Z`);
+        let n = (day - base.getUTCDay() + 7) % 7 || 7;
+        if (/\bnext\b/i.test(proposal.day) && n < 4) n += 7;
+        date = addDays(callDate, n);
+      }
+      nextStep = { what: clip(proposal.text.replace(/^(here's what I'd suggest as a next step\.?\s*)/i, ""), 18, 140), date, owner: "both", buyerAgreed: !!agreed };
+    }
+    const dated = !!nextStep?.date && nextStep.buyerAgreed;
+
+    const words = (who) => lines.filter((l) => (who ? l.speaker === who : true)).reduce((n, l) => n + wordCount(l.text), 0);
+    const share = lines.length && founder ? Math.round((100 * words(founder)) / Math.max(1, words())) : null;
+    const questions = founder ? asks.get(founder) ?? 0 : 0;
+    const first = (name) => String(name ?? "").split(" ")[0];
+    const heard = [pain, impact, critical].filter(Boolean).map((q) => `- "${clip(q.text, 26, 200)}"`);
+    const recap = [
+      `${[...new Set(buyer.map((x) => first(x.speaker)))].slice(0, 2).join(", ") || "Hi"}, thanks for the time today.`,
+      "",
+      transcript ? "What I heard:" : "My understanding:",
+      ...(heard.length ? heard : ["- The current process takes longer than it should."]),
+      "",
+      "What we agreed:",
+      nextStep ? `- ${nextStep.what}${nextStep.date ? ` (${nextStep.date})` : ""}` : "- Nothing dated yet.",
+      ...(security ? ["", "Open items:", "- I'll send the security questionnaire answers and a data-flow diagram tomorrow."] : []),
+      "",
+      "Did I miss or misstate anything?",
+    ].join("\n");
+    const referral = referralQ ? /talk to ([A-Z][a-z]+ [A-Z][a-z]+) at ([A-Z][\w]+)/.exec(referralQ.text) : null;
+    // Their own words for the problem: short noun phrases that appear in what they said.
+    const customerWords = [];
+    for (const q of quotes.filter((x) => x.speaker !== founder)) {
+      const m = /\b(the (?:usage |)tie-out|the monster|late events|committed-use contracts|a key audit matter|the workbook|month-end)\b/i.exec(q.text);
+      if (m && !customerWords.some((c) => c.phrase.toLowerCase() === m[1].toLowerCase())) customerWords.push({ phrase: m[1], quoteId: q.id });
+    }
+
+    return {
+      blocks: [
+        call("submit_debrief", {
+          quotes,
+          card: {
+            pain: { ...field(pain), impact: impact ? clip(impact.text, 12, 90) : null },
+            spend: field(spend, "captured", 1),
+            criticalEvent: { ...field(critical), date: null, consequence: consequence ? clip(consequence.text, 18, 140) : null },
+            champion: { ...field(champ, champ ? "partial" : "not_covered", champ ? 1 : 0), name: champ ? champ.speaker : null, championStatus: champ ? "untested" : "none" },
+            economicBuyer: { ...field(decision, decision ? "partial" : "not_covered", decision ? 1 : 0), name: named, engaged: false },
+            fit: field(pain, pain ? "partial" : "not_covered", pain ? 1 : 0),
+            decisionProcess: decision ? { value: clip(decision.text, 40, 300), quoteIds: [decision.id], status: "partial" } : { value: null, quoteIds: [], status: "not_covered" },
+          },
+          stageSuggestion: null,
+          nextStep,
+          recap: { body: recap },
+          schedulingEmail: dated ? null : { subject: "next step", body: `Would Tuesday at 11am or Wednesday at 2pm next week work for 30 minutes to go through your numbers together?` },
+          committeeUpdates: [...new Set(buyer.map((x) => x.speaker))].slice(0, 4).map((name) => ({ name, title: null, role: name === mainBuyer ? "champion" : null, quoteId: null })).concat(named ? [{ name: named, title: eb[2], role: "economic_buyer", quoteId: decision?.id ?? null }] : []),
+          map: null,
+          pilotCriteria: null,
+          offerProposal: /\bpilot\b/i.test(raw),
+          tasks: [
+            ...(security ? [{ what: "Send security questionnaire answers and a data-flow diagram", dueDate: addDays(callDate, 1), owner: "founder" }] : []),
+            ...(nextStep?.date ? [{ what: "Send the invite and agenda for the working session", dueDate: addDays(callDate, 1), owner: "founder" }] : []),
+          ],
+          newObjections: objection ? [{ text: clip(objection.text, 20, 140), category: /security/i.test(objection.text) ? "security" : "timing", quoteId: objection.id }] : [],
+          customerWords,
+          povCandidates: [],
+          priceQuoted: priceLine && priceQ ? { amountUsd: amountIn(priceLine.text), quoteId: priceQ.id } : null,
+          referrals: referral ? [{ name: referral[1], company: referral[2], quoteId: referralQ.id }] : [],
+          toConfirm: ["Who runs the security review on their side, and how long it takes", "Whether next year's budget is set before the pilot ends"],
+          coaching: [
+            ...(share !== null ? [`You talked about ${share}% of the time and asked ${questions} questions.`] : []),
+            dated ? "Next step booked on the call, with a date and an owner." : "No dated next step yet. Book one before the week is out.",
+          ],
+        }),
+      ],
+    };
+  },
+};
+
+export const PLAYBOOKS = [
+  snapshotPlaybook,
+  betPlaybook,
+  screenPlaybook,
+  networkPlaybook,
+  candidatesPlaybook,
+  dossierPlaybook,
+  draftPlaybook,
+  linkedinPlaybook,
+  introPlaybook,
+  replyPlaybook,
+  replyReadPlaybook,
+  critiquePlaybook,
+  columnPlaybook,
+  playRecipePlaybook,
+  debriefPlaybook,
+  ...STUDIO_PLAYBOOKS,
+];

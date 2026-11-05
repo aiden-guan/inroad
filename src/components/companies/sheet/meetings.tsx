@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, ChevronDown, FileText, Phone, X } from "lucide-react";
+import { CalendarDays, CalendarPlus, ChevronDown, FileText, FileUp, Phone, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -15,8 +15,11 @@ import { cn } from "@/lib/client/cn";
 import { relativeTime } from "@/lib/client/format";
 import { looksLikeTranscript, newDeal } from "@/lib/deals/rules";
 import type { Action } from "@/lib/domain/actions";
-import { newId, nowISO } from "@/lib/domain/ids";
+import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Deal, Meeting, Person } from "@/lib/domain/types";
+import { readTranscriptFile, TalkShare, TRANSCRIPT_ACCEPT } from "@/components/transcripts/transcript-intake";
+import { matchTranscript } from "@/lib/transcripts/match";
+import { parseTranscript, type ParsedTranscript } from "@/lib/transcripts/parse";
 import { BriefView } from "./brief-view";
 import { DebriefReview } from "./debrief-review";
 import { Section, useNow } from "./shared";
@@ -46,6 +49,8 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [logging, setLogging] = useState(focusLog);
+  // A transcript dropped on a meeting row opens Log a call with it read and that meeting picked.
+  const [dropped, setDropped] = useState<{ meetingId: string; text: string; fileName: string; n: number } | null>(null);
   const meetings = useMemo(
     () =>
       deal.meetingIds
@@ -57,7 +62,7 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
   const runs = useMeetingRuns(deal.meetingIds);
   // ⌘K "Prep for…" lands on its meeting, opened.
   const params = useSearchParams();
-  const focusId = params.get("intent") === "prep" ? params.get("ref") : null;
+  const focusId = params.get("intent") === "prep" || params.get("intent") === "debrief" ? params.get("ref") : null;
   const needsDebrief = meetings.find((m) => !m.debrief && new Date(m.startsAt).getTime() <= now);
   const next = [...meetings].reverse().find((m) => new Date(m.startsAt).getTime() > now);
 
@@ -69,7 +74,16 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
           <Button size="sm" variant="ghost" icon={<CalendarPlus className="size-3.5" />} onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
             Add meeting
           </Button>
-          <Button size="sm" variant={needsDebrief || !next ? "primary" : "secondary"} icon={<Phone className="size-3.5" />} onClick={() => setLogging((l) => !l)} aria-expanded={logging}>
+          <Button
+            size="sm"
+            variant={needsDebrief || !next ? "primary" : "secondary"}
+            icon={<Phone className="size-3.5" />}
+            onClick={() => {
+              setLogging((l) => !l);
+              setDropped(null);
+            }}
+            aria-expanded={logging}
+          >
             Log a call
           </Button>
         </div>
@@ -77,13 +91,39 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
     >
       <div className="space-y-3">
         {adding && <AddMeeting deal={deal} account={account} onDone={() => setAdding(false)} />}
-        {logging && <LogCall deal={deal} account={account} meetings={meetings} defaultMeetingId={needsDebrief?.id} autoFocus={focusLog || logging} onClose={() => setLogging(false)} />}
+        {logging && (
+          <LogCall
+            key={dropped?.n ?? 0}
+            deal={deal}
+            account={account}
+            meetings={meetings}
+            defaultMeetingId={dropped?.meetingId ?? needsDebrief?.id}
+            initial={dropped ?? undefined}
+            autoFocus={focusLog || logging}
+            onClose={() => {
+              setLogging(false);
+              setDropped(null);
+            }}
+          />
+        )}
         {meetings.length === 0 && !adding && !logging && (
           <p className="rounded-md bg-bg-subtle px-3 py-3 text-[13px] text-fg-2">No meetings yet. Add the next one and I&apos;ll prep a brief, or log a call that already happened.</p>
         )}
         <ul className="space-y-2">
           {meetings.map((m) => (
-            <MeetingRow key={m.id} meeting={m} deal={deal} now={now} today={today} run={runs.find((r) => r.ref?.id === m.id)} focus={m.id === focusId} />
+            <MeetingRow
+              key={m.id}
+              meeting={m}
+              deal={deal}
+              now={now}
+              today={today}
+              run={runs.find((r) => r.ref?.id === m.id)}
+              focus={m.id === focusId}
+              onTranscript={(file) => {
+                setDropped((d) => ({ meetingId: m.id, ...file, n: (d?.n ?? 0) + 1 }));
+                setLogging(true);
+              }}
+            />
           ))}
         </ul>
       </div>
@@ -91,9 +131,26 @@ export function MeetingsSection({ deal, account, today, focusLog }: { deal: Deal
   );
 }
 
-function MeetingRow({ meeting, deal, now, today, run, focus }: { meeting: Meeting; deal: Deal; now: number; today: string; run?: RunState; focus?: boolean }) {
+function MeetingRow({
+  meeting,
+  deal,
+  now,
+  today,
+  run,
+  focus,
+  onTranscript,
+}: {
+  meeting: Meeting;
+  deal: Deal;
+  now: number;
+  today: string;
+  run?: RunState;
+  focus?: boolean;
+  onTranscript?: (file: { text: string; fileName: string }) => void;
+}) {
   const { start } = useRuns();
   const row = useRef<HTMLLIElement>(null);
+  const [dragging, setDragging] = useState(false);
   useEffect(() => {
     if (focus) row.current?.scrollIntoView({ block: "nearest" });
   }, [focus]);
@@ -112,8 +169,36 @@ function MeetingRow({ meeting, deal, now, today, run, focus }: { meeting: Meetin
     void start("prep", { meetingId: meeting.id });
   };
 
+  const drop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !onTranscript) return;
+    if (upcoming) return void toast.error("That call hasn't happened yet. Drop the transcript on the meeting it came from.");
+    const r = await readTranscriptFile(file);
+    if ("error" in r) toast.error(r.error);
+    else onTranscript(r);
+  };
+
   return (
-    <li ref={row} className={cn("scroll-mt-16 rounded-lg bg-surface ring-1 transition-shadow duration-150", unapplied || focus ? "ring-border-strong" : "ring-border")}>
+    <li
+      ref={row}
+      onDragOver={(e) => {
+        if (!onTranscript || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        if (!upcoming) setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(e) => void drop(e)}
+      className={cn("relative scroll-mt-16 rounded-lg bg-surface ring-1 transition-shadow duration-150", dragging ? "ring-2 ring-accent" : unapplied || focus ? "ring-border-strong" : "ring-border")}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-surface/90 text-[13px] font-medium text-accent-text" aria-hidden>
+          Drop the transcript to debrief this call
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
         <button onClick={() => setOpen(!expanded)} aria-expanded={expanded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <ChevronDown className={cn("size-3.5 shrink-0 text-fg-3 transition-transform duration-200", !expanded && "-rotate-90")} aria-hidden />
@@ -122,6 +207,12 @@ function MeetingRow({ meeting, deal, now, today, run, focus }: { meeting: Meetin
             <span className="block truncate font-mono text-[11.5px] text-fg-3">
               {when(meeting.startsAt)} · {relativeTime(meeting.startsAt, now)}
               {meeting.attendees.length > 0 && <span className="font-sans"> · {meeting.attendees.map((a) => a.name).join(", ")}</span>}
+              {meeting.source === "calendar" && (
+                <span className="font-sans" title="Came in from your calendar">
+                  {" · "}
+                  <CalendarDays className="mb-px inline size-3" aria-hidden /> Calendar
+                </span>
+              )}
             </span>
           </span>
         </button>
@@ -163,7 +254,9 @@ function MeetingRow({ meeting, deal, now, today, run, focus }: { meeting: Meetin
           {shown === "brief" && meeting.brief && <BriefView meeting={meeting} brief={meeting.brief} />}
           {!meeting.brief && !meeting.debrief && !active && (
             <p className="text-[13px] text-fg-2">
-              {upcoming ? "No brief yet. Prep writes a 5-minute read: goals, an agenda, 8–12 questions, likely objections and the next step to ask for." : "Log what happened and I'll update the card, draft the recap and check the next step."}
+              {upcoming
+                ? "No brief yet. Prep writes a 5-minute read: goals, an agenda, 8–12 questions, likely objections and the next step to ask for."
+                : "Log what happened and I'll update the card, draft the recap and check the next step. Drop the call's transcript on this meeting to debrief it."}
             </p>
           )}
         </div>
@@ -268,12 +361,27 @@ function AddMeeting({ deal, account, onDone }: { deal: Deal; account: Account; o
 
 const NEW_CALL = "__new";
 
-/** Paste notes or a transcript; source is auto-detected (speaker labels, timestamps) and editable. */
+/** A file format a call recorder writes (not text someone typed): worth reading in code before it's shown. */
+const EXPORTS = new Set<ParsedTranscript["format"]>(["zoom_vtt", "teams_vtt", "vtt", "srt", "zoom_txt", "fathom", "otter", "meet", "granola", "speaker_text"]);
+
+function readExport(text: string, fileName: string | undefined, founderNames: string[]): ParsedTranscript | null {
+  const p = parseTranscript(text, { fileName, now: new Date(), founderNames });
+  return p.isTranscript && EXPORTS.has(p.format) ? p : null;
+}
+
+const dayLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+/**
+ * Paste notes or a transcript, or drop the transcript file (Zoom, Meet, Teams, Fathom, Granola, Otter): a file
+ * is read in code first, its call matched to one of this deal's meetings by date and who spoke. The source
+ * is detected (speaker labels, timestamps) and editable.
+ */
 export function LogCall({
   deal,
   account,
   meetings,
   defaultMeetingId,
+  initial,
   autoFocus,
   onClose,
 }: {
@@ -281,17 +389,51 @@ export function LogCall({
   account: Account;
   meetings: Meeting[];
   defaultMeetingId?: string;
+  /** A transcript dropped on a meeting row. */
+  initial?: { text: string; fileName?: string };
   autoFocus?: boolean;
   onClose: () => void;
 }) {
   const { start } = useRuns();
-  const { dispatch } = useWorkspace();
-  const [text, setText] = useState("");
-  const [override, setOverride] = useState<"transcript" | "founder_notes" | null>(null);
+  const { ws, dispatch } = useWorkspace();
+  const founders = useMemo(() => [ws?.founder.name, ws?.sender?.name].filter((n): n is string => !!n && !!n.trim()), [ws]);
+  const [loaded, setLoaded] = useState<ParsedTranscript | null>(() => (initial ? readExport(initial.text, initial.fileName, founders) : null));
+  const [text, setText] = useState(() => loaded?.text ?? initial?.text ?? "");
+  const [override, setOverride] = useState<"transcript" | "founder_notes" | null>(() => (loaded ? "transcript" : null));
   const [meetingId, setMeetingId] = useState(defaultMeetingId ?? NEW_CALL);
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const detected = looksLikeTranscript(text) ? "transcript" : "founder_notes";
   const source = override ?? detected;
+  const picked = meetingId !== NEW_CALL ? meetings.find((m) => m.id === meetingId) : undefined;
+  const offBy = loaded?.when && picked ? Math.abs(Math.round((Date.parse(`${loaded.when.date}T12:00:00`) - Date.parse(`${todayISO(new Date(picked.startsAt))}T12:00:00`)) / 86_400_000)) : 0;
+
+  /** A transcript file or export: read in code, shown clean, matched to its meeting. */
+  const ingest = (raw: string, fileName?: string) => {
+    const p = readExport(raw, fileName, founders);
+    setFileError(null);
+    if (!p) {
+      setText(raw);
+      setLoaded(null);
+      return;
+    }
+    setLoaded(p);
+    setText(p.text);
+    setOverride("transcript");
+    if (!ws) return;
+    const m = matchTranscript(p, { ws, now: new Date(), founderNames: founders, meetingIds: meetings.map((x) => x.id) });
+    if (m.best?.meetingId) setMeetingId(m.best.meetingId);
+    else if (p.when) setMeetingId(NEW_CALL);
+  };
+
+  const loadFile = async (file: File | undefined) => {
+    if (!file) return;
+    const r = await readTranscriptFile(file);
+    if ("error" in r) return setFileError(r.error);
+    ingest(r.text, r.fileName);
+  };
 
   // The call becomes a meeting first (and the deal, if this is the first conversation), so the
   // meeting row can show the live work log and then the review.
@@ -308,7 +450,16 @@ export function LogCall({
     }
     let mid = meetingId !== NEW_CALL ? meetingId : null;
     if (!mid) {
-      const m: Meeting = { id: newId("mtg"), dealId, title: `Call with ${account.name}`, startsAt: at, attendees: [] };
+      // Dated, titled and attended from the transcript when there is one.
+      const when = loaded?.when?.iso ?? (loaded?.when ? new Date(`${loaded.when.date}T${loaded.when.time ?? "12:00"}:00`).toISOString() : at);
+      const people = account.peopleIds.map((id) => ws?.people[id]).filter((p): p is Person => !!p);
+      const attendees = (loaded?.speakers ?? [])
+        .filter((sp) => !sp.founder && !sp.generic)
+        .map((sp) => {
+          const person = people.find((p) => p.name.toLowerCase() === sp.name.toLowerCase());
+          return person ? { personId: person.id, name: person.name, ...(person.title ? { title: person.title } : {}) } : { name: sp.name };
+        });
+      const m: Meeting = { id: newId("mtg"), dealId, title: loaded?.title ?? `Call with ${account.name}`, startsAt: when, attendees };
       actions.push({ type: "meeting.upsert", meeting: m });
       mid = m.id;
     }
@@ -317,14 +468,34 @@ export function LogCall({
     setBusy(false);
     if (state) {
       setText("");
+      setLoaded(null);
       onClose();
     }
   };
 
   return (
-    <div className="rounded-lg bg-surface p-3 ring-1 ring-border animate-[fade-in_150ms_var(--ease-out)]">
+    <div
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void loadFile(e.dataTransfer.files?.[0]);
+      }}
+      className={cn("rounded-lg bg-surface p-3 ring-1 transition-shadow duration-150 animate-[fade-in_150ms_var(--ease-out)]", dragging ? "ring-2 ring-accent" : "ring-border")}
+    >
+      <input ref={fileRef} type="file" accept={TRANSCRIPT_ACCEPT} className="hidden" onChange={(e) => void loadFile(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <p className="mr-auto text-[13px] font-semibold text-fg">Log a call</p>
+        <Button size="xs" variant="ghost" icon={<FileUp className="size-3.5" />} onClick={() => fileRef.current?.click()} title="A .vtt, .srt, .txt or .md transcript from Zoom, Meet, Teams, Fathom, Granola or Otter">
+          Upload transcript
+        </Button>
         {meetings.length > 0 && (
           <Select
             value={meetingId}
@@ -338,7 +509,7 @@ export function LogCall({
                 {m.debrief ? " · redo debrief" : ""}
               </option>
             ))}
-            <option value={NEW_CALL}>A new call today</option>
+            <option value={NEW_CALL}>{loaded?.when ? `A new call on ${dayLabel(loaded.when.date)}` : "A new call today"}</option>
           </Select>
         )}
         <Segmented
@@ -354,10 +525,39 @@ export function LogCall({
           <X className="size-4" />
         </button>
       </div>
+      {loaded && (
+        <div className="mb-2 rounded-md bg-bg-subtle px-3 py-2">
+          <p className="text-[12px] text-fg-2">
+            {loaded.formatLabel}
+            {loaded.durationSec ? ` · ${Math.round(loaded.durationSec / 60)} min` : ""}
+            {` · ${loaded.words.toLocaleString("en-US")} words`}
+            {loaded.when ? ` · ${dayLabel(loaded.when.date)}${loaded.when.time ? ` ${loaded.when.time}` : ""}` : ""}
+          </p>
+          <TalkShare p={loaded} className="mt-1.5" />
+          {offBy >= 2 && picked && (
+            <p className="mt-1.5 text-[12px] text-warning">
+              This transcript looks like it&apos;s from {dayLabel(loaded.when!.date)}, but this meeting was {dayLabel(todayISO(new Date(picked.startsAt)))}. Check the call above.
+            </p>
+          )}
+          {loaded.warnings.map((w) => (
+            <p key={w} className="mt-1 text-[12px] text-fg-3">
+              {w}
+            </p>
+          ))}
+        </div>
+      )}
       <Textarea
         autoFocus={autoFocus}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onPaste={(e) => {
+          // A raw export pasted in (WebVTT cues, a Fathom or Otter copy) is read in code, like a dropped file.
+          const pasted = e.clipboardData.getData("text");
+          if (!text.trim() && pasted.length > 40 && readExport(pasted, undefined, founders)) {
+            e.preventDefault();
+            ingest(pasted);
+          }
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
@@ -365,9 +565,10 @@ export function LogCall({
           }
         }}
         disabled={busy}
-        placeholder="Paste the transcript or your notes. Speaker labels and timestamps are detected automatically."
+        placeholder="Paste the transcript or your notes, or drop the transcript file here. Speaker labels and timestamps are detected automatically."
         className="max-h-[50vh] min-h-36 overflow-y-auto text-[13px] leading-5"
       />
+      {fileError && <p className="mt-1.5 text-[12px] text-danger">{fileError}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <p className="mr-auto text-[12px] text-fg-3">
           {source === "transcript" ? "Quotes will be verbatim, checked against the transcript." : "Your notes stay your words; I won't present them as theirs."}

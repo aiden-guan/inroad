@@ -2,7 +2,7 @@
 
 import { LoadingSignal } from "@/components/ui/loading";
 import { PageHeader } from "@/components/ui/page-header";
-import { FileSpreadsheet, Star, Users, Webhook } from "lucide-react";
+import { CalendarDays, FileAudio, FileSpreadsheet, Star, Users, Webhook } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -20,6 +20,9 @@ import type { Workspace } from "@/lib/domain/types";
 import type { InboundLogEntry } from "@/lib/hub/types";
 import { METRIC_PROVIDER_IDS } from "@/lib/metrics/types";
 import { BookingKey } from "./booking-key";
+import { CalendarPanel, calendarStatus, useCalendar } from "./calendar-panel";
+import { TranscriptIntake } from "@/components/transcripts/transcript-intake";
+import { isConsumer } from "@/lib/consumer/market";
 import { CrmPanel } from "./crm-panel";
 import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
@@ -69,6 +72,7 @@ export function IntegrationsHub() {
   const [openId, setOpenId] = useState<string | null | undefined>(undefined);
   const [replacing, setReplacing] = useState<NativeConnectorId | null>(null);
   const moreTools = useRef<HTMLDetailsElement>(null);
+  const calendar = useCalendar();
   const ready = !!ws;
 
   // Saved links still open their tool even when it lives in the optional section.
@@ -95,7 +99,7 @@ export function IntegrationsHub() {
     const native = [...NATIVE_IDS, ...METRIC_PROVIDER_IDS].filter((id) => ws.integrations[id]?.enabled).length;
     const hooks = new Set(events.filter((e) => e.status !== "duplicate").map((e) => e.source)).size;
     const week = now ? events.filter((e) => e.status !== "duplicate" && now - Date.parse(e.at) < 7 * 86_400_000).length : 0;
-    return { connected: native + hooks + (ws.webhooks.length ? 1 : 0) + (ws.company?.market === "consumer" && ws.waitlist?.enabled ? 1 : 0), week };
+    return { connected: native + hooks + (ws.webhooks.length ? 1 : 0) + (ws.company?.market === "consumer" && ws.waitlist?.enabled ? 1 : 0) + (ws.integrations.calendar?.enabled ? 1 : 0), week };
   }, [ws, events, now]);
 
   if (!ws) return <HubSkeleton />;
@@ -176,6 +180,37 @@ export function IntegrationsHub() {
 
       <MetricSources current={current} onToggle={toggle} />
       <WaitlistCard />
+
+      {(!isConsumer(ws) || ws.integrations.calendar?.enabled) && (
+        <div className="mt-10">
+          <Group id="capture" question="Bring in your meetings" note="Calendar meetings arrive matched and prepped. Transcripts become a debrief you review. Both are read in code; only briefs and debriefs use your AI key.">
+            <IntegrationRow
+              id="calendar"
+              name="Calendar"
+              blurb="Every meeting with someone outside your company, matched to its company, prepped before the call."
+              icon={<CalendarDays className="size-4" />}
+              status={calendarStatus(calendar.digest, !!ws.integrations.calendar?.enabled, ws.integrations.calendar?.lastError?.message)}
+              open={current === "calendar"}
+              onToggle={() => toggle("calendar")}
+            >
+              <CalendarPanel digest={calendar.digest} error={calendar.error} onDigest={calendar.setDigest} onReload={calendar.reload} />
+            </IntegrationRow>
+            {!isConsumer(ws) && (
+              <IntegrationRow
+                id="transcripts"
+                name="Call transcripts"
+                blurb="Drop a Zoom, Meet, Teams, Fathom, Granola or Otter transcript. I match it to the call and debrief it."
+                icon={<FileAudio className="size-4" />}
+                status={transcriptStatus(ws)}
+                open={current === "transcripts"}
+                onToggle={() => toggle("transcripts")}
+              >
+                <TranscriptIntake calendar={calendar.pending} onStarted={({ meetingId, domain }) => router.push(`/companies?c=${encodeURIComponent(domain)}&intent=prep&ref=${encodeURIComponent(meetingId)}`)} />
+              </IntegrationRow>
+            )}
+          </Group>
+        </div>
+      )}
 
       <div className="mt-6 rounded-lg bg-surface p-4 ring-1 ring-border">
         <p className="text-[14px] font-medium text-fg">Start with your own inbox</p>
@@ -324,6 +359,11 @@ export function IntegrationsHub() {
       </Dialog>
     </div>
   );
+}
+
+function transcriptStatus(ws: Workspace): RowStatus {
+  const n = Object.values(ws.meetings).filter((m) => m.debrief?.source === "transcript").length;
+  return n ? { tone: "on", label: `${n} call${n === 1 ? "" : "s"} debriefed from transcripts` } : { tone: "off", label: "Drop a file" };
 }
 
 function outboundStatus(ws: Workspace): RowStatus {

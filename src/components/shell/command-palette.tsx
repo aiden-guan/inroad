@@ -9,6 +9,7 @@ import {
   CalendarHeart,
   ClipboardList,
   Compass,
+  FileAudio,
   FileText,
   FileUp,
   Handshake,
@@ -49,12 +50,14 @@ import { SECONDARY, navFor } from "./nav";
 import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, reviewThisWeek, upcomingMeetings, writeTargets } from "./palette-data";
 import { isQuestion, matchScore, mergeRanked, rankBy, scoreBy, type Rankable } from "./palette-rank";
 import { PasteReply } from "./paste-reply";
+import { TranscriptIntake } from "@/components/transcripts/transcript-intake";
 
 /** A ⌘K command that needs a choice first opens a page of the palette; Esc or ⌫ on an empty query goes back. */
-type Page = { kind: "reply" } | { kind: "write" } | { kind: "prep" } | { kind: "connector"; id?: string } | { kind: "asset" } | { kind: "proposal" } | { kind: "deal" };
+type Page = { kind: "reply" } | { kind: "transcript" } | { kind: "write" } | { kind: "prep" } | { kind: "connector"; id?: string } | { kind: "asset" } | { kind: "proposal" } | { kind: "deal" };
 
 const PAGE: Record<Page["kind"], { title: string; placeholder: string }> = {
   reply: { title: "Paste a reply", placeholder: "" },
+  transcript: { title: "Debrief from a transcript", placeholder: "" },
   write: { title: "Write to…", placeholder: "Who are you writing to?" },
   prep: { title: "Prep for…", placeholder: "Which meeting?" },
   connector: { title: "Ask a connector for intros", placeholder: "Who should you ask?" },
@@ -493,6 +496,7 @@ export function CommandPalette() {
         ...(b2b
           ? [
               cmd({ id: "do:log-call", name: "Log a call", keywords: "debrief notes transcript", icon: <Phone className="size-4" />, label: "Log a call", onSelect: () => run(() => router.push("/companies?view=talking&log=1")) }),
+              cmd({ id: "do:transcript", name: "Debrief a call from a transcript", keywords: "recording zoom meet teams fathom granola otter vtt srt upload file", icon: <FileAudio className="size-4" />, label: "Debrief a call from a transcript", onSelect: () => go({ kind: "transcript" }), more: true }),
               cmd({ id: "do:revenue-target", name: "Set the revenue target", keywords: "quota number quarter forecast", icon: <Target className="size-4" />, label: "Set the revenue target", onSelect: () => run(() => router.push("/revenue?target=1")) }),
               cmd({ id: "do:gtm-update", name: "Write the weekly GTM update", keywords: "board investor ceo report forecast", icon: <FileText className="size-4" />, label: "Write the weekly GTM update", onSelect: () => run(() => router.push("/revenue#update-label")) }),
             ]
@@ -667,7 +671,7 @@ export function CommandPalette() {
       shouldFilter={false}
       loop
       onKeyDown={(e) => {
-        if (e.key === "Backspace" && !query && page && page.kind !== "reply") {
+        if (e.key === "Backspace" && !query && page && page.kind !== "reply" && page.kind !== "transcript") {
           e.preventDefault();
           go(page.kind === "connector" && page.id ? { kind: "connector" } : null);
         }
@@ -693,6 +697,8 @@ export function CommandPalette() {
         )}
         {page?.kind === "reply" ? (
           <p className="h-12 min-w-0 flex-1 truncate py-3.5 text-[13px] text-fg-3">Matched to who sent it, on this computer</p>
+        ) : page?.kind === "transcript" ? (
+          <p className="h-12 min-w-0 flex-1 truncate py-3.5 text-[13px] text-fg-3">Read and matched on this computer</p>
         ) : (
           <Command.Input
             autoFocus
@@ -706,6 +712,16 @@ export function CommandPalette() {
       </div>
       {page?.kind === "reply" ? (
         <PasteReply onDone={() => setOpen(false)} />
+      ) : page?.kind === "transcript" ? (
+        <div className="max-h-[min(560px,72vh)] overflow-y-auto p-3">
+          <TranscriptIntake
+            autoFocus
+            onStarted={({ meetingId, domain }) => {
+              setOpen(false);
+              router.push(sheet(domain, `&intent=prep&ref=${encodeURIComponent(meetingId)}`));
+            }}
+          />
+        </div>
       ) : (
         <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto p-1.5 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-fg-3">
           <Command.Empty className="px-3 py-6 text-center text-[13px] text-fg-3">{empty}</Command.Empty>
