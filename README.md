@@ -50,6 +50,18 @@ Inroad also operates as an **agentic coordination hub**: connect external system
 
 It runs on the AI provider you choose — Anthropic Claude (what it was built and tuned on), OpenAI, Google Gemini, xAI, Groq, OpenRouter, Mistral, DeepSeek, Together AI, Vercel AI Gateway, Cloudflare AI Gateway, a local Ollama model, or any OpenAI-compatible API — in a browser or as a [Mac app](#the-mac-app). Save multiple accounts, select models per task or Ask message, and enable automatic task routing in Settings. See [AI connections and routing](docs/AI-ROUTING.md) for setup and gateway requirements.
 
+### Capture, research columns and plays you write
+
+**Your calendar and calls fill themselves in.** Paste a private iCal address and every external meeting is matched to its company and deal, prepped before the call, and followed when it moves or is canceled. Drop a Zoom, Meet, Teams, Fathom, Granola or Otter transcript and Inroad matches it to the call and drafts the debrief from verbatim quotes.
+
+**Ask every company a question.** On Companies, **+ Column** asks one question of every prospect ("Do they bill on usage?"). It tries five first and shows the measured cost before running the rest; each answer keeps its source, quote and date, and an answer no source supports stays Unknown. Columns sort and filter, views save as tabs, and a bulk bar acts on a selection.
+
+**Plays in your own words.** Describe a play in a sentence; Inroad turns it into an editable recipe, dry-runs it on today's accounts with the reasons it skipped others, and backtests it against your won and lost deals before you turn it on.
+
+**Hear buyers, and the people asking for you.** Playbook → Buyer voice counts objections, pains and competitors across calls and replies, with the quotes and the win rate when each came up. Research → Intent finds people on Hacker News, Stack Exchange, GitHub and Reddit asking for what you sell, with the quote and a reply draft you post yourself.
+
+**Triage that learns.** Today has a replies lane with one-key actions, follow-up reminders on every send, and skips that lower a persona or signal for 30 days, each listed with Undo.
+
 ### Research and existing tools
 
 **Research** in the sidebar brings web search, evidence, connections, monitors and outcomes together. Search with
