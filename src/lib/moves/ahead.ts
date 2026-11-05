@@ -1,5 +1,6 @@
 import { todayISO } from "@/lib/domain/ids";
 import type { ID, Move, OutreachPackage, RunSummary, Workspace } from "@/lib/domain/types";
+import { readOf } from "@/lib/replies/intent";
 import { FIRST_THREE_DAYS, firstThreeDomains, RULE_PREFIX, visibleMoves } from "./rules";
 import { daysSince, hasDraftableAngle, isSuppressed, knowsDirectly } from "./util";
 
@@ -98,13 +99,13 @@ function drafted(ws: Workspace, move: Move, domain: string, personId: string | u
   );
 }
 
-/** Today's open cards that a draft would finish: due follow-ups first, then first touches, best first. */
+/** Today's open cards that a draft would finish: replies first (the lane opens on a written answer), then due follow-ups, then first touches. */
 export function draftsToStart(ws: Workspace, now: Date): AheadPlan["drafts"] {
   const today = todayISO(now);
   const out: AheadPlan["drafts"] = [];
   const domains = new Set<string>();
   const moves = visibleMoves(ws.moves, today);
-  const order = (m: Move) => (ruleOf(m) === "follow_up" ? 0 : 1);
+  const order = (m: Move) => (m.kind === "reply" ? 0 : ruleOf(m) === "follow_up" ? 1 : 2);
   for (const m of [...moves].sort((a, b) => order(a) - order(b))) {
     const rule = ruleOf(m);
     const person = m.ref?.kind === "person" ? ws.people[m.ref.id] : undefined;
@@ -112,7 +113,12 @@ export function draftsToStart(ws: Workspace, now: Date): AheadPlan["drafts"] {
     if (!domain || domains.has(domain) || !ws.accounts[domain] || isSuppressed(ws, person, domain)) continue;
     if (recentRun(ws, "compose", { kind: "account", id: domain }, now)) continue;
     let args: DraftArgs | undefined;
-    if (rule === "follow_up" && person && !drafted(ws, m, domain, person.id, ["follow_up", "cold"])) {
+    const reply = m.kind === "reply" && m.activityId ? ws.activities.find((a) => a.id === m.activityId) : undefined;
+    if (reply && person) {
+      // An opt-out or an auto-reply needs no draft, and a no is answered only if the founder wants to.
+      const intent = readOf(ws, reply).intent;
+      if (intent !== "unsubscribe" && intent !== "ooo" && intent !== "negative" && !drafted(ws, m, domain, person.id, ["reply"])) args = { domain, personId: person.id, mode: "reply" };
+    } else if (rule === "follow_up" && person && !drafted(ws, m, domain, person.id, ["follow_up", "cold"])) {
       const pkg = m.id.startsWith("mv_followup_") ? m.id.slice("mv_followup_".length).replace(/_\d+$/, "") : undefined;
       args = { domain, personId: person.id, mode: "follow_up", ...(pkg && ws.outreach[pkg] ? { packageId: pkg } : {}) };
     } else if ((m.kind === "first_touch" && (rule === "signal" || rule === "first_three")) || (m.kind === "linkedin" && rule === "first_three")) {

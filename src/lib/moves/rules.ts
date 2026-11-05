@@ -5,6 +5,8 @@ import { PLATFORM_LABELS, openPartners, partnerCopy, partnerNext, type PartnerAc
 import { CREATOR_ASKS_PER_WEEK, USER_TALKS_PER_WEEK } from "@/lib/consumer/plan";
 import { addDays, daysBetween, monthKey, todayISO, weekOf } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Asset, type Deal, type ID, type Move, type MoveKind, type OutreachPackage, type SignalType, type Workspace } from "@/lib/domain/types";
+import { applyLearned } from "@/lib/learning/targeting";
+import { isAutoReply, parseReturnDate } from "@/lib/replies/intent";
 import { referralLeads } from "@/lib/deals/referrals";
 import { pilotWatch, type PilotWatch } from "@/lib/deals/rules";
 import { leadPoints, metros, nearby } from "@/lib/geo/leads";
@@ -18,6 +20,7 @@ import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { SEND_KINDS, activeBet, startedBets } from "@/lib/learning/bets";
 import { REFRESH_AFTER_CALLS, refreshOffer } from "./monthly-data";
 import { awaitingOutcome, BOOKING_NUDGES, bookingLoops, searchDays } from "./replies";
+import { CHECK_BACK, REMIND, holdFor, radarMoves, stepNudge } from "./radar";
 import { coldQuotaLeft, counters, introAsksTarget, type Counters } from "./scoreboard";
 import {
   aOrAn,
@@ -135,9 +138,14 @@ const RULES = {
   partner_let_go: { base: 34, label: "Quiet two weeks after the follow-up" },
   partner_find: { base: 28, label: "Fewer than 5 creators or communities on the shortlist" },
   play: { base: 50, label: "A running play matched a company" },
+  // The follow-up radar (./radar): a send's reminder came due, a not-now's check-back day came.
+  remind: REMIND,
+  check_back: CHECK_BACK,
 } as const;
 
-type RuleKey = keyof typeof RULES;
+/** Every rule the engine can produce. Today's card bodies are keyed by these (a new rule must say what its card does). */
+export type RuleKey = keyof typeof RULES;
+export const RULE_KEYS = Object.keys(RULES) as RuleKey[];
 
 /** Shown on hover over a move ("why is this here?"). */
 export function ruleLabel(rule: string): string | undefined {
@@ -200,6 +208,7 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   callReferrals(ctx);
   sequences(ctx);
   deals(ctx);
+  radar(ctx);
   if (business) {
     firstThree(ctx);
     firstTouches(ctx);
@@ -227,6 +236,8 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   if (!business) consumerMoves(ctx);
   // A paused play takes its cards off Today, whichever rule made them.
   ctx.out = ctx.out.filter((c) => !c.playId || playEnabled(ws, c.playId));
+  // Skips that teach: three "wrong person" skips on a persona, or "weak angle" on a signal, rank its new outreach lower.
+  applyLearned(ws, ctx.out, today);
 
   // Other surfaces (inbound webhooks, agent API) create their own reply and prep cards. When one already
   // covers the same reply or meeting, in any status, don't add a second card for it.
@@ -246,10 +257,12 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
     if (seen.has(cand.id) || isCovered(cand)) continue;
     seen.add(cand.id);
     const prev = ws.moves[cand.id];
-    // Done, skipped and still-snoozed cards aren't on Today, so they don't use up the daily slots.
+    // Done, skipped and still-snoozed cards aren't on Today, so they don't use up the daily slots. Replies sit in
+    // their own lane and never wait for tomorrow because the desk is full.
     const settled = !!prev && ((prev.status === "done" && !prev.autoDone) || prev.status === "skipped" || (prev.status === "snoozed" && !!prev.snoozedUntil && prev.snoozedUntil > today));
-    const overflow = !settled && openCount >= DAILY_OPEN_MAX;
-    if (!settled) openCount++;
+    const lane = cand.kind === "reply";
+    const overflow = !settled && !lane && openCount >= DAILY_OPEN_MAX;
+    if (!settled && !lane) openCount++;
     moves.push({
       ...cand,
       rule: RULE_PREFIX + cand.rule,
@@ -264,8 +277,11 @@ export function computeMoves(ws: Workspace, now: Date): Move[] {
   return moves;
 }
 
-/** Merges freshly computed moves with what's stored, so the founder's decisions stick. Pure. */
-export function mergeMoves(existing: Record<ID, Move>, computed: Move[], today: string): Record<ID, Move> {
+/**
+ * Merges freshly computed moves with what's stored, so the founder's decisions stick. Pure. With `ws`, a card snoozed
+ * "until they reply" wakes as soon as that person writes back.
+ */
+export function mergeMoves(existing: Record<ID, Move>, computed: Move[], today: string, ws?: Pick<Workspace, "activities">): Record<ID, Move> {
   const next: Record<ID, Move> = {};
   const fresh = new Map(computed.map((m) => [m.id, m]));
   for (const m of Object.values(existing)) {
@@ -280,7 +296,8 @@ export function mergeMoves(existing: Record<ID, Move>, computed: Move[], today: 
     if (fresh.has(m.id)) continue;
     // The condition is gone. Keep recent decisions as history. An open card that was on the desk was
     // resolved by its own work (the last reply marked, the dossier landed): record it as done, don't drop it.
-    if (daysBetween(localDate(m.createdAt), today) > 30) continue;
+    // A decision's 30 days run from when it was made (a skip keeps teaching for 30 days after the skip).
+    if (daysBetween(localDate(m.settledAt ?? m.createdAt), today) > 30) continue;
     if (m.status === "done" || m.status === "skipped") next[m.id] = m;
     else if (m.status === "open" && m.dueOn <= today) next[m.id] = { ...m, status: "done", autoDone: true };
   }
@@ -291,10 +308,16 @@ export function mergeMoves(existing: Record<ID, Move>, computed: Move[], today: 
       continue;
     }
     // Auto-done cards come back when their condition does (a new touch to check, a deal folded into last night's close-out).
-    const wake = (prev.status === "snoozed" && (!prev.snoozedUntil || prev.snoozedUntil <= today)) || (prev.status === "done" && !!prev.autoDone);
+    const replied =
+      prev.status === "snoozed" && !!prev.untilReply && !!ws?.activities.some((a) => a.kind === "reply_received" && a.personId === prev.untilReply!.personId && a.at > prev.untilReply!.since);
+    const wake = (prev.status === "snoozed" && (!prev.snoozedUntil || prev.snoozedUntil <= today)) || (prev.status === "done" && !!prev.autoDone) || replied;
     const merged: Move = { ...m, createdAt: prev.createdAt, status: wake ? "open" : prev.status };
     if (!wake && prev.snoozedUntil) merged.snoozedUntil = prev.snoozedUntil;
+    if (!wake && prev.untilReply) merged.untilReply = prev.untilReply;
+    if (!wake && prev.settledAt) merged.settledAt = prev.settledAt;
     if (prev.skipReason) merged.skipReason = prev.skipReason;
+    if (prev.skipTarget) merged.skipTarget = prev.skipTarget;
+    if (prev.learnIgnored) merged.learnIgnored = prev.learnIgnored;
     next[m.id] = merged;
   }
   return next;
@@ -345,12 +368,31 @@ function replies({ ws, now, today, out }: Ctx) {
     const answered = ws.activities.some(
       (a) => a.personId === personId && a.at > reply.at && (a.kind === "touch_sent" || a.kind === "linkedin_dm" || a.kind === "intro_requested"),
     );
-    if (answered || reply.sentiment === "ooo") continue;
+    if (answered) continue;
     const person = ws.people[personId];
     const domain = person?.accountDomain ?? reply.accountDomain ?? "";
     const deal = openDealFor(ws, domain);
     const days = daysSince(reply.at, today);
     const name = first(person?.name) || "them";
+    // An out-of-office needs no answer, only a decision: hold the follow-ups until they're back. Once they are, it's moot.
+    if (isAutoReply(ws, reply)) {
+      const back = reply.body ? parseReturnDate(reply.body, reply.at) : null;
+      if (back ? back <= today : days > 7) continue;
+      out.push({
+        id: `mv_reply_${reply.id}`,
+        kind: "reply",
+        rule: "reply",
+        title: back ? `${name} is out until ${shortDay(back)}` : `${name} is out of office`,
+        why: `Auto-reply ${ago(reply.at, now)} · hold your follow-ups${back ? " until they're back" : ""}`,
+        minutes: 1,
+        priority: 40,
+        ref: { kind: "person", id: personId },
+        activityId: reply.id,
+        receivedAt: reply.at,
+        href: domain ? sheet(domain) : undefined,
+      });
+      continue;
+    }
     const unsubscribe = reply.sentiment === "unsubscribe";
     out.push({
       id: `mv_reply_${reply.id}`,
@@ -589,10 +631,10 @@ function sequences({ ws, now, today, out }: Ctx) {
     if (pkg.mode === "warm_intro") {
       const step = pkg.steps.find((s) => s.status === "draft");
       if (step && daysSince(pkg.createdAt, today) <= 14) {
-        // Same id as the warm-path / connector card it was drafted from, so that card fills in place. Forwardables
-        // for a marked list are several drafts to one connector in a week: the second and later get their own card.
-        const shared = pkg.connectorId ? `mv_connector_${pkg.connectorId}_${weekOf(localDate(pkg.createdAt))}` : `mv_warm_${domain}`;
-        const id = out.some((x) => x.id === shared) ? `mv_introdraft_${pkg.id}` : shared;
+        // A warm-path draft keeps its company's card id, so that card fills in place. A draft to a connector gets its
+        // own stable id: the connector's suggestion card moves on to its next target, and must never take the draft's place.
+        const shared = `mv_warm_${domain}`;
+        const id = pkg.connectorId || out.some((x) => x.id === shared) ? `mv_introdraft_${pkg.id}` : shared;
         out.push({
           id,
           kind: "intro_ask",
@@ -641,7 +683,8 @@ function sequences({ ws, now, today, out }: Ctx) {
     if (!sent.length) continue;
     const firstSentAt = sent[0].sentAt ?? pkg.createdAt;
     const last = sent[sent.length - 1];
-    if (ws.activities.some((a) => a.kind === "reply_received" && a.personId === pkg.personId && a.at > firstSentAt)) continue;
+    // A real reply ends the sequence; an out-of-office only holds it (below).
+    if (ws.activities.some((a) => a.kind === "reply_received" && a.personId === pkg.personId && a.at > firstSentAt && !isAutoReply(ws, a))) continue;
 
     if (last.step >= 3) {
       // Three unanswered emails: one blank LinkedIn invite, then stop.
@@ -669,7 +712,13 @@ function sequences({ ws, now, today, out }: Ctx) {
       ? undefined
       : pkgs.find((p) => p.id !== pkg.id && p.personId === pkg.personId && p.mode === "follow_up" && p.createdAt > (last.sentAt ?? "") && p.steps.some((s) => s.status === "draft"));
     const draftStep = inPkg ?? elsewhere?.steps.find((s) => s.status === "draft");
-    const dueOn = inPkg?.sendOn ?? addDays(localDate(firstSentAt), nextNo === 2 ? 3 : 8);
+    // "Remind me if no reply" on the last send sets the day (null: the founder chose not to chase it), and an
+    // out-of-office holds it until they're back.
+    const lastTouch = ws.activities.find((a) => a.kind === "touch_sent" && a.draftRef?.packageId === pkg.id && a.draftRef.step === last.step);
+    if (lastTouch?.remindOn === null) continue;
+    let dueOn = lastTouch?.remindOn ?? inPkg?.sendOn ?? addDays(localDate(firstSentAt), nextNo === 2 ? 3 : 8);
+    const held = holdFor(ws, pkg.personId, lastTouch?.at ?? firstSentAt);
+    if (held && held > dueOn) dueOn = held;
     if (dueOn > today) continue;
     const overdue = Math.max(0, daysBetween(dueOn, today));
     const angle = angleTitle(ws, domain, draftStep?.angleId);
@@ -880,15 +929,17 @@ function deals({ ws, now, today, out }: Ctx) {
       const overdue = dated ? daysBetween(dated, today) : 0;
       const without = dated ? overdue : daysSince(deal.lastActivityAt || deal.updatedAt, today);
       const decide = without >= 14;
+      // A step the buyer owes, gone late with no call since: the move is a one-line nudge to them, not a new date.
+      const nudge = !decide ? stepNudge(ws, deal, now) : null;
       missing.push({
         deal,
         cand: {
           id: `mv_nextstep_${deal.id}_${dated ?? "none"}`,
           kind: "next_step_missing",
           rule: "next_step",
-          title: decide ? `Decide on ${company}: book it, nurture or close` : `Set a next step for ${company}`,
+          title: decide ? `Decide on ${company}: book it, nurture or close` : nudge ? `Nudge ${first(nudge.person.name)} at ${company}` : `Set a next step for ${company}`,
           why: dated
-            ? `${stage} · “${clip(deal.nextStep!.what, 48)}” was due ${shortDay(dated)}`
+            ? `${stage} · “${clip(deal.nextStep!.what, 48)}” was due ${shortDay(dated)}${nudge ? " · a one-line note keeps it moving" : ""}`
             : `${stage} · last activity ${ago(deal.lastActivityAt || deal.updatedAt, now)}${decide ? " · no dated next step for 2 weeks" : ""}`,
           minutes: 2,
           priority: RULES.next_step.base * mult + (dated ? overdueBoost(overdue) : overdueBoost(Math.floor(without / 7))),
@@ -992,6 +1043,18 @@ function deals({ ws, now, today, out }: Ctx) {
   } else {
     for (const m of missing) out.push(m.cand);
   }
+}
+
+/**
+ * The follow-up radar (./radar): due reminders and check-back days. A reminder to a deal's contact covers the deal,
+ * so its next-step card stands down (the reminder card carries "set a next step" too): one card per deal.
+ */
+function radar(ctx: Ctx) {
+  const cards = radarMoves(ctx.ws, ctx.now);
+  if (!cards.length) return;
+  ctx.out.push(...cards);
+  const covered = new Set(cards.flatMap((c) => c.subjectIds ?? []));
+  if (covered.size) ctx.out = ctx.out.filter((c) => !(c.rule === "next_step" && c.ref?.kind === "deal" && covered.has(c.ref.id)));
 }
 
 /** The first three onboarding picked: recorded at hire, else read back from the dossier runs it started. */
@@ -1364,7 +1427,8 @@ function warmPaths({ ws, today, weekStart, c, out, firstThree: covered }: Ctx) {
   if (best) {
     const { connector, acc: target, entry } = best;
     out.push({
-      id: `mv_connector_${connector.id}_${weekStart}`,
+      // The target is in the id: a suggestion that moves on to another company is a new card, never the old one changing.
+      id: `mv_connector_${connector.id}_${target.domain}_${weekStart}`,
       kind: "intro_ask",
       rule: "connector",
       title: `Ask ${first(connector.name)} for an intro to ${target.name}`,

@@ -31,6 +31,7 @@ import type {
   PartnerStage,
   Person,
   PmfSurvey,
+  ReplyIntent,
   RevenueTarget,
   SkipReason,
   Stage,
@@ -47,6 +48,8 @@ import { debriefReferrals } from "@/lib/deals/referrals";
 import { closeDatePushed, newDeal } from "@/lib/deals/rules";
 import { forgetPerson } from "@/lib/people/forget";
 import { touchTags } from "@/lib/learning/tags";
+import { skipTarget } from "@/lib/learning/targeting";
+import { defaultRemindOn } from "@/lib/replies/remind";
 import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
 import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample, noteToneOff } from "@/lib/quality/voice";
 import { lintOption } from "@/lib/studio/receipts";
@@ -117,7 +120,7 @@ export type Action =
   | { type: "connector.markList"; id: ID; marked: string[]; at: string }
   | { type: "intro.create"; intro: Intro }
   /** Move an intro to a stage (forward, or reopened). Dates, history and the intro_made activity follow in code. */
-  | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID }
+  | { type: "intro.advance"; id: ID; stage: IntroStage; at: string; declinedBy?: Intro["declinedBy"]; outcome?: Intro["outcome"]; note?: string; activityId?: ID; meetingOn?: string }
   /** The founder sent the note behind a move: a nudge, the reply to the intro, the thank-you. Give: `side` asks or nudges one side. */
   | { type: "intro.mark"; id: ID; field: "nudgedOn" | "repliedOn" | "thankedOn" | "askedOn"; at: string; side?: 0 | 1 }
   /** Give: one side said yes or no. Nothing moves to the other side until both said yes. */
@@ -164,7 +167,8 @@ export type Action =
   | { type: "meeting.patchDebrief"; id: ID; generatedAt: string; patch: { recap?: { subject: string; body: string }; appliedAt?: string; referralDomain?: { index: number; domain: string } } }
   | { type: "outreach.editStep"; packageId: ID; step: number; subject?: string | null; body?: string }
   | { type: "outreach.useAlternate"; packageId: ID; index: number }
-  | { type: "outreach.approveStep"; packageId: ID; step: number; at: string; activityId: ID }
+  /** `remindOn`: "Remind me if no reply" (unset = the default for this step, null = off). */
+  | { type: "outreach.approveStep"; packageId: ID; step: number; at: string; activityId: ID; remindOn?: string | null }
   | { type: "outreach.skipStep"; packageId: ID; step: number }
   /** Full swap of step 1 with an alternate angle (spans, POV, claims and angle travel with the text). */
   | { type: "outreach.swapAlternate"; packageId: ID; index: number }
@@ -180,11 +184,23 @@ export type Action =
   | { type: "activity.log"; activity: Activity }
   /** Undo for a logged activity (e.g. "Invite sent" on a LinkedIn draft). */
   | { type: "activity.remove"; id: ID }
-  | { type: "move.done"; id: ID }
-  | { type: "move.skip"; id: ID; reason: SkipReason }
-  | { type: "move.snooze"; id: ID; until: string }
+  | { type: "move.done"; id: ID; at?: string }
+  /** Stamps what the card targeted, so skips can change targeting (src/lib/learning/targeting.ts). */
+  | { type: "move.skip"; id: ID; reason: SkipReason; at?: string }
+  /** `untilReply`: wakes early when this person writes back. */
+  | { type: "move.snooze"; id: ID; until: string; at?: string; untilReply?: ID }
   /** Undo for done / skip / snooze. */
   | { type: "move.reopen"; id: ID }
+  /** "What I've learned" → Undo: these skips stop counting toward targeting (ignore: false counts them again). */
+  | { type: "move.learn"; ids: ID[]; ignore: boolean }
+  /** Changes or turns off "Remind me if no reply" on a send (null = off). */
+  | { type: "activity.setRemind"; id: ID; on: string | null }
+  /** Out of office or "not now": follow-ups to them wait until this date (null lifts it). */
+  | { type: "activity.setHold"; id: ID; until: string | null }
+  /** The founder corrects how a reply reads (null hands it back to the reads). */
+  | { type: "reply.setIntent"; id: ID; intent: ReplyIntent | null }
+  /** "What I've learned" → Undo on tone notes: the examples go, the skipped cards stay skipped. */
+  | { type: "voice.forgetToneOff"; ats: string[] }
   /** "Check replies": marks touches replied / no reply / bounced / not sent (null clears the mark). */
   | { type: "activity.markOutcome"; ids: ID[]; outcome: NonNullable<Activity["outcome"]> | null; at: string }
   /** "Let it go" on a yes that has no deal: Today stops chasing the booking (null opens it again). */
@@ -304,7 +320,8 @@ function advanceIntro(ws: Workspace, intro: Intro, a: Extract<Action, { type: "i
   intro.updatedAt = a.at;
   if (a.outcome) intro.outcome = a.outcome;
   if (a.stage === "forwarded") intro.forwardedOn ??= on;
-  if (a.stage === "meeting") intro.meetingOn ??= on;
+  // The day of the meeting, when the founder said it; else the day it was recorded.
+  if (a.stage === "meeting") intro.meetingOn ??= a.meetingOn ?? on;
   if (a.stage === "done" || a.stage === "declined" || a.stage === "no_answer") intro.closedOn = on;
   else delete intro.closedOn;
   if (a.stage === "declined") intro.declinedBy = a.declinedBy ?? intro.declinedBy;
@@ -819,6 +836,8 @@ export function applyAction(ws: Workspace, action: Action): void {
       step.status = "sent";
       step.sentAt = action.at;
       const person = pkg.personId ? ws.people[pkg.personId] : undefined;
+      // "Remind me if no reply": on by default, from the sequence's spacing or four working days.
+      const remindOn = action.remindOn !== undefined ? action.remindOn : defaultRemindOn(pkg, step, action.at);
       const asDrafted = step.original ? `${step.original.subject ?? ""}\n${step.original.body}` : undefined;
       const distance = asDrafted === undefined ? 0 : editDistance(asDrafted, `${step.subject ?? ""}\n${step.body}`);
       ws.activities.push({
@@ -837,6 +856,7 @@ export function applyAction(ws: Workspace, action: Action): void {
         // Signal, frame, POV, persona, subject style and bet arm: what the learning reviews compare.
         ...touchTags(ws, pkg, step, action.at),
         editDistance: distance,
+        ...(remindOn !== undefined && remindOn !== null ? { remindOn } : action.remindOn === null ? { remindOn: null } : {}),
       });
       // Every edit before sending is the founder showing how they write.
       if (step.original) learnFromEdit(ws, { before: step.original.body, after: step.body, subjectBefore: step.original.subject, subjectAfter: step.subject, distance }, action.at);
@@ -850,7 +870,10 @@ export function applyAction(ws: Workspace, action: Action): void {
         if (answer && !answer.dealId) answer.dealId = ws.accounts[pkg.accountDomain]?.dealId;
       }
       for (const move of Object.values(ws.moves)) {
-        if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "done";
+        if (move.status === "open" && move.draft?.packageId === pkg.id && move.draft.step === step.step) {
+          move.status = "done";
+          move.settledAt = action.at;
+        }
       }
       return;
     }
@@ -900,7 +923,10 @@ export function applyAction(ws: Workspace, action: Action): void {
       }
       ws.activities = ws.activities.filter((a) => a.id !== action.activityId);
       for (const move of Object.values(ws.moves)) {
-        if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) move.status = "open";
+        if (move.status === "done" && move.draft?.packageId === pkg.id && move.draft.step === step.step) {
+          move.status = "open";
+          delete move.settledAt;
+        }
       }
       // The card the founder finished by approving, whether or not it carried the draft link (gone moves are skipped).
       for (const id of action.moveIds ?? []) {
@@ -908,6 +934,7 @@ export function applyAction(ws: Workspace, action: Action): void {
         if (move?.status === "done") {
           move.status = "open";
           delete move.autoDone;
+          delete move.settledAt;
         }
       }
       // Undoing an intro ask also undoes the intro it opened, if nothing has happened on it since.
@@ -953,8 +980,8 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "activity.log": {
       ws.activities.push(action.activity);
       const a = action.activity;
-      // A reply cancels the rest of that person's open sequence.
-      if (a.kind === "reply_received" && a.personId) {
+      // A reply cancels the rest of that person's open sequence. An out-of-office only holds it.
+      if (a.kind === "reply_received" && a.personId && a.sentiment !== "ooo" && a.intent !== "ooo") {
         for (const pkg of Object.values(ws.outreach)) {
           if (pkg.personId !== a.personId) continue;
           for (const s of pkg.steps) if (s.status === "draft") s.status = "cancelled_by_reply";
@@ -972,26 +999,78 @@ export function applyAction(ws: Workspace, action: Action): void {
       move.status = "done";
       // A play's card counts toward the play's results for good, not just while the card is on file.
       noteCardDone(ws, move);
+      if (action.at) move.settledAt = action.at;
       return;
     }
     case "move.skip": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "skipped";
       move.skipReason = action.reason;
+      if (action.at) move.settledAt = action.at;
+      // Who and what it was about, as it stands now: the learning outlives the person or the signal.
+      move.skipTarget = skipTarget(ws, move);
       return;
     }
     case "move.snooze": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "snoozed";
       move.snoozedUntil = action.until;
+      if (action.at) move.settledAt = action.at;
+      if (action.untilReply) move.untilReply = { personId: action.untilReply, since: action.at ?? move.createdAt };
+      else delete move.untilReply;
       return;
     }
+    case "move.learn": {
+      for (const id of action.ids) {
+        const move = ws.moves[id];
+        if (!move) continue;
+        if (action.ignore) move.learnIgnored = true;
+        else delete move.learnIgnored;
+      }
+      return;
+    }
+    case "activity.setRemind": {
+      const a = need(
+        ws.activities.find((x) => x.id === action.id),
+        "Activity",
+      );
+      a.remindOn = action.on;
+      return;
+    }
+    case "activity.setHold": {
+      const a = need(
+        ws.activities.find((x) => x.id === action.id),
+        "Reply",
+      );
+      if (action.until) a.holdUntil = action.until;
+      else delete a.holdUntil;
+      return;
+    }
+    case "reply.setIntent": {
+      const a = need(
+        ws.activities.find((x) => x.id === action.id),
+        "Reply",
+      );
+      if (action.intent) a.intent = action.intent;
+      else delete a.intent;
+      return;
+    }
+    case "voice.forgetToneOff":
+      if (ws.voice?.toneOff) {
+        const drop = new Set(action.ats);
+        ws.voice.toneOff = ws.voice.toneOff.filter((t) => !drop.has(t.at));
+      }
+      return;
     case "move.reopen": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "open";
       delete move.skipReason;
       delete move.snoozedUntil;
       forgetCard(ws, move);
+      delete move.settledAt;
+      delete move.skipTarget;
+      delete move.untilReply;
+      delete move.learnIgnored;
       // An undone "tone off" skip takes its example back out of the voice card.
       if (ws.voice?.toneOff) ws.voice.toneOff = ws.voice.toneOff.filter((t) => t.moveId !== action.id);
       return;

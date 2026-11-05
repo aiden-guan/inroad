@@ -898,6 +898,42 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.moves[id]).not.toHaveProperty("snoozedUntil");
   },
 
+  "move.learn": () => {
+    const id = Object.keys(sample.moves)[0];
+    const s = apply(ws(), { type: "move.skip", id, reason: "wrong_person", at: at(0) }, { type: "move.learn", ids: [id, "mv_missing"], ignore: true });
+    expect(s.moves[id]).toMatchObject({ status: "skipped", learnIgnored: true });
+    apply(s, { type: "move.learn", ids: [id], ignore: false });
+    expect(s.moves[id]).not.toHaveProperty("learnIgnored");
+  },
+
+  "activity.setRemind": () => {
+    const s = apply(ws(), { type: "activity.setRemind", id: "act_025", on: "2026-10-26" });
+    expect(s.activities.find((a) => a.id === "act_025")?.remindOn).toBe("2026-10-26");
+    apply(s, { type: "activity.setRemind", id: "act_025", on: null });
+    expect(s.activities.find((a) => a.id === "act_025")?.remindOn).toBeNull();
+    expect(() => apply(s, { type: "activity.setRemind", id: "act_missing", on: null })).toThrow(ActionError);
+  },
+
+  "activity.setHold": () => {
+    const s = apply(ws(), { type: "activity.setHold", id: "act_034", until: "2026-11-02" });
+    expect(s.activities.find((a) => a.id === "act_034")?.holdUntil).toBe("2026-11-02");
+    apply(s, { type: "activity.setHold", id: "act_034", until: null });
+    expect(s.activities.find((a) => a.id === "act_034")).not.toHaveProperty("holdUntil");
+  },
+
+  "reply.setIntent": () => {
+    const s = apply(ws(), { type: "reply.setIntent", id: "act_034", intent: "objection" });
+    expect(s.activities.find((a) => a.id === "act_034")?.intent).toBe("objection");
+    apply(s, { type: "reply.setIntent", id: "act_034", intent: null });
+    expect(s.activities.find((a) => a.id === "act_034")).not.toHaveProperty("intent");
+  },
+
+  "voice.forgetToneOff": () => {
+    const s = apply(ws(), { type: "voice.noteToneOff", text: "Hope you're well!", at: at(0), moveId: "mv_x" }, { type: "voice.noteToneOff", text: "Circling back!", at: at(0, "11:00") });
+    apply(s, { type: "voice.forgetToneOff", ats: [at(0)] });
+    expect(s.voice?.toneOff?.map((t) => t.text)).toEqual(["Circling back!"]);
+  },
+
   "activity.markOutcome": () => {
     const s = apply(ws(), { type: "activity.markOutcome", ids: ["act_025", "act_033", "act_missing"], outcome: "no_reply", at: at(0) });
     for (const id of ["act_025", "act_033"]) expect(s.activities.find((a) => a.id === id)).toMatchObject({ outcome: "no_reply", outcomeAt: at(0) });

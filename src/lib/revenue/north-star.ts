@@ -29,8 +29,9 @@ const share = (value: number, target: number) => (target > 0 ? Math.min(1, Math.
 
 export function northStar(ws: Workspace, today: ISODate): NorthStar {
   const consumer = isConsumer(ws);
-  if (!consumer && (ws.revenue?.target?.amountUsd ?? 0) > 0) {
-    const f = computeForecast(ws, today);
+  // A target whose quarter has ended isn't this quarter's number (see rollover): fall back to the goal until a new one is set.
+  const f = !consumer && (ws.revenue?.target?.amountUsd ?? 0) > 0 ? computeForecast(ws, today) : null;
+  if (f?.hasTarget) {
     const text = `${money(f.commit)} of ${money(f.target)} committed`;
     return {
       kind: "revenue",

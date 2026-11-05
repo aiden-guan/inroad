@@ -11,7 +11,7 @@ import type { Move, SkipReason, Workspace } from "@/lib/domain/types";
 import { ruleLabel } from "@/lib/moves/rules";
 import { spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
-import { MoveBody, cardDraft, endsInBody } from "./move-body";
+import { MoveBody, cardDraft, endsInBody, writesNote } from "./move-body";
 import { KindIcon, SkipReasons } from "./parts";
 
 /**
@@ -44,7 +44,12 @@ export interface MoveCardProps {
   onSkip: (reason: SkipReason) => void;
   onSkipCancel: () => void;
   onSnooze: () => void;
+  /** Snooze until this person writes back (W). Absent when the card isn't about anyone. */
+  onWait?: () => void;
+  waitName?: string;
   onChanged: () => void;
+  /** The body finished opening: scroll it into view. */
+  onOpened?: () => void;
 }
 
 /**
@@ -54,14 +59,19 @@ export interface MoveCardProps {
 export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
   const { move } = p;
   const overdue = move.overdueDays ?? 0;
-  // Matches the page's A key: with a draft showing, A belongs to the composer's own button.
-  const hasDraft = !!cardDraft(p.ws, move);
+  // Matches the page's A key: with a draft (or a written note) showing, A belongs to the body's own button.
+  const hasDraft = !!cardDraft(p.ws, move) || writesNote(p.ws, move, p.now);
   const ownEnd = endsInBody(move);
   const exits = useContext(MoveExits);
   const present = useIsPresent();
   const leaving = present ? undefined : exits[move.id];
   return (
-    <div data-move={move.id} className={cn("group/move relative rounded-xl bg-surface shadow-xs ring-1 ring-inset transition-[box-shadow,background-color] duration-200 hover:shadow-sm", p.focused ? "ring-accent/40" : "ring-border")}>
+    // tabIndex -1: a click anywhere in the card keeps focus on the desk, where Today's single-key shortcuts live.
+    <div
+      data-move={move.id}
+      tabIndex={-1}
+      className={cn("group/move relative scroll-mt-24 scroll-mb-6 rounded-xl bg-surface shadow-xs outline-none ring-1 ring-inset transition-[box-shadow,background-color] duration-200 hover:shadow-sm", p.focused ? "ring-accent/40" : "ring-border")}
+    >
       <div className={cn("relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 md:px-5", p.focused && "draft-wash", p.expanded || p.skipOpen ? "rounded-t-xl" : "rounded-xl")}>
         <span
           className={cn(
@@ -110,6 +120,9 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
             transition={spring.smooth}
+            onAnimationComplete={(def) => {
+              if (typeof def === "object" && def && (def as { height?: unknown }).height === "auto") p.onOpened?.();
+            }}
             className="overflow-hidden"
           >
             <div className="border-t border-border px-4 pb-4 pt-5 md:px-5">
@@ -137,6 +150,11 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
                 <Button size="sm" variant="ghost" kbd={p.focused ? "S" : undefined} onClick={p.onSnooze}>
                   Tomorrow
                 </Button>
+                {p.onWait && (
+                  <Button size="sm" variant="ghost" kbd={p.focused ? "W" : undefined} onClick={p.onWait} title={`Put this away until ${p.waitName ?? "they"} reply, or 30 days`}>
+                    Until {p.waitName ?? "they"} {p.waitName ? "replies" : "reply"}
+                  </Button>
+                )}
               </div>
             </div>
           </motion.div>

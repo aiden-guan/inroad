@@ -19,9 +19,10 @@ import { CopyButton } from "@/components/ui/misc";
 import { SourceChip } from "@/components/ui/source";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Action } from "@/lib/domain/actions";
-import type { Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
+import type { Activity, Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { nextStep } from "@/lib/intros/rules";
-import { QUESTIONS_PER_CARD, RULE_PREFIX } from "@/lib/moves/rules";
+import { stepNudge } from "@/lib/moves/radar";
+import { QUESTIONS_PER_CARD, RULE_PREFIX, isRuleMove, type RuleKey } from "@/lib/moves/rules";
 import { playMatches } from "@/lib/plays/catalog";
 import { findPlay } from "@/lib/plays/recipes";
 import { ago, clip, clockTime, companyName, first, knowsDirectly, latestRun, plural, researchState, shortDay } from "@/lib/moves/util";
@@ -29,8 +30,9 @@ import { footerPromisesDeletion, jurisdictionFor } from "@/lib/quality/gates";
 import { BookBody } from "./book-body";
 import { CheckReplies, type CheckRepliesHandle } from "./check-replies";
 import { ConnectorListBody, ConnectorMarksBody } from "./connector-list";
-import { CONSUMER_RULES, ConsumerMoveBody } from "./consumer-moves";
+import { ConsumerMoveBody } from "./consumer-moves";
 import { DealResolver } from "./deal-resolver";
+import { AgentDraftBody, CheckBackBody, IntroBookBody, NextStepBody, NurtureBody, RemindBody } from "./follow-up-bodies";
 import { NetworkCompaniesBody } from "./network-companies";
 import { KnownUsersBody } from "@/components/onboarding/known-users";
 import { RunInline } from "./parts";
@@ -42,6 +44,10 @@ function IntroMoveBody({ move, ws, today, onComplete }: BodyProps) {
   const intro = move.subjectIds?.[0] ? ws.intros?.[move.subjectIds[0]] : undefined;
   if (!intro) return <Lead>This intro was removed.</Lead>;
   const next = nextStep(intro, ws, today);
+  // Waiting on a time: "Meeting booked" asks when, so Today doesn't ask how it went before it happened.
+  if (next.owner === "you" && intro.kind === "ask" && intro.stage === "introduced" && (next.action === "book" || next.action === "reply")) {
+    return <IntroBookBody intro={intro} next={next} today={today} onComplete={onComplete} />;
+  }
   if (next.owner !== "you" || !next.action) {
     return (
       <div className="space-y-3">
@@ -122,7 +128,18 @@ function findDraft(ws: Workspace, q: { domain?: string; personId?: string; modes
  * so its footer has no Done and A marks the nudge as sent.
  */
 export function endsInBody(move: Move): boolean {
-  return ruleOf(move) === "reply_book";
+  const rule = ruleOf(move);
+  // A parked deal's check-back, a due reminder and a check-back date end in what they decide: a bare Done used to drop them.
+  return isRuleMove(move) && (rule === "reply_book" || rule === "nurture" || rule === "remind" || rule === "check_back");
+}
+
+/** Cards whose body writes a note that A marks as sent: the radar's bumps, a check-back, a nudge on a late step. */
+export function writesNote(ws: Workspace, move: Move, now: number): boolean {
+  if (!isRuleMove(move)) return false;
+  const rule = ruleOf(move);
+  if (rule === "remind" || rule === "check_back" || rule === "nurture") return true;
+  const deal = rule === "next_step" && move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
+  return !!deal && !!stepNudge(ws, deal, new Date(now));
 }
 
 /**
@@ -161,7 +178,7 @@ function draftStepOf(pkg: OutreachPackage): number | undefined {
 }
 
 /** Shows the card's draft if one exists; otherwise one button that drafts it, with the live log in place. */
-function DraftOrCompose({
+export function DraftOrCompose({
   ws,
   move,
   focused,
@@ -171,7 +188,7 @@ function DraftOrCompose({
   label,
   lead,
 }: Pick<BodyProps, "ws" | "move" | "focused" | "onComplete" | "onChanged"> & {
-  compose: { domain: string; personId?: string; mode: OutreachPackage["mode"]; connectorId?: string; replyText?: string; angleId?: string };
+  compose: { domain: string; personId?: string; mode: OutreachPackage["mode"]; connectorId?: string; replyText?: string; angleId?: string; receivedAt?: string; referredBy?: string };
   label: string;
   lead?: ReactNode;
 }) {
@@ -196,302 +213,338 @@ function DraftOrCompose({
   );
 }
 
-export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandle?: Ref<CheckRepliesHandle> }) {
-  const { move, ws, today, onComplete } = props;
-  const rule = ruleOf(move);
-  const person = move.ref?.kind === "person" ? ws.people[move.ref.id] : undefined;
-  const domain = person?.accountDomain ?? (move.ref?.kind === "account" ? move.ref.id : undefined);
+type Props = BodyProps & { repliesHandle?: Ref<CheckRepliesHandle> };
+type Render = (p: Props) => ReactNode;
 
-  if (CONSUMER_RULES.has(rule)) return <ConsumerMoveBody rule={rule} {...props} />;
+/** The person and company a card is about. */
+function subject(p: Props): { person?: Person; domain?: string } {
+  const person = p.move.ref?.kind === "person" ? p.ws.people[p.move.ref.id] : undefined;
+  return { person, domain: person?.accountDomain ?? (p.move.ref?.kind === "account" ? p.move.ref.id : undefined) };
+}
 
-  switch (rule) {
-    case "reply":
-      return <ReplyBody {...props} />;
-    case "check_replies":
-      return <CheckReplies ws={ws} now={props.now} active={props.focused} onFinished={onComplete} onChanged={props.onChanged} ref={repliesHandle} />;
-    case "reply_book":
-      return <BookBody {...props} />;
-    case "referrals": {
-      const meeting = move.ref?.kind === "meeting" ? ws.meetings[move.ref.id] : undefined;
-      if (!meeting) break;
+const consumer = (rule: string): Render =>
+  function ConsumerBody(p) {
+    return <ConsumerMoveBody rule={rule} {...p} />;
+  };
+
+/** Cards that send something, drafted by compose: a first touch, a LinkedIn note, an intro ask. */
+const outreach = (rule: "cold_draft" | "signal" | "linkedin" | "linkedin_dm" | "intro_draft" | "warm_path" | "connector"): Render =>
+  function OutreachBody(p) {
+    const { move, ws } = p;
+    if (move.kind === "signal") return <ThreadBody {...p} />;
+    const { person, domain } = subject(p);
+    const target = domain ?? (move.ref?.kind === "account" ? move.ref.id : "");
+    if (!target) return null;
+    // Someone the founder knows: no intro ask and no cold template (it would count toward the cold cap).
+    if ((rule === "warm_path" || rule === "signal" || rule === "cold_draft") && person && knowsDirectly(person) && !cardDraft(ws, move)) return <DirectBody {...p} person={person} />;
+    const isIntro = rule === "warm_path" || rule === "connector" || rule === "intro_draft";
+    const connectorId = rule === "connector" ? move.subjectIds?.[0] : undefined;
+    return (
+      <DraftOrCompose
+        {...p}
+        compose={{ domain: target, personId: person?.id, mode: rule === "linkedin" || rule === "linkedin_dm" ? "linkedin" : isIntro ? "warm_intro" : "cold", connectorId }}
+        label={isIntro ? "Draft the intro ask" : "Draft the first touch"}
+        lead={
+          isIntro ? (
+            <>Warm paths reply far more often than cold. I&apos;ll draft a short ask plus a forwardable note they can pass on unchanged. Intro asks don&apos;t count toward your email cap.</>
+          ) : (
+            <>
+              I&apos;ll write one note on this signal with your point of view and a single question, cited line by line.
+              {move.source && (
+                <>
+                  {" "}
+                  <SourceChip url={move.source.url} publishedAt={move.source.date} />
+                </>
+              )}
+            </>
+          )
+        }
+      />
+    );
+  };
+
+const DEAL_GUIDANCE = {
+  single_threaded: "Won deals involve more people than lost ones. Ask your contact who else feels this problem and who signs off, then add them to the deal.",
+  unpaid: "An unpaid pilot past 30 days has turned into a free trial. Agree a fee, or a written conversion date and price tied to the success criteria.",
+  stalled: "A date on the calendar isn't the same as a deal that's moving. Send one line that re-confirms the next step and asks if anything changed on their side. Never just checking in.",
+  slipped: "A close date that keeps moving means the reason to buy now has gone soft. Ask what changed, who else has to say yes, and what would have to be true to sign by a date they'll agree to.",
+} as const;
+
+const guidance = (rule: keyof typeof DEAL_GUIDANCE): Render =>
+  function GuidanceBody({ move, ws, onComplete }) {
+    const deal = move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
+    if (!deal) return null;
+    return (
+      <div className="space-y-3">
+        <Lead>{DEAL_GUIDANCE[rule]}</Lead>
+        <Row>
+          <Link href={sheet(deal.accountDomain)} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+            Open {companyName(ws, deal.accountDomain)}
+          </Link>
+          <Button variant="ghost" onClick={onComplete}>
+            Handled
+          </Button>
+        </Row>
+      </div>
+    );
+  };
+
+const pilot = (rule: "pilot_roi" | "pilot_kickoff" | "pilot_convert" | "pilot_checkin" | "map_overdue"): Render =>
+  function PilotRuleBody(p) {
+    const deal = p.move.ref?.kind === "deal" ? p.ws.deals[p.move.ref.id] : undefined;
+    return deal ? <PilotBody {...p} deal={deal} rule={rule} /> : null;
+  };
+
+/** A link to the page that does the job, and a way to say it's done. */
+function Handoff({ lead, href, label, done, onComplete }: { lead: ReactNode; href?: string; label: ReactNode; done: string; onComplete: () => void }) {
+  return (
+    <div className="space-y-3">
+      <Lead>{lead}</Lead>
+      <Row>
+        {href && (
+          <Link href={href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+            {label}
+          </Link>
+        )}
+        <Button variant="ghost" onClick={onComplete}>
+          {done}
+        </Button>
+      </Row>
+    </div>
+  );
+}
+
+const intro: Render = (p) => <IntroMoveBody {...p} />;
+
+/**
+ * What each rule's card does when it opens. Keyed by every rule the engine has (`RuleKey`), so a new rule without a
+ * body fails to compile instead of falling through to a bare Open/Done. A render returns null when its subject is
+ * gone (a deleted deal), and the card says so with the generic body.
+ */
+const RULE_BODIES: Record<RuleKey, Render> = {
+  reply: (p) => <ReplyBody {...p} />,
+  check_replies: (p) => <CheckReplies ws={p.ws} now={p.now} active={p.focused} onFinished={p.onComplete} onChanged={p.onChanged} ref={p.repliesHandle} />,
+  reply_book: (p) => <BookBody {...p} />,
+  referrals: ({ move, ws }) => {
+    const meeting = move.ref?.kind === "meeting" ? ws.meetings[move.ref.id] : undefined;
+    if (!meeting) return null;
+    return (
+      <div className="space-y-3">
+        <Lead>They named people worth meeting. A note that says who sent you is the warmest first touch there is, and it doesn&apos;t need a dated signal.</Lead>
+        <ReferralLeads meeting={meeting} />
+      </div>
+    );
+  },
+  meeting_prep: (p) => <PrepBody {...p} />,
+  debrief: (p) => <DebriefBody {...p} />,
+  recap: (p) => <RecapBody {...p} />,
+  follow_up: (p) => {
+    const { person } = subject(p);
+    if (!person) return null;
+    return (
+      <DraftOrCompose
+        {...p}
+        compose={{ domain: person.accountDomain, personId: person.id, mode: "follow_up" }}
+        label="Draft the follow-up"
+        lead="Follow-ups are written when they're due, on a new angle: never a bump. Step 3 is the last email; after that, one blank LinkedIn invite."
+      />
+    );
+  },
+  remind: (p) => <RemindBody {...p} />,
+  check_back: (p) => <CheckBackBody {...p} />,
+  nurture: (p) => <NurtureBody {...p} />,
+  connector_list: (p) => <ConnectorListBody {...p} />,
+  connector_marks: (p) => <ConnectorMarksBody {...p} />,
+  cold_draft: outreach("cold_draft"),
+  signal: outreach("signal"),
+  linkedin: outreach("linkedin"),
+  linkedin_dm: outreach("linkedin_dm"),
+  intro_draft: outreach("intro_draft"),
+  warm_path: outreach("warm_path"),
+  connector: outreach("connector"),
+  intro_reply: intro,
+  intro_send: intro,
+  intro_close_loop: intro,
+  intro_nudge: intro,
+  intro_check_in: intro,
+  intro_book: intro,
+  intro_check_how: intro,
+  intro_thank: intro,
+  intro_let_go: intro,
+  switch_channel: ({ move, onComplete }) => (
+    <div className="space-y-3">
+      <Lead>Three emails went unanswered. Send one connection request with no note, then stop. If they accept, a short DM a day later is fine.</Lead>
+      <Row>
+        {move.href && (
+          <a href={move.href} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+            Open LinkedIn profile <ExternalLink className="size-3.5 opacity-70" />
+          </a>
+        )}
+        <Button variant="ghost" onClick={onComplete}>
+          I sent the invite
+        </Button>
+      </Row>
+    </div>
+  ),
+  next_step: (p) => (p.move.ref?.kind === "deal" && p.ws.deals[p.move.ref.id] ? <NextStepBody {...p} /> : null),
+  close_out: (p) => <CloseOutBody {...p} />,
+  single_threaded: guidance("single_threaded"),
+  unpaid: guidance("unpaid"),
+  stalled: guidance("stalled"),
+  slipped: guidance("slipped"),
+  pilot_roi: pilot("pilot_roi"),
+  pilot_kickoff: pilot("pilot_kickoff"),
+  pilot_convert: pilot("pilot_convert"),
+  pilot_checkin: pilot("pilot_checkin"),
+  map_overdue: pilot("map_overdue"),
+  review_monday: (p) => <ReviewBody ws={p.ws} kind="monday" weekStart={p.weekStart} />,
+  review_friday: (p) => <ReviewBody ws={p.ws} kind="friday" weekStart={p.weekStart} />,
+  review_monthly: (p) => <ReviewBody ws={p.ws} kind="monthly" weekStart={`${p.today.slice(0, 8)}01`} />,
+  refresh_bet: (p) => <RefreshBet ws={p.ws} onResult={p.onChanged} />,
+  bad_examples: (p) => <BadExamplesBody {...p} />,
+  research: (p) => {
+    const { domain } = subject(p);
+    const acc = domain ? p.ws.accounts[domain] : undefined;
+    if (!acc) return null;
+    if (acc.dossier) {
       return (
-        <div className="space-y-3">
-          <Lead>They named people worth meeting. A note that says who sent you is the warmest first touch there is, and it doesn&apos;t need a dated signal.</Lead>
-          <ReferralLeads meeting={meeting} />
-        </div>
+        <Row>
+          <Link href={sheet(acc.domain)} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
+            Read the {acc.name} dossier
+          </Link>
+          <Button variant="ghost" onClick={p.onComplete}>
+            Done
+          </Button>
+        </Row>
       );
     }
-    case "meeting_prep":
-      return <PrepBody {...props} />;
-    case "debrief":
-      return <DebriefBody {...props} />;
-    case "recap":
-      return <RecapBody {...props} />;
-    case "follow_up":
-      if (!person) break;
-      return (
-        <DraftOrCompose
-          {...props}
-          compose={{ domain: person.accountDomain, personId: person.id, mode: "follow_up" }}
-          label="Draft the follow-up"
-          lead="Follow-ups are written when they're due, on a new angle: never a bump. Step 3 is the last email; after that, one blank LinkedIn invite."
-        />
-      );
-    case "connector_list":
-      return <ConnectorListBody {...props} />;
-    case "connector_marks":
-      return <ConnectorMarksBody {...props} />;
-    case "cold_draft":
-    case "signal":
-    case "linkedin":
-    case "linkedin_dm":
-    case "intro_draft":
-    case "warm_path":
-    case "connector": {
-      if (move.kind === "signal") return <ThreadBody {...props} />;
-      const target = domain ?? (move.ref?.kind === "account" ? move.ref.id : "");
-      if (!target) break;
-      // Someone the founder knows: no intro ask and no cold template (it would count toward the cold cap).
-      if ((rule === "warm_path" || rule === "signal" || rule === "cold_draft") && person && knowsDirectly(person) && !cardDraft(ws, move)) {
-        return <DirectBody {...props} person={person} />;
-      }
-      const isIntro = rule === "warm_path" || rule === "connector" || rule === "intro_draft";
-      const connectorId = rule === "connector" ? move.subjectIds?.[0] : undefined;
-      return (
-        <DraftOrCompose
-          {...props}
-          compose={{ domain: target, personId: person?.id, mode: rule === "linkedin" || rule === "linkedin_dm" ? "linkedin" : isIntro ? "warm_intro" : "cold", connectorId }}
-          label={isIntro ? "Draft the intro ask" : "Draft the first touch"}
-          lead={
-            isIntro ? (
-              <>Warm paths reply far more often than cold. I&apos;ll draft a short ask plus a forwardable note they can pass on unchanged. Intro asks don&apos;t count toward your email cap.</>
-            ) : (
-              <>
-                I&apos;ll write one note on this signal with your point of view and a single question, cited line by line.
-                {move.source && (
-                  <>
-                    {" "}
-                    <SourceChip url={move.source.url} publishedAt={move.source.date} />
-                  </>
-                )}
-              </>
-            )
-          }
-        />
-      );
-    }
-    case "intro_reply":
-    case "intro_send":
-    case "intro_close_loop":
-    case "intro_nudge":
-    case "intro_check_in":
-    case "intro_book":
-    case "intro_check_how":
-    case "intro_thank":
-    case "intro_let_go":
-      return <IntroMoveBody {...props} />;
-    case "switch_channel":
-      return (
-        <div className="space-y-3">
-          <Lead>Three emails went unanswered. Send one connection request with no note, then stop. If they accept, a short DM a day later is fine.</Lead>
-          <Row>
-            {move.href && (
-              <a href={move.href} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-                Open LinkedIn profile <ExternalLink className="size-3.5 opacity-70" />
-              </a>
-            )}
-            <Button variant="ghost" onClick={onComplete}>
-              I sent the invite
-            </Button>
-          </Row>
-        </div>
-      );
-    case "next_step": {
-      const deal = move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
-      if (!deal) break;
-      return <DealResolver deal={deal} today={today} company={companyName(ws, deal.accountDomain)} onResolved={onComplete} />;
-    }
-    case "close_out":
-      return <CloseOutBody {...props} />;
-    case "single_threaded":
-    case "unpaid":
-    case "stalled":
-    case "slipped": {
-      const deal = move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
-      if (!deal) break;
-      return (
-        <div className="space-y-3">
-          <Lead>
-            {rule === "single_threaded"
-              ? "Won deals involve more people than lost ones. Ask your contact who else feels this problem and who signs off, then add them to the deal."
-              : rule === "unpaid"
-                ? "An unpaid pilot past 30 days has turned into a free trial. Agree a fee, or a written conversion date and price tied to the success criteria."
-                : rule === "stalled"
-                  ? "A date on the calendar isn't the same as a deal that's moving. Send one line that re-confirms the next step and asks if anything changed on their side. Never just checking in."
-                  : "A close date that keeps moving means the reason to buy now has gone soft. Ask what changed, who else has to say yes, and what would have to be true to sign by a date they'll agree to."}
-          </Lead>
-          <Row>
-            <Link href={sheet(deal.accountDomain)} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-              Open {companyName(ws, deal.accountDomain)}
-            </Link>
-            <Button variant="ghost" onClick={onComplete}>
-              Handled
-            </Button>
-          </Row>
-        </div>
-      );
-    }
-    case "pilot_roi":
-    case "pilot_kickoff":
-    case "pilot_convert":
-    case "pilot_checkin":
-    case "map_overdue": {
-      const deal = move.ref?.kind === "deal" ? ws.deals[move.ref.id] : undefined;
-      if (!deal) break;
-      return <PilotBody {...props} deal={deal} rule={rule} />;
-    }
-    case "review_monday":
-    case "review_friday":
-      return <ReviewBody ws={ws} kind={rule === "review_monday" ? "monday" : "friday"} weekStart={props.weekStart} />;
-    case "review_monthly":
-      return <ReviewBody ws={ws} kind="monthly" weekStart={`${today.slice(0, 8)}01`} />;
-    case "refresh_bet":
-      return <RefreshBet ws={ws} onResult={props.onChanged} />;
-    case "bad_examples":
-      return <BadExamplesBody {...props} />;
-    case "research": {
-      const acc = domain ? ws.accounts[domain] : undefined;
-      if (!acc) break;
-      if (acc.dossier) {
-        return (
-          <Row>
-            <Link href={sheet(acc.domain)} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-              Read the {acc.name} dossier
-            </Link>
-            <Button variant="ghost" onClick={onComplete}>
-              Done
-            </Button>
-          </Row>
-        );
-      }
-      return (
-        <div className="space-y-3">
-          <Lead>
-            Who to talk to at {acc.name}, why now, the angles worth writing, and what&apos;s still unknown. Every fact cited. Free sources first; web search only if they come back thin.
-          </Lead>
-          <RunInline workflow="dossier" args={{ domain: acc.domain }} runRef={{ kind: "account", id: acc.domain }} label={`Research ${acc.name}`} onResult={props.onChanged} hint="About 2 minutes" />
-        </div>
-      );
-    }
-    case "customer_referral":
-      // The note is written in code; recording that it went closes the card.
-      if (!domain || !ws.accounts[domain]) break;
-      return <ReferralAsk ws={ws} domain={domain} onClose={onComplete} inline />;
-    case "discover":
-      return (
-        <div className="space-y-3">
-          <Lead>I&apos;ll look for companies that fit your ICP and have a dated reason to talk now: a first hire for the role you replace, a raise, a launch. Warm paths first.</Lead>
-          <RunInline workflow="discovery" args={{ source: "weekly" }} label="Find companies" onResult={props.onChanged} hint="A few minutes, runs in the background" />
-        </div>
-      );
-    case "event_task":
-      return <EventBody {...props} />;
-    case "event_nearby": {
-      const ids = move.subjectIds ?? [];
-      const names = ids.map((id) => ws.people[id]?.name).filter(Boolean) as string[];
-      return (
-        <div className="space-y-3">
-          <Lead>
+    return (
+      <div className="space-y-3">
+        <Lead>Who to talk to at {acc.name}, why now, the angles worth writing, and what&apos;s still unknown. Every fact cited. Free sources first; web search only if they come back thin.</Lead>
+        <RunInline workflow="dossier" args={{ domain: acc.domain }} runRef={{ kind: "account", id: acc.domain }} label={`Research ${acc.name}`} onResult={p.onChanged} hint="About 2 minutes" />
+      </div>
+    );
+  },
+  // The note is written in code; recording that it went closes the card.
+  customer_referral: (p) => {
+    const { domain } = subject(p);
+    if (!domain || !p.ws.accounts[domain]) return null;
+    return <ReferralAsk ws={p.ws} domain={domain} onClose={p.onComplete} inline />;
+  },
+  discover: (p) => (
+    <div className="space-y-3">
+      <Lead>I&apos;ll look for companies that fit your ICP and have a dated reason to talk now: a first hire for the role you replace, a raise, a launch. Warm paths first.</Lead>
+      <RunInline workflow="discovery" args={{ source: "weekly" }} label="Find companies" onResult={p.onChanged} hint="A few minutes, runs in the background" />
+    </div>
+  ),
+  event_task: (p) => <EventBody {...p} />,
+  event_nearby: ({ move, ws, onComplete }) => {
+    const names = (move.subjectIds ?? []).map((id) => ws.people[id]?.name).filter(Boolean) as string[];
+    return (
+      <Handoff
+        lead={
+          <>
             {names.slice(0, 4).join(", ")}
-            {names.length > 4 ? ` and ${names.length - 4} more` : ""} {names.length === 1 ? "is" : "are"} close enough to come and {names.length === 1 ? "isn't" : "aren't"} on the guest list.
-            People you already know or are selling to fill a table first, and a seat moves a deal faster than another call.
-          </Lead>
-          <Row>
-            {move.href && (
-              <Link href={move.href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-                See them on the map <ArrowUpRight className="size-3.5 opacity-70" />
-              </Link>
-            )}
-            <Button variant="ghost" onClick={onComplete}>
-              Not this time
-            </Button>
-          </Row>
-        </div>
-      );
-    }
-    case "asset":
-      return (
-        <div className="space-y-3">
-          <Lead>
-            A draft offers something you don&apos;t have yet, and a cold note can only offer an approved asset. Write it once in the Playbook and approve it, and every draft can attach it. Or edit the offer out of the draft.
-          </Lead>
-          <Row>
-            {move.href && (
-              <Link href={move.href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-                Write it in the Playbook <ArrowUpRight className="size-3.5 opacity-70" />
-              </Link>
-            )}
-            <Button variant="ghost" onClick={onComplete}>
-              Done
-            </Button>
-          </Row>
-        </div>
-      );
-    case "room":
-      return (
-        <div className="space-y-3">
-          <Lead>
-            A room of peers gets busy buyers to show up when a cold note wouldn&apos;t. Pick one live question they argue about; no slides and no pitch. Start virtual, and host a dinner only with a co-host or a customer
-            who hosts.
-          </Lead>
-          <Row>
-            {move.href && (
-              <Link href={move.href} className="inline-flex h-8 items-center gap-2 rounded-sm bg-primary px-3 text-[13px] font-medium text-primary-fg shadow-btn hover:bg-primary-hover active:scale-[0.97]">
-                Plan it <ArrowUpRight className="size-3.5 opacity-70" />
-              </Link>
-            )}
-            <Button variant="ghost" onClick={onComplete}>
-              Not this week
-            </Button>
-          </Row>
-        </div>
-      );
-    case "post":
-      return <PostBody {...props} />;
-    case "first_three":
-      return <FirstThreeBody {...props} />;
-    case "questions":
-      return <QuestionsBody {...props} />;
-    case "play":
-      return <PlayBody {...props} />;
-    case "question":
-      return <QuestionBody {...props} />;
-    case "pov":
-      return <PovBody {...props} />;
-    case "network":
-    case "connectors":
-      return <NetworkBody {...props} />;
-    case "network_companies":
-      return <NetworkCompaniesBody {...props} />;
-    case "known_users":
-      return <KnownUsersBody ws={ws} onComplete={onComplete} onChanged={props.onChanged} />;
-    case "import":
-      return (
-        <div className="space-y-3">
-          <Lead>Export Connections.csv from LinkedIn (Settings → Data privacy → Get a copy of your data). I screen it in code for people at companies that fit, and names never go to the model in bulk.</Lead>
-          <ImportFlow
-            kind="linkedin"
-            onDone={() => {
-              props.onChanged();
-              onComplete();
-            }}
-          />
-          <Quiet href="/integrations?import=linkedin">Open the importer</Quiet>
-        </div>
-      );
-  }
+            {names.length > 4 ? ` and ${names.length - 4} more` : ""} {names.length === 1 ? "is" : "are"} close enough to come and {names.length === 1 ? "isn't" : "aren't"} on the guest list. People
+            you already know or are selling to fill a table first, and a seat moves a deal faster than another call.
+          </>
+        }
+        href={move.href}
+        label={
+          <>
+            See them on the map <ArrowUpRight className="size-3.5 opacity-70" />
+          </>
+        }
+        done="Not this time"
+        onComplete={onComplete}
+      />
+    );
+  },
+  asset: ({ move, onComplete }) => (
+    <Handoff
+      lead="A draft offers something you don't have yet, and a cold note can only offer an approved asset. Write it once in the Playbook and approve it, and every draft can attach it. Or edit the offer out of the draft."
+      href={move.href}
+      label={
+        <>
+          Write it in the Playbook <ArrowUpRight className="size-3.5 opacity-70" />
+        </>
+      }
+      done="Done"
+      onComplete={onComplete}
+    />
+  ),
+  room: ({ move, onComplete }) => (
+    <Handoff
+      lead="A room of peers gets busy buyers to show up when a cold note wouldn't. Pick one live question they argue about; no slides and no pitch. Start virtual, and host a dinner only with a co-host or a customer who hosts."
+      href={move.href}
+      label={
+        <>
+          Plan it <ArrowUpRight className="size-3.5 opacity-70" />
+        </>
+      }
+      done="Not this week"
+      onComplete={onComplete}
+    />
+  ),
+  post: (p) => <PostBody {...p} />,
+  first_three: (p) => <FirstThreeBody {...p} />,
+  questions: (p) => <QuestionsBody {...p} />,
+  play: (p) => <PlayBody {...p} />,
+  question: (p) => <QuestionBody {...p} />,
+  pov: (p) => <PovBody {...p} />,
+  network: (p) => <NetworkBody {...p} />,
+  connectors: (p) => <NetworkBody {...p} />,
+  network_companies: (p) => <NetworkCompaniesBody {...p} />,
+  known_users: (p) => <KnownUsersBody ws={p.ws} onComplete={p.onComplete} onChanged={p.onChanged} />,
+  import: (p) => (
+    <div className="space-y-3">
+      <Lead>Export Connections.csv from LinkedIn (Settings → Data privacy → Get a copy of your data). I screen it in code for people at companies that fit, and names never go to the model in bulk.</Lead>
+      <ImportFlow
+        kind="linkedin"
+        onDone={() => {
+          p.onChanged();
+          p.onComplete();
+        }}
+      />
+      <Quiet href="/integrations?import=linkedin">Open the importer</Quiet>
+    </div>
+  ),
+  // Consumer companies (./consumer-moves).
+  paid_hold: consumer("paid_hold"),
+  partner_reply: consumer("partner_reply"),
+  partner_disclosure: consumer("partner_disclosure"),
+  partner_brief: consumer("partner_brief"),
+  growth_log: consumer("growth_log"),
+  review_growth: consumer("review_growth"),
+  growth_focus: consumer("growth_focus"),
+  user_talks: consumer("user_talks"),
+  partner_follow_up: consumer("partner_follow_up"),
+  experiment_readout: consumer("experiment_readout"),
+  partner_send: consumer("partner_send"),
+  partner_draft: consumer("partner_draft"),
+  referral_ask: consumer("referral_ask"),
+  partner_results: consumer("partner_results"),
+  pmf_survey: consumer("pmf_survey"),
+  partner_let_go: consumer("partner_let_go"),
+  partner_find: consumer("partner_find"),
+};
 
-  // Moves from other surfaces, or a card whose subject was deleted.
+/** Cards other surfaces create (webhooks, the agent API): each has a body too. */
+const OTHER_BODIES: Record<"inbound.reply" | "inbound.booking" | "agent.submit_draft", Render> = {
+  // A sequencer's webhook or poll: the same reply card as Today's own, so the answer is drafted in place.
+  "inbound.reply": (p) => <ReplyBody {...p} />,
+  "inbound.booking": ({ move, onComplete }) => <Handoff lead={move.why} label={null} done="I've prepped" onComplete={onComplete} />,
+  // A draft an outside agent submitted: the composer, so A approves it like any other draft.
+  "agent.submit_draft": (p) => <AgentDraftBody {...p} />,
+};
+
+export function MoveBody(props: Props) {
+  const { move, onComplete } = props;
+  const render = isRuleMove(move) ? RULE_BODIES[ruleOf(move) as RuleKey] : OTHER_BODIES[move.rule as keyof typeof OTHER_BODIES];
+  const body = render?.(props);
+  if (body) return body;
+
+  // Moves from a surface this file doesn't know, or a card whose subject was deleted.
   return (
     <div className="space-y-3">
       <Lead>{move.why}</Lead>
@@ -512,64 +565,13 @@ export function MoveBody({ repliesHandle, ...props }: BodyProps & { repliesHandl
 /* ───────────────────────────── bodies ───────────────────────────── */
 
 function ReplyBody(props: BodyProps) {
-  const { move, ws, now, onComplete } = props;
-  const { dispatch } = useWorkspace();
+  const { move, ws, now } = props;
   const reply = ws.activities.find((a) => a.id === move.activityId);
   const person = reply?.personId ? ws.people[reply.personId] : undefined;
   if (!reply || !person) return <Lead>This reply is no longer in your workspace.</Lead>;
   const name = first(person.name);
 
-  if (reply.sentiment === "unsubscribe") {
-    const email = person.email ?? person.contactPaths.find((c) => c.value.includes("@"))?.value;
-    // EU, UK and unknown places got the footer that promises deletion on "stop": that comes first there.
-    const promised = footerPromisesDeletion(jurisdictionFor(ws, person, person.accountDomain).value);
-    // A connected sequencer may have suppressed them already: say so instead of adding them twice.
-    const suppressed = person.doNotContact || (!!email && ws.suppression.some((x) => x.email?.toLowerCase() === email.toLowerCase()));
-    const suppress = async () => {
-      const ok = await dispatch([
-        ...(email ? [{ type: "suppression.add" as const, entry: { id: newId("sup"), email: email.toLowerCase(), reason: "unsubscribe" as const, at: nowISO() } }] : []),
-        { type: "person.upsert", person: { ...person, doNotContact: true } },
-      ]);
-      if (ok) onComplete();
-    };
-    const onList = (
-      <span className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-2">
-        <Check className="size-3.5 text-success" aria-hidden /> On your suppression list. I won&apos;t draft to them again.
-      </span>
-    );
-    if (promised) {
-      return (
-        <div className="space-y-3">
-          <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
-          <Lead>Your footer told {name} you&apos;d delete their details if they asked, so that&apos;s the answer to a stop. Don&apos;t reply.</Lead>
-          <ForgetPerson person={person} reveal={false} />
-          {suppressed ? (
-            onList
-          ) : (
-            <Button variant="secondary" size="sm" onClick={() => void suppress()}>
-              Only suppress {name}
-            </Button>
-          )}
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-3">
-        <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />
-        <Lead>They asked not to be contacted. Suppressing them cancels every draft and keeps them out of future lists. Don&apos;t reply.</Lead>
-        <Row>
-          {suppressed ? (
-            onList
-          ) : (
-            <Button variant="primary" onClick={() => void suppress()}>
-              Suppress {name}
-            </Button>
-          )}
-          <DeleteDetails person={person} />
-        </Row>
-      </div>
-    );
-  }
+  if (reply.sentiment === "unsubscribe") return <UnsubscribeBody reply={reply} person={person} now={now} onComplete={props.onComplete} />;
 
   return (
     <div className="space-y-3">
@@ -580,6 +582,65 @@ function ReplyBody(props: BodyProps) {
         label={`Draft a reply to ${name}`}
         lead={reply.sentiment === "positive" ? "They're interested. Reply within the hour, offer two specific times, and keep it under 80 words." : undefined}
       />
+    </div>
+  );
+}
+
+/**
+ * "Stop": suppress them (one click), and where the footer promised deletion, offer that first. Never a reply. Shared
+ * with the replies lane.
+ */
+export function UnsubscribeBody({ reply, person, now, onComplete, quote = true }: { reply: Activity; person: Person; now: number; onComplete: () => void; quote?: boolean }) {
+  const { ws, dispatch } = useWorkspace();
+  if (!ws) return null;
+  const name = first(person.name);
+  const email = person.email ?? person.contactPaths.find((c) => c.value.includes("@"))?.value;
+  // EU, UK and unknown places got the footer that promises deletion on "stop": that comes first there.
+  const promised = footerPromisesDeletion(jurisdictionFor(ws, person, person.accountDomain).value);
+  // A connected sequencer may have suppressed them already: say so instead of adding them twice.
+  const suppressed = person.doNotContact || (!!email && ws.suppression.some((x) => x.email?.toLowerCase() === email.toLowerCase()));
+  const suppress = async () => {
+    const ok = await dispatch([
+      ...(email ? [{ type: "suppression.add" as const, entry: { id: newId("sup"), email: email.toLowerCase(), reason: "unsubscribe" as const, at: nowISO() } }] : []),
+      { type: "person.upsert", person: { ...person, doNotContact: true } },
+    ]);
+    if (ok) onComplete();
+  };
+  const onList = (
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-2">
+      <Check className="size-3.5 text-success" aria-hidden /> On your suppression list. I won&apos;t draft to them again.
+    </span>
+  );
+  if (promised) {
+    return (
+      <div className="space-y-3">
+        {quote && <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />}
+        <Lead>Your footer told {name} you&apos;d delete their details if they asked, so that&apos;s the answer to a stop. Don&apos;t reply.</Lead>
+        <ForgetPerson person={person} reveal={false} />
+        {suppressed ? (
+          onList
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => void suppress()}>
+            Only suppress {name}
+          </Button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {quote && <Quote text={reply.body ?? reply.summary} who={`${person.name} · ${ago(reply.at, new Date(now))}`} />}
+      <Lead>They asked not to be contacted. Suppressing them cancels every draft and keeps them out of future lists. Don&apos;t reply.</Lead>
+      <Row>
+        {suppressed ? (
+          onList
+        ) : (
+          <Button variant="primary" onClick={() => void suppress()}>
+            Suppress {name}
+          </Button>
+        )}
+        <DeleteDetails person={person} />
+      </Row>
     </div>
   );
 }
@@ -598,7 +659,7 @@ function DeleteDetails({ person }: { person: Person }) {
 }
 
 /** Words from a buyer: Inter (it's theirs, not ours), a hairline rule in ink, never the agent's blue. */
-function Quote({ text, who }: { text: string; who: string }) {
+export function Quote({ text, who }: { text: string; who: string }) {
   return (
     <figure className="border-l-2 border-border-strong pl-3">
       <blockquote className="whitespace-pre-wrap text-[14px] leading-[22px] text-fg">{text}</blockquote>

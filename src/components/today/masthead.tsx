@@ -1,92 +1,103 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { RotateCw } from "lucide-react";
+import { ArrowUpRight, CornerDownLeft, RotateCw } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AiBadge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
-import { TextReveal } from "@/components/ui/fx";
-import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { MarginNote, SourceChip } from "@/components/ui/source";
 import { cn } from "@/lib/client/cn";
 import { age } from "@/lib/client/format";
-import type { Brief, EntityRef, Scoreboard, Workspace } from "@/lib/domain/types";
+import type { Brief, EntityRef, Workspace } from "@/lib/domain/types";
+import type { NorthStar } from "@/lib/moves/north-star";
+import type { Since, SinceFact } from "@/lib/moves/since";
 import { ease } from "@/lib/motion";
-import { money } from "@/lib/revenue/forecast";
 
-const USD = { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 } as const;
+/** Where a line or a fact goes when clicked: a card on the desk (opened in place), else a page. */
+export interface Target {
+  moveId?: string;
+  replyIds?: string[];
+  href?: string;
+}
 
 /**
- * The masthead: the date in Newsreader, one greeting line, 0–3 cited lines worth knowing, and ONE
- * number strip. On the first open of the day it reveals in ≤600ms; afterwards it's instant.
+ * The masthead, kept short so the desk starts above the fold: the date as an eyebrow, the greeting, the one number
+ * (the same north star the sidebar shows), what changed since the last visit (code, each fact a link), then the
+ * brief's lines, each one opening the card that acts on it.
  */
 export function Masthead({
   ws,
   dateLabel,
   brief,
   greeting,
-  scoreboard,
+  star,
+  since,
   reveal,
   working,
   preparing,
   error,
   onRefresh,
-  revenue,
+  targetOf,
+  onOpen,
+  onSeen,
+  tools,
 }: {
-  /** Set when there's a revenue target: the second number becomes commit against it. */
-  revenue?: { commit: number; target: number; label: string } | null;
   ws: Workspace;
   dateLabel: string;
   brief: Brief | undefined;
   greeting: string;
-  scoreboard: Scoreboard;
+  star: NorthStar;
+  since: Since | null;
   reveal: boolean;
   working: boolean;
   preparing: boolean;
   error: string | null;
   onRefresh: () => void;
+  /** The card or page a brief line or a since-fact points to. */
+  targetOf: (x: { ref?: EntityRef; domain?: string; replyIds?: string[]; loose?: boolean }) => Target;
+  onOpen: (t: Target) => void;
+  /** "Since …" seen: start counting from now. */
+  onSeen: () => void;
+  /** Waiting on, What I've learned. */
+  tools?: ReactNode;
 }) {
   const reduce = useReducedMotion();
-  const [conversations, target] = scoreboard.conversations;
-  const [wins, goal] = scoreboard.goalProgress;
-  const consumer = ws.company?.market === "consumer";
-  // A revenue target is a business's number; a consumer company's is its growth goal, whatever is still on file.
-  const commit = consumer ? null : revenue;
-  // Numbers roll from zero on the reveal only.
+  // The bar fills from empty on the morning reveal only.
   const [rolled, setRolled] = useState(!reveal);
   useEffect(() => {
     if (rolled) return;
     const t = setTimeout(() => setRolled(true), 180);
     return () => clearTimeout(t);
   }, [rolled]);
-
   const matters = brief?.matters ?? [];
+  const ratio = star.max > 0 ? Math.min(1, star.value / star.max) : 0;
 
   return (
     <header className="relative">
-      <p className="page-eyebrow mb-4">Your daily brief</p>
-      <div className="flex items-start gap-3">
-        <h1 className="min-w-0 flex-1 text-balance font-serif text-[38px] leading-[42px] tracking-[-0.035em] text-fg [font-variation-settings:'opsz'_72] md:text-[48px] md:leading-[52px]">
-          <TextReveal key={dateLabel} text={dateLabel} play={reveal && !reduce} step={70} />
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="page-eyebrow min-w-0 truncate">
+          <span className="truncate">{dateLabel}</span>
+          <span aria-hidden className="text-fg-4">·</span>
+          <span className="truncate">Your daily brief</span>
         </h1>
         <button
           onClick={onRefresh}
           aria-label="Refresh moves"
           title="Refresh moves"
           disabled={preparing}
-          className="mt-2 inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-fg-3 ring-1 ring-inset ring-border transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.94] disabled:opacity-60"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-fg-3 ring-1 ring-inset ring-border transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.94] disabled:opacity-60"
         >
-          <RotateCw className={cn("size-4", preparing && "animate-spin [animation-duration:900ms]")} />
+          <RotateCw className={cn("size-3.5", preparing && "animate-spin [animation-duration:900ms]")} />
         </button>
       </div>
 
-      <div className="mt-5 flex items-start gap-2.5">
+      <div className="mt-2.5 flex items-start gap-2.5">
         <span className="mt-[7px] flex shrink-0 items-center" title="Your Head of GTM">
           <Orb state={working ? "working" : "idle"} size={14} />
         </span>
-        <p className="min-w-0 font-serif text-[19px] leading-[28px] text-fg [font-variation-settings:'opsz'_24]" aria-live="polite">
+        <p className="min-w-0 font-serif text-[20px] leading-[28px] text-fg [font-variation-settings:'opsz'_24]" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={greeting}
@@ -103,67 +114,66 @@ export function Masthead({
         </p>
       </div>
 
-      <AnimatePresence initial={false}>
-        {matters.length > 0 && (
-          <motion.ul
-            key="matters"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="mt-4 space-y-2.5 pl-[24px]"
-            aria-label="Worth knowing"
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 sm:pl-[24px]">
+        <Link href={star.href} title={`${star.label}. Open ${star.href === "/revenue" ? "the forecast" : star.href === "/growth" ? "Growth" : "your plan"}`} className="group inline-flex min-w-0 items-center gap-2.5 text-[13px] leading-5 text-fg-2">
+          <span
+            role="progressbar"
+            aria-label={star.label}
+            aria-valuenow={Math.round(ratio * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={star.headline}
+            className="progress-track w-14 shrink-0"
           >
-            {matters.map((m) => (
+            <span className="progress-fill block" style={{ transform: `scaleX(${rolled ? ratio : 0})` }} />
+          </span>
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-fg tnum group-hover:underline group-hover:underline-offset-4">{star.headline}</span>
+            {star.details.map((d) => (
+              <span key={d} className="tnum text-fg-3">
+                {" "}
+                · {d}
+              </span>
+            ))}
+          </span>
+        </Link>
+        {tools && <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">{tools}</div>}
+      </div>
+
+      {since && since.facts.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:pl-[24px]" aria-label={`${since.label}: what changed`} role="group">
+          <span className="mr-0.5 text-[12px] text-fg-3">{since.label}</span>
+          {since.facts.map((f) => (
+            <FactChip key={f.key} ws={ws} fact={f} target={targetOf({ ref: f.ref, domain: f.domain, replyIds: f.replyIds })} onOpen={onOpen} />
+          ))}
+          <button type="button" onClick={onSeen} className="ml-0.5 h-6 rounded-xs px-1 text-[12px] text-fg-3 transition-colors hover:text-fg" title="Count from now">
+            Clear
+          </button>
+        </div>
+      )}
+
+      {matters.length > 0 && (
+        <ul className="mt-3 space-y-1 sm:pl-[24px]" aria-label="Worth knowing">
+          {matters.map((m) => {
+            const t = targetOf({ ref: m.ref, loose: true });
+            return (
               <li key={m.text} className="relative">
-                <p className="max-w-[62ch] font-serif text-[16px] leading-[25px] text-fg-2">
-                  {m.text}
-                  {m.url ? (
-                    <span className="xl:hidden">
-                      {" "}
-                      <SourceChip url={m.url} publishedAt={m.date} quote={m.quote} />
-                    </span>
-                  ) : (
-                    m.ref && (
-                      <span className="xl:hidden">
-                        {" "}
-                        <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} />
-                      </span>
-                    )
+                <div className="flex items-start gap-2">
+                  <MatterLine text={m.text} target={t} onOpen={onOpen} />
+                  {(m.url || m.ref) && (
+                    <span className="mt-[3px] shrink-0 xl:hidden">{m.url ? <SourceChip url={m.url} publishedAt={m.date} quote={m.quote} /> : m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} />}</span>
                   )}
-                </p>
+                </div>
                 {m.url ? (
                   <MarginNote url={m.url} publishedAt={m.date} quote={m.quote} className="absolute left-[calc(100%+40px)] top-1 hidden w-[200px] xl:block" />
                 ) : (
                   m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} margin className="absolute left-[calc(100%+40px)] top-1 hidden w-[200px] xl:block" />
                 )}
               </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-
-      <Link
-        href={commit ? "/revenue" : consumer ? "/growth" : "/playbook"}
-        className="group mt-7 grid grid-cols-2 overflow-hidden rounded-xl bg-surface shadow-xs ring-1 ring-inset ring-border transition-shadow hover:shadow-sm"
-        title={commit ? "Open the forecast" : consumer ? "Open Growth" : "Open your plan"}
-      >
-        {[
-          { label: consumer ? "User conversations this week" : "Conversations this week", value: conversations, max: target, usd: false },
-          commit ? { label: `Commit toward ${commit.label}`, value: commit.commit, max: commit.target, usd: true } : { label: consumer ? `${ws.goal.targetLabel.charAt(0).toUpperCase()}${ws.goal.targetLabel.slice(1)} toward your goal` : "Pilots toward your goal", value: wins, max: goal, usd: false },
-        ].map((metric, i) => (
-          <div key={metric.label} className={cn("px-4 py-4 md:px-5", i > 0 && "border-l border-border")}>
-            <span className="block truncate text-[11px] leading-4 text-fg-3 md:text-[12px]">{metric.label}</span>
-            <span className="mt-2 flex items-baseline gap-1.5">
-              <Num value={rolled ? metric.value : 0} format={metric.usd ? USD : undefined} className="text-[25px] font-medium leading-8 tracking-[-0.04em] text-fg" />
-              <span className="font-mono text-[11px] text-fg-3">/ {metric.usd ? money(metric.max) : metric.max}</span>
-            </span>
-            <span role="progressbar" aria-label={metric.label} aria-valuenow={Math.min(metric.value, Math.max(1, metric.max))} aria-valuemin={0} aria-valuemax={Math.max(1, metric.max)} aria-valuetext={`${metric.value} of ${metric.max}`} className="progress-track mt-3 block">
-              <span className="progress-fill block" style={{ transform: `scaleX(${rolled ? Math.min(1, metric.value / Math.max(1, metric.max)) : 0})` }} />
-            </span>
-          </div>
-        ))}
-      </Link>
+            );
+          })}
+        </ul>
+      )}
 
       {error && (
         <p className="mt-3 text-[12.5px] text-danger">
@@ -174,6 +184,77 @@ export function Masthead({
         </p>
       )}
     </header>
+  );
+}
+
+/** A brief line: it opens the card that acts on it, or the record it's about. */
+function MatterLine({ text, target, onOpen }: { text: string; target: Target; onOpen: (t: Target) => void }) {
+  const body = (
+    <>
+      <span className="line-clamp-2 font-serif text-[15px] leading-[22px] text-fg-2 transition-colors group-hover:text-fg">{text}</span>
+      {(target.moveId || target.replyIds) && (
+        <span className="ml-auto mt-0.5 hidden shrink-0 items-center gap-1 text-[11.5px] text-fg-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 md:inline-flex">
+          Open <CornerDownLeft aria-hidden className="size-3" />
+        </span>
+      )}
+    </>
+  );
+  const cls = "group flex min-w-0 flex-1 items-start gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
+  if (target.moveId || target.replyIds) {
+    return (
+      <button type="button" onClick={() => onOpen(target)} className={cls} title="Open the card that acts on this">
+        {body}
+      </button>
+    );
+  }
+  if (target.href) {
+    return (
+      <Link href={target.href} className={cls}>
+        {body}
+      </Link>
+    );
+  }
+  return <span className="min-w-0 flex-1 font-serif text-[15px] leading-[22px] text-fg-2">{text}</span>;
+}
+
+const DOT: Record<SinceFact["kind"], string> = {
+  replies: "bg-accent",
+  booked: "bg-success",
+  moved: "bg-warning",
+  canceled: "bg-danger",
+  stage: "bg-fg-2",
+  signals: "bg-info",
+};
+
+/** One thing that changed since the last visit, linking to its card or its record. */
+function FactChip({ ws, fact, target, onOpen }: { ws: Workspace; fact: SinceFact; target: Target; onOpen: (t: Target) => void }) {
+  const cls = "inline-flex h-6 max-w-full items-center gap-1.5 rounded-xs bg-surface px-1.5 text-[12px] text-fg-2 ring-1 ring-inset ring-border transition-[background-color,color] duration-150 hover:bg-bg-subtle hover:text-fg";
+  const inner = (
+    <>
+      <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT[fact.kind])} />
+      {fact.domain && fact.kind !== "replies" && <Favicon domain={fact.domain} name={ws.accounts[fact.domain]?.name} size={12} className="ring-0" />}
+      <span className="truncate">{fact.text}</span>
+    </>
+  );
+  if (target.moveId || target.replyIds) {
+    return (
+      <button type="button" className={cls} title={fact.detail} onClick={() => onOpen(target)}>
+        {inner}
+      </button>
+    );
+  }
+  if (target.href) {
+    return (
+      <Link href={target.href} className={cls} title={fact.detail}>
+        {inner}
+        <ArrowUpRight aria-hidden className="size-3 shrink-0 opacity-60" />
+      </Link>
+    );
+  }
+  return (
+    <span className={cls} title={fact.detail}>
+      {inner}
+    </span>
   );
 }
 

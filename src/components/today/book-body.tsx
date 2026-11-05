@@ -116,6 +116,8 @@ function Booking({ loop, move, ws, now, today, focused, onComplete, onSnooze }: 
   };
 
   const park = async () => {
+    // A park with no date would never come back.
+    if (!until || until < today) return;
     const parked = `Parked until ${new Date(`${until}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. I'll bring ${name} back then.`;
     if (deal) {
       if (!(await dispatch({ type: "deal.setStage", id: deal.id, stage: "nurture", nurtureUntil: until, at: nowISO() }))) return;
@@ -236,7 +238,7 @@ function Booking({ loop, move, ws, now, today, focused, onComplete, onSnooze }: 
             <Label htmlFor={`${id}-until`}>Check back on</Label>
             <Input id={`${id}-until`} type="date" value={until} min={today} onChange={(e) => setUntil(e.target.value)} className="w-40 font-mono text-[12.5px]" />
           </div>
-          <Button size="sm" variant="primary" onClick={() => void park()}>
+          <Button size="sm" variant="primary" disabled={!until || until < today} onClick={() => void park()}>
             Park it
           </Button>
         </div>

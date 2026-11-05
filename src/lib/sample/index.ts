@@ -30,6 +30,7 @@ import { addSamplePlays } from "./plays";
 import { ceoUpdate, lastWeekSnapshot, revenueTarget } from "./revenue";
 import { runs, runSteps, usage } from "./runs";
 import { studio } from "./studio";
+import { seedToday } from "./today";
 
 /**
  * Ledgerline: a fictional seed-stage startup that reconciles usage-billing data with invoices for finance
@@ -37,7 +38,7 @@ import { studio } from "./studio";
  * hiring her Head of GTM. Every company is fictional and on the reserved `.example` TLD. Every date is
  * relative to `now`, so the sample always looks current.
  *
- * `moves` is left empty on purpose: Today computes them from this state.
+ * `moves` holds only a few skipped cards from past weeks (./today): Today computes the rest from this state.
  */
 export function sampleWorkspace(now = new Date()): Workspace {
   return withLint(assemble(now));
@@ -115,6 +116,8 @@ function assemble(now: Date): Workspace {
   };
   // The play Priya wrote on day one, with the two prospects it fires on today (src/lib/sample/plays.ts).
   addSamplePlays(ws, c);
+  // Today's triage: a referral in the replies lane, a reminder that came due, skips Today has learned from.
+  seedToday(ws, c);
   // Written last: the update's numbers are computed from the finished workspace.
   ws.revenue!.updates = [ceoUpdate(ws, c)];
   return ws;

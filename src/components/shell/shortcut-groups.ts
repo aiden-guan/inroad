@@ -31,12 +31,15 @@ export function shortcutGroups(mac: boolean, market: Market = "b2b"): ShortcutGr
     {
       title: "Today",
       rows: [
-        [["J"], "Next move"],
-        [["K"], "Previous move"],
+        [["J"], "Next reply or move"],
+        [["K"], "Previous reply or move"],
         [["Enter"], "Open it"],
-        [["A"], "Done (on a booking card: the nudge is sent)"],
+        [["1", "2", "3", "4"], "On a reply: the action with that number"],
+        [["R"], "Jump to your replies"],
+        [["A"], "Done (on a draft, a booking card or a written note: mark it sent)"],
         [["X"], "Skip, then pick a reason"],
         [["S"], "Tomorrow"],
+        [["W"], "Put it away until they reply"],
         [["Esc"], "Close"],
       ],
     },
