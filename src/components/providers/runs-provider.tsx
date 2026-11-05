@@ -148,7 +148,9 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         if (!res.ok) throw Object.assign(new Error(body?.error ?? "Couldn't start that."), { code: body?.code as string | undefined });
         const state = fromSummary(body.run as RunSummary);
         options.current.set(state.id, opts);
-        store.setLocal({ ...store.local(), [state.id]: state });
+        // A double-click gets the run already going back from the server: keep its state (and work log) as it is.
+        const known = store.local();
+        if (!known[state.id]) store.setLocal({ ...known, [state.id]: state });
         attach(state.id, state.title);
         return state;
       } catch (e) {

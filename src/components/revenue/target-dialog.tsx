@@ -13,6 +13,7 @@ import { addDays } from "@/lib/domain/ids";
 import type { RevenueTarget } from "@/lib/domain/types";
 import { money, shortDay } from "@/lib/revenue/forecast";
 import { endedTarget, quarterOf, type Observed, type RevenueStats } from "@/lib/revenue/stats";
+import { parseAmount } from "@/lib/domain/money";
 
 type PeriodChoice = "this" | "next" | "custom";
 
@@ -21,7 +22,8 @@ function nextQuarter(today: string) {
 }
 
 function num(v: string): number | undefined {
-  const n = Number(v.replace(/[$,\s%x×]/gi, ""));
+  // "$150K", "1.2M" and "150,000" read as amounts; a trailing "%", "x" or "×" is allowed on rates and coverage.
+  const n = parseAmount(v.replace(/[%x×]/gi, "")) ?? Number(v.replace(/[$,\s%x×]/gi, ""));
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
