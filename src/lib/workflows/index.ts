@@ -21,6 +21,7 @@ import agentAsk from "./agent-ask";
 import gtmUpdate from "./gtm-update";
 import researchColumn from "./research-column";
 import playCompile from "./play-compile";
+import buyerVoice from "./buyer-voice";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
@@ -44,6 +45,7 @@ export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
   gtm_update: gtmUpdate,
   research_column: researchColumn,
   play_compile: playCompile,
+  buyer_voice: buyerVoice,
 };
 
 export function getWorkflow(id: string): WorkflowDef<unknown> | undefined {

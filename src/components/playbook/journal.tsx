@@ -261,7 +261,7 @@ function MessageBets() {
 
 /* ───────────────────────────── Versions ───────────────────────────── */
 
-const VERSION_SOURCES: Record<FoundationVersion["source"], string> = { refresh: "Bet refresh", monthly: "Monthly review", restore: "Restore", rebuild: "Rewritten from your site" };
+const VERSION_SOURCES: Record<FoundationVersion["source"], string> = { refresh: "Bet refresh", monthly: "Monthly review", restore: "Restore", rebuild: "Rewritten from your site", voice: "From buyer voice" };
 
 function Versions() {
   const { ws, f, dispatch } = usePlaybook();

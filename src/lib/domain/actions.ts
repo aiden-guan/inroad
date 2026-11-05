@@ -55,6 +55,8 @@ import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample,
 import { lintOption } from "@/lib/studio/receipts";
 import { applyCustomPlayAction, forgetCard, noteCardDone, noteWorked } from "@/lib/plays/custom";
 import type { CustomPlayAction } from "@/lib/plays/recipe-types";
+import { dismissBattlecard, markBattlecardSaved } from "@/lib/voice/state";
+import type { VoiceBattlecard } from "@/lib/voice/types";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -241,7 +243,10 @@ export type Action =
   | { type: "experiment.update"; id: ID; patch: Partial<Omit<Experiment, "id" | "createdAt">>; at: string }
   | { type: "experiment.remove"; id: ID }
   | { type: "pmf.log"; survey: PmfSurvey }
-  | { type: "pmf.remove"; id: ID };
+  | { type: "pmf.remove"; id: ID }
+  /** Buyer voice: a battlecard draft saved to Objections, or set aside (null undoes either). */
+  | { type: "buyerVoice.markSaved"; key: string; saved: VoiceBattlecard["saved"] | null }
+  | { type: "buyerVoice.dismiss"; key: string; at: string | null };
 
 export class ActionError extends Error {}
 
@@ -1292,6 +1297,12 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "pmf.remove":
       ws.pmfSurveys = (ws.pmfSurveys ?? []).filter((x) => x.id !== action.id);
+      return;
+    case "buyerVoice.markSaved":
+      markBattlecardSaved(ws, action.key, action.saved);
+      return;
+    case "buyerVoice.dismiss":
+      dismissBattlecard(ws, action.key, action.at);
       return;
   }
 }

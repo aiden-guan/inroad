@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import type { RunState } from "@/components/providers/runs-provider";
 import type { Action } from "@/lib/domain/actions";
 import type { Foundation, Workspace } from "@/lib/domain/types";
+import type { BuyerVoice } from "@/lib/voice/types";
 import type { AssetKind, parts } from "./model";
 
 export interface AssetRunArgs {
@@ -46,6 +47,8 @@ export interface PlaybookContextValue {
   /** The "new asset" panel (also driven by `?new=<kind>&deal=<id>`). */
   composer: ComposerState | null;
   setComposer: (next: ComposerState | null) => void;
+  /** What buyers said, counted in code once per workspace change (Buyer voice and the nav count read it). */
+  voice: BuyerVoice;
 }
 
 export const PlaybookContext = createContext<PlaybookContextValue | null>(null);

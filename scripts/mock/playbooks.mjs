@@ -1096,6 +1096,49 @@ const debriefPlaybook = {
             ...(share !== null ? [`You talked about ${share}% of the time and asked ${questions} questions.`] : []),
             dated ? "Next step booked on the call, with a date and an owner." : "No dated next step yet. Book one before the week is out.",
           ],
+/* ───────────── Buyer voice: names for the clusters code built, and a battlecard from the quotes ───────────── */
+
+const voiceNamesPlaybook = {
+  name: "voice_names",
+  match: (ctx) => has(ctx, "submit_voice_names"),
+  thinking: () => ["Reading each cluster's quotes.", "Naming each one the way buyers put it, without counting anything."],
+  act(ctx) {
+    const block = between(ctx.firstText, "clusters") ?? "";
+    const clusters = [...block.matchAll(/<cluster id="(c\d+)" kind="[a-z]+" conversations="\d+" current_label="([^"]*)">\n([\s\S]*?)\n<\/cluster>/g)].map((m) => {
+      const first = /: "([^"]+)"/.exec(m[3])?.[1] ?? "";
+      const name = clip(plain(m[2].replace(/\d+/g, "")), 6, 60) || "What buyers raised";
+      return { id: m[1], name: sentenceCase(name), gist: clip(plain(first.replace(/\d+/g, "")), 16, 140) || "What buyers said on these calls.", mergeInto: null, outliers: [] };
+    });
+    return { blocks: [call("submit_voice_names", { clusters })] };
+  },
+};
+
+const battlecardPlaybook = {
+  name: "battlecard",
+  match: (ctx) => has(ctx, "submit_battlecard"),
+  thinking: () => ["Reading what buyers said about it.", "Answering only from their quotes and the approved claims."],
+  act(ctx) {
+    const t = ctx.firstText;
+    const subject = /Draft the battlecard for: (.+?) \(/.exec(t)?.[1] ?? "this";
+    const quotes = [...t.matchAll(/<quote id="(q\d+)"[^>]*>([^<]+)<\/quote>/g)].map((m) => ({ id: m[1], text: m[2] }));
+    const claims = [...t.matchAll(/<claim id="([^"]+)" kind="[^"]*">([^<]+)<\/claim>/g)].map((m) => ({ id: m[1], text: m[2] }));
+    const vendor = /an alternative buyers named, competitor/.test(t);
+    const claim = claims.find((c) => /\d/.test(c.text)) ?? claims[0];
+    const objection = clip(plain(quotes[0]?.text ?? ""), 18, 140) || `We already have ${subject}.`;
+    return {
+      blocks: [
+        call("submit_battlecard", {
+          objection,
+          category: vendor ? "competitor" : /build/i.test(subject) ? "build" : "status_quo",
+          underlyingConcern: "They don't want a second tool if the one they already have might be enough.",
+          clarifyingQ: `When the numbers don't tie with ${subject} in place, who finds the cause, and how long does it take?`,
+          response: clip(`That's worth checking first. ${claim ? claim.text : "Let's look at last month's close together."} Want to run one month through it and compare?`, 60, 600),
+          walkAwayIf: "Everything already ties out line by line and nobody spends days on it.",
+          landmines: vendor ? [`Does ${subject} see usage that arrives after the invoice run?`, `Who explains a variance when ${subject} and the warehouse disagree?`] : [],
+          whenWeWin: null,
+          whenWeLose: null,
+          quoteIds: quotes.slice(0, 2).map((q) => q.id),
+          claimIds: claim ? [claim.id] : [],
         }),
       ],
     };
@@ -1118,5 +1161,7 @@ export const PLAYBOOKS = [
   columnPlaybook,
   playRecipePlaybook,
   debriefPlaybook,
+  voiceNamesPlaybook,
+  battlecardPlaybook,
   ...STUDIO_PLAYBOOKS,
 ];

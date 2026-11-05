@@ -10,6 +10,7 @@ import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
 import type { WaitlistTracking } from "@/lib/waitlist/types";
 import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
 import type { CustomPlay } from "@/lib/plays/recipe-types";
+import type { BuyerVoiceState } from "@/lib/voice/types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -1474,8 +1475,8 @@ export interface FoundationVersion {
   at: ISODateTime;
   /** What the next version changed, in words. */
   changes: string[];
-  /** rebuild: the bet was written again from the site (a fresh first read). */
-  source: "refresh" | "monthly" | "restore" | "rebuild";
+  /** rebuild: the bet was written again from the site (a fresh first read). voice: a change accepted from Buyer voice. */
+  source: "refresh" | "monthly" | "restore" | "rebuild" | "voice";
   runId?: ID;
   snapshot: Foundation;
 }
@@ -1714,7 +1715,8 @@ export type WorkflowId =
   | "agent_ask"
   | "gtm_update"
   | "research_column"
-  | "play_compile";
+  | "play_compile"
+  | "buyer_voice";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -2201,6 +2203,8 @@ export interface Workspace {
   customPlays?: Record<string, CustomPlay>;
   /** What each market had when the founder last switched away from it, so switching back restores it. */
   marketMemory?: Partial<Record<Market, MarketMemory>>;
+  /** Buyer voice: cached theme names and battlecard drafts. Every number is recounted in code (src/lib/voice). */
+  buyerVoice?: BuyerVoiceState;
 }
 
 export interface MarketMemory {

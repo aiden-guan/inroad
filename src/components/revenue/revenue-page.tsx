@@ -30,6 +30,7 @@ import { TargetDialog } from "./target-dialog";
 import { WeeklyUpdate } from "./weekly-update";
 import { Working } from "./working";
 import { CommitEvidenceLine, XrayRows } from "./xray";
+import { BuyerVoiceCard } from "@/components/voice/buyer-voice-card";
 
 const DIAGNOSTICS = "behind-the-number";
 const TAB_IDS = ["pipeline", "working", "data", "metrics"] as const;
@@ -120,7 +121,7 @@ export function RevenuePage() {
       content: (
         <div className="space-y-10">
           <Working ws={ws} f={f} />
-          {/* buyer-voice card */}
+          <BuyerVoiceCard ws={ws} />
         </div>
       ),
     },

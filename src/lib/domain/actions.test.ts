@@ -1201,6 +1201,21 @@ const cases: Record<Action["type"], () => void> = {
     const s = apply(consumerWorkspace(), { type: "pmf.log", survey: { id: "pmf_1", on: TODAY, answers: 40, veryDisappointed: 12 } }, { type: "pmf.remove", id: "pmf_1" });
     expect(s.pmfSurveys).toEqual([]);
   },
+
+  "buyerVoice.markSaved": () => {
+    const saved = { at: at(0), objectionId: "obj_bv_x", approved: true };
+    const s = apply(ws(), { type: "buyerVoice.markSaved", key: "alt:hire", saved });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].saved).toEqual(saved);
+    apply(s, { type: "buyerVoice.markSaved", key: "alt:hire", saved: null }, { type: "buyerVoice.markSaved", key: "missing", saved });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].saved).toBeUndefined();
+  },
+
+  "buyerVoice.dismiss": () => {
+    const s = apply(ws(), { type: "buyerVoice.dismiss", key: "alt:hire", at: at(0) });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].dismissedAt).toBe(at(0));
+    apply(s, { type: "buyerVoice.dismiss", key: "alt:hire", at: null });
+    expect(s.buyerVoice?.battlecards?.["alt:hire"].dismissedAt).toBeUndefined();
+  },
 };
 
 describe("applyAction", () => {

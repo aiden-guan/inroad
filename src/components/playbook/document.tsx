@@ -18,6 +18,8 @@ import { GrowSection } from "./grow";
 import { HowSection } from "./how";
 import { JournalSection } from "./journal";
 import { CONSUMER_SECTIONS, SECTIONS, nextAction, playbookMarkdown, sectionsFor, CONTENT_KINDS, type NavSection, type SectionId } from "./model";
+import { BuyersSection } from "./buyers";
+import { needsAnswer } from "@/lib/voice";
 import { VoiceSection } from "./voice";
 import { WhySection } from "./why";
 import { WhoSection } from "./who";
@@ -63,11 +65,13 @@ export function scrollToAnchor(id: string) {
 
 /** "Needs you" counts per section: drafts to approve and questions to answer. */
 function useCounts(): Record<SectionId, number> {
-  const { ws, p } = usePlaybook();
+  const { ws, p, voice } = usePlaybook();
   return {
     who: p.icp.segmentLockedAt || !p.icp.primarySegment ? 0 : 1,
     why: ws.claims.filter((c) => !c.approved).length,
     how: ws.objections.filter((o) => !o.approved).length,
+    // Objections and vendors that keep coming up with no answer on file at all (drafts count under How we sell).
+    buyers: needsAnswer(voice).length,
     voice: ws.povs.length ? 0 : 1,
     journal: p.founderQuestions.filter((q) => !q.answer).length,
   };
@@ -236,20 +240,24 @@ export function PlaybookDocument() {
   const params = useSearchParams();
   const assetTarget = hash.startsWith("asset:") ? `asset-${hash.slice(6)}` : hash;
   const hasAssetDestination = hash.startsWith("asset:") || hash.startsWith("asset-") || (!hash && (params.has("asset") || params.has("new")));
-  const section = of.get(hash) ?? (hasAssetDestination ? "how" : "who");
-  const activeId = useScrollSpy(ids);
   const sections = sectionsFor(ws);
+  // A run's link ("buyers:<key>") lands on Buyer voice; a section this workspace doesn't list falls back to Who.
+  const wanted = of.get(hash) ?? (hash.startsWith("buyers:") ? "buyers" : hasAssetDestination ? "how" : "who");
+  const section: SectionId = sections.some((item) => item.id === wanted) ? wanted : "who";
+  const activeId = useScrollSpy(ids);
   const selected = sections.find((item) => item.id === section)!;
+  // Only the params that name a destination: Buyer voice keeps its open theme and filter in the URL too, and
+  // changing those must not jump the page back to the section's top.
+  const newKind = params.get("new");
+  const assetParam = params.get("asset");
 
   useEffect(() => {
-    const kind = params.get("new");
-    const asset = params.get("asset");
-    const composerTarget = kind ? (CONTENT_KINDS.some((content) => content === kind) ? "content" : "assets") : "";
-    const target = assetTarget || (asset ? `asset-${asset}` : composerTarget);
+    const composerTarget = newKind ? (CONTENT_KINDS.some((content) => content === newKind) ? "content" : "assets") : "";
+    const target = (assetTarget.startsWith("buyers:") ? "buyers" : assetTarget) || (assetParam ? `asset-${assetParam}` : composerTarget);
     if (!target) return;
     const frame = requestAnimationFrame(() => focusAnchor(target, SECTIONS.some((section) => section.id === target)));
     return () => cancelAnimationFrame(frame);
-  }, [assetTarget, params, section]);
+  }, [assetTarget, newKind, assetParam, section]);
   const company = ws.company?.name ?? "you";
   return (
     <div className="@container/page">
@@ -291,6 +299,7 @@ export function PlaybookDocument() {
             <div hidden={section !== "who"}><WhoSection /></div>
             <div hidden={section !== "why"}><WhySection /></div>
             <div hidden={section !== "how"}>{consumer ? <GrowSection /> : <HowSection />}</div>
+            <div hidden={section !== "buyers"}><BuyersSection /></div>
             <div hidden={section !== "voice"}><VoiceSection /></div>
             <div hidden={section !== "journal"}><JournalSection /></div>
           </div>
