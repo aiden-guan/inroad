@@ -16,6 +16,7 @@ import { addDays, todayISO } from "@/lib/domain/ids";
 import { metricValue, weeklyPlan } from "@/lib/gtm/brief";
 import { currentMetrics } from "@/lib/gtm/metrics";
 import { initiativeProgress } from "@/lib/gtm/progress";
+import { cn } from "@/lib/client/cn";
 import type { GtmInitiative, MetricReading } from "@/lib/gtm/types";
 
 async function writeInitiative(body: unknown, id?: string) {
@@ -93,7 +94,8 @@ function InitiativeCard({ item, readings, today, onEdit, onChange }: { item: Gtm
   </Card>;
 }
 
-export function GtmInitiatives() {
+/** `compactEmpty`: with no priorities yet, one line and the Add button instead of an empty card (Revenue). */
+export function GtmInitiatives({ compactEmpty, className }: { compactEmpty?: boolean; className?: string } = {}) {
   const { ws, refresh } = useWorkspace();
   const now = useClock(60_000);
   const readings = useMemo(() => ws ? currentMetrics(ws, new Date(now)) : [], [ws, now]);
@@ -107,11 +109,19 @@ export function GtmInitiatives() {
     try { await navigator.clipboard.writeText(weeklyPlan(ws!, readings, new Date(now))); toast.success("Weekly execution plan copied."); }
     catch { toast.error("Couldn't copy the plan. Try again."); }
   }
-  return <section id="gtm-initiatives" aria-labelledby="gtm-initiatives-title" className="mb-9 scroll-mt-24">
+  const dialog = <Dialog open={form !== null} onOpenChange={(open) => { if (!open) setForm(null); }} title={form === true ? "Add a GTM initiative" : "Edit GTM initiative"} description="One priority, a measurable outcome and a date to review it.">{form && <InitiativeForm key={form === true ? "new" : form.id} item={form === true ? undefined : form} readings={readings} today={today} onSaved={async () => { await refresh(); setForm(null); }} />}</Dialog>;
+  if (compactEmpty && !items.length) return <section id="gtm-initiatives" aria-labelledby="gtm-initiatives-title" className={cn("scroll-mt-24", className)}>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-surface px-4 py-3 ring-1 ring-inset ring-border">
+      <p className="min-w-0 flex-1 basis-60 text-[13px] leading-5 text-fg-3"><span id="gtm-initiatives-title" className="font-medium text-fg">This week&apos;s GTM priorities</span> · None yet. Name one, give it an owner and a review date, and its progress tracks itself.</p>
+      <Button size="xs" icon={<Plus className="size-3" />} onClick={() => setForm(true)}>Add initiative</Button>
+    </div>
+    {dialog}
+  </section>;
+  return <section id="gtm-initiatives" aria-labelledby="gtm-initiatives-title" className={cn("mb-9 scroll-mt-24", className)}>
     <SectionLabel right={<div className="flex flex-wrap justify-end gap-1">{items.length > 0 && <Button size="xs" variant="ghost" icon={<Clipboard className="size-3" />} onClick={() => void copy()}>Copy weekly plan</Button>}<Button size="xs" icon={<Plus className="size-3" />} onClick={() => setForm(true)}>Add initiative</Button></div>}><span id="gtm-initiatives-title">This week&apos;s GTM priorities</span></SectionLabel>
     {active.length ? <div className="grid gap-3 lg:grid-cols-2">{active.map((item) => <InitiativeCard key={item.id} item={item} readings={readings} today={today} onEdit={() => setForm(item)} onChange={refresh} />)}</div> : <Card className="px-5 py-4 text-[13px] leading-5 text-fg-3">Give a priority an owner and a review date. Inroad captures the metric baseline and tracks progress from your connected sources or deals.</Card>}
     {others.length > 0 && <details className="mt-4 text-[12px] text-fg-3"><summary className="w-fit cursor-pointer py-1">Reviewed and parked · {others.length}</summary><div className="mt-3 grid gap-3 lg:grid-cols-2">{others.map((item) => <InitiativeCard key={item.id} item={item} readings={readings} today={today} onEdit={() => setForm(item)} onChange={refresh} />)}</div></details>}
     <p className="mt-3 px-1 text-[11px] leading-4 text-fg-3">Targets are measured automatically; you decide when to mark a priority reviewed. Observed changes do not establish cause. Saved readouts stay fixed.</p>
-    <Dialog open={form !== null} onOpenChange={(open) => { if (!open) setForm(null); }} title={form === true ? "Add a GTM initiative" : "Edit GTM initiative"} description="One priority, a measurable outcome and a date to review it.">{form && <InitiativeForm key={form === true ? "new" : form.id} item={form === true ? undefined : form} readings={readings} today={today} onSaved={async () => { await refresh(); setForm(null); }} />}</Dialog>
+    {dialog}
   </section>;
 }

@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Orb } from "@/components/ui/orb";
 import { BRAND } from "@/lib/brand";
@@ -101,4 +103,40 @@ export function Canvas({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
+}
+
+/**
+ * Opens the sample workspace, then `to`. When the founder already has work here the sample would replace it, so it
+ * asks first (a backup is saved before anything is replaced).
+ */
+export function useOpenSample(to: string) {
+  const router = useRouter();
+  const { refresh } = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const open = async (replace = false) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/workspace/sample", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replace }),
+      });
+      if (res.status === 409) {
+        toast("The sample replaces what you've set up so far. I'll save a backup of it first.", { action: { label: "Replace it", onClick: () => void open(true) } });
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Couldn't open the sample workspace.");
+      }
+      await refresh();
+      router.replace(to);
+      toast("Sample workspace loaded. Everything here is made up. Start with your company any time.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't open the sample workspace.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { open, busy };
 }

@@ -683,6 +683,12 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "revenue.setTarget": {
       ws.revenue ??= {};
+      // A target for a different period keeps the one it replaces as history (one entry per period, the last 8).
+      const prev = ws.revenue.target;
+      if (action.target && prev && (prev.periodStart !== action.target.periodStart || prev.periodEnd !== action.target.periodEnd)) {
+        const same = (t: RevenueTarget) => t.periodStart === prev.periodStart && t.periodEnd === prev.periodEnd;
+        ws.revenue.pastTargets = [...(ws.revenue.pastTargets ?? []).filter((t) => !same(t)), prev].slice(-8);
+      }
       if (action.target) ws.revenue.target = action.target;
       else delete ws.revenue.target;
       return;

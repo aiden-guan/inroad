@@ -7,8 +7,16 @@ const RANK: Partial<Record<Stage, number>> = { talking: 0, qualified: 1, pilot: 
 const DAY = 86_400_000;
 export const MIN_CONVERSION_EXITS = 10;
 
+/**
+ * Dated entries only, oldest first. A file that didn't say when a deal was created or entered its stage got the
+ * import time in their place; those entries say when Inroad learned of the deal, not when it moved, so they're out.
+ */
 function history(deal: Deal, now: number) {
-  return deal.stageHistory.filter((h) => Number.isFinite(Date.parse(h.at)) && Date.parse(h.at) <= now).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const imported = deal.imported;
+  const undated = imported?.unknown?.some((u) => u === "created" || u === "stage_date") ? imported.at : undefined;
+  return deal.stageHistory
+    .filter((h) => Number.isFinite(Date.parse(h.at)) && Date.parse(h.at) <= now && h.at !== undated)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 export function knownDealValue(deal: Deal): number | null {
   const value = deal.amountUsd ?? deal.priceQuotes?.at(-1)?.amountUsd;
@@ -21,6 +29,10 @@ export interface FunnelRow {
   entered: number;
   advanced: number;
   lost: number;
+  /** First exit was a move to nurture: decided without moving forward, but not a loss. */
+  nurtured: number;
+  /** Forward moves, first losses and moves to nurture: the denominator of `conversion`. */
+  decided: number;
   waiting: number;
   unknown: number;
   /** Observed forward moves ÷ decided exits; open and undated outcomes stay out. */
@@ -50,7 +62,7 @@ export function pipelinePulse(ws: Pick<Workspace, "deals">, now = new Date()): P
     asOf, from, previousFrom,
     recent: { count: 0, knownUsd: 0, missingValues: 0 }, previous: { count: 0, knownUsd: 0, missingValues: 0 },
     openQualified: 0, knownOpenUsd: 0, undatedQualified: 0,
-    rows: FUNNEL.map((stage) => ({ stage, label: STAGE_LABELS[stage], entered: 0, advanced: 0, lost: 0, waiting: 0, unknown: 0, conversion: null, medianDays: null, waitingDeals: [] })),
+    rows: FUNNEL.map((stage) => ({ stage, label: STAGE_LABELS[stage], entered: 0, advanced: 0, lost: 0, nurtured: 0, decided: 0, waiting: 0, unknown: 0, conversion: null, medianDays: null, waitingDeals: [] })),
   };
   const durations = new Map<OpenStage, number[]>();
   for (const deal of Object.values(ws.deals)) {
@@ -73,14 +85,17 @@ export function pipelinePulse(ws: Pick<Workspace, "deals">, now = new Date()): P
       if (!entry || localDate(entry.at) < cohortFrom) continue;
       row.entered++;
       const entryTime = Date.parse(entry.at);
-      const exit = events.slice(entryIndex + 1).find((e) => e.stage === "lost" || (RANK[e.stage] ?? -1) > RANK[row.stage]!);
-      if (exit && exit.stage !== "lost") {
+      // The first later forward move, loss or move to nurture decides the outcome. Nurture is an exit that didn't
+      // move forward; leaving it "waiting" would drop it from the denominator and flatter the rate.
+      const exit = events.slice(entryIndex + 1).find((e) => e.stage === "lost" || e.stage === "nurture" || (RANK[e.stage] ?? -1) > RANK[row.stage]!);
+      if (exit?.stage === "lost") row.lost++;
+      else if (exit?.stage === "nurture") row.nurtured++;
+      else if (exit) {
         row.advanced++;
         const times = durations.get(row.stage) ?? [];
         times.push((Date.parse(exit.at) - entryTime) / DAY);
         durations.set(row.stage, times);
-      } else if (exit?.stage === "lost") row.lost++;
-      else if ((RANK[deal.stage] ?? -1) > RANK[row.stage]! || deal.stage === "won" || deal.stage === "lost") row.unknown++;
+      } else if ((RANK[deal.stage] ?? -1) > RANK[row.stage]! || deal.stage === "won" || deal.stage === "lost" || deal.stage === "nurture") row.unknown++;
       else {
         row.waiting++;
         row.waitingDeals.push({ id: deal.id, name: deal.name, domain: deal.accountDomain, days: Math.max(0, Math.floor((now.getTime() - entryTime) / DAY)) });
@@ -88,7 +103,8 @@ export function pipelinePulse(ws: Pick<Workspace, "deals">, now = new Date()): P
     }
   }
   for (const row of result.rows) {
-    const decided = row.advanced + row.lost;
+    const decided = row.advanced + row.lost + row.nurtured;
+    row.decided = decided;
     row.conversion = decided >= MIN_CONVERSION_EXITS ? row.advanced / decided : null;
     row.medianDays = median(durations.get(row.stage) ?? []);
     row.waitingDeals.sort((a, b) => b.days - a.days || a.id.localeCompare(b.id));
