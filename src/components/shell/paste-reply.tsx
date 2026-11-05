@@ -105,7 +105,7 @@ export function PasteReply({ onDone }: { onDone: () => void }) {
 
       {matches && (
         <div role="radiogroup" aria-label="Who it's from" className="space-y-1">
-          <p className="px-1 text-[11px] font-medium text-fg-3">{matches.length ? "From" : "I can't tell who sent this"}</p>
+          <p className="px-1 text-[12px] font-medium text-fg-3">{matches.length ? "From" : "I can't tell who sent this"}</p>
           {matches.map((m, i) => (
             <button
               key={m.kind === "person" ? m.personId : m.kind === "connection" ? m.connectionId : `new-${m.domain}`}
@@ -127,7 +127,7 @@ export function PasteReply({ onDone }: { onDone: () => void }) {
                   {m.company}
                 </span>
               </span>
-              <span className="shrink-0 text-[11.5px] text-fg-3">
+              <span className="shrink-0 text-[12px] text-fg-3">
                 {m.kind === "connection" ? "LinkedIn connection" : m.kind === "new" ? (m.knownCompany ? `New at ${m.company}` : "New company") : WHY[m.why]}
               </span>
             </button>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/field";
 import { LoadingSignal } from "@/components/ui/loading";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { PageHeader } from "@/components/ui/page-header";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/client/cn";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { todayISO } from "@/lib/domain/ids";
@@ -67,7 +68,7 @@ export function SettingsView() {
 
   return (
     <div className="@container/page">
-      <div className="page-shell max-w-[1100px]">
+      <div className="page-shell">
         <PageHeader title="Settings" eyebrow="Make it yours" description="Your workspace, preferences and connected services." className="mb-8" />
 
         <div className="@min-[880px]/page:grid @min-[880px]/page:grid-cols-[200px_minmax(0,720px)] @min-[880px]/page:gap-10">
@@ -96,9 +97,9 @@ export function SettingsView() {
 
               <div className="@min-[880px]/page:hidden">
                 <label htmlFor="settings-section" className="mb-1.5 block text-[12px] font-medium text-fg-2">Settings section</label>
-                <select id="settings-section" value={current} onChange={(event) => { setQuery(""); navigateToHash(event.target.value, true); }} className="h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+                <Select id="settings-section" value={current} onChange={(event) => { setQuery(""); navigateToHash(event.target.value, true); }} className="h-10 w-full">
                   {SETTINGS_GROUPS.map((group) => <optgroup key={group} label={group}>{SETTINGS_PAGES.filter((page) => page.group === group).map((page) => <option key={page.id} value={page.id}>{page.label}</option>)}</optgroup>)}
-                </select>
+                </Select>
               </div>
             </div>
           </aside>
@@ -131,7 +132,7 @@ export function SettingsView() {
 
 export function SettingsSkeleton() {
   return (
-    <div className="page-shell max-w-[1100px] [animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
+    <div className="page-shell [animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
       <LoadingSignal label="Opening settings" className="mb-7" />
       <Skeleton className="h-9 w-36" /><Skeleton className="mt-3 h-4 w-72 max-w-full" />
       <div className="mt-8 grid gap-8 md:grid-cols-[200px_1fr]">

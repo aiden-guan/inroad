@@ -1,9 +1,35 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/client/cn";
 
-export function PageHeader({ title, eyebrow, description, actions, children, className }: {
-  title: string;
+/**
+ * The page frame (globals.css `.page-shell`): one width, one side padding and one space above the title on every
+ * page, so titles share a left edge. `wide` is for pages with a rail beside the text (Playbook, Studio): the same
+ * left edge, more room on the right. Don't narrow it with max-w-* on a page; narrow the content inside instead.
+ */
+export function PageContainer({ wide, className, children, ...rest }: HTMLAttributes<HTMLDivElement> & { wide?: boolean }) {
+  return (
+    <div className={cn("page-shell", wide && "page-shell-wide", className)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Every page's header: an eyebrow, the serif title with the page's actions on its right, and a summary of one line
+ * (say it in one sentence). On a phone the actions wrap under the title, left-aligned. `children` go under the
+ * summary: a line of counts, tabs.
+ */
+export function PageHeader({
+  title,
+  eyebrow,
+  description,
+  actions,
+  children,
+  className,
+}: {
+  title: ReactNode;
   eyebrow?: string;
+  /** The one-line summary. */
   description?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
@@ -11,14 +37,12 @@ export function PageHeader({ title, eyebrow, description, actions, children, cla
 }) {
   return (
     <header className={cn("page-header", className)}>
-      <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-8 gap-y-5">
-        <div className="min-w-0 flex-1 basis-64">
-          {eyebrow && <p className="page-eyebrow mb-3">{eyebrow}</p>}
-          <h1 className="page-heading">{title}</h1>
-          {description && <div className="mt-3 max-w-[60ch] text-pretty text-[14px] leading-[22px] text-fg-2">{description}</div>}
-        </div>
-        {actions && <div className="flex max-w-full flex-wrap items-center gap-2 pb-0.5">{actions}</div>}
+      {eyebrow && <p className="page-eyebrow mb-2.5">{eyebrow}</p>}
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <h1 className="page-heading">{title}</h1>
+        {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
       </div>
+      {description && <div className="page-summary">{description}</div>}
       {children}
     </header>
   );

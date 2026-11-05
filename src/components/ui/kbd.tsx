@@ -9,7 +9,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
   return (
     <kbd
       className={cn(
-        "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-xs bg-bg-subtle px-1 font-mono text-[11px] leading-none text-fg-3 ring-1 ring-border",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-xs bg-bg-subtle px-1 font-mono text-[12px] leading-none text-fg-3 ring-1 ring-border",
         className,
       )}
     >
