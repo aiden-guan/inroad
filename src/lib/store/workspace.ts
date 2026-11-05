@@ -69,14 +69,17 @@ export function readWorkspace(): Workspace {
   return db().read();
 }
 
-/** Serialized, atomic mutation. Bumps `rev` so clients can tell they're stale. */
-export async function mutateWorkspace<R = void>(fn: (ws: Workspace) => R): Promise<{ ws: Workspace; value: R }> {
-  const { state, value } = await db().update((draft) => {
+/**
+ * Serialized, atomic mutation. Bumps `rev` so clients can tell they're stale. `json` is the saved workspace as
+ * written, so a route can send it without serializing the whole workspace a second time.
+ */
+export async function mutateWorkspace<R = void>(fn: (ws: Workspace) => R): Promise<{ ws: Workspace; value: R; json: string }> {
+  const { state, value, json } = await db().update((draft) => {
     const value = fn(draft);
     draft.rev += 1;
     return value;
   });
-  return { ws: state, value };
+  return { ws: state, value, json };
 }
 
 /** True when the workspace holds the founder's own work (not the sample, past the empty first run). */
@@ -89,9 +92,17 @@ export async function replaceWorkspace(ws: Workspace): Promise<Workspace> {
   return db().replace({ ...ws, rev: (readWorkspace().rev ?? 0) + 1 });
 }
 
-/** What the browser receives: everything except bulky internals. */
+/**
+ * What the browser receives: the whole workspace (integration secrets live in secrets.json, never in it). If this
+ * ever strips fields, strip them in publicWorkspaceJSON too.
+ */
 export function publicWorkspace(ws: Workspace): Workspace {
   return ws;
+}
+
+/** publicWorkspace as the JSON body to send: the text the last save wrote (or `json` from a mutation), not a fresh stringify. */
+export function publicWorkspaceJSON(json: string = db().json()): string {
+  return json;
 }
 
 /* ───────────── Integration secrets: kept out of workspace.json and never sent to the browser ───────────── */
