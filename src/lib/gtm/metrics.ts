@@ -1,4 +1,5 @@
 import { isConsumer } from "@/lib/consumer/market";
+import { localDay } from "@/lib/domain/ids";
 import type { IntegrationState, Workspace } from "@/lib/domain/types";
 import { METRIC_PROVIDERS } from "@/lib/metrics/catalog";
 import { METRIC_PROVIDER_IDS, type BusinessMetric, type MetricSnapshot } from "@/lib/metrics/types";
@@ -17,12 +18,16 @@ function describeMetric(snapshot: MetricSnapshot, state: IntegrationState, metri
   return { id, provider: snapshot.provider, key: metric.key, label: metric.label, sourceLabel: `${METRIC_PROVIDERS[snapshot.provider].name} · ${snapshot.accountLabel}`, currency: metric.currency, period: metric.period, definition: metric.definition, test: snapshot.environment === "test", href: `/integrations#${snapshot.provider}` };
 }
 
-/** Preserve the first baseline and the latest daily observation, without inventing missing days. */
+/**
+ * Preserve the first baseline and the latest daily observation, without inventing missing days. A day is the founder's
+ * local date: an evening sync stays that day's reading instead of being overwritten by the next morning's (same UTC date).
+ */
 export function recordDaily(points: MetricPoint[], point: MetricPoint): MetricPoint[] {
   if (!Number.isFinite(point.value) || !Number.isFinite(Date.parse(point.at))) return points;
   if (points.length && point.at < points.at(-1)!.at) return points;
   const next = [...points];
-  const index = next.findLastIndex((p) => p.at.slice(0, 10) === point.at.slice(0, 10));
+  const day = localDay(point.at);
+  const index = next.findLastIndex((p) => localDay(p.at) === day);
   if (index < 0 || (index === 0 && next[0].value !== point.value && next[0].at !== point.at)) next.push(point);
   else if (index !== 0 || next[0].at === point.at) next[index] = point;
   return next;

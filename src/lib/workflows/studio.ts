@@ -149,7 +149,7 @@ function recentOpeners(ws: Workspace, spec: FormatSpec, excludeId: string): stri
   const key = spec.parts[0].key;
   const today = todayISO();
   return Object.values(ws.studio.pieces)
-    .filter((p) => p.id !== excludeId && p.format === spec.id && daysBetween(p.createdAt.slice(0, 10), today) <= 30)
+    .filter((p) => p.id !== excludeId && p.format === spec.id && daysBetween(p.createdAt, today) <= 30)
     .flatMap((p) => p.options.slice(0, 2).map((o) => clip(o.parts[key], 80)))
     .filter(Boolean)
     .slice(0, 8);

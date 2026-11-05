@@ -5,7 +5,7 @@ import { AgentError } from "@/lib/ai/errors";
 import { companyContext, coreFor, taskHeader } from "@/lib/ai/prompts/core";
 import { firstAttemptOnly, Ledger, cleanDate, hostOf, normUrl, readConnections, seenWebUrls, staleAfter, type LedgerSource } from "@/lib/deals/ledger";
 import { jurisdictionOf, rankPaths } from "@/lib/deals/rules";
-import { daysBetween, newId, nowISO, todayISO } from "@/lib/domain/ids";
+import { daysBetween, localDay, newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Account, Angle, ContactPath, Dossier, Evidence, Person, PersonaRole, Signal, Workspace } from "@/lib/domain/types";
 import { accountData, emitHubEvent } from "@/lib/hub";
 import { connectionIdentity, wasForgotten } from "@/lib/people/forget";
@@ -326,7 +326,7 @@ export default defineWorkflow({
     // Reuse a fresh dossier unless asked, or a strong signal arrived since it was written.
     const existing = account.dossier;
     if (existing && !ctx.args.force && existing.staleAfter >= today) {
-      const since = existing.generatedAt.slice(0, 10);
+      const since = localDay(existing.generatedAt);
       const newStrong = account.signals.some((s) => s.strength >= 3 && s.date > since);
       if (!newStrong) {
         ctx.emit({ type: "status", text: `The dossier from ${since} is still fresh, so I reused it` });
