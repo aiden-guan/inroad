@@ -72,7 +72,7 @@ export function MenuCheckItem({ children, checked, onCheckedChange }: { children
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <DM.Label className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-fg-3">{children}</DM.Label>;
+  return <DM.Label className="px-2 pb-1 pt-1.5 text-[12px] font-medium text-fg-3">{children}</DM.Label>;
 }
 
 export function MenuSeparator() {

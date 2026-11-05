@@ -71,7 +71,7 @@ function StepRow({ step, active }: { step: LogStep; active: boolean }) {
         <span className={cn(!active && "text-fg")}>{verb}</span>
         {detail && <span className={cn("ml-1.5", step.kind === "search" ? "" : "font-mono text-[12px]", !active && "text-fg-3")}>{step.kind === "search" ? `“${detail}”` : detail}</span>}
       </span>
-      {!active && ms > 400 && <span className="shrink-0 font-mono text-[11px] tnum text-fg-3">{(ms / 1000).toFixed(1)}s</span>}
+      {!active && ms > 400 && <span className="shrink-0 font-mono text-[12px] tnum text-fg-3">{(ms / 1000).toFixed(1)}s</span>}
     </motion.li>
   );
 }
@@ -87,7 +87,7 @@ export function Receipt({ run, onClick, open }: { run: RunState; onClick?: () =>
   return (
     <button
       onClick={onClick}
-      className="inline-flex h-6 items-center gap-1.5 rounded-xs px-1.5 font-mono text-[11.5px] text-fg-3 transition-colors hover:bg-bg-subtle hover:text-fg-2"
+      className="inline-flex h-6 items-center gap-1.5 rounded-xs px-1.5 font-mono text-[12px] text-fg-3 transition-colors hover:bg-bg-subtle hover:text-fg-2"
     >
       <Orb state={run.status === "error" ? "error" : "idle"} size={10} />
       {parts.join(" · ")}
@@ -132,7 +132,7 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
               : run.status === "error"
                 ? `Didn't finish · ${run.title}`
                 : `Done · ${run.title}`}</span>
-        <span className="font-mono text-[11.5px] tnum text-fg-3">{duration(elapsed)}</span>
+        <span className="font-mono text-[12px] tnum text-fg-3">{duration(elapsed)}</span>
         {active ? (
           <button
             onClick={() => void stop(run.id)}
@@ -158,7 +158,7 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
         <ReasoningTrace lines={run.reasoning} className="mt-1 pl-[22px]" />
       )}
       {active && run.writingChars > 0 && (
-        <p className="mt-1 pl-[26px] font-mono text-[11.5px] text-fg-3">Writing · {Math.round(run.writingChars / 5)} words</p>
+        <p className="mt-1 pl-[26px] font-mono text-[12px] text-fg-3">Writing · {Math.round(run.writingChars / 5)} words</p>
       )}
       {(hosts.length > 0 || !active) && (
         <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
@@ -169,7 +169,7 @@ export function WorkLog({ run, className, defaultOpen }: { run: RunState; classN
               ))}
             </span>
           )}
-          {run.sources.length > 4 && <span className="font-mono text-[11px] text-fg-3">+{run.sources.length - 4}</span>}
+          {run.sources.length > 4 && <span className="font-mono text-[12px] text-fg-3">+{run.sources.length - 4}</span>}
           <span className="flex-1" />
           {!active && <Receipt run={run} />}
         </div>

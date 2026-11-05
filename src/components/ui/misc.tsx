@@ -55,7 +55,7 @@ export function Segmented<T extends string>({
           >
             {active && <motion.span layoutId={`${id}-${layoutId}`} transition={keyboard || reduce ? { duration: 0 } : spring.snappy} className="absolute inset-0 rounded-md bg-surface shadow-xs ring-1 ring-inset ring-border-strong/60" />}
             <span className="relative">{o.label}</span>
-            {o.count !== undefined && <span className="relative font-mono text-[11px] tnum text-fg-3">{o.count}</span>}
+            {o.count !== undefined && <span className="relative font-mono text-[12px] tnum text-fg-3">{o.count}</span>}
           </button>
         );
       })}

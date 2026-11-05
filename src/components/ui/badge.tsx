@@ -26,7 +26,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-xs px-1.5 text-[11px] font-medium ring-1 ring-inset",
+        "inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-xs px-1.5 text-[12px] font-medium ring-1 ring-inset",
         tones[tone],
         className,
       )}
@@ -42,7 +42,7 @@ export function AiBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-4 items-center rounded-[3px] px-1 font-mono text-[9.5px] font-medium tracking-wide text-accent-text ring-1 ring-inset ring-accent/30",
+        "inline-flex h-4 items-center rounded-[3px] px-1 font-mono text-[11px] font-medium uppercase leading-none tracking-[0.06em] text-accent-text ring-1 ring-inset ring-accent/30",
         className,
       )}
     >

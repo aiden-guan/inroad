@@ -40,10 +40,9 @@ test("from the welcome screen to a rendered dossier", async ({ page }) => {
   await expect(page).toHaveURL(/\/today/, { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => (window as unknown as { __vt: string[] }).__vt.some((p) => p.startsWith("::view-transition-group(ember-orb-desktop)")))).toBe(true);
 
-  // The goal stays in view: paid pilots against the goal, customers against the long arc.
+  // The north star stays in view: paid pilots against the goal, until a revenue target is set.
   const goal = page.getByTitle("Your goal, from the plan").first();
-  await expect(goal).toContainText("Paid pilots");
-  await expect(goal).toContainText("Customers");
+  await expect(goal).toContainText(/\d+ of \d+ paid pilots?/);
 
   // Add a company and research it: the dossier renders with its sources.
   await page.goto("/companies?add=northwind.io");

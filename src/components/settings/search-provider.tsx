@@ -5,6 +5,7 @@ import { useAutomation } from "@/components/research/use-automation";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { SEARCH_PROVIDERS, type SearchChoice } from "@/lib/search/providers";
 import { Group, Row } from "./parts";
 import type { useSettingsStatus } from "./use-settings";
@@ -114,7 +115,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             : "No external search is configured. Company sites and public records still work."
         }
       >
-        <select
+        <Select
           id={`${id}-provider`}
           value={selected}
           disabled={!status || busy}
@@ -125,7 +126,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             setError(null);
             setMessage(null);
           }}
-          className="w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px] text-fg"
+          className="w-full"
         >
           <option value="auto">Automatic (existing Firecrawl first)</option>
           {SEARCH_PROVIDERS.map((p) => (
@@ -134,7 +135,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             </option>
           ))}
           <option value="off">Off for models without built-in search</option>
-        </select>
+        </Select>
       </Row>
       {preset && preset.id !== "connected" && (
         <Row
@@ -188,11 +189,11 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             </Link>
           }
         >
-          <select
+          <Select
             id={`${id}-connection`}
             value={connectionId ?? status?.connectionId ?? ""}
             onChange={(e) => setConnectionId(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px]"
+            className="w-full"
           >
             <option value="">Choose a connection</option>
             {automation.data?.connections
@@ -202,7 +203,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
                   {c.name}
                 </option>
               ))}
-          </select>
+          </Select>
         </Row>
       )}
       <Row
@@ -224,11 +225,11 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
         htmlFor={`${id}-page-reader`}
         hint="If ordinary HTTP returns too little text, use this tool's mapped fetch capability before optional browser rendering."
       >
-        <select
+        <Select
           id={`${id}-page-reader`}
           value={pageConnectionId ?? status?.pageConnectionId ?? ""}
           onChange={(e) => setPageConnectionId(e.target.value)}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px]"
+          className="w-full"
         >
           <option value="">None</option>
           {automation.data?.connections
@@ -238,22 +239,22 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
                 {c.name}
               </option>
             ))}
-        </select>
+        </Select>
       </Row>
       <Row
         label="Optional browser extraction"
         htmlFor={`${id}-browser`}
         hint="Ordinary HTTP runs first. Enable TinyFish to render pages when readable text is missing. It uses your saved TinyFish search key or TINYFISH_API_KEY and may incur browser charges."
       >
-        <select
+        <Select
           id={`${id}-browser`}
           value={browser ?? status?.browser ?? "off"}
           onChange={(e) => setBrowser(e.target.value as "off" | "tinyfish")}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px]"
+          className="w-full"
         >
           <option value="off">Off</option>
           <option value="tinyfish">TinyFish Browser</option>
-        </select>
+        </Select>
       </Row>
       {(browser ?? status?.browser) === "tinyfish" && selected !== "tinyfish" && (
         <Row

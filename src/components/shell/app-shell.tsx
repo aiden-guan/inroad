@@ -8,9 +8,12 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { AskDialog } from "@/components/ask/ask-dialog";
 import { ConnectorPoller } from "@/components/integrations/connector-poller";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/menu";
 import { Orb } from "@/components/ui/orb";
 import { OrbMorph, useWide } from "@/components/ui/orb-morph";
+import { PageContainer } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/client/cn";
 import { ease } from "@/lib/motion";
@@ -18,9 +21,9 @@ import { AgentPanel, useAgentStatus, useNavCounts } from "./agent-status";
 import { CommandPalette } from "./command-palette";
 import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
-import { MarketToggle, useMarket, useSwitchMarket } from "./market-switch";
+import { CompanyMenu, useMarket } from "./market-switch";
 import { SECONDARY, goKeys, navFor } from "./nav";
-import { AgentLine, GoalLine, Sidebar } from "./sidebar";
+import { AgentLine, NorthStarLine, Sidebar } from "./sidebar";
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -55,10 +58,8 @@ function useGoKeys() {
 /** Reads the pathname, so it renders under Suspense (dynamic routes can't resolve it while prerendering). */
 function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
-  const { ws } = useWorkspace();
   const counts = useNavCounts();
   const market = useMarket();
-  const switchTo = useSwitchMarket();
   // Any navigation closes the menu (G then T, the palette), not only a tap on one of its links.
   const [openedOn] = useState(pathname);
   useEffect(() => {
@@ -66,7 +67,8 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   }, [pathname, openedOn, onNavigate]);
   return (
     <nav id="mobile-nav" aria-label="Pages" className="grid grid-cols-2 gap-1 p-2">
-      {ws?.company && <MarketToggle value={market} onChange={(m) => void switchTo(m)} className="col-span-2 mb-1" />}
+      {/* The company menu, like the sidebar's: who you sell to lives in it, not on top of the pages. */}
+      <CompanyMenu className="col-span-2 h-11 px-3" onNavigate={onNavigate} />
       {[...navFor(market), ...SECONDARY].map((n) => {
         const active = pathname.startsWith(n.href);
         const count = counts[n.href];
@@ -80,7 +82,7 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
           >
             <span className="flex-1">{n.label}</span>
             {count !== undefined && (
-              <span className="min-w-5 rounded-full bg-accent px-1.5 text-center font-mono text-[10.5px] font-medium leading-[18px] text-accent-fg">{count}</span>
+              <span className="min-w-5 rounded-full bg-accent px-1.5 text-center font-mono text-[12px] font-medium leading-[18px] text-accent-fg">{count}</span>
             )}
           </Link>
         );
@@ -128,7 +130,7 @@ function MobileHeader({ navOpen, onToggleNav, menuRef }: { navOpen: boolean; onT
         trigger={
           <button className="flex min-w-0 flex-1 flex-col items-start rounded-sm py-0.5 text-left" aria-label={`Head of GTM: ${status.line}`}>
             <span className="font-serif text-[18px] font-medium leading-[20px] tracking-[-0.02em] text-fg">{BRAND.product}</span>
-            <AgentLine status={status} className="max-w-full text-[11.5px] leading-[15px]" />
+            <AgentLine status={status} className="max-w-full text-[12px] leading-4" />
           </button>
         }
       >
@@ -163,6 +165,74 @@ function useMobileNav() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   return { open, setOpen, menuRef };
+}
+
+/** Past this, a first load that hasn't answered says so, with a retry. */
+const SLOW_MS = 8000;
+
+function useSlowLoad(): boolean {
+  const { ws, error } = useWorkspace();
+  const waiting = !ws && !error;
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setTimeout(() => setSlow(true), SLOW_MS);
+    return () => clearTimeout(t);
+  }, [waiting]);
+  return waiting && slow;
+}
+
+/**
+ * Pages render their own skeletons while the workspace loads. If it can't load at all, every page says the same
+ * thing here, with a retry, instead of a skeleton that never resolves.
+ */
+function WorkspaceGate({ children }: { children: ReactNode }) {
+  const { ws, error, refresh } = useWorkspace();
+  if (ws || !error) return children;
+  return (
+    <PageContainer>
+      <PageState
+        kind="error"
+        title="Couldn't open your workspace"
+        body="Everything is still on this computer. If Inroad just started, give it a moment and try again."
+        detail={error}
+        onRetry={refresh}
+      />
+    </PageContainer>
+  );
+}
+
+/**
+ * A slim line over the page when loading is slow or a refresh failed. What was loaded stays on screen; nothing is
+ * lost, and Try again reads it anew.
+ */
+function WorkspaceNotice() {
+  const { ws, error, refresh } = useWorkspace();
+  const slow = useSlowLoad();
+  const [busy, setBusy] = useState(false);
+  const stale = !!ws && !!error;
+  if (!slow && !stale) return null;
+  return (
+    <div role="status" className="flex min-h-10 items-center gap-2.5 border-b border-border bg-bg-subtle px-4 py-1 text-[13px] md:px-6">
+      <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", stale ? "bg-warning" : "bg-fg-3")} />
+      <p className="min-w-0 flex-1 truncate text-fg-2">
+        {stale ? "Couldn't refresh your workspace. Showing what was loaded before." : "Still opening your workspace. This is taking longer than usual."}
+      </p>
+      <Button
+        size="xs"
+        variant="ghost"
+        loading={busy}
+        onClick={async () => {
+          setBusy(true);
+          await refresh();
+          setBusy(false);
+        }}
+        className="-mr-2 shrink-0 text-fg"
+      >
+        Try again
+      </Button>
+    </div>
+  );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -209,12 +279,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Suspense fallback={null}>
                 <MobileNav onNavigate={() => nav.setOpen(false)} />
               </Suspense>
-              <GoalLine className="mx-2 mb-0 pb-2.5 text-[13px] leading-5" onNavigate={() => nav.setOpen(false)} />
+              <div className="border-t border-border px-2 py-1.5">
+                <NorthStarLine onNavigate={() => nav.setOpen(false)} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
-        <SampleBanner variant="bar" />
-        <main id="main-content" tabIndex={-1} className="workspace-main min-h-dvh min-w-0 outline-none">{children}</main>
+        <SampleBanner />
+        <WorkspaceNotice />
+        <main id="main-content" tabIndex={-1} className="workspace-main min-h-dvh min-w-0 outline-none">
+          <WorkspaceGate>{children}</WorkspaceGate>
+        </main>
       </div>
       <CommandPalette />
       <ShortcutsDialog />

@@ -3,12 +3,13 @@
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { AI_TASKS, type AiConnection, type AiRouting, type AiTask, type ModelTarget, type RoutingStatus } from "@/lib/ai/routing-types";
 import { PROVIDERS, providerById, type ProviderId } from "@/lib/ai/providers";
 import { forgetActiveProvider } from "@/lib/client/ai-provider";
 import { Group, Row } from "./parts";
 
-const selectClass = "w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[13px] text-fg disabled:opacity-50";
+const selectClass = "w-full";
 
 export function AiRoutingGroup({ reload, revision }: { reload: () => void; revision?: unknown }) {
   const [status, setStatus] = useState<RoutingStatus>();
@@ -65,14 +66,14 @@ export function AiRoutingGroup({ reload, revision }: { reload: () => void; revis
       cancel={() => { setEditing(undefined); setError(""); }} save={async (connection) => { if (await post({ action: "save", connection })) setEditing(undefined); }} />}
     {status && routing && <>
       <Row label="Routing mode" hint="Automatic routing uses enabled connections, task strengths, configured tier models, and known prices. It estimates fit; it does not run model benchmarks.">
-        <select aria-label="AI routing mode" className={selectClass} value={routing.mode} disabled={busy} onChange={(e) => void updateRouting({ mode: e.target.value as AiRouting["mode"] })}>
+        <Select aria-label="AI routing mode" className={selectClass} value={routing.mode} disabled={busy} onChange={(e) => void updateRouting({ mode: e.target.value as AiRouting["mode"] })}>
           <option value="manual">Default and task selections</option><option value="auto">Automatic task routing</option>
-        </select>
+        </Select>
       </Row>
       {routing.mode === "auto" && <Row label="Routing preference" hint="Quality prefers task fit. Balanced breaks fit ties by price. Lowest cost prefers known prices; unknown prices are never treated as free.">
-        <select aria-label="Routing preference" className={selectClass} value={routing.policy} disabled={busy} onChange={(e) => void updateRouting({ policy: e.target.value as AiRouting["policy"] })}>
+        <Select aria-label="Routing preference" className={selectClass} value={routing.policy} disabled={busy} onChange={(e) => void updateRouting({ policy: e.target.value as AiRouting["policy"] })}>
           <option value="quality">Task fit</option><option value="balanced">Balanced</option><option value="cost">Lowest known cost</option>
-        </select>
+        </Select>
       </Row>}
       <details className="px-4 py-3">
         <summary className="cursor-pointer text-[13px] font-medium">Choose a model for each task</summary>
@@ -84,14 +85,14 @@ export function AiRoutingGroup({ reload, revision }: { reload: () => void; revis
           return <div key={task} className="grid items-start gap-2 sm:grid-cols-[160px_1fr]">
             <label htmlFor={`route-${task}`} className="pt-2 text-[13px]">{label}</label>
             <div className="space-y-2">
-              <select id={`route-${task}`} className={selectClass} disabled={busy} value={target?.connectionId ?? ""} onChange={(e) => setTask(task, e.target.value ? { connectionId: e.target.value } : undefined)}>
+              <Select id={`route-${task}`} className={selectClass} disabled={busy} value={target?.connectionId ?? ""} onChange={(e) => setTask(task, e.target.value ? { connectionId: e.target.value } : undefined)}>
                 <option value="">Follow routing mode</option>
                 {status.connections.map((c) => <option key={c.id} value={c.id} disabled={!status.ready[c.id]}>{c.name}</option>)}
-              </select>
-              {connection && <select aria-label={`${label} model`} className={selectClass} disabled={busy || Boolean(connection.cloudflare?.dynamicRoute)} value={target?.model ?? ""} onChange={(e) => setTask(task, { connectionId: connection.id, ...(e.target.value ? { model: e.target.value } : {}) })}>
+              </Select>
+              {connection && <Select aria-label={`${label} model`} className={selectClass} disabled={busy || Boolean(connection.cloudflare?.dynamicRoute)} value={target?.model ?? ""} onChange={(e) => setTask(task, { connectionId: connection.id, ...(e.target.value ? { model: e.target.value } : {}) })}>
                 <option value="">Use this connection’s tier models</option>
                 {[...new Set([connection.model, ...Object.values(connection.models), ...connection.available])].map((model) => <option key={model} value={model}>{model}</option>)}
-              </select>}
+              </Select>}
             </div>
           </div>;
         })}</div>
@@ -133,9 +134,9 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
   }}>
     <p className="text-[13px] font-medium">{connection ? `Edit ${connection.name}` : "Add an AI connection"}</p>
     <label className="block space-y-1 text-[12px] text-fg-2"><span>Provider</span>
-      <select aria-label="Connection provider" className={selectClass} disabled={Boolean(connection) || busy} value={provider} onChange={(e) => { setProvider(e.target.value as ProviderId); setModel(""); setModels({}); setInputPrice(""); setOutputPrice(""); }}>
+      <Select aria-label="Connection provider" className={selectClass} disabled={Boolean(connection) || busy} value={provider} onChange={(e) => { setProvider(e.target.value as ProviderId); setModel(""); setModels({}); setInputPrice(""); setOutputPrice(""); }}>
         {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
+      </Select>
     </label>
     {field("Connection name", name, setName, { placeholder: `${preset.name} · work account`, maxLength: 100 })}
     {preset.needsKey && field("API key", key, setKey, { type: "password", autoComplete: "new-password", placeholder: connection?.key ? `Keep saved key ${connection.key.hint}` : preset.placeholder })}

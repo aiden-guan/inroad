@@ -1,42 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { toast } from "sonner";
-import type { AgentEvent, Source } from "@/lib/ai/events";
+import type { AgentEvent } from "@/lib/ai/events";
 import { readAgentStream } from "@/lib/ai/read-stream";
 import type { EntityRef, RunSummary, WorkflowId } from "@/lib/domain/types";
+import { TERMINAL, createRunsStore, fromSummary, reduceRun, sameRun, type RunState, type Runs, type RunsStore } from "./run-state";
 import { useWorkspace } from "./workspace-provider";
 
-/** One line in a work log. Present tense while active, past tense once the next step starts. */
-export interface LogStep {
-  id: number;
-  kind: "status" | "search" | "read" | "action" | "writing";
-  text: string;
-  url?: string;
-  host?: string;
-  at: number;
-  doneAt?: number;
-}
-
-export interface RunState {
-  id: string;
-  workflow: WorkflowId;
-  title: string;
-  ref?: EntityRef;
-  status: RunSummary["status"];
-  startedAt: number;
-  endedAt?: number;
-  steps: LogStep[];
-  thinking?: string;
-  /** Every reasoning line this run surfaced, in order: the reasoning stream. Kept in this tab only, never saved. */
-  reasoning: string[];
-  sources: Source[];
-  writingChars: number;
-  text: string;
-  result?: unknown;
-  error?: { message: string; code?: string; requestId?: string; detail?: string };
-  costUsd?: number;
-}
+export type { LogStep, RunState } from "./run-state";
 
 interface StartOptions {
   route?: import("@/lib/ai/routing-types").ModelTarget;
@@ -48,89 +20,69 @@ interface StartOptions {
   onError?: (error: { message: string; code?: string }) => void;
 }
 
-interface RunsContextValue {
-  runs: Record<string, RunState>;
+interface RunActions {
   start: (workflow: WorkflowId, args: unknown, opts?: StartOptions) => Promise<RunState | null>;
   stop: (runId: string) => Promise<void>;
   attach: (runId: string, title?: string) => void;
 }
 
-const RunsContext = createContext<RunsContextValue | null>(null);
-
-function reduce(state: RunState, event: AgentEvent): RunState {
-  const now = Date.now();
-  const closeLast = (steps: LogStep[]) => steps.map((s, i) => (i === steps.length - 1 && !s.doneAt ? { ...s, doneAt: now } : s));
-  const push = (step: Omit<LogStep, "id" | "at">): RunState => {
-    const steps = closeLast(state.steps);
-    // Collapse repeated identical statuses ("Filtering results" ×3).
-    const last = steps[steps.length - 1];
-    if (last && last.kind === step.kind && last.text === step.text) return state;
-    return { ...state, steps: [...steps, { ...step, id: steps.length, at: now }] };
-  };
-  switch (event.type) {
-    case "status":
-      return push({ kind: "status", text: event.text });
-    case "search":
-      return push({ kind: "search", text: event.query });
-    case "read":
-      return push({ kind: "read", text: event.host, url: event.url, host: event.host });
-    case "action":
-      return push({ kind: "action", text: event.text });
-    case "thinking":
-      return { ...state, thinking: event.text, reasoning: state.reasoning.at(-1) === event.text ? state.reasoning : [...state.reasoning, event.text].slice(-60) };
-    case "sources": {
-      const seen = new Set(state.sources.map((s) => s.url));
-      return { ...state, sources: [...state.sources, ...event.sources.filter((s) => !seen.has(s.url))] };
-    }
-    case "writing":
-      return { ...state, writingChars: event.chars };
-    case "text":
-      return { ...state, text: state.text + event.text };
-    case "text_reset":
-      return { ...state, text: event.text };
-    case "usage":
-      return { ...state, costUsd: event.costUsd };
-    case "result":
-      return { ...state, result: event.data, status: "done" };
-    case "error":
-      return { ...state, error: { message: event.message, code: event.code, requestId: event.requestId, detail: event.detail }, status: event.code === "stopped" ? "stopped" : "error" };
-    case "done":
-      return {
-        ...state,
-        steps: closeLast(state.steps),
-        status: state.status === "running" || state.status === "queued" ? (state.error ? "error" : "done") : state.status,
-        endedAt: state.endedAt ?? now,
-        thinking: undefined,
-      };
-  }
+interface RunsContextValue extends RunActions {
+  runs: Record<string, RunState>;
 }
 
-function fromSummary(s: RunSummary): RunState {
-  return {
-    id: s.id,
-    workflow: s.workflow,
-    title: s.title,
-    ref: s.ref,
-    status: s.status,
-    startedAt: new Date(s.startedAt).getTime(),
-    endedAt: s.endedAt ? new Date(s.endedAt).getTime() : undefined,
-    steps: [],
-    reasoning: [],
-    sources: [],
-    writingChars: 0,
-    text: "",
-    error: s.error,
-    costUsd: s.receipt?.costUsd,
-  };
-}
+/* ─────────────────────────────── The provider ─────────────────────────────── */
+
+const RunsContext = createContext<{ store: RunsStore; actions: RunActions } | null>(null);
 
 export function RunsProvider({ children }: { children: ReactNode }) {
   const { ws, refresh } = useWorkspace();
-  const [runs, setRuns] = useState<Record<string, RunState>>({});
+  const [store] = useState(createRunsStore);
   const attached = useRef(new Set<string>());
   const options = useRef(new Map<string, StartOptions>());
   /** Initial state for runs we attach to without having started them (other tab, reload). */
   const seed = useRef(new Map<string, RunState>());
+  const queue = useRef(new Map<string, AgentEvent[]>());
+  const scheduled = useRef<{ frame?: number; timer?: ReturnType<typeof setTimeout> } | null>(null);
+
+  /** Lands every queued event: one store update, one round of re-renders. */
+  const flush = useCallback(() => {
+    if (scheduled.current) {
+      if (scheduled.current.frame !== undefined) cancelAnimationFrame(scheduled.current.frame);
+      if (scheduled.current.timer !== undefined) clearTimeout(scheduled.current.timer);
+      scheduled.current = null;
+    }
+    if (!queue.current.size) return;
+    const next = { ...store.local() };
+    for (const [id, events] of queue.current) {
+      let state = next[id] ?? seed.current.get(id);
+      if (!state) continue;
+      for (const event of events) state = reduceRun(state, event);
+      next[id] = state;
+    }
+    queue.current.clear();
+    store.setLocal(next);
+  }, [store]);
+
+  const enqueue = useCallback(
+    (runId: string, event: AgentEvent) => {
+      const list = queue.current.get(runId);
+      if (list) list.push(event);
+      else queue.current.set(runId, [event]);
+      if (TERMINAL.has(event.type)) return flush();
+      if (scheduled.current) return;
+      // A hidden tab gets no animation frames: land its events on a slow timer instead.
+      scheduled.current = document.visibilityState === "visible" ? { frame: requestAnimationFrame(flush) } : { timer: setTimeout(flush, 250) };
+    },
+    [flush],
+  );
+
+  useEffect(
+    () => () => {
+      if (scheduled.current?.frame !== undefined) cancelAnimationFrame(scheduled.current.frame);
+      if (scheduled.current?.timer !== undefined) clearTimeout(scheduled.current.timer);
+    },
+    [],
+  );
 
   const attach = useCallback(
     (runId: string, title?: string) => {
@@ -142,10 +94,7 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         try {
           const res = await fetch(`/api/runs/${runId}/stream`, { cache: "no-store" });
           for await (const event of readAgentStream(res)) {
-            setRuns((all) => {
-              const base = all[runId] ?? seed.current.get(runId);
-              return base ? { ...all, [runId]: reduce(base, event) } : all;
-            });
+            enqueue(runId, event);
             if (event.type === "result") {
               succeeded = true;
               options.current.get(runId)?.onResult?.(event.data);
@@ -155,9 +104,11 @@ export function RunsProvider({ children }: { children: ReactNode }) {
           }
         } catch {
           // Connection dropped; the run keeps going on the server. Re-attach on next refresh.
+          flush();
           attached.current.delete(runId);
           return;
         }
+        flush();
         await refresh();
         const notify = options.current.get(runId)?.notify;
         if (typeof notify === "function" ? notify() : notify !== false) {
@@ -166,22 +117,24 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         }
       })();
     },
-    [refresh],
+    [enqueue, flush, refresh],
   );
 
   // Pick up runs that are still going (started in another tab, or before a reload).
   const liveSummaries = useMemo(() => (ws?.runs ?? []).filter((r) => r.status === "running" || r.status === "queued"), [ws]);
   useEffect(() => {
+    const before = store.summaries();
+    const next: Runs = {};
     for (const r of liveSummaries) {
-      if (!seed.current.has(r.id)) seed.current.set(r.id, fromSummary(r));
+      const state = fromSummary(r);
+      next[r.id] = sameRun(before[r.id], state) ? before[r.id] : state;
+    }
+    store.setSummaries(next);
+    for (const r of liveSummaries) {
+      if (!seed.current.has(r.id)) seed.current.set(r.id, next[r.id]);
       attach(r.id, r.title);
     }
-  }, [liveSummaries, attach]);
-  const merged = useMemo(() => {
-    const out: Record<string, RunState> = {};
-    for (const r of liveSummaries) out[r.id] = fromSummary(r);
-    return { ...out, ...runs };
-  }, [liveSummaries, runs]);
+  }, [liveSummaries, attach, store]);
 
   const start = useCallback(
     async (workflow: WorkflowId, args: unknown, opts: StartOptions = {}) => {
@@ -195,7 +148,7 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         if (!res.ok) throw Object.assign(new Error(body?.error ?? "Couldn't start that."), { code: body?.code as string | undefined });
         const state = fromSummary(body.run as RunSummary);
         options.current.set(state.id, opts);
-        setRuns((all) => ({ ...all, [state.id]: state }));
+        store.setLocal({ ...store.local(), [state.id]: state });
         attach(state.id, state.title);
         return state;
       } catch (e) {
@@ -205,38 +158,101 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    [attach],
+    [attach, store],
   );
 
   const stop = useCallback(async (runId: string) => {
     await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
   }, []);
 
-  const value = useMemo(() => ({ runs: merged, start, stop, attach }), [merged, start, stop, attach]);
+  const value = useMemo(() => ({ store, actions: { start, stop, attach } }), [store, start, stop, attach]);
   return <RunsContext.Provider value={value}>{children}</RunsContext.Provider>;
 }
 
-export function useRuns(): RunsContextValue {
+/* ─────────────────────────────── Reading runs ─────────────────────────────── */
+
+function useRunsContext() {
   const ctx = useContext(RunsContext);
   if (!ctx) throw new Error("useRuns must be used inside RunsProvider");
   return ctx;
 }
 
-/** The newest run for an entity (e.g. the dossier run for an account), live or recent. */
-export function useRunFor(ref: EntityRef | undefined, workflow?: WorkflowId): RunState | undefined {
-  const { runs } = useRuns();
-  return useMemo(() => {
-    if (!ref) return undefined;
-    return Object.values(runs)
-      .filter((r) => r.ref?.kind === ref.kind && r.ref.id === ref.id && (!workflow || r.workflow === workflow))
-      .sort((a, b) => b.startedAt - a.startedAt)[0];
-  }, [runs, ref, workflow]);
+/** Components that have read `useRuns().runs`: only they re-render when any run changes. */
+const readers = new WeakSet<object>();
+
+/**
+ * Start, stop and attach to runs, and every run this tab knows (`runs`). Reading `runs` subscribes the component
+ * to every run's changes; a component that only starts runs never re-renders for them.
+ */
+export function useRuns(): RunsContextValue {
+  const { store, actions } = useRunsContext();
+  const [reader] = useState(() => ({}));
+  const subscribe = useCallback((onChange: () => void) => store.subscribe(() => readers.has(reader) && onChange()), [store, reader]);
+  // Re-renders a reader when any run changes; `runs` itself is read fresh, so a handler never sees an old copy.
+  useSyncExternalStore(subscribe, store.get, store.get);
+  return useMemo(
+    () => ({
+      ...actions,
+      get runs() {
+        readers.add(reader);
+        return store.get();
+      },
+    }),
+    [actions, store, reader],
+  );
 }
 
-export function useActiveRuns(): RunState[] {
-  const { runs } = useRuns();
-  return useMemo(
-    () => Object.values(runs).filter((r) => r.status === "running" || r.status === "queued").sort((a, b) => b.startedAt - a.startedAt),
-    [runs],
+/**
+ * A value worked out from the runs, re-rendering only when it changes (`isEqual`, by default the same object).
+ * The selector should be stable (useCallback) or cheap.
+ */
+export function useRunsSelector<T>(select: (runs: Runs) => T, isEqual: (a: T, b: T) => boolean = Object.is): T {
+  const { store } = useRunsContext();
+  const read = useMemo(() => memoSelect(store, select, isEqual), [store, select, isEqual]);
+  return useSyncExternalStore(store.subscribe, read, read);
+}
+
+/**
+ * The selection for the store's current runs, computed once per change and kept (the same object) while it's equal:
+ * what useSyncExternalStore needs from a snapshot reader.
+ */
+function memoSelect<T>(store: RunsStore, select: (runs: Runs) => T, isEqual: (a: T, b: T) => boolean): () => T {
+  let last: { runs: Runs; value: T } | null = null;
+  return () => {
+    const runs = store.get();
+    if (last && last.runs === runs) return last.value;
+    const value = select(runs);
+    last = { runs, value: last && isEqual(last.value, value) ? last.value : value };
+    return last.value;
+  };
+}
+
+const sameList = (a: readonly RunState[], b: readonly RunState[]) => a.length === b.length && a.every((r, i) => r === b[i]);
+
+/** The newest run for an entity (e.g. the dossier run for an account), live or recent. */
+export function useRunFor(ref: EntityRef | undefined, workflow?: WorkflowId): RunState | undefined {
+  const kind = ref?.kind;
+  const id = ref?.id;
+  const select = useCallback(
+    (runs: Runs) => {
+      if (!kind || !id) return undefined;
+      let newest: RunState | undefined;
+      for (const r of Object.values(runs)) {
+        if (r.ref?.kind === kind && r.ref.id === id && (!workflow || r.workflow === workflow) && (!newest || r.startedAt > newest.startedAt)) newest = r;
+      }
+      return newest;
+    },
+    [kind, id, workflow],
   );
+  return useRunsSelector(select);
+}
+
+const selectActive = (runs: Runs) =>
+  Object.values(runs)
+    .filter((r) => r.status === "running" || r.status === "queued")
+    .sort((a, b) => b.startedAt - a.startedAt);
+
+/** Runs in progress, newest first. Re-renders when one of them changes, not when a finished run does. */
+export function useActiveRuns(): RunState[] {
+  return useRunsSelector(selectActive, sameList);
 }
