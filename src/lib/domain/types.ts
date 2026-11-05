@@ -9,6 +9,7 @@
 import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
 import type { WaitlistTracking } from "@/lib/waitlist/types";
 import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
+import type { CustomPlay } from "@/lib/plays/recipe-types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -1233,6 +1234,12 @@ export interface PlayState {
   updatedAt: ISODateTime;
   /** Accounts worked from this play and when, so results are attributed in code. */
   runs?: { at: ISODateTime; domains: string[] }[];
+  /**
+   * The first time the play worked each company (a bulk run, or one of its Today cards marked done), kept for good
+   * so results never shrink as the run log and old cards roll off. `version`: the founder's play version then;
+   * `moveId`: the card, so undoing it takes this back (src/lib/plays/custom.ts).
+   */
+  worked?: Record<string, { at: ISODateTime; version?: number; moveId?: ID }>;
 }
 
 /* ─────────────────────────────── Activity & the desk ─────────────────────────────── */
@@ -1670,7 +1677,8 @@ export type WorkflowId =
   | "visual"
   | "agent_ask"
   | "gtm_update"
-  | "research_column";
+  | "research_column"
+  | "play_compile";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -2147,6 +2155,8 @@ export interface Workspace {
   revenue?: { target?: RevenueTarget; snapshots?: ForecastSnapshot[]; updates?: GtmUpdate[] };
   /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
   plays?: Record<string, PlayState>;
+  /** Plays the founder wrote, by id: recipes with versions (see `src/lib/plays/recipes.ts`). On/off and runs live in `plays`. */
+  customPlays?: Record<string, CustomPlay>;
   /** What each market had when the founder last switched away from it, so switching back restores it. */
   marketMemory?: Partial<Record<Market, MarketMemory>>;
 }

@@ -50,6 +50,8 @@ import { touchTags } from "@/lib/learning/tags";
 import { restoreFoundation, reviseFoundation, revisionStale } from "@/lib/playbook/revision";
 import { editDistance, emptyVoice, extractVoice, learnFromEdit, learnFromSample, noteToneOff } from "@/lib/quality/voice";
 import { lintOption } from "@/lib/studio/receipts";
+import { applyCustomPlayAction, forgetCard, noteCardDone, noteWorked } from "@/lib/plays/custom";
+import type { CustomPlayAction } from "@/lib/plays/recipe-types";
 
 /**
  * Founder-initiated mutations. One pure reducer, used twice:
@@ -154,6 +156,8 @@ export type Action =
   | { type: "play.set"; id: string; enabled: boolean; at: string }
   /** Accounts worked in bulk from a play, kept so the play's results are attributed in code. */
   | { type: "play.run"; id: string; domains: string[]; at: string }
+  /** Plays the founder wrote: drafts, versions, rollbacks and skip lessons (src/lib/plays/custom.ts). */
+  | CustomPlayAction
   | { type: "meeting.upsert"; meeting: Meeting }
   /** Narrow meeting edits that patch the server's copy, so a stale client never overwrites a newer brief or debrief. */
   | { type: "meeting.toggleStar"; id: ID; briefAt: string; index: number }
@@ -690,12 +694,25 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "play.run": {
       ws.plays ??= {};
-      const prev = ws.plays[action.id] ?? { enabled: true, updatedAt: action.at };
+      const prev = ws.plays[action.id] ?? { enabled: !ws.customPlays?.[action.id], updatedAt: action.at };
       const domains = [...new Set(action.domains)].slice(0, 50);
       if (!domains.length) return;
       ws.plays[action.id] = { ...prev, runs: [...(prev.runs ?? []), { at: action.at, domains }].slice(-30) };
+      // The run log is the last 30; who it worked is kept for good, so results never shrink.
+      noteWorked(ws, action.id, domains, action.at);
       return;
     }
+    case "customPlay.upsert":
+    case "customPlay.edit":
+    case "customPlay.commit":
+    case "customPlay.rollback":
+    case "customPlay.discardDraft":
+    case "customPlay.dismissLesson":
+    case "customPlay.archive":
+    case "customPlay.remove":
+      if (action.type !== "customPlay.upsert") need(ws.customPlays?.[action.id], "Play");
+      applyCustomPlayAction(ws, action);
+      return;
     case "deal.setStage": {
       const deal = need(ws.deals[action.id], "Deal");
       if (deal.stage === action.stage) return;
@@ -944,9 +961,13 @@ export function applyAction(ws: Workspace, action: Action): void {
     case "activity.remove":
       ws.activities = ws.activities.filter((a) => a.id !== action.id);
       return;
-    case "move.done":
-      need(ws.moves[action.id], "Move").status = "done";
+    case "move.done": {
+      const move = need(ws.moves[action.id], "Move");
+      move.status = "done";
+      // A play's card counts toward the play's results for good, not just while the card is on file.
+      noteCardDone(ws, move);
       return;
+    }
     case "move.skip": {
       const move = need(ws.moves[action.id], "Move");
       move.status = "skipped";
@@ -964,6 +985,7 @@ export function applyAction(ws: Workspace, action: Action): void {
       move.status = "open";
       delete move.skipReason;
       delete move.snoozedUntil;
+      forgetCard(ws, move);
       // An undone "tone off" skip takes its example back out of the voice card.
       if (ws.voice?.toneOff) ws.voice.toneOff = ws.voice.toneOff.filter((t) => t.moveId !== action.id);
       return;

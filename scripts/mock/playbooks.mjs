@@ -812,4 +812,126 @@ const columnPlaybook = {
   },
 };
 
-export const PLAYBOOKS = [snapshotPlaybook, betPlaybook, screenPlaybook, networkPlaybook, candidatesPlaybook, dossierPlaybook, draftPlaybook, linkedinPlaybook, introPlaybook, replyPlaybook, replyReadPlaybook, critiquePlaybook, columnPlaybook, ...STUDIO_PLAYBOOKS];
+/* ───────────── Plays from a sentence: the recipe a careful reader would choose ───────────── */
+
+const CANNOT = [
+  [/\b(?:visit(?:s|ed|ing)?|view(?:s|ed)?|look(?:s|ed)? at|went to) (?:our|the|my) (?:site|website|pricing(?: page)?|demo page|docs?)\b|\bwebsite visit(?:or)?s?\b/i, "Website visits need visitor identification, which InRoad doesn't buy.", "A launch or pricing change on their site, or a page monitor in Research."],
+  [/\bintent (?:data|signals?)\b|\bg2\b|\bbombora\b/i, "Third-party intent data is paid; InRoad runs on free public signals.", "A buyer posting about the problem, or a request for help in a community."],
+  [/\blinkedin (?:engagement|likes?|comments?|activity)\b|\b(?:liked|commented on|engaged with) (?:our|my|a) post\b/i, "InRoad doesn't read LinkedIn engagement (no scraping).", "A buyer posting about the problem, from posts you capture."],
+  [/\b(?:open(?:s|ed)?|click(?:s|ed)?) (?:our|my|the|an?) (?:email|link)\b/i, "Opens and clicks aren't tracked.", "Replies, marked in Check replies on Today."],
+  [/\b(?:signs? up|signed up|free trial|product usage|active users?|hits? (?:their|the|a) (?:plan |usage )?limit)\b/i, "Product usage isn't an account signal yet.", "A first hire or a launch at the account."],
+  [/\b(?:deals?|proposals?)\b[^.]{0,40}\b(?:quiet|silent|stall(?:s|ed)?|dark)\b|\bgone (?:quiet|silent|dark)\b/i, "Deal silence isn't a signal a custom play can fire on.", "The built-in play Rescue a stalled deal (21 days quiet)."],
+  [/\bclosed[- ]lost\b|\blost deals?\b/i, "Lost deals come back on their own clock in a built-in play.", "The built-in play Revisit closed-lost."],
+  [/\bheadcount\b|\b\d+\+? employees\b/i, "Headcount isn't tracked over time.", "An ICP criterion about company size, or hiring signals."],
+  [/\b(?:auto-?send|automatically (?:send|email|post))\b/i, "InRoad never sends, posts or contacts anyone by itself. It drafts; you approve.", "A draft on Today for you to approve."],
+];
+
+const WINDOWS = { jd_names_pain: 45, first_hire: 45, hiring: 45, new_leader: 90, champion_job_change: 120, funding: 60, filing: 60, launch: 60, stack_change: 60, compliance_deadline: 180, persona_post: 30, community_request: 14, public_pain: 30 };
+const VARIANTS = { revops: ["revops", "revenue operations"], "rev ops": ["revops", "revenue operations"], finops: ["finops", "financial operations"], ar: ["accounts receivable"], ap: ["accounts payable"] };
+
+function recipeFor(ctx) {
+  const sentence = (between(ctx.firstText, "sentence") ?? ctx.userText ?? "").replace(/\s+/g, " ").trim();
+  const personas = (between(ctx.firstText, "personas") ?? "").split("\n").map((l) => /^([a-z_]+):\s*(.+)$/.exec(l.trim())).filter(Boolean).map((m) => ({ role: m[1], titles: m[2].split(/,\s*/) }));
+  const criteria = (between(ctx.firstText, "criteria") ?? "").split("\n").map((l) => /^(\S+) · \w+ · (.+)$/.exec(l.trim())).filter(Boolean).map((m) => ({ id: m[1], text: m[2] }));
+  const assumptions = [];
+  // The cooldown phrase also says "in the last N days": read it first, then leave it out of the trigger's window.
+  const cool = /(?:touched|contacted|reached|emailed|talked to|wrote to)[^.]*?(?:in|within) the (?:last|past) (\d+) days/i.exec(sentence);
+  const t = (cool ? sentence.replace(cool[0], "") : sentence).toLowerCase();
+
+  const signals = new Set();
+  const hiring = /\b(?:hir(?:e|es|ing)|job posts?|posts? (?:an? |for )?[\w /&-]{2,40}? (?:role|position|job)|opening|recruit\w*)\b/.test(t);
+  if (hiring) ["jd_names_pain", "first_hire"].forEach((s) => signals.add(s));
+  if (/\bany (?:job|role|post)|\bhiring\b/.test(t)) signals.add("hiring");
+  if (/\b(?:raise[sd]?|raising|funding|round|series [a-e])\b/.test(t)) ["funding", "filing"].forEach((s) => signals.add(s));
+  if (/\bnew (?:vp|head|cfo|cro|cto|leader|exec\w*|controller)|\bjoins? as\b|\bappointed\b/.test(t)) signals.add("new_leader");
+  if (/\b(?:champion|former (?:user|customer)|past user|changed jobs|job change)\b/.test(t)) signals.add("champion_job_change");
+  if (/\b(?:launch(?:es|ed)?|new pricing|pricing change|changes? (?:its |their )?pricing)\b/.test(t)) signals.add("launch");
+  if (/\b(?:migrat\w*|switch(?:es|ed)? to|moves? off)\b/.test(t)) signals.add("stack_change");
+  if (/\b(?:audit|soc ?2|compliance|deadline)\b/.test(t)) signals.add("compliance_deadline");
+  if (/\b(?:posts?|posted|wrote|writes) about\b|\bcomplain\w*/.test(t)) signals.add("persona_post");
+  if (/\b(?:asks? for|asked for|community|forum|hacker news)\b/.test(t)) signals.add("community_request");
+  if (!signals.size) ["jd_names_pain", "new_leader"].forEach((s) => signals.add(s));
+  const list = [...signals].slice(0, 6);
+
+  const keywords = [];
+  const role = /(?:posts?|hiring|hires?|opens?|lists?)\s+(?:an?\s+|for\s+(?:an?\s+)?)?([a-z][\w /&-]{1,40}?)\s+(?:role|roles|hire|position|job|lead|manager)\b/i.exec(t);
+  if (role) for (const part of role[1].split(/\s+or\s+|\s+and\s+|\/|,\s*/)) for (const k of VARIANTS[part.trim()] ?? [part.trim()]) if (k.length >= 2 && !keywords.includes(k)) keywords.push(k);
+  const said = /mention(?:s|ing)?\s+["“]?([\w -]{2,40}?)["”]?(?:[.,;]|$| and )/i.exec(t);
+  if (said && !keywords.includes(said[1])) keywords.push(said[1]);
+  const series = t.match(/series [a-e]/g) ?? [];
+  for (const s of series) if (!keywords.includes(s)) keywords.push(s);
+
+  const within = /(?:within|in the (?:last|past)|last) (\d+) (day|week)s?/.exec(t);
+  const withinDays = within ? Math.min(365, Number(within[1]) * (within[2] === "week" ? 7 : 1)) : Math.max(...list.map((s) => WINDOWS[s] ?? 45));
+
+  const icp = /\b(?:icp|ideal customer|target accounts?|good fit|fit compan\w*)\b/.test(t);
+  const tiers = /\btier a\b|\bbest (?:accounts|fit)\b/.test(t) ? ["A"] : icp ? ["A", "B"] : [];
+  const fit = /fit (?:score )?(?:of |above |over |at least )?(\d{2})\b/.exec(t);
+  const deal = /\bno (?:open )?deal|not in (?:the )?pipeline|not talking|haven't talked/.test(t) ? "none" : /\b(?:open|active) deal|\bin (?:the )?pipeline|\bproposal|\bpilot\b|\bqualified\b/.test(t) ? "open" : "any";
+  const stages = deal === "open" ? ["talking", "qualified", "pilot", "proposal"].filter((s) => new RegExp(`\\b${s}`).test(t)) : [];
+
+  const roles = [];
+  if (/hiring manager/.test(t) && personas.some((p) => p.role === "champion")) {
+    roles.push("champion");
+    assumptions.push("Read “the hiring manager” as your champion persona: job posts don't say who hires.");
+  }
+  for (const p of personas) {
+    const title = p.titles.find((x) => x && t.includes(x.toLowerCase()));
+    if (title && !roles.includes(p.role)) {
+      roles.push(p.role);
+      if (assumptions.length < 3) assumptions.push(`Read “${title}” as your ${p.role.replace(/_/g, " ")} persona.`);
+    }
+  }
+  if (/\bfinance lead|\bcfo\b|\bvp finance\b|\beconomic buyer\b/.test(t) && !roles.includes("economic_buyer") && personas.some((p) => p.role === "economic_buyer")) roles.push("economic_buyer");
+  if (!roles.length && personas.some((p) => p.role === "champion")) roles.push("champion");
+
+  const usage = /usage[- ]?(?:priced|based|billing|pricing)|\bmetered\b|pay[- ]as[- ]you[- ]go|\bconsumption\b/.test(t);
+  const crit = usage ? criteria.filter((c) => /usage|meter|consumption/i.test(c.text) && /pric|bill/i.test(c.text)).map((c) => c.id).slice(0, 1) : [];
+  const market = /\b(fintech|healthtech|insurtech|proptech|devtools?|marketplace|e-?commerce)s?\b/.exec(t);
+
+  const kind = /\b(?:research|dossier|look into|dig into)\b/.test(t) ? "research" : /\bintro(?:duction)?s?\b/.test(t) ? "intro" : deal === "open" && /\b(?:check[- ]in|follow up|deal review|multi-?thread)\b/.test(t) ? "deal" : "write";
+  const ref = /(?:that|which) (?:references?|mentions?|cites?|talks about) (.+?)(?:[.,;]|$)/.exec(sentence);
+  const angle = ref ? `Reference ${ref[1]} and the work it creates for them.` : kind === "research" ? "Confirm the signal on their site before deciding to write." : "Write about what the signal changes for them, citing it.";
+  const measure = /\b(?:meetings?|calls?|demos?)\b/.test(t) ? "meeting" : /\b(?:won|close (?:the|a) deal|closed won|revenue)\b/.test(t) ? "won" : "reply";
+  const cap = /(?:at most|max(?:imum)?|up to|no more than|cap(?: of)?) (\d+)(?: (?:a|per) week| weekly)?/.exec(t);
+
+  const unsupported = [];
+  for (const [re, why, nearest] of CANNOT) {
+    const hit = re.exec(sentence);
+    if (hit && unsupported.length < 5) unsupported.push({ phrase: hit[0], why, nearest });
+  }
+
+  const topic = keywords.filter((k) => !/ /.test(k) || k.startsWith("series")).slice(0, 2);
+  const nameBase = topic.length ? `${topic.map((k) => (k === "revops" ? "RevOps" : k.replace(/^series ([a-e])/, (_, x) => `Series ${x.toUpperCase()}`))).join(" or ")} ${hiring ? "hire" : "signal"}` : clip(sentence.replace(/^when\s+/i, ""), 5, 50);
+  const name = clip(sentenceCase(`${nameBase}${deal === "none" ? ", no open deal" : deal === "open" && stages.length ? `, ${stages[0]} deals` : ""}`), 8, 60);
+
+  return {
+    name: name.length >= 3 ? name : "My play",
+    trigger: { signals: list, withinDays: Math.max(1, withinDays), keywords: keywords.slice(0, 8), minStrength: /\b(?:strong|clear)\b/.test(t) ? 2 : 1, stack: /\bboth\b|\btwo signals\b|\bstack/.test(t) && list.length > 1 ? 2 : 1 },
+    audience: {
+      tiers,
+      minFit: fit ? Math.min(100, Number(fit[1])) : icp ? 60 : 0,
+      statuses: [],
+      deal,
+      stages,
+      personas: roles.slice(0, 4),
+      excludePersonas: [],
+      criteria: crit,
+      keywords: market ? [market[1].replace(/s$/, "")] : [],
+    },
+    guardrails: { cooldownDays: cool ? Math.min(365, Number(cool[1])) : 30, maxPerWeek: cap ? Math.max(1, Math.min(50, Number(cap[1]))) : 5 },
+    action: { kind, angle: angle.slice(0, 240) },
+    measure,
+    unsupported,
+    assumptions: assumptions.slice(0, 3),
+  };
+}
+
+const playRecipePlaybook = {
+  name: "play_recipe",
+  match: (ctx) => has(ctx, "submit_recipe"),
+  thinking: () => ["Splitting the sentence into the trigger, who it's for, and what to do.", "Mapping each part to a signal I can see; anything I can't detect goes in its own list.", "Then the recipe."],
+  act: (ctx) => ({ blocks: [call("submit_recipe", recipeFor(ctx))] }),
+};
+
+export const PLAYBOOKS = [snapshotPlaybook, betPlaybook, screenPlaybook, networkPlaybook, candidatesPlaybook, dossierPlaybook, draftPlaybook, linkedinPlaybook, introPlaybook, replyPlaybook, replyReadPlaybook, critiquePlaybook, columnPlaybook, playRecipePlaybook, ...STUDIO_PLAYBOOKS];

@@ -25,6 +25,7 @@ import { intros } from "./intros";
 import { DEAL, DOMAIN, MEETING, RUN } from "./ids";
 import { activities, outreach } from "./outreach";
 import { deals, meetings } from "./pipeline";
+import { addSamplePlays } from "./plays";
 import { ceoUpdate, lastWeekSnapshot, revenueTarget } from "./revenue";
 import { runs, runSteps, usage } from "./runs";
 import { studio } from "./studio";
@@ -110,6 +111,8 @@ function assemble(now: Date): Workspace {
     usage: usage(c),
     revenue: { target, snapshots: [lastWeekSnapshot(c, target)] },
   };
+  // The play Priya wrote on day one, with the two prospects it fires on today (src/lib/sample/plays.ts).
+  addSamplePlays(ws, c);
   // Written last: the update's numbers are computed from the finished workspace.
   ws.revenue!.updates = [ceoUpdate(ws, c)];
   return ws;

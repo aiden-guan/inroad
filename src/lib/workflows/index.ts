@@ -20,6 +20,7 @@ import visual from "./visual";
 import agentAsk from "./agent-ask";
 import gtmUpdate from "./gtm-update";
 import researchColumn from "./research-column";
+import playCompile from "./play-compile";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
@@ -42,6 +43,7 @@ export const WORKFLOWS: Record<WorkflowId, WorkflowDef<any>> = {
   agent_ask: agentAsk,
   gtm_update: gtmUpdate,
   research_column: researchColumn,
+  play_compile: playCompile,
 };
 
 export function getWorkflow(id: string): WorkflowDef<unknown> | undefined {

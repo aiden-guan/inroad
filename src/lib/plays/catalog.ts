@@ -1,5 +1,5 @@
 import { addDays, daysBetween } from "@/lib/domain/ids";
-import { OPEN_STAGES, STAGE_LABELS, type Account, type Deal, type ID, type ISODate, type Person, type Signal, type SignalType, type Workspace } from "@/lib/domain/types";
+import { OPEN_STAGES, STAGE_LABELS, type Account, type Deal, type ID, type ISODate, type ISODateTime, type Move, type Person, type Signal, type SignalType, type Workspace } from "@/lib/domain/types";
 import { openIntroFor } from "@/lib/intros/rules";
 import { bestPerson, clip, companyName, daysSince, first, isOpen, isSuppressed, localDate, plural } from "@/lib/moves/util";
 
@@ -59,6 +59,14 @@ export interface PlayDef {
   /** Signal plays: the account tiers the play runs on. */
   tiers?: Account["tier"][];
   match: (ws: Workspace, today: ISODate) => PlayMatch[];
+  /** Plays the founder wrote (recipes.ts): which saved version this is, null for a draft. */
+  custom?: { version: number | null };
+  /** Signal plays with a narrower trigger (keywords, strength): which of its signals count. Backtests and skips use it. */
+  signalTest?: (s: Signal) => boolean;
+  /** Traits the company must have regardless of timing (ICP criteria, keywords), for the backtest. */
+  accountTest?: (acc: Account) => boolean;
+  /** Different signal types that must be fresh at once (stacked signals). Default 1. */
+  stack?: number;
 }
 
 const TIER_WEIGHT: Record<Account["tier"], number> = { A: 30, B: 18, C: 6 };
@@ -339,7 +347,7 @@ export const PLAYS: PlayDef[] = [
     name: "Revisit closed-lost",
     family: "pipeline",
     trigger: "A lost deal whose reason has had time to expire (silence 60 days, timing 90, budget 120, price 180, a competitor 300), or any lost deal with a fresh leader, round or first hire, and no touch since.",
-    why: "A timing or budget no expires. These buyers already know the problem and you; the only question is whether it's now. Hold some back to measure it.",
+    why: "A no on timing or budget doesn't last. These buyers already know the problem and you; the only question is whether it's now. Hold some back to measure it.",
     audience: "The champion on the lost deal",
     action: { kind: "write", label: "Write the check-back" },
     windowDays: 365,
@@ -509,8 +517,10 @@ export function playForSignal(type: SignalType): string | undefined {
   return PLAYS.find((p) => p.signals?.includes(type))?.id;
 }
 
-/** Every play runs unless it was paused. */
+/** Every built-in play runs unless it was paused. A play the founder wrote runs once it's turned on, and not while archived. */
 export function playEnabled(ws: Workspace, id: string): boolean {
+  const custom = ws.customPlays?.[id];
+  if (custom) return !custom.archivedAt && custom.versions.length > 0 && (ws.plays?.[id]?.enabled ?? false);
   return ws.plays?.[id]?.enabled ?? true;
 }
 
@@ -534,23 +544,41 @@ export interface PlayResults {
   wonUsd: number;
 }
 
+/** The company a Today card is about (its account, person or deal). */
+export function moveDomain(ws: Workspace, m: Pick<Move, "ref">): string | undefined {
+  return m.ref?.kind === "account" ? m.ref.id : m.ref?.kind === "person" ? ws.people[m.ref.id]?.accountDomain : m.ref?.kind === "deal" ? ws.deals[m.ref.id]?.accountDomain : undefined;
+}
+
+/**
+ * When a play first worked each company: the record kept for good (`PlayState.worked`), backfilled from the bulk
+ * runs and done Today cards still on file, which is all a workspace from before that record has.
+ */
+export function firstWorked(ws: Workspace, playId: string): Map<string, ISODateTime> {
+  const since = new Map<string, ISODateTime>();
+  const note = (domain: string | undefined, at: string) => {
+    if (!domain) return;
+    if (!since.has(domain) || at < since.get(domain)!) since.set(domain, at);
+  };
+  for (const [domain, w] of Object.entries(ws.plays?.[playId]?.worked ?? {})) note(domain, w.at);
+  for (const run of ws.plays?.[playId]?.runs ?? []) for (const d of run.domains) note(d, run.at);
+  for (const m of Object.values(ws.moves)) {
+    if (m.playId !== playId || m.status !== "done" || m.autoDone) continue;
+    note(moveDomain(ws, m), m.createdAt);
+  }
+  return since;
+}
+
 /**
  * Results are attributed in code: an account counts for a play from the first time the play worked it
  * (a bulk run, or one of its Today cards marked done); touches, replies and deals after that date count.
  */
 export function playResults(ws: Workspace, play: PlayDef): PlayResults {
-  const since = new Map<string, string>();
-  const note = (domain: string | undefined, at: string) => {
-    if (!domain) return;
-    const day = localDate(at);
-    if (!since.has(domain) || day < since.get(domain)!) since.set(domain, day);
-  };
-  for (const run of ws.plays?.[play.id]?.runs ?? []) for (const d of run.domains) note(d, run.at);
-  for (const m of Object.values(ws.moves)) {
-    if (m.playId !== play.id || m.status !== "done" || m.autoDone) continue;
-    const domain = m.ref?.kind === "account" ? m.ref.id : m.ref?.kind === "person" ? ws.people[m.ref.id]?.accountDomain : m.ref?.kind === "deal" ? ws.deals[m.ref.id]?.accountDomain : undefined;
-    note(domain, m.createdAt);
-  }
+  return tallyResults(ws, firstWorked(ws, play.id));
+}
+
+/** Touches, replies, meetings and deals at each company from the day it was first worked. */
+export function tallyResults(ws: Workspace, worked: Map<string, ISODateTime>): PlayResults {
+  const since = new Map([...worked].map(([domain, at]) => [domain, localDate(at)]));
   const r: PlayResults = { worked: since.size, touched: 0, replied: 0, meetings: 0, pipeline: 0, pipelineUsd: 0, won: 0, wonUsd: 0 };
   for (const [domain, from] of since) {
     const acts = ws.activities.filter((a) => a.accountDomain === domain && localDate(a.at) >= from);
@@ -597,20 +625,29 @@ export interface PlayBacktest {
 export function backtestPlay(ws: Workspace, play: PlayDef, today: ISODate): PlayBacktest | null {
   const types = play.signals;
   if (!types?.length) return null;
+  const counts = (s: Signal) => types.includes(s.type) && !!s.date && (!play.signalTest || play.signalTest(s));
+  // Stacked plays need that many different signal types inside one window.
+  const stacked = (signals: Signal[]) => new Set(signals.map((s) => s.type)).size >= (play.stack ?? 1);
+  const fits = (acc: Account | undefined) => !!acc && (!play.accountTest || play.accountTest(acc));
   const startOf = (d: Deal) => localDate(d.stageHistory[0]?.at ?? d.createdAt);
   const hit = (d: Deal) => {
     const start = startOf(d);
-    return (ws.accounts[d.accountDomain]?.signals ?? []).some((x) => types.includes(x.type) && !!x.date && x.date <= start && daysBetween(x.date, start) <= play.windowDays);
+    const acc = ws.accounts[d.accountDomain];
+    return fits(acc) && stacked((acc?.signals ?? []).filter((x) => counts(x) && x.date <= start && daysBetween(x.date, start) <= play.windowDays));
   };
   const tally = (deals: Deal[]): [number, number] => [deals.filter(hit).length, deals.length];
   const deals = Object.values(ws.deals);
   let fired = 0;
   let becameDeals = 0;
   for (const acc of Object.values(ws.accounts)) {
-    const first = acc.signals.filter((x) => types.includes(x.type) && !!x.date && daysSince(x.date, today) <= 90).sort((a, b) => a.date.localeCompare(b.date))[0];
-    if (!first) continue;
+    if (!fits(acc)) continue;
+    const recent = acc.signals.filter((x) => counts(x) && daysSince(x.date, today) <= 90).sort((a, b) => a.date.localeCompare(b.date));
+    // It fired on the day the trigger was complete: the first signal, or the one that completed the stack.
+    const seen = new Set<SignalType>();
+    const on = recent.find((x) => seen.add(x.type).size >= (play.stack ?? 1))?.date;
+    if (!on) continue;
     fired++;
-    if (deals.some((d) => d.accountDomain === acc.domain && startOf(d) >= first.date)) becameDeals++;
+    if (deals.some((d) => d.accountDomain === acc.domain && startOf(d) >= on)) becameDeals++;
   }
   return {
     won: tally(deals.filter((d) => d.stage === "won")),
@@ -637,7 +674,9 @@ export function playSkips(ws: Workspace, play: PlayDef, today: ISODate): PlaySki
   const out: PlaySkip[] = [];
   for (const acc of Object.values(ws.accounts)) {
     if (matched.has(acc.domain)) continue;
-    const sig = acc.signals.filter((x) => types.includes(x.type) && !!x.date && daysSince(x.date, today) <= Math.max(120, play.windowDays * 2)).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const sig = acc.signals
+      .filter((x) => types.includes(x.type) && !!x.date && (!play.signalTest || play.signalTest(x)) && daysSince(x.date, today) <= Math.max(120, play.windowDays * 2))
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
     if (!sig) continue;
     const deal = acc.dealId ? ws.deals[acc.dealId] : undefined;
     const age = daysSince(sig.date, today);
