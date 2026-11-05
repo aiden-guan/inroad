@@ -307,6 +307,8 @@ export default defineWorkflow({
   args: z.object({ domain: z.string().min(3).max(253), force: z.boolean().optional() }),
   title: (a, ws) => `Researching ${ws.accounts[toDomain(a.domain) ?? a.domain]?.name ?? a.domain}`,
   ref: (a) => ({ kind: "account", id: toDomain(a.domain) ?? a.domain }),
+  // One company's research at a time: Research and Refresh (force) on the same account are the same work.
+  key: (a) => toDomain(a.domain) ?? a.domain,
   heavy: true,
   run: async (ctx) => {
     const domain = toDomain(ctx.args.domain);
