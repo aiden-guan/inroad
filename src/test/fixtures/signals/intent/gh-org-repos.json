@@ -1,0 +1,24 @@
+[
+ {
+  "name": "meterbook-node",
+  "full_name": "fixture-meterbook/meterbook-node",
+  "html_url": "https://github.com/fixture-meterbook/meterbook-node",
+  "stargazers_count": 2140,
+  "language": "TypeScript",
+  "pushed_at": "2026-11-04T13:00:00Z",
+  "description": "Node SDK for Meterbook usage billing",
+  "fork": false,
+  "archived": false
+ },
+ {
+  "name": "meterbook-python",
+  "full_name": "fixture-meterbook/meterbook-python",
+  "html_url": "https://github.com/fixture-meterbook/meterbook-python",
+  "stargazers_count": 610,
+  "language": "Python",
+  "pushed_at": "2026-11-02T11:00:00Z",
+  "description": "Python SDK for Meterbook",
+  "fork": false,
+  "archived": false
+ }
+]

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA_DIR, writeSettings } from "@/lib/store/settings";
 import { fixture, routeFetches } from "@/test/http-fixtures";
 import { resetGates } from "./gate";
-import { githubOrg, githubStargazers, orgLine, resetGithubBudget } from "./github";
+import { githubBudget, githubOrg, githubPerson, githubRepoActivity, githubSearchIssues, githubStargazers, orgLine, resetGithubBudget } from "./github";
 import { fetchJSON, fetchText } from "./http";
 
 vi.mock("./http", async (actual) => ({ ...(await actual<typeof import("./http")>()), fetchText: vi.fn(), fetchJSON: vi.fn() }));
@@ -120,3 +120,48 @@ describe("githubStargazers", () => {
     expect(fetchText).not.toHaveBeenCalled();
   });
 });
+
+describe("since GitHub restricted stargazer lists (July 2026)", () => {
+  it("says the list is restricted instead of pretending the repo doesn't exist", async () => {
+    serve({
+      [`${API}/repos/acmehq/acme-sdk`]: JSON.stringify({ full_name: "acmehq/acme-sdk", stargazers_count: 3 }),
+      [`${API}/repos/acmehq/acme-sdk/stargazers?per_page=100&page=1`]: { body: '{"message":"Requires authentication"}', status: 401 },
+    });
+    expect(await githubStargazers("acmehq/acme-sdk")).toMatchObject({ repo: "acmehq/acme-sdk", stargazers: [], restricted: true, rateLimited: false });
+  });
+});
+
+describe("developer radar lookups", () => {
+  it("places a profile from an @org after a role, and an organization from its own site", async () => {
+    serve({
+      [`${API}/users/dev-m`]: user("dev-m", { name: "Dev M", company: "Backend Engineer @lumen" }),
+      [`${API}/users/lumen`]: JSON.stringify({ login: "lumen", type: "Organization", blog: "lumen.example" }),
+      [`${API}/users/hollowpine`]: JSON.stringify({ login: "hollowpine", type: "Organization", blog: "https://hollowpine.example" }),
+    });
+    expect(await githubPerson("dev-m")).toMatchObject({ login: "dev-m", company: "Backend Engineer @lumen", domain: "lumen.example", domainBasis: "company_org" });
+    expect(await githubPerson("hollowpine")).toMatchObject({ type: "Organization", domain: "hollowpine.example", domainBasis: "company_org" });
+    expect((await githubPerson("dev-m"))!.cached).toBe(true);
+  });
+
+  it("keeps the search budget apart from the hourly one, and caches a repo's activity for an hour", async () => {
+    const reset = String(Math.floor(Date.now() / 1000) + 60);
+    const requested = serve({
+      [`${API}/search/issues?q=${encodeURIComponent("Meterbook usage is:issue")}&sort=created&order=desc&per_page=20`]: { body: '{"items":[]}', headers: { "x-ratelimit-remaining": "1", "x-ratelimit-reset": reset } },
+      [`${API}/repos/a/b/forks?sort=newest&per_page=100`]: "[]",
+      [`${API}/repos/a/b/issues?state=all&sort=created&direction=desc&per_page=100`]: "[]",
+      [`${API}/repos/a/b/issues/comments?sort=created&direction=desc&per_page=100&since=${encodeURIComponent("2026-10-06T00:00:00.000Z")}`]: "[]",
+      [`${API}/repos/a/b/stargazers/history`]: '[{"week":1793000000,"total":4,"days":[1,1,1,1,0,0,0]}]',
+    });
+    expect(await githubSearchIssues("Meterbook usage is:issue")).toMatchObject({ rateLimited: false, cached: false });
+    expect(githubBudget("search").remaining).toBe(1);
+    expect(githubBudget("core").remaining).toBeUndefined();
+    // One search left is the reserve: the next one waits for the minute to reset.
+    expect(await githubSearchIssues("Closewise usage is:issue")).toMatchObject({ rateLimited: true });
+    const first = await githubRepoActivity("a/b", "2026-10-06T00:00:00.000Z");
+    expect(first).toMatchObject({ requests: 4, rateLimited: false, forks: [], issues: [] });
+    const again = await githubRepoActivity("a/b", "2026-10-06T00:00:00.000Z");
+    expect(again.requests).toBe(0);
+    expect(requested.filter((u) => u.includes("/repos/a/b/"))).toHaveLength(4);
+  });
+});
+

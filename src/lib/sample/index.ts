@@ -22,6 +22,7 @@ import {
 import { connections, networkSummary } from "./connections";
 import { events } from "./events";
 import { intros } from "./intros";
+import { sampleIntent } from "./intent";
 import { DEAL, DOMAIN, MEETING, RUN } from "./ids";
 import { activities, outreach } from "./outreach";
 import { deals, meetings } from "./pipeline";
@@ -109,6 +110,7 @@ function assemble(now: Date): Workspace {
     runs: runs(c),
     usage: usage(c),
     revenue: { target, snapshots: [lastWeekSnapshot(c, target)] },
+    intent: sampleIntent(c, { foundation: f, company: companySnapshot() }),
   };
   // Written last: the update's numbers are computed from the finished workspace.
   ws.revenue!.updates = [ceoUpdate(ws, c)];

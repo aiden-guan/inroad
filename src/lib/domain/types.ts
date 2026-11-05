@@ -9,6 +9,7 @@
 import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
 import type { WaitlistTracking } from "@/lib/waitlist/types";
 import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
+import type { IntentState } from "@/lib/intent/types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -1669,7 +1670,8 @@ export type WorkflowId =
   | "studio"
   | "visual"
   | "agent_ask"
-  | "gtm_update";
+  | "gtm_update"
+  | "intent";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -2144,6 +2146,8 @@ export interface Workspace {
   pmfSurveys?: PmfSurvey[];
   /** The revenue number, weekly forecast snapshots (last 26) and weekly updates (last 12). */
   revenue?: { target?: RevenueTarget; snapshots?: ForecastSnapshot[]; updates?: GtmUpdate[] };
+  /** Research → Intent: public posts asking for what the company sells, and the developer radar (src/lib/intent). */
+  intent?: IntentState;
   /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
   plays?: Record<string, PlayState>;
   /** What each market had when the founder last switched away from it, so switching back restores it. */

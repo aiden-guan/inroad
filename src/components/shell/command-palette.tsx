@@ -503,8 +503,11 @@ export function CommandPalette() {
                     </Item>
                   </>
                 )}
-                <Item value="research search web sources" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research"))}>
+                <Item value="research search web sources" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research?tab=search"))}>
                   {b2b ? "Search the web and research companies" : "Search the web"}
+                </Item>
+                <Item value="intent people asking for it buyers questions hacker news reddit stack exchange github developers radar" icon={<Search className="size-4" />} onSelect={() => run(() => router.push("/research?tab=intent"))}>
+                  {b2b ? "Find people asking for what you sell" : "Find people asking for what you make"}
                 </Item>
                 {b2b && (
                   <Item value="find new companies discover accounts prospects" icon={<Compass className="size-4" />} onSelect={() => run(() => void start("discovery", {}))}>
