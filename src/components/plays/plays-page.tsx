@@ -1,107 +1,159 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, ChevronRight, Search } from "lucide-react";
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { ComposeButton } from "@/components/compose/composer";
-import { useAsk } from "@/components/providers/ask-provider";
-import { useRuns } from "@/components/providers/runs-provider";
+import { motion } from "motion/react";
+import { ChevronRight } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useToday } from "@/components/companies/list/lib";
 import { Badge } from "@/components/ui/badge";
-import { StatusLine, Switch } from "@/components/ui/fx";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
-import { Favicon } from "@/components/ui/favicon";
 import { LoadingSignal } from "@/components/ui/loading";
+import { EmptyState } from "@/components/ui/misc";
 import { PageHeader } from "@/components/ui/page-header";
-import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
-import { nowISO } from "@/lib/domain/ids";
+import { newId, nowISO } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
-import { ease, listItem } from "@/lib/motion";
+import { listItem } from "@/lib/motion";
 import { visibleMoves } from "@/lib/moves/rules";
-import {
-  backtestPlay,
-  FAMILY_LABELS,
-  matchAge,
-  PLAYS,
-  playEnabled,
-  playMatches,
-  playResults,
-  playSkips,
-  type PlayBacktest,
-  type PlayDef,
-  type PlayFamily,
-  type PlayMatch,
-  type PlayResults,
-} from "@/lib/plays/catalog";
+import { playEnabled, playMatches, playResults } from "@/lib/plays/catalog";
+import { playLessons, resultsByVersion } from "@/lib/plays/custom";
+import type { CustomPlay } from "@/lib/plays/recipe-types";
+import { customPlays, editingRecipe, playsFor } from "@/lib/plays/recipes";
+import { suggestPlays, type PlaySuggestion } from "@/lib/plays/suggest";
 import { money } from "@/lib/revenue/forecast";
+import { DescribePlay } from "./describe-play";
+import { LiveQueue, liveQueue } from "./live-queue";
+import { PlayEditor } from "./play-editor";
+import { PlayRow, RowHeads, type Row } from "./play-row";
+import { Suggestions } from "./suggestions";
 
-const FAMILIES: PlayFamily[] = ["signal", "network", "pipeline", "customer"];
-const BULK = 3;
-
-interface Row {
-  play: PlayDef;
-  on: boolean;
-  matches: PlayMatch[];
-  live: number;
-  onToday: number;
-  results: PlayResults;
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) || !!el.closest("[role=dialog],[role=menu]"));
 }
 
 /**
- * Plays: the programs a GTM engineer would wire up in Clay and a sequencer, run here in code against
- * the workspace every day. Each shows its trigger, why it works, what matches right now (with the fact
- * that triggered it), and what it has produced. Running plays put their best match on Today.
+ * Plays: the programs a GTM engineer would wire up in Clay and a sequencer, run here in code against the workspace
+ * every day. Describe your own in a sentence (compiled to a recipe you edit and dry-run), see every live match across
+ * running plays, and open any play for its trigger, backtest, matches, skips, versions and results.
  */
 export function PlaysPage() {
-  const { ws } = useWorkspace();
-  const today = useToday();
-  const [open, setOpen] = useState<string | null>(null);
+  const { ws, error, refresh } = useWorkspace();
+  if (!ws) {
+    return error ? (
+      <div className="page-shell max-w-[1000px]">
+        <EmptyState
+          title="Couldn't load your workspace"
+          body={`${error} Your data is still on this machine.`}
+          action={
+            <Button variant="primary" onClick={() => void refresh()}>
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    ) : (
+      <LoadingSignal label="Matching your plays" className="min-h-[60dvh]" />
+    );
+  }
+  return <Plays ws={ws} />;
+}
 
-  const rows = useMemo<Row[] | null>(() => {
-    if (!ws || !today) return null;
+function Plays({ ws }: { ws: Workspace }) {
+  const { dispatch } = useWorkspace();
+  const today = useToday();
+  const params = useSearchParams();
+  const router = useRouter();
+  const selected = params.get("play");
+  const [text, setText] = useState("");
+  const [target, setTarget] = useState<string | undefined>();
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  const select = (id: string | null) => router.replace(id ? `/plays?play=${encodeURIComponent(id)}` : "/plays", { scroll: false });
+
+  // N (or /) starts a new play from anywhere on the page; G then N still goes to Intros.
+  useEffect(() => {
+    let g = 0;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
+      if (e.key.toLowerCase() === "g") {
+        g = Date.now();
+        return;
+      }
+      const afterG = Date.now() - g < 1200;
+      g = 0;
+      if ((e.key !== "n" && e.key !== "/") || afterG) return;
+      e.preventDefault();
+      input.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const model = useMemo(() => {
+    if (!today) return null;
     const desk = visibleMoves(ws.moves, today);
-    return PLAYS.map((play) => {
+    const rows: Row[] = playsFor(ws).map((play) => {
+      const cp = ws.customPlays?.[play.id];
       const matches = playMatches(ws, play, today);
       return {
         play,
+        cp,
         on: playEnabled(ws, play.id),
         matches,
         live: matches.filter((m) => !m.worked).length,
         onToday: desk.filter((m) => m.playId === play.id).length,
-        results: playResults(ws, play),
+        results: cp ? resultsByVersion(ws, cp).total : playResults(ws, play),
+        lessons: cp ? playLessons(ws, cp) : [],
       };
     });
+    return {
+      rows,
+      drafts: customPlays(ws).filter((cp) => cp.versions.length === 0),
+      queue: liveQueue(rows),
+      suggestions: suggestPlays(ws, today),
+      onToday: desk.filter((m) => !!m.playId).length,
+    };
   }, [ws, today]);
 
-  if (!ws || !rows) return <LoadingSignal label="Matching your plays" className="min-h-[60dvh]" />;
-  const running = rows.filter((r) => r.on).length;
-  const live = rows.filter((r) => r.on).reduce((n, r) => n + r.live, 0);
-  const onToday = rows.reduce((n, r) => n + r.onToday, 0);
-  const pipeline = rows.reduce((n, r) => n + r.results.pipelineUsd + r.results.wonUsd, 0);
+  if (!today || !model) return <LoadingSignal label="Matching your plays" className="min-h-[60dvh]" />;
+  const running = model.rows.filter((r) => r.on).length;
+  const live = model.queue.length;
+  const pipeline = model.rows.reduce((n, r) => n + r.results.pipelineUsd + r.results.wonUsd, 0);
+  const own = model.rows.filter((r) => r.cp);
+  const builtIn = model.rows.filter((r) => !r.cp);
+
+  const rewrite = (sentence: string, id: string) => {
+    setText(sentence);
+    setTarget(id);
+    input.current?.focus();
+    input.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+  const pick = async (s: PlaySuggestion) => {
+    const play: CustomPlay = { id: newId("cp"), createdAt: nowISO(), sentence: s.sentence, origin: "suggestion", suggestion: s.key, versions: [], history: [], draft: s.recipe, unsupported: [], assumptions: [], dismissed: [] };
+    if (await dispatch({ type: "customPlay.upsert", play })) select(play.id);
+  };
 
   return (
     <div className="page-shell max-w-[1000px]">
       <PageHeader
         title="Plays"
         eyebrow="Always on"
-        description="Repeatable programs I run against your accounts every day: a trigger you could write down, one action, and results counted from your deals. Running plays put their best match on Today; pause one and its cards come off."
+        description="Repeatable programs I run against your accounts every day: a trigger you could write down, one action, and results counted from your deals. Describe your own in a sentence; running plays put their best match on Today."
       >
         <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
           <span>
-            <span className="font-mono tnum text-fg-2">{running}</span> of {rows.length} running
+            <span className="font-mono tnum text-fg-2">{running}</span> of {model.rows.length} running{own.length ? ` (${own.length} yours)` : ""}
           </span>
           <span aria-hidden>·</span>
           <span>
-            <span className="font-mono tnum text-fg-2">{live}</span> live {live === 1 ? "match" : "matches"}
+            <span className="font-mono tnum text-fg-2">{live}</span> {live === 1 ? "company" : "companies"} live
           </span>
           <span aria-hidden>·</span>
           <span>
-            <span className="font-mono tnum text-fg-2">{onToday}</span> on Today
+            <span className="font-mono tnum text-fg-2">{model.onToday}</span> on Today
           </span>
           {pipeline > 0 && (
             <>
@@ -116,287 +168,94 @@ export function PlaysPage() {
         </p>
       </PageHeader>
 
-      {FAMILIES.map((family) => {
-        const group = rows.filter((r) => r.play.family === family);
-        if (!group.length) return null;
-        return (
-          <section key={family} className="mt-10" aria-labelledby={`family-${family}`}>
-            <SectionLabel>
-              <span id={`family-${family}`}>{FAMILY_LABELS[family]}</span>
-            </SectionLabel>
-            <div className="space-y-2.5">
-              {group.map((row, i) => (
-                <motion.div key={row.play.id} variants={listItem} initial="hidden" animate="show" custom={i}>
-                  <PlayCard row={row} ws={ws} today={today} open={open === row.play.id} onToggle={() => setOpen((o) => (o === row.play.id ? null : row.play.id))} />
-                </motion.div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      <div className="mt-8">
+        <DescribePlay ref={input} ws={ws} text={text} setText={setText} target={target} clearTarget={() => setTarget(undefined)} onCompiled={(id) => select(id)} />
+      </div>
+
+      {model.drafts.length > 0 && (
+        <section className="mt-6 space-y-2.5" aria-labelledby="play-drafts">
+          <SectionLabel right={<span className="text-[12px] text-fg-3">Not running yet: dry-run, edit, then turn on</span>}>
+            <span id="play-drafts">Drafts</span>
+          </SectionLabel>
+          {model.drafts.map((cp) => (
+            <DraftCard key={cp.id} cp={cp} ws={ws} today={today} selected={selected === cp.id || (!selected && model.drafts.length === 1)} onSelect={(on) => select(on ? cp.id : null)} onRewrite={rewrite} />
+          ))}
+        </section>
+      )}
+
+      <LiveQueue items={model.queue} ws={ws} today={today} onOpenPlay={(id) => select(id)} />
+
+      <Suggestions suggestions={model.suggestions} onPick={(s) => void pick(s)} />
+
+      <section className="mt-10" aria-labelledby="all-plays">
+        <SectionLabel right={<span className="text-[12px] text-fg-3">Open one for its trigger, backtest, matches and skips</span>}>
+          <span id="all-plays">All plays</span>
+        </SectionLabel>
+        <RowHeads />
+        <div className="space-y-2">
+          {[...own, ...builtIn].map((row, i) => (
+            <motion.div key={row.play.id} variants={listItem} initial="hidden" animate="show" custom={i}>
+              <PlayRow row={row} ws={ws} today={today} open={selected === row.play.id} onToggle={() => select(selected === row.play.id ? null : row.play.id)} onRewrite={rewrite} />
+            </motion.div>
+          ))}
+        </div>
+        <ArchivedPlays ws={ws} />
+      </section>
     </div>
   );
 }
 
-function PlayCard({ row, ws, today, open, onToggle }: { row: Row; ws: Workspace; today: string; open: boolean; onToggle: () => void }) {
-  const { dispatch } = useWorkspace();
-  const { play, on, matches, live, onToday, results } = row;
-  const toggle = async () => {
-    const ok = await dispatch({ type: "play.set", id: play.id, enabled: !on, at: nowISO() });
-    if (ok) toast(on ? `${play.name} paused. Its cards come off Today.` : `${play.name} is running.`);
+/** A play described but not turned on: open by default, straight into its editor and dry run. */
+function DraftCard({ cp, ws, today, selected, onSelect, onRewrite }: { cp: CustomPlay; ws: Workspace; today: string; selected: boolean; onSelect: (on: boolean) => void; onRewrite: (sentence: string, id: string) => void }) {
+  const recipe = editingRecipe(cp);
+  const [collapsed, setCollapsed] = useState(false);
+  const open = selected || !collapsed;
+  const toggle = () => {
+    setCollapsed(open);
+    onSelect(!open);
   };
-
   return (
-    <div className={cn("overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border transition-opacity", !on && "opacity-75")}>
-      <div className="grid gap-x-6 gap-y-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[14.5px] font-medium text-fg">{play.name}</h3>
-            {play.data === "paid" && <Badge tone="outline">Needs paid data</Badge>}
-          </div>
-          <p className="mt-1 text-[13px] leading-5 text-fg-2">
-            <span className="text-fg-3">When </span>
-            {play.trigger.charAt(0).toLowerCase() + play.trigger.slice(1)}
-          </p>
-          <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
-            {play.why}
-            {play.source && (
-              <a href={play.source.url} target="_blank" rel="noreferrer" className="ml-1 text-fg-3 underline decoration-dotted underline-offset-4 hover:text-fg-2">
-                {play.source.label}
-                <ArrowUpRight className="ml-0.5 inline size-3 align-[-2px]" aria-hidden />
-              </a>
-            )}
-          </p>
+    <div className={cn("overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset", selected ? "ring-accent/30" : "ring-border")}>
+      <button type="button" onClick={toggle} aria-expanded={open} className="flex w-full min-w-0 items-center gap-2 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ring)] sm:px-5">
+        <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 text-fg-3 transition-transform duration-150", open && "rotate-90")} />
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-fg">{recipe?.name ?? "Untitled play"}</span>
+        <Badge tone="warning">Draft</Badge>
+        <Badge tone="agent">{cp.origin === "suggestion" ? "Suggested" : "Custom"}</Badge>
+      </button>
+      {open && (
+        <div className="border-t border-border bg-bg-subtle/40 px-4 pb-5 pt-4 sm:px-5">
+          <PlayEditor cp={cp} ws={ws} today={today} onRewrite={onRewrite} focus={selected} />
         </div>
-        <div className="flex items-start gap-3 sm:flex-col sm:items-end">
-          <Switch on={on} onChange={() => void toggle()} label={`${play.name}: ${on ? "running" : "paused"}`}>
-            <StatusLine text={on ? "Running" : "Paused"} className="min-w-[46px]" />
-          </Switch>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-2.5 text-[12.5px] text-fg-3 sm:px-5">
-        <button type="button" onClick={onToggle} aria-expanded={open} className="inline-flex items-center gap-1.5 rounded-sm font-medium text-fg-2 outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-          <ChevronRight aria-hidden className={cn("size-3.5 transition-transform duration-150", open && "rotate-90")} />
-          <span className="font-mono tnum">{live}</span> live {live === 1 ? "match" : "matches"}
-          {matches.length > live && <span className="font-normal text-fg-3">· {matches.length - live} worked</span>}
-        </button>
-        {onToday > 0 && (
-          <Link href="/today" className="text-fg-2 underline-offset-2 hover:text-fg hover:underline">
-            {onToday} on Today
-          </Link>
-        )}
-        <span className="ml-auto flex flex-wrap items-center gap-x-3">
-          <ResultsLine r={results} />
-        </span>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0, transition: { duration: 0.12 } }} transition={{ duration: 0.2, ease: ease.out }} className="overflow-hidden">
-            <Matches row={row} ws={ws} today={today} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 }
 
-function ResultsLine({ r }: { r: PlayResults }) {
-  if (!r.worked) return <span>No results yet</span>;
-  const parts = [
-    `${r.worked} worked`,
-    r.touched ? `${r.touched} touched` : "",
-    r.replied ? `${r.replied} replied` : "",
-    r.meetings ? `${r.meetings} met` : "",
-    r.pipeline ? `${money(r.pipelineUsd)} pipeline` : "",
-    r.won ? `${money(r.wonUsd)} won` : "",
-  ].filter(Boolean);
-  return (
-    <Tooltip content="Counted from the first day this play worked each company: touches, replies, meetings and deals since.">
-      <span tabIndex={0} className="cursor-help rounded-[2px] font-mono text-[12px] tnum outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-        {parts.join(" · ")}
-      </span>
-    </Tooltip>
-  );
-}
-
-function Matches({ row, ws, today }: { row: Row; ws: Workspace; today: string }) {
+/** Archived plays stay listed (quietly) with their results, and can come back. */
+function ArchivedPlays({ ws }: { ws: Workspace }) {
   const { dispatch } = useWorkspace();
-  const { start } = useRuns();
-  const { play, matches } = row;
-  const [busy, setBusy] = useState(false);
-  const toResearch = matches.filter((m) => !m.worked && !ws.accounts[m.domain]?.dossier).slice(0, BULK);
-  const test = backtestPlay(ws, play, today);
-  const skips = playSkips(ws, play, today);
-  const [showSkips, setShowSkips] = useState(false);
-
-  const researchTop = async () => {
-    setBusy(true);
-    const domains = toResearch.map((m) => m.domain);
-    await dispatch({ type: "play.run", id: play.id, domains, at: nowISO() });
-    let started = 0;
-    for (const domain of domains) if (await start("dossier", { domain }, { notify: true })) started++;
-    setBusy(false);
-    if (started) toast(`Researching ${started} ${started === 1 ? "company" : "companies"} from ${play.name}. Drafts follow on Today.`);
-  };
-
+  const [open, setOpen] = useState(false);
+  const archived = Object.values(ws.customPlays ?? {}).filter((cp) => !!cp.archivedAt);
+  if (!archived.length) return null;
   return (
-    <div className="border-t border-border bg-bg-subtle/40 px-4 pb-4 pt-3 sm:px-5">
-      <p className="mb-3 text-[12.5px] leading-5 text-fg-2">
-        <span className="font-medium text-fg">How to run it. </span>
-        {play.coach}
-      </p>
-      {test && <BacktestLine t={test} play={play} />}
-      {!matches.length ? (
-        <p className="text-[13px] text-fg-3">Nothing matches right now. I check again every time your accounts or deals change.</p>
-      ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-lg bg-surface ring-1 ring-inset ring-border">
-          {matches.slice(0, 8).map((m) => (
-            <MatchRow key={m.key} m={m} play={play} ws={ws} today={today} />
+    <div className="mt-4">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="inline-flex items-center gap-1 text-[12px] font-medium text-fg-3 hover:text-fg-2">
+        <ChevronRight aria-hidden className={cn("size-3 transition-transform duration-150", open && "rotate-90")} />
+        {archived.length} archived {archived.length === 1 ? "play" : "plays"}
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1">
+          {archived.map((cp) => (
+            <li key={cp.id} className="flex flex-wrap items-center gap-x-3 text-[12.5px] text-fg-3">
+              <span className="font-medium text-fg-2">{editingRecipe(cp)?.name ?? "Untitled play"}</span>
+              <span>v{cp.versions.at(-1)?.version ?? 1}</span>
+              <Button size="xs" variant="ghost" onClick={() => void dispatch({ type: "customPlay.archive", id: cp.id, archived: false, at: nowISO() })}>
+                Restore
+              </Button>
+            </li>
           ))}
         </ul>
       )}
-      {matches.length > 8 && <p className="mt-2 text-[12px] text-fg-3">and {matches.length - 8} more, best first.</p>}
-      {skips.length > 0 && (
-        <div className="mt-3">
-          <button type="button" onClick={() => setShowSkips((v) => !v)} aria-expanded={showSkips} className="inline-flex items-center gap-1 text-[12px] font-medium text-fg-3 hover:text-fg-2">
-            <ChevronRight aria-hidden className={cn("size-3 transition-transform duration-150", showSkips && "rotate-90")} />
-            {skips.length} with the trigger that the play skipped, and why
-          </button>
-          {showSkips && (
-            <ul className="mt-2 space-y-1 text-[12px] leading-5">
-              {skips.map((x) => (
-                <li key={x.domain} className="flex flex-wrap gap-x-2">
-                  <Link href={`/companies?c=${encodeURIComponent(x.domain)}`} className="font-medium text-fg-2 hover:text-fg">
-                    {x.company}
-                  </Link>
-                  <span className="text-fg-3">{x.reason}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-      {toResearch.length > 0 && (play.action.kind === "write" || play.action.kind === "research") && play.family !== "pipeline" && (
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button size="sm" variant="agent" icon={<Search className="size-3.5" />} loading={busy} onClick={() => void researchTop()}>
-            Research the top {toResearch.length}
-          </Button>
-          <span className="text-[12px] text-fg-3">A cited dossier each, about 2 minutes. First touches land on Today as drafts.</span>
-        </div>
-      )}
     </div>
   );
 }
-
-/** The play run against the deals on file: did the trigger come before the wins, and before the losses? */
-function BacktestLine({ t, play }: { t: PlayBacktest; play: PlayDef }) {
-  const decided = t.won[1] + t.lost[1];
-  return (
-    <p className="mb-3 text-[12.5px] leading-5 text-fg-2">
-      <span className="font-medium text-fg">Backtest on your deals. </span>
-      {decided === 0 && t.open[1] === 0 ? (
-        "No deals yet to test it against."
-      ) : (
-        <>
-          The trigger showed up in the {play.windowDays} days before the first call for{" "}
-          <span className="font-mono tnum">
-            {t.won[0]}/{t.won[1]}
-          </span>{" "}
-          won,{" "}
-          <span className="font-mono tnum">
-            {t.lost[0]}/{t.lost[1]}
-          </span>{" "}
-          lost and{" "}
-          <span className="font-mono tnum">
-            {t.open[0]}/{t.open[1]}
-          </span>{" "}
-          open deals.
-        </>
-      )}{" "}
-      In the last 90 days it fired at <span className="font-mono tnum">{t.fired}</span> {t.fired === 1 ? "company" : "companies"}
-      {t.fired > 0 && (
-        <>
-          ; <span className="font-mono tnum">{t.becameDeals}</span> became {t.becameDeals === 1 ? "a deal" : "deals"}
-        </>
-      )}
-      .{decided < 10 && decided > 0 && <span className="text-fg-3"> Too few closed deals to call it a pattern yet.</span>}
-    </p>
-  );
-}
-
-function MatchRow({ m, play, ws, today }: { m: PlayMatch; play: PlayDef; ws: Workspace; today: string }) {
-  const { openAsk } = useAsk();
-  const { start } = useRuns();
-  const { dispatch } = useWorkspace();
-  const acc = ws.accounts[m.domain];
-  // Record the account against the play once, the first time it's worked from here.
-  const note = () => {
-    if (ws.plays?.[play.id]?.runs?.some((r) => r.domains.includes(m.domain))) return;
-    void dispatch({ type: "play.run", id: play.id, domains: [m.domain], at: nowISO() });
-  };
-
-  let action: React.ReactNode = null;
-  if (!m.worked) {
-    if (play.prompt) {
-      action = (
-        <Button
-          size="xs"
-          variant="agent"
-          onClick={() => {
-            note();
-            openAsk({ context: m.dealId ? { kind: "deal", id: m.dealId } : { kind: "account", id: m.domain }, prefill: play.prompt!(m, ws) });
-          }}
-        >
-          {play.action.label}
-        </Button>
-      );
-    } else if (play.action.kind === "research") {
-      action = acc?.dossier ? null : (
-        <Button
-          size="xs"
-          variant="agent"
-          onClick={async () => {
-            note();
-            if (await start("dossier", { domain: m.domain }, { notify: true })) toast(`Researching ${m.company}`);
-          }}
-        >
-          {play.action.label}
-        </Button>
-      );
-    } else if (acc) {
-      action = (
-        <span onClickCapture={note}>
-          <ComposeButton domain={m.domain} personId={m.personId} mode={play.action.kind === "intro" ? "warm_intro" : "cold"} label={play.action.kind === "intro" ? "Draft the intro ask" : "Draft the first touch"} />
-        </span>
-      );
-    }
-  }
-
-  return (
-    <li className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 sm:px-4", m.worked && "opacity-60")}>
-      <Favicon domain={m.domain} name={m.company} size={18} />
-      <div className="min-w-0 flex-1 basis-56">
-        <p className="flex flex-wrap items-baseline gap-x-2 text-[13.5px]">
-          <Link href={`/companies?c=${encodeURIComponent(m.domain)}`} className="font-medium text-fg underline-offset-2 hover:underline">
-            {m.company}
-          </Link>
-          {m.personName && <span className="text-[12.5px] text-fg-3">{m.personName}</span>}
-          {m.worked && <Badge tone="neutral">Worked</Badge>}
-        </p>
-        <p className="truncate text-[12.5px] text-fg-2">
-          {m.headline}
-          {m.date && <span className="ml-1.5 font-mono text-[11.5px] text-fg-3">{matchAge(m.date, today)}</span>}
-          {m.url && (
-            <a href={m.url} target="_blank" rel="noreferrer" aria-label="Source" className="ml-1.5 inline-flex translate-y-[1px] text-fg-3 hover:text-fg">
-              <ArrowUpRight className="size-3.5" />
-            </a>
-          )}
-        </p>
-      </div>
-      {action}
-    </li>
-  );
-}
-

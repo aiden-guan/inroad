@@ -115,6 +115,8 @@ describe("plays on Today", () => {
     const cards = computeMoves(ws, NOW).filter((m) => m.rule === "today.play");
     expect(cards.map((m) => [m.playId, m.kind, m.ref?.id])).toEqual([
       ["closed_lost_revisit", "follow_up", "deal_larkspur"],
+      // The play the founder wrote (src/lib/sample/plays.ts) runs beside the built-ins.
+      ["cp_revops_hire", "first_touch", "per_iris_navarro"],
       ["lookalike", "research", "quayside.example"],
     ]);
     applyAction(ws, { type: "play.set", id: "lookalike", enabled: false, at: at(0) });

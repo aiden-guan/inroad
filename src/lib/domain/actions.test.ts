@@ -5,8 +5,14 @@ import { DEAL, DOMAIN, EVENT, MEETING, PACKAGE, PERSON } from "@/lib/sample/ids"
 import { MATERIAL, PIECE } from "@/lib/sample/studio";
 import { NOW, TODAY, at, consumerWorkspace, day, makeMove, makePackage, makePartner, makeStep, makeWeek, makeWorkspace } from "@/test/factories";
 import { buildRevision } from "@/lib/playbook/revision";
+import { playEnabled } from "@/lib/plays/catalog";
+import type { CustomPlay } from "@/lib/plays/recipe-types";
+import { blankRecipe } from "@/lib/plays/recipes";
 import { ActionError, applyAction, hrefFor, type Action } from "./actions";
 import type { Workspace } from "./types";
+
+/** A play the founder described, not turned on yet. */
+const draftPlay = (id = "cp_test"): CustomPlay => ({ id, createdAt: at(-3), sentence: "When a fit company posts a billing role, write to the controller.", origin: "sentence", versions: [], history: [], draft: blankRecipe(), unsupported: [], assumptions: [], dismissed: [] });
 
 /**
  * The reducer runs twice (optimistically in the browser, then on the server), so it must be pure:
@@ -573,9 +579,71 @@ const cases: Record<Action["type"], () => void> = {
 
   "play.run": () => {
     const s = apply(makeWorkspace(), { type: "play.run", id: "funding", domains: ["a.example", "a.example", "b.example"], at: at(0) });
-    expect(s.plays?.funding).toEqual({ enabled: true, updatedAt: at(0), runs: [{ at: at(0), domains: ["a.example", "b.example"] }] });
+    expect(s.plays?.funding).toEqual({ enabled: true, updatedAt: at(0), runs: [{ at: at(0), domains: ["a.example", "b.example"] }], worked: { "a.example": { at: at(0) }, "b.example": { at: at(0) } } });
     apply(s, { type: "play.run", id: "funding", domains: [], at: at(1) });
     expect(s.plays?.funding.runs).toHaveLength(1);
+  },
+
+  "customPlay.upsert": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() });
+    expect(s.customPlays?.cp_test).toMatchObject({ id: "cp_test", versions: [], draft: { trigger: { signals: ["jd_names_pain"] } } });
+    // A draft never runs until it's turned on.
+    expect(playEnabled(s, "cp_test")).toBe(false);
+  },
+
+  "customPlay.edit": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.edit", id: "cp_test", recipe: { ...blankRecipe(), name: "Billing hires" }, at: at(0) });
+    expect(s.customPlays?.cp_test.draft?.name).toBe("Billing hires");
+    expect(() => apply(s, { type: "customPlay.edit", id: "cp_missing", recipe: blankRecipe(), at: at(0) })).toThrow("Play not found");
+  },
+
+  "customPlay.commit": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.commit", id: "cp_test", source: "compiled", at: at(0) });
+    expect(s.customPlays?.cp_test).toMatchObject({ versions: [{ version: 1, note: "First version", source: "compiled" }], history: [{ version: 1, at: at(0) }] });
+    expect(s.customPlays?.cp_test).not.toHaveProperty("draft");
+  },
+
+  "customPlay.rollback": () => {
+    const s = apply(
+      makeWorkspace(),
+      { type: "customPlay.upsert", play: draftPlay() },
+      { type: "customPlay.commit", id: "cp_test", source: "compiled", at: at(-2) },
+      { type: "customPlay.edit", id: "cp_test", recipe: { ...blankRecipe(), guardrails: { cooldownDays: 60, maxPerWeek: 5 } }, at: at(-1) },
+      { type: "customPlay.commit", id: "cp_test", source: "edit", at: at(-1) },
+      { type: "customPlay.rollback", id: "cp_test", version: 1, at: at(0) },
+    );
+    expect(s.customPlays?.cp_test.history.map((h) => h.version)).toEqual([1, 2, 1]);
+    expect(s.customPlays?.cp_test.versions[1].note).toBe("Cooldown 30 → 60 days");
+  },
+
+  "customPlay.discardDraft": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.discardDraft", id: "cp_test" });
+    expect(s.customPlays?.cp_test).not.toHaveProperty("draft");
+  },
+
+  "customPlay.dismissLesson": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.dismissLesson", id: "cp_test", key: "cooldown:60", skips: 3, at: at(0) });
+    expect(s.customPlays?.cp_test.dismissed).toEqual([{ key: "cooldown:60", at: at(0), skips: 3 }]);
+  },
+
+  "customPlay.archive": () => {
+    const s = apply(
+      makeWorkspace(),
+      { type: "customPlay.upsert", play: draftPlay() },
+      { type: "customPlay.commit", id: "cp_test", source: "compiled", at: at(-1) },
+      { type: "play.set", id: "cp_test", enabled: true, at: at(-1) },
+    );
+    expect(playEnabled(s, "cp_test")).toBe(true);
+    apply(s, { type: "customPlay.archive", id: "cp_test", archived: true, at: at(0) });
+    expect(playEnabled(s, "cp_test")).toBe(false);
+    expect(s.plays?.cp_test.enabled).toBe(false);
+  },
+
+  "customPlay.remove": () => {
+    const s = apply(makeWorkspace(), { type: "customPlay.upsert", play: draftPlay() }, { type: "customPlay.upsert", play: { ...draftPlay("cp_ran"), versions: [{ version: 1, recipe: blankRecipe(), at: at(-1), note: "First version", source: "compiled" }] } });
+    apply(s, { type: "customPlay.remove", id: "cp_test" }, { type: "customPlay.remove", id: "cp_ran" });
+    // A play that ran keeps its record; only a draft can go.
+    expect(Object.keys(s.customPlays ?? {})).toEqual(["cp_ran"]);
   },
 
   "deal.setStage": () => {

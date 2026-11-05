@@ -69,6 +69,7 @@ describe("moves on the sample workspace", () => {
         "mv_research_ashgrove.example today.research 50 2026-10-21",
         "mv_research_bramblecast.example today.research 50 2026-10-21",
         "mv_research_glassmoor.example today.research 50 2026-10-21",
+        "mv_play_cp_revops_hire_tallyhook.example_sig_th_jd today.play 50 2026-10-21",
         "mv_review_monthly_2026-10 today.review_monthly 46 2026-10-21",
         "mv_play_lookalike_quayside.example today.play 44 2026-10-21",
         "mv_questions_fq_soc2 today.questions 35 2026-10-21",

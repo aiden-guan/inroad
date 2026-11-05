@@ -22,7 +22,8 @@ import type { Action } from "@/lib/domain/actions";
 import type { Deal, Move, OutreachPackage, Person, Workspace } from "@/lib/domain/types";
 import { nextStep } from "@/lib/intros/rules";
 import { QUESTIONS_PER_CARD, RULE_PREFIX } from "@/lib/moves/rules";
-import { PLAY_BY_ID, playMatches } from "@/lib/plays/catalog";
+import { playMatches } from "@/lib/plays/catalog";
+import { findPlay } from "@/lib/plays/recipes";
 import { ago, clip, clockTime, companyName, first, knowsDirectly, latestRun, plural, researchState, shortDay } from "@/lib/moves/util";
 import { footerPromisesDeletion, jurisdictionFor } from "@/lib/quality/gates";
 import { BookBody } from "./book-body";
@@ -760,7 +761,8 @@ function CloseOutBody({ move, ws, today, onComplete, onChanged }: BodyProps) {
 /** A card a running play put on Today: how to run the play, then the one action it calls for. */
 function PlayBody({ move, ws, today, onComplete, onChanged }: BodyProps) {
   const { openAsk } = useAsk();
-  const play = move.playId ? PLAY_BY_ID[move.playId] : undefined;
+  // Built-in or one the founder wrote (src/lib/plays/recipes.ts).
+  const play = findPlay(ws, move.playId);
   const ref = move.ref;
   const domain = ref?.kind === "deal" ? ws.deals[ref.id]?.accountDomain : ref?.kind === "person" ? ws.people[ref.id]?.accountDomain : ref?.kind === "account" ? ref.id : undefined;
   // The card carries the match's subject; find the match itself again so the prompt has its facts.

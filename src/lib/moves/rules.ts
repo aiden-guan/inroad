@@ -13,6 +13,7 @@ import { LIST_MAX, LIST_MIN, LIST_WAIT_DAYS, reachFor } from "@/lib/intros/list"
 import { ledger, openIntroFor, targetLabel, when, yourMoves, type IntroAction } from "@/lib/intros/rules";
 import { offeredResource } from "@/lib/quality/lint";
 import { PLAY_BY_ID, playEnabled, playForSignal, playMatches, type PlayMatch } from "@/lib/plays/catalog";
+import { customPlayCards } from "@/lib/plays/recipes";
 import { senderOwnsSequence } from "@/lib/quality/sequence";
 import { SEND_KINDS, activeBet, startedBets } from "@/lib/learning/bets";
 import { REFRESH_AFTER_CALLS, refreshOffer } from "./monthly-data";
@@ -1632,6 +1633,8 @@ function plays({ ws, today, out }: Ctx) {
       href: sheet(match.domain),
     });
   }
+  // Plays the founder wrote put their matches on Today the same way, inside each play's weekly cap.
+  out.push(...customPlayCards(ws, today, busy));
 }
 
 function events({ ws, today, out }: Ctx) {
