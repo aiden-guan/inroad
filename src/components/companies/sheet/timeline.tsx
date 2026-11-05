@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRightLeft, CalendarClock, CornerDownLeft, Flag, Handshake, MailX, MessageSquare, Phone, Plus, Send, StickyNote, Users } from "lucide-react";
-import { useMemo, useState, type ComponentType } from "react";
+import { useMemo, useRef, useState, type ComponentType } from "react";
 import { ComposeButton } from "@/components/compose/composer";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -146,8 +146,23 @@ function LogReply({ account, deal, onDone }: { account: Account; deal?: Deal; on
   const [sentiment, setSentiment] = useState<NonNullable<Activity["sentiment"]>>("positive");
   const [received, setReceived] = useState("");
   const [logged, setLogged] = useState<string | null>(null);
+  // One save at a time: a double click logged the reply twice (and made "Someone else…" twice).
+  const saving = useRef(false);
+  const [busy, setBusy] = useState(false);
 
   const save = async () => {
+    if (saving.current) return;
+    saving.current = true;
+    setBusy(true);
+    try {
+      await logReply();
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  };
+
+  const logReply = async () => {
     if (text.trim().length < 2) return;
     let pid = personId;
     const actions = [];
@@ -242,7 +257,7 @@ function LogReply({ account, deal, onDone }: { account: Account; deal?: Deal; on
         <Button size="sm" variant="ghost" onClick={onDone}>
           Cancel
         </Button>
-        <Button size="sm" variant="primary" onClick={() => void save()} disabled={text.trim().length < 2 || (personId === "__new" && !newName.trim())}>
+        <Button size="sm" variant="primary" onClick={() => void save()} loading={busy} disabled={text.trim().length < 2 || (personId === "__new" && !newName.trim())}>
           Log reply
         </Button>
       </div>

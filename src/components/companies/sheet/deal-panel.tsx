@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ChevronRight, Circle, FileText, Plus, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -349,13 +349,26 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
+  // One add at a time: Enter then a click (or a double click) made the same person twice.
+  const inFlight = useRef(false);
+  const [busy, setBusy] = useState(false);
   if (!ws) return null;
   const contacts = deal.contacts.map((c) => ({ ...c, person: ws.people[c.personId] })).filter((c): c is typeof c & { person: Person } => !!c.person);
   const available = account.peopleIds.map((id) => ws.people[id]).filter((p): p is Person => !!p && !deal.contacts.some((c) => c.personId === p.id));
   const at = () => nowISO();
   const setContacts = (next: Deal["contacts"]) => dispatch({ type: "deal.update", id: deal.id, patch: { contacts: next }, at: at() });
   const addNew = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      await addPerson();
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+  const addPerson = async () => {
     const person: Person = {
       id: newId("per"),
       accountDomain: account.domain,
@@ -413,7 +426,7 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
         <div className="mb-3 flex flex-wrap gap-2 animate-[fade-in_150ms_var(--ease-out)]">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Name" className="w-44" />
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Title" className="w-44" onKeyDown={(e) => e.key === "Enter" && void addNew()} />
-          <Button size="sm" variant="primary" onClick={() => void addNew()} disabled={!name.trim()}>
+          <Button size="sm" variant="primary" onClick={() => void addNew()} loading={busy} disabled={!name.trim()}>
             Add
           </Button>
         </div>
@@ -708,6 +721,7 @@ function Pricing({ deal, today }: { deal: Deal; today: string }) {
   const [outcome, setOutcome] = useState<"" | "accepted" | "pushback" | "lost">("");
   const quotes = deal.priceQuotes ?? [];
   const log = () => {
+    if (!amount.trim()) return;
     // "$25K" is 25,000 (stripping the K would log $25, and the first quote becomes the deal's value).
     const n = parseDollars(amount);
     if (!n) {
