@@ -21,7 +21,7 @@ import {
   type Workspace,
 } from "@/lib/domain/types";
 import { computeScoreboard, dealsMissingNextStep } from "@/lib/moves/scoreboard";
-import { CATEGORY_LABELS, computeForecast, computePlan } from "@/lib/revenue/forecast";
+import { CATEGORY_LABELS, computeForecast, computePlan, money } from "@/lib/revenue/forecast";
 import { localDate } from "@/lib/moves/util";
 import { currentMetrics } from "@/lib/gtm/metrics";
 import { initiativeProgress } from "@/lib/gtm/progress";
@@ -690,7 +690,8 @@ export function instantAnswer(ws: Workspace, question: string, now: Date): Insta
   if (/^(?:what'?s |whats |show (?:me )?)?(?:my |our |the )?(?:forecast|commit|number|quarter|coverage)(?: call| look like| this quarter| right now)?$|\b(?:hit|make) (?:the |our |my )?(?:number|target|quota|plan)\b|\bpipeline coverage\b/.test(q)) {
     const f = computeForecast(ws, today);
     const plan = computePlan(ws, f, now);
-    const usd = (n: number) => `$${Math.round(n / 1000)}K`;
+    // "$1.5M" and "$400", not "$1500K" and "$0K".
+    const usd = money;
     const rows: InstantRow[] = [
       ...(f.hasTarget ? [{ label: "Target", detail: `${usd(f.target)} · ${f.period.label}`, href: "/revenue" }] : []),
       { label: "Closed won", detail: usd(f.closedWon.usd), href: "/revenue" },
