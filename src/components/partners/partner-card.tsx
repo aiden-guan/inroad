@@ -16,6 +16,7 @@ import { CREATOR_OUTREACH } from "@/lib/consumer/benchmarks";
 import { marketOf } from "@/lib/consumer/market";
 import { PARTNER_STAGE_LABELS, PLATFORM_LABELS, partnerCopy, partnerNext, partnerResults, type PartnerCopy } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
+import { parseAmount } from "@/lib/domain/money";
 import type { Partner, PartnerOffer, PartnerStage } from "@/lib/domain/types";
 import { lintDraft, mergeLint, worstIssue } from "@/lib/quality/lint";
 import { spring } from "@/lib/motion";
@@ -181,10 +182,16 @@ function OfferEditor({ p, copy }: { p: Partner; copy: PartnerCopy }) {
   const offers = (Object.keys(copy.offers) as PartnerOffer[]).concat(type && !(type in copy.offers) ? [type] : []);
   const save = () => {
     const n = (s: string) => (s.trim() && Number.isFinite(Number(s)) ? Number(s) : undefined);
+    // "$1.5K" is 1,500, not a fee dropped without a word.
+    const fee = amount.trim() ? parseAmount(amount) : undefined;
+    if (fee === null) {
+      toast.error(`“${amount.trim()}” isn't an amount. Type it like 500 or $1.5K.`);
+      return;
+    }
     void dispatch({
       type: "partner.update",
       id: p.id,
-      patch: { offer: type ? { type, amountUsd: n(amount), commissionPct: n(pct), terms: terms.trim() || undefined } : undefined, trackingCode: code.trim() || undefined },
+      patch: { offer: type ? { type, amountUsd: fee, commissionPct: n(pct.replace(/%\s*$/, "")), terms: terms.trim() || undefined } : undefined, trackingCode: code.trim() || undefined },
       at: nowISO(),
     });
     toast("Saved the offer.");
@@ -351,7 +358,13 @@ function ResultsForm({ p, copy }: { p: Partner; copy: PartnerCopy }) {
     { key: "costUsd", label: "Cost, $" },
   ];
   const save = () => {
-    const n = (s: string) => (s.trim() && Number.isFinite(Number(s)) && Number(s) >= 0 ? Number(s) : undefined);
+    // Counts and the cost as people write them ("12k" views, "$1,200"); one that isn't a number is said, not dropped.
+    const bad = fields.find((f) => vals[f.key].trim() && parseAmount(vals[f.key]) === null);
+    if (bad) {
+      toast.error(`“${vals[bad.key].trim()}” isn't a number for ${bad.label.replace(/, \$$/, "")}.`);
+      return;
+    }
+    const n = (s: string) => (s.trim() ? (parseAmount(s) ?? undefined) : undefined);
     const result = { at: nowISO(), views: n(vals.views), clicks: n(vals.clicks), signups: n(vals.signups), orders: n(vals.orders), costUsd: n(vals.costUsd) };
     if (Object.values(result).filter((v) => typeof v === "number").length === 0) {
       toast("Add at least one number.");

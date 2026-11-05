@@ -9,6 +9,7 @@ import { cn } from "@/lib/client/cn";
 import { PMF_SURVEY } from "@/lib/consumer/benchmarks";
 import { lastWeekOf, type Verdict } from "@/lib/consumer/growth";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
+import { parseAmount } from "@/lib/domain/money";
 import type { GrowthWeek, Workspace } from "@/lib/domain/types";
 
 type NumField = "signups" | "activated" | "active" | "retainedPct" | "paying" | "newPaying" | "churnedPaying" | "revenueUsd" | "spendUsd" | "referred";
@@ -48,10 +49,11 @@ export function GrowthLogForm({ ws, today, onSaved, compact }: { ws: Workspace; 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const num = (k: NumField): number | undefined => {
-      const v = values[k].trim().replace(/[$,%\s]/g, "");
+      const v = values[k].trim();
       if (!v) return undefined;
-      const n = Number(v);
-      return Number.isFinite(n) && n >= 0 ? n : NaN;
+      // A share is a plain number ("38", "38%"); counts and dollars read as typed ("1.2k", "$3,400").
+      const n = k === "retainedPct" ? Number(v.replace(/[%\s]/g, "")) : parseAmount(v);
+      return n !== null && Number.isFinite(n) && n >= 0 ? n : NaN;
     };
     const signups = num("signups");
     if (signups === undefined || Number.isNaN(signups)) {

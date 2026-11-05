@@ -13,6 +13,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { shortDate } from "@/lib/client/format";
 import { marketOf } from "@/lib/consumer/market";
 import { addDays, todayISO } from "@/lib/domain/ids";
+import { parseAmount } from "@/lib/domain/money";
 import { metricValue, weeklyPlan } from "@/lib/gtm/brief";
 import { currentMetrics } from "@/lib/gtm/metrics";
 import { initiativeProgress } from "@/lib/gtm/progress";
@@ -46,9 +47,10 @@ function InitiativeForm({ item, readings, today, onSaved }: { item?: GtmInitiati
     pending.current = true; setBusy(true); setError(null);
     try {
       if (!owner.trim() || !dueOn) { if (options.current) options.current.open = true; throw new Error(!owner.trim() ? "Add an owner, or use Me." : "Choose a review date."); }
-      const raw = target.trim().replace(/[$,%\s]/g, "");
-      const nextTarget = raw ? Number(raw) : null;
-      if (nextTarget !== null && (!Number.isFinite(nextTarget) || nextTarget < 0)) throw new Error("Use a nonnegative number for the target.");
+      // A percent target is a plain number ("40", "40%"); a count or an amount reads as typed ("1.2k", "$25K").
+      const typed = target.trim();
+      const nextTarget = !typed ? null : selected?.unit === "percent" ? Number(typed.replace(/[%\s]/g, "")) : parseAmount(typed);
+      if (typed && (nextTarget === null || !Number.isFinite(nextTarget) || nextTarget < 0)) throw new Error("Use a nonnegative number for the target, like 40, 1,200 or $25K.");
       const body: Record<string, unknown> = { title, owner, dueOn, note };
       if (!item) body.requestId = requestId;
       if (!item || metricId !== (item.measurement?.metric.id ?? "")) body.metricId = metricId || null;
