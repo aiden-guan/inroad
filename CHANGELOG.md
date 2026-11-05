@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.23] — 2026-11-05
+
 ### Added
 - **Research columns on Companies.** Ask every company one question ("Do they bill on usage?"). Inroad tries five rows first and shows what they cost and an estimate for the rest, then fills cells live, three at a time. Each answer keeps its source, quote, date and cost; a quote that code can't find on the fetched page becomes Unknown. Earlier answers, job boards and site scripts answer for free first. Columns sort, filter, hide and reorder; saved views sit in tabs (`?viewId=`); a bulk bar tracks, disqualifies, asks a column or exports CSV for the selection.
 - **Calendar autopilot.** Paste a private iCal address (Google, Outlook, iCloud and others). Every 15 minutes Inroad reads 60 days back and 30 ahead, keeps meetings with people outside the company, matches them to deals through the booking path, and lists new companies to track with one key. Moves and cancellations follow the calendar; what couldn't be read is named.
