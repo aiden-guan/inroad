@@ -338,7 +338,8 @@ describe("consumer tools", () => {
     expect(r.result?.structuredContent).toEqual({ added: 1, updated: 0 });
     const again = await call("add_partners", { source: "modash", partners: [{ ...partners[0], handle: "@Maya.Runs" }] }, tokens.records);
     expect(again.result?.structuredContent).toEqual({ added: 0, updated: 1 });
-    const added = Object.values(readWorkspace().partners ?? {});
+    // The sample workspace has partners of its own; these are the ones the tool wrote.
+    const added = Object.values(readWorkspace().partners ?? {}).filter((p) => p.source === "integration");
     expect(added).toHaveLength(1);
     expect(added[0]).toMatchObject({ handle: "@maya.runs", followers: 18200, stage: "shortlist", source: "integration" });
     // A read-only key can't write.

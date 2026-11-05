@@ -22,6 +22,7 @@ import {
 import { connections, networkSummary } from "./connections";
 import { events } from "./events";
 import { intros } from "./intros";
+import { partners } from "./partners";
 import { DEAL, DOMAIN, MEETING, RUN } from "./ids";
 import { activities, outreach } from "./outreach";
 import { deals, meetings } from "./pipeline";
@@ -101,6 +102,7 @@ function assemble(now: Date): Workspace {
     moves: {},
     briefs: { [c.today]: brief(c) },
     events: events(c),
+    partners: partners(c),
     integrations: {},
     webhooks: [],
     suppression: [

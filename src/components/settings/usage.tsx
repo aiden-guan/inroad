@@ -125,10 +125,10 @@ function CompatHealth({ report, now }: { report: UsageReport; now: number }) {
   const missing = c.features.map((f) => COMPAT_LABEL[f]).join(" and ");
   return (
     <Callout tone="warning" title={`${plural(c.runs, "run")} this month went without ${missing}.`}>
-      The Anthropic API turned down an optional feature, so I retried without it rather than stop. Results are still checked in code, but
+      The Anthropic API turned down an optional feature, so I retried without it rather than stop. Results are still checked automatically, but
       {` ${c.features.map((f) => COMPAT_EFFECT[f]).join("; ")}`}. This usually
       means an Anthropic beta changed, and updating Inroad fixes it. Last seen {relativeTime(c.lastAt, now)}.
-      {c.reason ? <span className="mt-1 block font-mono text-[11.5px] text-fg-3 [overflow-wrap:anywhere]">{c.reason.slice(0, 200)}</span> : null}
+      {c.reason ? <span className="mt-1 block font-mono text-[12px] text-fg-3 [overflow-wrap:anywhere]">{c.reason.slice(0, 200)}</span> : null}
     </Callout>
   );
 }
@@ -144,7 +144,7 @@ function BudgetGroup({ ws, dispatch, report }: { ws: Workspace; dispatch: Dispat
     <div className="space-y-3">
       {report.state === "over" && (
         <Callout tone="danger" title="This month's budget is used up, so new runs won't start.">
-          Raise the budget below to keep going, or wait until {resetLabel(report.resetsOn)}. Everything done in code keeps working: free signals, imports, syncing your tools and the
+          Raise the budget below to keep going, or wait until {resetLabel(report.resetsOn)}. Everything that doesn&apos;t use AI keeps working: free signals, imports, syncing your tools and the
           checks on your drafts.
         </Callout>
       )}
@@ -173,7 +173,7 @@ function BudgetGroup({ ws, dispatch, report }: { ws: Workspace; dispatch: Dispat
         />
         <Row
           label={anthropic ? "Anthropic Console limit" : `${providerName} spend limit`}
-          hint={`${anthropic ? "Anthropic" : providerName} stops all API use at a limit set there, even if this machine's records were reset.`}
+          hint={`${anthropic ? "Anthropic" : providerName} stops all API use at a limit set there, even if this computer's records were reset.`}
         >
           <div className="flex sm:justify-end">
             <a
@@ -203,8 +203,8 @@ function Stats({ report }: { report: UsageReport }) {
         value={report.freeSignals}
         note={
           report.freeSignals
-            ? `Done in code, $0 in tokens. As web searches they'd cost at least ${cost(report.freeSignals * SEARCH_PRICE)}.`
-            : "Job boards, news and DNS, fetched in code for $0."
+            ? `Done without AI, so $0. As web searches they'd cost at least ${cost(report.freeSignals * SEARCH_PRICE)}.`
+            : "Job boards, news and DNS, read without AI for $0."
         }
       />
       <Stat
@@ -245,7 +245,7 @@ function ByWorkflow({ report }: { report: UsageReport }) {
         <ul className="px-4 py-2">
           {rows.map((r, i) => (
             <li key={r.workflow} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1.5 sm:grid-cols-[140px_minmax(0,1fr)_72px]">
-              <span className="truncate text-[13px] text-fg">{r.label}</span>
+              <span className="truncate text-[13px] text-fg" title={r.label}>{r.label}</span>
               <span className="order-3 col-span-2 h-2 sm:order-none sm:col-span-1">
                 <span className="relative block h-full w-full">
                   {r.costUsd > 0 ? (
@@ -257,7 +257,7 @@ function ByWorkflow({ report }: { report: UsageReport }) {
                       transition={{ duration: 0.45, ease: ease.out, delay: Math.min(i, 8) * 0.04 }}
                     />
                   ) : (
-                    <span className="absolute inset-y-0 left-0 flex items-center text-[11px] text-fg-3">code only</span>
+                    <span className="absolute inset-y-0 left-0 flex items-center text-[12px] text-fg-3">code only</span>
                   )}
                 </span>
               </span>
@@ -279,7 +279,7 @@ function ByWorkflow({ report }: { report: UsageReport }) {
 function ProductHealth({ ws, now }: { ws: Workspace; now: number }) {
   const rows = useMemo(() => productHealth(ws, new Date(now)), [ws, now]);
   return (
-    <Group title="Draft quality and your first weeks" hint="Measured on this machine from your own work; nothing leaves it. A rate shows from 5 samples, and drafts never show their score.">
+    <Group title="Draft quality and your first weeks" hint="Measured on this computer from your own work; nothing leaves it. A rate shows from 5 samples, and drafts never show their score.">
       <ul>
         {rows.map((r) => (
           <li key={r.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 px-4 py-2.5">
@@ -291,7 +291,7 @@ function ProductHealth({ ws, now }: { ws: Workspace; now: number }) {
               <span className={cn(r.value === null ? "text-fg-4" : r.ok === false ? "text-warning" : "text-fg")}>{r.value ?? "—"}</span>
               {r.n !== undefined && r.value !== null && <span className="text-fg-4"> n={r.n}</span>}
               {r.value === null && !!r.n && r.min !== undefined && <span className="text-fg-4"> {r.n} of {r.min}</span>}
-              <span className="block text-[11px] text-fg-3">target {r.target}</span>
+              <span className="block text-[12px] text-fg-3">target {r.target}</span>
             </span>
           </li>
         ))}
@@ -369,12 +369,12 @@ function RunRow({ run, now, open, onToggle }: { run: RunSummary; now: number; op
       >
         <StatusDot status={run.status} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] text-fg">{run.title}</span>
-          <span className="block truncate font-mono text-[11.5px] text-fg-3">
+          <span className="block truncate text-[13px] text-fg" title={run.title}>{run.title}</span>
+          <span className="block truncate font-mono text-[12px] text-fg-3">
             {live ? <span className="shimmer-text">{run.status === "queued" ? "Queued" : "Working"}</span> : receiptLine(run)}
           </span>
         </span>
-        <span className="hidden shrink-0 font-mono text-[11.5px] text-fg-3 sm:inline">{relativeTime(run.endedAt ?? run.startedAt, now)}</span>
+        <span className="hidden shrink-0 font-mono text-[12px] text-fg-3 sm:inline">{relativeTime(run.endedAt ?? run.startedAt, now)}</span>
         <span className="w-14 shrink-0 text-right font-mono text-[12.5px] tnum text-fg">{live ? "—" : cost(run.receipt?.costUsd ?? 0)}</span>
         <ChevronDown className={cn("size-3.5 shrink-0 text-fg-3 transition-transform duration-200", open && "rotate-180")} aria-hidden />
       </button>
@@ -427,8 +427,8 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
           {fields.map(([k, v]) => (
             <div key={k} className="min-w-0">
-              <dt className="text-[11px] text-fg-3">{k}</dt>
-              <dd className="truncate font-mono text-[12px] text-fg">{v}</dd>
+              <dt className="text-[12px] text-fg-3">{k}</dt>
+              <dd className="truncate font-mono text-[12px] text-fg" title={v}>{v}</dd>
             </div>
           ))}
         </dl>
@@ -453,7 +453,7 @@ function RunDetail({ run, steps, loading }: { run: RunSummary; steps: RunStep[] 
                     </>
                   ) : s.type === "read" ? (
                     <>
-                      Read <span className="font-mono text-[11.5px] text-fg-3">{s.host ?? s.text}</span>
+                      Read <span className="font-mono text-[12px] text-fg-3">{s.host ?? s.text}</span>
                     </>
                   ) : (
                     s.text
@@ -480,7 +480,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
   const points: { title: string; body: ReactNode }[] = [
     {
       title: "Code gathers, the model writes.",
-      body: "Websites, job boards, news, Hacker News and DNS are fetched in code and cached on disk. I read a compact digest, never raw pages.",
+      body: "Websites, job boards, news, Hacker News and DNS are read without AI and kept on this computer for reuse. I read a short digest, never whole pages.",
     },
     {
       title: "Web search is a capped fallback.",
@@ -500,7 +500,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
       title: "Your other tools plug in.",
       body: (
         <>
-          Leads, CRM sync, sequencer pushes and Slack run in plain code. If another agent already writes your outreach, send it my dossiers and skip drafting here.{" "}
+          Leads, CRM sync, sequencer pushes and Slack run without AI. If another agent already writes your outreach, send it my dossiers and skip drafting here.{" "}
           <Link href="/integrations" className="text-fg underline underline-offset-2 hover:text-fg-2">
             Integrations
           </Link>
@@ -516,7 +516,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
         I spend tokens only where judgment or writing is needed. The right model for each job, and code for everything else.
       </p>
       <div className="overflow-hidden rounded-lg bg-surface shadow-xs ring-1 ring-border">
-        <div className="hidden grid-cols-[120px_minmax(0,1fr)_120px_88px] gap-4 border-b border-border px-4 py-2 text-[11px] font-medium text-fg-3 sm:grid">
+        <div className="hidden grid-cols-[120px_minmax(0,1fr)_120px_88px] gap-4 border-b border-border px-4 py-2 text-[12px] font-medium text-fg-3 sm:grid">
           <span>Model</span>
           <span>Used for</span>
           <span className="text-right">Per M tokens</span>
@@ -532,7 +532,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
                   <p className="text-[12px] text-fg-3">{r.job}</p>
                 </div>
                 <p className="order-3 col-span-2 text-[12.5px] leading-[18px] text-fg-2 text-pretty sm:order-none sm:col-span-1">{r.what}</p>
-                <p className="hidden text-right font-mono text-[11.5px] leading-5 text-fg-3 sm:block">
+                <p className="hidden text-right font-mono text-[12px] leading-5 text-fg-3 sm:block">
                   {r.price ? (
                     <>
                       {cost(r.price.input)} in
@@ -549,7 +549,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
                   {used?.runs ? (
                     <>
                       {cost(used.costUsd)}
-                      <span className="block text-[11px] text-fg-3">{plural(used.runs, "run")}</span>
+                      <span className="block text-[12px] text-fg-3">{plural(used.runs, "run")}</span>
                     </>
                   ) : r.tier === "none" ? (
                     <span className="text-fg-3">{report.freeSignals ? `${report.freeSignals} lookups` : "$0"}</span>
@@ -565,7 +565,7 @@ function HowCostStaysLow({ report }: { report: UsageReport }) {
       <ol className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
         {points.map((p, i) => (
           <li key={p.title} className="flex gap-3">
-            <span className="mt-px font-mono text-[11px] text-fg-4">{String(i + 1).padStart(2, "0")}</span>
+            <span className="mt-px font-mono text-[12px] text-fg-4">{String(i + 1).padStart(2, "0")}</span>
             <p className="text-[13px] leading-5 text-fg-2 text-pretty">
               <span className="font-medium text-fg">{p.title}</span> {p.body}
             </p>

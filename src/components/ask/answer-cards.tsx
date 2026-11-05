@@ -81,7 +81,7 @@ function Header({ seed, family, eyebrow, title, play }: { seed: string; family: 
         <h3 className="font-serif text-[30px] leading-[34px] tracking-[-0.03em] text-fg [font-variation-settings:'opsz'_60]">
           <TextReveal text={title} play={play} delay={160} step={60} />
         </h3>
-        <p className={cn("mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-3", play && "fx-rise")} style={play ? fx(0, 300) : undefined}>
+        <p className={cn("mt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-3", play && "fx-rise")} style={play ? fx(0, 300) : undefined}>
           {eyebrow}
         </p>
       </div>
@@ -145,7 +145,7 @@ function ForecastCard({ view, headline, play, onNavigate }: { view: Extract<Answ
         play={play}
       />
       <div className="px-5 pb-5 pt-3">
-        <p className={cn("font-mono text-[10px] uppercase tracking-[0.12em] text-fg-3", play && "fx-rise")} style={play ? fx(0, 380) : undefined}>
+        <p className={cn("font-mono text-[11px] uppercase tracking-[0.12em] text-fg-3", play && "fx-rise")} style={play ? fx(0, 380) : undefined}>
           {meta.eyebrow}
         </p>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5">
@@ -184,7 +184,7 @@ function ForecastCard({ view, headline, play, onNavigate }: { view: Extract<Answ
           )}
         </div>
         {target > 0 && (
-          <div className="relative mt-2 h-4 text-[11px]">
+          <div className="relative mt-2 h-4 text-[12px]">
             <span
               className={cn("absolute whitespace-nowrap font-mono tnum text-fg-3", target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5", play && "fx-rise")}
               style={{ left: pos(target), ...(play ? fx(0, 1240) : {}) }}
@@ -243,7 +243,7 @@ function Ring({ value, max, play }: { value: number; max: number; play: boolean 
           transition={{ duration: 1, ease: ease.out, delay: at(play, 520) / 1000 }}
         />
       </svg>
-      <span className="font-mono text-[11px] tnum text-fg-3">{Math.round(pct * 100)}%</span>
+      <span className="font-mono text-[12px] tnum text-fg-3">{Math.round(pct * 100)}%</span>
     </span>
   );
 }
@@ -252,11 +252,11 @@ function Meter({ label, value, max, note, tone, play, i }: { label: string; valu
   const r = rise(play, i, 620);
   return (
     <div className={cn("min-w-0 rounded-lg bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-inset ring-border/70", r.className)} style={r.style}>
-      <p className="truncate text-[11.5px] text-fg-3">{label}</p>
+      <p className="truncate text-[12px] text-fg-3" title={label}>{label}</p>
       <p className="mt-0.5 flex items-baseline gap-1">
         <DigitPop text={String(value)} delay={700 + i * 60} still={!play} className={cn("text-[22px] font-medium leading-7 tracking-[-0.03em]", tone === "warn" && value > 0 ? "text-warning" : "text-fg")} />
-        {max !== undefined && <span className="font-mono text-[11px] text-fg-3">/ {max}</span>}
-        {note && <span className="truncate text-[11.5px] text-fg-3">{note}</span>}
+        {max !== undefined && <span className="font-mono text-[12px] text-fg-3">/ {max}</span>}
+        {note && <span className="truncate text-[12px] text-fg-3" title={note}>{note}</span>}
       </p>
       {max !== undefined && (
         <span className="progress-track mt-2 block">
@@ -282,7 +282,7 @@ function WeekCard({ view, play, onNavigate }: { view: Extract<AnswerView, { kind
         <div className="flex items-center gap-4">
           <Ring value={held} max={target} play={play} />
           <div className="min-w-0">
-            <p className={cn("font-mono text-[10px] uppercase tracking-[0.12em] text-fg-3", play && "fx-rise")} style={play ? fx(0, 380) : undefined}>
+            <p className={cn("font-mono text-[11px] uppercase tracking-[0.12em] text-fg-3", play && "fx-rise")} style={play ? fx(0, 380) : undefined}>
               Conversations held
             </p>
             <p className="flex items-baseline gap-2">
@@ -307,7 +307,7 @@ function WeekCard({ view, play, onNavigate }: { view: Extract<AnswerView, { kind
               transition={{ duration: 0.9, ease: ease.out, delay: at(play, 980) / 1000 }}
             />
           </span>
-          <span className="shrink-0 font-mono text-[11.5px] tnum">
+          <span className="shrink-0 font-mono text-[12px] tnum">
             {view.goal[0]} / {view.goal[1]} {view.goalLabel}
           </span>
         </div>
@@ -373,8 +373,8 @@ function DealsCard({ view, title, rows, play, onNavigate }: { view: Extract<Answ
               <>
                 {r.domain ? <Favicon domain={r.domain} name={r.label} size={16} /> : <span className="size-1.5 shrink-0 rounded-full bg-fg-4" />}
                 <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-                  <span className="block truncate text-[13.5px] text-fg sm:max-w-[42%] sm:shrink-0">{r.label}</span>
-                  {r.detail && <span className="block truncate text-[12.5px] text-fg-3">{r.detail}</span>}
+                  <span className="block truncate text-[13.5px] text-fg sm:max-w-[42%] sm:shrink-0" title={r.label}>{r.label}</span>
+                  {r.detail && <span className="block truncate text-[12.5px] text-fg-3" title={r.detail}>{r.detail}</span>}
                 </span>
                 {r.href && <ArrowRight aria-hidden className="size-3.5 shrink-0 -translate-x-1 text-fg-4 opacity-0 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100" />}
               </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/field";
 import type {
@@ -50,6 +50,7 @@ export function NewPiece({
   onBrowse,
   onMaterial,
   onGraphics,
+  creator,
 }: {
   ws: Workspace;
   onWrite: (args: NewPieceArgs) => void;
@@ -61,6 +62,8 @@ export function NewPiece({
   onBrowse: () => void;
   onMaterial: () => void;
   onGraphics: () => void;
+  /** Who writes: the compact Create with control, shown beside the write button. */
+  creator?: ReactNode;
 }) {
   const studioAI = useStudioAI();
   const audience = audienceFor(ws);
@@ -226,7 +229,7 @@ export function NewPiece({
                   <span className="mt-1 block text-[12px] leading-[18px] text-fg-2">
                     {campaign.title}
                   </span>
-                  <span className="mt-2 block text-[11px] text-fg-3">
+                  <span className="mt-2 block text-[12px] text-fg-3">
                     View approach & source →
                   </span>
                 </button>
@@ -313,7 +316,7 @@ export function NewPiece({
           </div>
         </details>
 
-        <div className="sticky bottom-0 z-20 mt-5 flex flex-col gap-3 border-t border-border bg-surface py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-0 z-20 mt-5 flex flex-col gap-3 border-t border-border bg-surface py-3 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0 text-[12px] leading-[18px]">
             {blocked ? (
               <>
@@ -326,6 +329,8 @@ export function NewPiece({
                   Add supporting material
                 </button>
               </>
+            ) : !studioAI.ready ? (
+              <p className="text-fg-2">Connect your Claude plan to write, or create with your configured AI provider.</p>
             ) : (
               <p className="text-fg-3">
                 {spec.options} distinct options, checked for unsupported claims
@@ -333,25 +338,28 @@ export function NewPiece({
               </p>
             )}
           </div>
-          <Button
-            variant="agent"
-            size="lg"
-            icon={<Sparkles aria-hidden className="size-4" />}
-            disabled={!!blocked || !studioAI.ready}
-            loading={busy}
-            onClick={() =>
-              onWrite({
-                format,
-                occasion,
-                brief: brief.trim(),
-                bold,
-                campaignIds: inspiration.map((campaign) => campaign.id),
-                reference: reference.trim() || undefined,
-              })
-            }
-          >
-            Write {spec.options} options
-          </Button>
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center md:justify-end">
+            {creator}
+            <Button
+              variant="agent"
+              size="lg"
+              icon={<Sparkles aria-hidden className="size-4" />}
+              disabled={!!blocked || !studioAI.ready}
+              loading={busy}
+              onClick={() =>
+                onWrite({
+                  format,
+                  occasion,
+                  brief: brief.trim(),
+                  bold,
+                  campaignIds: inspiration.map((campaign) => campaign.id),
+                  reference: reference.trim() || undefined,
+                })
+              }
+            >
+              Write {spec.options} options
+            </Button>
+          </div>
         </div>
       </div>
       <p className="mt-4 text-center text-[12px] leading-5 text-fg-3">

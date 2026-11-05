@@ -3,10 +3,11 @@
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { RunInline } from "@/components/today/parts";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 import { CopyButton } from "@/components/ui/misc";
@@ -14,7 +15,7 @@ import { SourceChip } from "@/components/ui/source";
 import { cn } from "@/lib/client/cn";
 import { CREATOR_OUTREACH } from "@/lib/consumer/benchmarks";
 import { marketOf } from "@/lib/consumer/market";
-import { PARTNER_STAGE_LABELS, PLATFORM_LABELS, partnerCopy, partnerNext, partnerResults, type PartnerCopy } from "@/lib/consumer/partners";
+import { PARTNER_STAGE_LABELS, PLATFORM_LABELS, partnerCopy, partnerNext, partnerResults, type PartnerCopy, type PartnerNext, type PartnerResults } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Partner, PartnerOffer, PartnerStage } from "@/lib/domain/types";
 import { lintDraft, mergeLint, worstIssue } from "@/lib/quality/lint";
@@ -39,6 +40,39 @@ const STAGE_VERB: Record<PartnerStage, string> = {
   passed: "Pass",
 };
 
+/** "Nov 10", from a stored ISO date. */
+function day(iso: string): string {
+  return new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** The next move's line with its date in words ("follow-up Nov 10", not an ISO date). */
+function nextLine(next: PartnerNext): string {
+  return next.dueOn ? next.line.replace(next.dueOn, day(next.dueOn)) : next.line;
+}
+
+/** "Sponsorship fee · $1,200" or "Referral fee · 15%": what they get, readable in the collapsed card. */
+function offerLine(p: Partner, copy: PartnerCopy): string | null {
+  const o = p.offer;
+  if (!o) return null;
+  const label = copy.offers[o.type] ?? partnerCopy("consumer").offers[o.type] ?? o.type;
+  return [label, o.amountUsd ? `$${o.amountUsd.toLocaleString("en-US")}` : null, o.commissionPct ? `${o.commissionPct}%` : null].filter(Boolean).join(" · ");
+}
+
+/** "3 leads · 1 deal" in the market's words. */
+function resultsLine(r: PartnerResults, copy: PartnerCopy): string | null {
+  const count = (n: number, word: string) => `${n} ${n === 1 ? word.toLowerCase().replace(/s$/, "") : word.toLowerCase()}`;
+  const parts = [r.signups ? count(r.signups, copy.results.signups) : null, r.orders ? count(r.orders, copy.results.orders) : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** Same colors as Intros: blue is your move, green is live, grey is waiting, an outline means it's closed. */
+function StatusBadge({ p, yours }: { p: Partner; yours: boolean }) {
+  if (yours) return <Badge tone="info">Your move</Badge>;
+  if (p.stage === "live") return <Badge tone="success">Live</Badge>;
+  if (p.stage === "done" || p.stage === "passed") return <Badge tone="outline">{PARTNER_STAGE_LABELS[p.stage]}</Badge>;
+  return <Badge tone="neutral">Waiting</Badge>;
+}
+
 function relint(p: Partner, body: string, followUp: string, subject: string | null) {
   const kind = p.outreach?.channel === "email" ? "partner_email" : "partner_dm";
   const first = lintDraft({ subject, body, frame: "founder_card", step: 1, kind, knownNames: [p.name, p.handle ?? ""] });
@@ -54,21 +88,43 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
   const at = () => nowISO();
   const results = partnerResults(p);
   const paidOrGifted = !!p.offer && p.offer.type !== "collab";
+  const offer = offerLine(p, copy);
+  const brought = resultsLine(results, copy);
 
   return (
-    <article id={`partner-${p.id}`} className={cn("rounded-lg bg-surface ring-1 ring-border", focused && "ring-2 ring-[var(--ring)]")}>
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start gap-3 px-4 py-3.5 text-left sm:px-5">
+    <article id={`partner-${p.id}`} className={cn("rounded-lg bg-surface ring-1 transition-shadow duration-300", focused ? "shadow-md ring-accent/50" : "ring-border", open && !focused && "shadow-sm")}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-start gap-3 rounded-lg px-4 py-3.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] sm:px-5"
+      >
         <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-[14.5px] font-medium text-fg">{p.name}</span>
-            <span className="font-mono text-[11.5px] text-fg-3">{[copy.kinds[p.kind], p.platform ? PLATFORM_LABELS[p.platform] : null, p.handle].filter(Boolean).join(" · ")}</span>
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="min-w-0 text-[14.5px] font-medium text-fg [overflow-wrap:anywhere]">{p.name}</span>
+            <span className="min-w-0 font-mono text-[12px] text-fg-3 [overflow-wrap:anywhere]">{[copy.kinds[p.kind], p.platform ? PLATFORM_LABELS[p.platform] : null, p.handle].filter(Boolean).join(" · ")}</span>
           </p>
-          <p className="mt-0.5 line-clamp-2 text-pretty text-[13px] leading-5 text-fg-2">{p.fit}</p>
-          <p className={cn("mt-1 text-[12.5px]", next.action ? "font-medium text-fg" : "text-fg-3")}>
-            {PARTNER_STAGE_LABELS[p.stage]} · {next.line}
+          <p className="mt-0.5 line-clamp-2 text-pretty text-[13px] leading-5 text-fg-2" title={p.fit}>
+            {p.fit}
+          </p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
+            {/* On a phone the status joins this row, so the name above keeps the full width. */}
+            <span className="sm:hidden">
+              <StatusBadge p={p} yours={!!next.action} />
+            </span>
+            <span className={next.action ? "font-medium text-fg" : "text-fg-3"}>
+              {next.line === PARTNER_STAGE_LABELS[p.stage] ? next.line : `${PARTNER_STAGE_LABELS[p.stage]} · ${nextLine(next)}`}
+            </span>
+            {offer && <span className="text-fg-3">· {offer}</span>}
+            {brought && <span className="text-fg-3">· {brought}</span>}
           </p>
         </div>
-        <ChevronDown className={cn("mt-1 size-4 shrink-0 text-fg-3 transition-transform duration-200", open && "rotate-180")} aria-hidden />
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <span className="hidden sm:contents">
+            <StatusBadge p={p} yours={!!next.action} />
+          </span>
+          <ChevronDown className={cn("size-4 text-fg-3 transition-transform duration-200", open && "rotate-180")} aria-hidden />
+        </div>
       </button>
 
       <motion.div initial={false} animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }} transition={spring.smooth} className="overflow-hidden" aria-hidden={!open}>
@@ -82,7 +138,7 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
               )}
               {p.sourceUrl && <SourceChip url={p.sourceUrl} claim={p.fit} />}
               {p.audience && <span>Audience: {p.audience}</span>}
-              {p.followers !== undefined && <span className="font-mono">{p.followers.toLocaleString("en-US")} followers</span>}
+              {p.followers !== undefined && <span className="font-mono">{p.followers.toLocaleString("en-US")} {p.kind === "newsletter" ? "subscribers" : p.kind === "community" ? "members" : "followers"}</span>}
             </div>
 
             <OfferEditor p={p} copy={copy} />
@@ -138,11 +194,12 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
             {(p.stage === "live" || p.stage === "done") && <ResultsForm p={p} copy={copy} />}
             {results.signups + results.orders > 0 && (
               <p className="font-mono text-[12px] text-fg-3">
-                {results.signups} {copy.results.signups.toLowerCase()} · {results.orders} {copy.results.orders.toLowerCase()}
-                {results.costUsd ? ` · $${results.costUsd} spent` : ""}
+                {brought}
+                {results.costUsd ? ` · $${results.costUsd.toLocaleString("en-US")} spent` : ""}
                 {results.costPer !== undefined ? ` · $${results.costPer.toFixed(2)} each` : ""}
               </p>
             )}
+            {p.notes && <p className="text-[13px] leading-5 text-fg-2">{p.notes}</p>}
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
               {(NEXT_STAGES[p.stage] ?? []).map((s) => (
@@ -170,6 +227,51 @@ export function PartnerCard({ p, today, focused }: { p: Partner; today: string; 
   );
 }
 
+/**
+ * A row of single-choice chips with arrow-key movement, so the forms work from the keyboard. With nothing chosen yet,
+ * the first chip takes the Tab stop.
+ */
+export function ChipRadios<T extends string>({ label, value, options, onChange }: { label: string; value: T | ""; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void }) {
+  const chosen = options.findIndex((o) => o.value === value);
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const last = options.length - 1;
+    const next =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? index === last ? 0 : index + 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? index === 0 ? last : index - 1
+          : event.key === "Home" ? 0 : event.key === "End" ? last : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    onChange(options[next].value);
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={label}>
+      {options.map((o, i) => {
+        const active = i === chosen;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active || (chosen < 0 && i === 0) ? 0 : -1}
+            onClick={() => onChange(o.value)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className={cn(
+              "inline-flex h-7 items-center rounded-sm px-2.5 text-[12.5px] ring-1 ring-inset transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]",
+              active ? "bg-primary text-primary-fg ring-primary" : "text-fg-2 ring-border hover:bg-bg-subtle hover:text-fg",
+            )}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function OfferEditor({ p, copy }: { p: Partner; copy: PartnerCopy }) {
   const { dispatch } = useWorkspace();
   const [type, setType] = useState<PartnerOffer | "">(p.offer?.type ?? "");
@@ -192,41 +294,28 @@ function OfferEditor({ p, copy }: { p: Partner; copy: PartnerCopy }) {
   return (
     <div>
       <p className="mb-1.5 text-[12px] font-medium text-fg-2">What they get</p>
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Offer">
-        {offers.map((o) => (
-          <button
-            key={o}
-            type="button"
-            role="radio"
-            aria-checked={type === o}
-            onClick={() => setType(o)}
-            className={cn("inline-flex h-7 items-center rounded-sm px-2.5 text-[12.5px] ring-1 ring-inset transition-colors duration-150", type === o ? "bg-fg text-bg ring-fg" : "text-fg-2 ring-border hover:bg-bg-subtle")}
-          >
-            {copy.offers[o] ?? partnerCopy("consumer").offers[o]}
-          </button>
-        ))}
-      </div>
+      <ChipRadios label="Offer" value={type} onChange={setType} options={offers.map((o) => ({ value: o, label: copy.offers[o] ?? partnerCopy("consumer").offers[o] }))} />
       <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div>
-          <Label htmlFor={`fee-${p.id}`} className="mb-1 text-[11.5px]">
+          <Label htmlFor={`fee-${p.id}`} className="mb-1 text-[12px]">
             Fee, $
           </Label>
           <Input id={`fee-${p.id}`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
         <div>
-          <Label htmlFor={`pct-${p.id}`} className="mb-1 text-[11.5px]">
+          <Label htmlFor={`pct-${p.id}`} className="mb-1 text-[12px]">
             {copy.commission}
           </Label>
           <Input id={`pct-${p.id}`} inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
         <div className="col-span-2">
-          <Label htmlFor={`code-${p.id}`} className="mb-1 text-[11.5px]">
+          <Label htmlFor={`code-${p.id}`} className="mb-1 text-[12px]">
             Their code or link
           </Label>
           <Input id={`code-${p.id}`} value={code} onChange={(e) => setCode(e.target.value)} placeholder={copy.codePlaceholder} maxLength={80} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
         <div className="col-span-2 sm:col-span-4">
-          <Label htmlFor={`terms-${p.id}`} className="mb-1 text-[11.5px]">
+          <Label htmlFor={`terms-${p.id}`} className="mb-1 text-[12px]">
             Terms (deliverables, usage, when you pay)
           </Label>
           <Input id={`terms-${p.id}`} value={terms} onChange={(e) => setTerms(e.target.value)} placeholder={copy.termsPlaceholder} maxLength={240} className="text-[16px] sm:text-[13px]" />
@@ -318,13 +407,13 @@ function Outreach({ p, today }: { p: Partner; today: string }) {
             I sent it
           </Button>
         ) : (
-          <span className="font-mono text-[12px] text-fg-3">Sent {o.sentOn}</span>
+          <span className="font-mono text-[12px] text-fg-3">Sent {day(o.sentOn)}</span>
         )}
       </div>
 
       {o.sentOn && (
         <div className="space-y-2 rounded-md bg-bg-subtle p-3">
-          <p className="text-[12px] font-medium text-fg-2">The one follow-up{next.action === "follow_up" ? " · due now" : o.followedUpOn ? ` · sent ${o.followedUpOn}` : next.dueOn ? ` · ${next.dueOn}` : ""}</p>
+          <p className="text-[12px] font-medium text-fg-2">The one follow-up{next.action === "follow_up" ? " · due now" : o.followedUpOn ? ` · sent ${day(o.followedUpOn)}` : next.dueOn ? ` · ${day(next.dueOn)}` : ""}</p>
           <Textarea aria-label="Follow-up" value={followUp} onChange={(e) => setFollowUp(e.target.value)} disabled={!!o.followedUpOn} className="min-h-20 text-[16px] sm:text-[13.5px]" />
           {!o.followedUpOn && p.stage === "contacted" && (
             <div className="flex flex-wrap gap-2">
@@ -367,7 +456,7 @@ function ResultsForm({ p, copy }: { p: Partner; copy: PartnerCopy }) {
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {fields.map((f) => (
           <div key={f.key}>
-            <Label htmlFor={`r-${f.key}-${p.id}`} className="mb-1 text-[11.5px]">
+            <Label htmlFor={`r-${f.key}-${p.id}`} className="mb-1 text-[12px]">
               {f.label}
             </Label>
             <Input id={`r-${f.key}-${p.id}`} inputMode="decimal" value={vals[f.key]} onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))} className="font-mono text-[16px] sm:text-[13px]" />

@@ -51,13 +51,13 @@ function RoundTable({ seats, index, count }: { seats: SeatSlot[]; index: number;
               >
                 <span
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-full text-[11px] font-semibold ring-1",
+                    "flex size-8 items-center justify-center rounded-full text-[12px] font-semibold ring-1",
                     host ? "bg-primary text-primary-fg ring-primary" : "bg-surface text-fg ring-border-strong",
                   )}
                 >
                   {initials(s.label)}
                 </span>
-                <span className="w-full truncate text-[11px] leading-[14px] text-fg-2">{s.label.split(" ")[0]}</span>
+                <span className="w-full truncate text-[12px] leading-[14px] text-fg-2">{s.label.split(" ")[0]}</span>
               </button>
             </Tooltip>
           );
@@ -220,7 +220,7 @@ export function RoomTab({ ev }: { ev: GtmEvent }) {
                 <Card className="h-full p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-[14px] font-medium text-fg">{guestLabel(b.guest)}</p>
+                      <p className="truncate text-[14px] font-medium text-fg" title={guestLabel(b.guest)}>{guestLabel(b.guest)}</p>
                       <p className="truncate text-[12.5px] text-fg-3">
                         {b.guest.name ? `${b.guest.title} · ` : ""}
                         {b.company}

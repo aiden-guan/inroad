@@ -67,7 +67,7 @@ function Header({ ev, planning, onReplan }: { ev: GtmEvent; planning: boolean; o
             <span aria-hidden>·</span>
             <span className="inline-flex min-w-0 items-center gap-1">
               <MapPin className="size-3" />
-              <span className="truncate">{where}</span>
+              <span className="truncate" title={where}>{where}</span>
             </span>
           </>
         )}
@@ -101,7 +101,7 @@ function Header({ ev, planning, onReplan }: { ev: GtmEvent; planning: boolean; o
           )}
           <Menu
             trigger={
-              <IconButton label="More">
+              <IconButton label="More for this event">
                 <MoreHorizontal className="size-4" />
               </IconButton>
             }

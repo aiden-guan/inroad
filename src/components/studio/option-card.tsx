@@ -41,7 +41,7 @@ function Counter({ part, text }: { part: PartSpec; text: string }) {
   const unit = limit.unit === "words" ? "words" : "chars";
   return (
     <Tooltip content={`${limit.kind === "hard" ? "Platform limit" : limit.kind === "recommended" ? "Platform recommendation" : limit.kind === "observed" ? "Where it usually gets cut off" : "What works best"}${limit.source ? ` · ${new URL(limit.source).hostname.replace(/^www\./, "")}` : ""}${part.list ? " · longest item" : ""}`}>
-      <span className={cn("font-mono text-[10.5px] tnum transition-colors", over ? (limit.kind === "hard" ? "text-danger" : "text-warning") : "text-fg-4")}>
+      <span className={cn("font-mono text-[12px] tnum transition-colors", over ? (limit.kind === "hard" ? "text-danger" : "text-warning") : "text-fg-4")}>
         {n}/{limit.max} {unit}
       </span>
     </Tooltip>
@@ -78,7 +78,7 @@ function Check({ lint }: { lint: StudioLint }) {
           ) : (
             <p className="text-[12.5px] text-fg-2">Fits every limit, every specific has a receipt, and no AI tells.</p>
           )}
-          <p className="mt-2 font-mono text-[11px] tnum text-fg-3">
+          <p className="mt-2 font-mono text-[12px] tnum text-fg-3">
             {lint.stats.words} words · {lint.stats.concrete} specifics · {lint.stats.vague} vague words{lint.stats.grade ? ` · grade ${Math.round(lint.stats.grade)}` : ""}
           </p>
         </div>
@@ -121,7 +121,7 @@ export function OptionCard({ ws, piece, option, index, onGraphics }: { ws: Works
       <header className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[11px] tnum text-fg-4">{String(index + 1).padStart(2, "0")}</span>
+            <span className="font-mono text-[12px] tnum text-fg-4">{String(index + 1).padStart(2, "0")}</span>
             <Tooltip content={move ? `${move.line} ${move.backfires ? `Backfires: ${move.backfires}` : ""}` : "Written without a named move."}>
               <span className="text-[12.5px] font-medium text-fg">{move?.name ?? "Free angle"}</span>
             </Tooltip>
@@ -161,7 +161,7 @@ export function OptionCard({ ws, piece, option, index, onGraphics }: { ws: Works
             return (
               <div key={p.key}>
                 <div className="mb-0.5 flex items-baseline justify-between gap-2">
-                  <label htmlFor={`${option.id}-${p.key}`} className="text-[11px] font-medium uppercase tracking-wide text-fg-3">
+                  <label htmlFor={`${option.id}-${p.key}`} className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                     {p.label}
                   </label>
                   <Counter part={p} text={value} />
@@ -186,10 +186,10 @@ export function OptionCard({ ws, piece, option, index, onGraphics }: { ws: Works
 
       {receipts.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1">
-          <span className="mr-0.5 text-[11px] text-fg-3">Rests on</span>
+          <span className="mr-0.5 text-[12px] text-fg-3">Rests on</span>
           {receipts.map((r) => (
             <Tooltip key={r.id} content={`${r.text}${r.source ? ` (${r.source})` : ""}`}>
-              <span className="inline-flex h-5 max-w-[14rem] items-center truncate rounded-xs bg-bg-subtle px-1.5 text-[11px] text-fg-2 ring-1 ring-border">{r.label}</span>
+              <span className="inline-flex h-5 max-w-[14rem] items-center truncate rounded-xs bg-bg-subtle px-1.5 text-[12px] text-fg-2 ring-1 ring-border" title={r.label}>{r.label}</span>
             </Tooltip>
           ))}
         </div>

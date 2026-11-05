@@ -8,6 +8,7 @@ import { ComposeButton } from "@/components/compose/composer";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Section, useToday } from "@/components/companies/sheet/shared";
 import { TagMenu } from "@/components/people/relationship-tags";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/misc";
 import { newId } from "@/lib/domain/ids";
 import type { Account } from "@/lib/domain/types";
@@ -114,9 +115,9 @@ export function WaysIn({ account }: { account: Account }) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px]">
-                    <span className="font-medium text-fg">{w.via.name}</span>
-                    {(w.via.title || w.via.company) && <span className="text-fg-3">{[w.via.title, w.kind === "inside" ? null : w.via.company].filter(Boolean).join(" · ")}</span>}
-                    <span className="text-[11.5px] text-fg-3">{KIND[w.kind].label}</span>
+                    <span className="min-w-0 font-medium text-fg [overflow-wrap:anywhere]">{w.via.name}</span>
+                    {(w.via.title || w.via.company) && <span className="min-w-0 text-fg-3 [overflow-wrap:anywhere]">{[w.via.title, w.kind === "inside" ? null : w.via.company].filter(Boolean).join(" · ")}</span>}
+                    <Badge tone="outline">{KIND[w.kind].label}</Badge>
                     {w.via.linkedinUrl && /^https:\/\/([a-z]+\.)?linkedin\.com\//.test(w.via.linkedinUrl) && (
                       <a href={w.via.linkedinUrl} target="_blank" rel="noreferrer" aria-label={`${w.via.name} on LinkedIn`} className="text-fg-3 hover:text-fg">
                         <ArrowUpRight className="size-3.5" />

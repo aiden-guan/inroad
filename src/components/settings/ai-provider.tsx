@@ -12,7 +12,7 @@ import { Select } from "@/components/ui/select";
 import type { ModelTier } from "@/lib/ai/models";
 import { providerById, PROVIDERS, type ProviderId } from "@/lib/ai/providers";
 import { forgetActiveProvider } from "@/lib/client/ai-provider";
-import { Group, Row } from "./parts";
+import { Advanced, Group, Row } from "./parts";
 import type { AiStatus } from "./types";
 import type { SettingsUpdate, useSettingsStatus } from "./use-settings";
 
@@ -71,7 +71,7 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
       </>
     );
   } else if (active && status.keySource === "env") {
-    summary = active.id === "ollama" ? `${active.models.operator}, running on this computer.` : `Using the ${short(active.id)} key from your environment variables. A key saved here takes priority.`;
+    summary = active.id === "ollama" ? `${active.models.operator}, running on this computer.` : `Using a ${short(active.id)} key already set up on this computer. A key saved here takes priority.`;
   } else if (ai.chosen && ai.saved[ai.chosen] && !active) {
     summary = `${short(ai.chosen)} needs a model picked before it can work.`;
   } else {
@@ -138,7 +138,12 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
           </div>
         )}
       </Row>
-      {confirmRemove && <p className="px-4 py-2.5 text-[12.5px] text-fg-2">Without a key, research and drafting stop until you add one again. Runs already going will finish.</p>}
+      {confirmRemove && <p className="px-5 py-3 text-[12.5px] text-fg-2">Without a key, research and drafting stop until you add one again. Runs already going will finish.</p>}
+      {!open && active && !active.connectionId && status?.keySource === "env" && active.id !== "ollama" && (
+        <Advanced summary="Where this key comes from">
+          <p>Inroad found this key in the environment it was started in (an environment variable), so nothing is saved here. Paste a key under Change to save one instead.</p>
+        </Advanced>
+      )}
       {open && ai && (
         <ConnectForm
           ai={ai}
@@ -238,7 +243,7 @@ function ConnectForm({ ai, save, canCancel, onCancel, onSaved }: { ai: AiStatus;
             type="password"
             autoComplete="off"
             spellCheck={false}
-            placeholder={saved ? `Saved ${saved.hint}. Paste a new key to replace it` : fromEnv ? "Using the key from your environment. Paste one to save it here" : preset.placeholder}
+            placeholder={saved ? `Saved ${saved.hint}. Paste a new key to replace it` : fromEnv ? "Using the key already on this computer. Paste one to save it here" : preset.placeholder}
             aria-label={`${short(form.provider)} API key`}
             aria-invalid={!!form.error}
             aria-describedby={`${id}-help`}

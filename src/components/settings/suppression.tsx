@@ -106,7 +106,7 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
       id="suppression"
       title="Suppression list"
       hint="I never draft to anyone here, on any channel. People who reply “stop”, bounces and unsubscribes from your connected tools land here on their own."
-      right={list.length > 0 ? <span className="font-mono text-[11.5px] tnum text-fg-3">{list.length}</span> : undefined}
+      right={list.length > 0 ? <span className="font-mono text-[12px] tnum text-fg-3">{list.length}</span> : undefined}
     >
       <div className="px-4 py-3.5">
         <form
@@ -215,7 +215,7 @@ export function SuppressionList({ ws, dispatch }: { ws: Workspace; dispatch: Dis
                   <Badge tone={s.reason === "bounce" ? "warning" : "neutral"} className="hidden sm:inline-flex">
                     {REASONS[s.reason]}
                   </Badge>
-                  <span className="hidden w-14 text-right font-mono text-[11.5px] text-fg-3 sm:inline">{shortDate(s.at)}</span>
+                  <span className="hidden w-14 text-right font-mono text-[12px] text-fg-3 sm:inline">{shortDate(s.at)}</span>
                   {isArmed ? (
                     <span className="flex items-center gap-1">
                       <button type="button" onClick={() => setArmed(null)} className="h-6 rounded-xs px-1.5 text-[12px] text-fg-3 hover:text-fg">
