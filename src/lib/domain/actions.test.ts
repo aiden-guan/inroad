@@ -605,6 +605,28 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.deals[DEAL.rowanstack].nurtureUntil).toBe("2027-01-12");
   },
 
+  "deal.revertStage": () => {
+    const s = ws();
+    const deal = () => s.deals[DEAL.saltmarsh];
+    const before = structuredClone(deal());
+    const status = s.accounts[DOMAIN.saltmarsh].status;
+    const previous = { stage: before.stage, lossReason: before.lossReason, nurtureUntil: before.nurtureUntil, updatedAt: before.updatedAt, lastActivityAt: before.lastActivityAt, accountStatus: status };
+    apply(s, { type: "deal.setStage", id: DEAL.saltmarsh, stage: "lost", lossReason: "timing", at: at(0, "11:00") });
+    expect(s.accounts[DOMAIN.saltmarsh].status).toBe("in_pipeline");
+
+    // Undo puts it back exactly: the stage, its dates, and no history entry for a move that was taken back.
+    apply(s, { type: "deal.revertStage", id: DEAL.saltmarsh, stage: "lost", at: at(0, "11:00"), previous });
+    expect(deal()).toEqual(before);
+    expect(s.accounts[DOMAIN.saltmarsh].status).toBe(status);
+
+    // A stale undo (the deal moved again since) changes nothing.
+    apply(s, { type: "deal.setStage", id: DEAL.saltmarsh, stage: "qualified", at: at(0, "12:00") });
+    apply(s, { type: "deal.setStage", id: DEAL.saltmarsh, stage: "proposal", at: at(0, "12:30") });
+    const moved = structuredClone(deal());
+    apply(s, { type: "deal.revertStage", id: DEAL.saltmarsh, stage: "qualified", at: at(0, "12:00"), previous });
+    expect(deal()).toEqual(moved);
+  },
+
   "deal.setNextStep": () => {
     const nextStep = { what: "Send the pilot terms", date: "2026-10-23", buyerAgreed: true };
     const s = apply(ws(), { type: "deal.setNextStep", id: DEAL.saltmarsh, nextStep, at: at(0) });

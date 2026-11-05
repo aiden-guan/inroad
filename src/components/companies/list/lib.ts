@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { BOARD_STAGES, missingCriteria, type Criterion } from "@/lib/deals/rules";
 import { daysBetween, todayISO } from "@/lib/domain/ids";
 import type { Account, Activity, Deal, DiscoverySource, Signal, SignalType, Stage, Workspace } from "@/lib/domain/types";
+import { localDate } from "@/lib/moves/util";
 
 /** Pure helpers for the Companies surface. No React state, no fetching. */
 
@@ -94,7 +95,7 @@ const WINDOW: Record<SignalType, number> = {
 
 export function signalDecay(s: Pick<Signal, "type" | "date">, today: string): number {
   if (s.type === "sensitive" || !today) return 0;
-  const age = Math.max(0, daysBetween(s.date, today));
+  const age = Math.max(0, daysBetween(localDate(s.date), today));
   const w = WINDOW[s.type];
   if (age <= w / 3) return 1;
   if (age <= (2 * w) / 3) return 0.6;
@@ -114,7 +115,7 @@ export function topSignal(a: Account, today: string): Signal | undefined {
 /** "6d", "3mo", from a date and today (pure, so it's safe in render). */
 export function ageLabel(date: string, today: string): string {
   if (!today) return "";
-  const d = Math.max(0, daysBetween(date, today));
+  const d = Math.max(0, daysBetween(localDate(date), today));
   if (d < 1) return "today";
   if (d < 30) return `${d}d`;
   if (d < 365) return `${Math.round(d / 30)}mo`;
@@ -184,8 +185,12 @@ export function stageEnteredAt(d: Deal): string {
   return d.createdAt;
 }
 
+/**
+ * Whole local days since the deal entered its stage. Timestamps are UTC, `today` is the founder's wall-clock date:
+ * both are compared as local dates, the way Revenue counts them (src/lib/revenue/stats.ts), so the two agree at midnight.
+ */
 export function daysInStage(d: Deal, today: string): number {
-  return today ? Math.max(0, daysBetween(stageEnteredAt(d), today)) : 0;
+  return today ? Math.max(0, daysBetween(localDate(stageEnteredAt(d)), today)) : 0;
 }
 
 export function nextStepState(d: Deal, today: string): "ok" | "overdue" | "missing" {
@@ -222,7 +227,7 @@ export function exitCriteria(d: Deal, to: Stage, today: string): Criterion[] {
 }
 
 export function lastActivityDays(d: Deal, today: string): number | null {
-  return today && d.lastActivityAt ? Math.max(0, daysBetween(d.lastActivityAt, today)) : null;
+  return today && d.lastActivityAt ? Math.max(0, daysBetween(localDate(d.lastActivityAt), today)) : null;
 }
 
 export interface CustomerRow {

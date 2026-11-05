@@ -3,7 +3,7 @@
 import { LoadingSignal } from "@/components/ui/loading";
 import { PageHeader } from "@/components/ui/page-header";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { CompanySheet } from "@/components/companies/sheet/company-sheet";
 import { unlessSheetOpen } from "@/components/companies/sheet/open-sheet";
@@ -18,7 +18,7 @@ import { OPEN_STAGES, type Account } from "@/lib/domain/types";
 import { Customers } from "./customers";
 import { DiscoveryStatus } from "./discovery-status";
 import { AddCompany, FindCompanies, ImportLink, MoreActions, lookupDomain, type LookupResult } from "./header-actions";
-import { customerRows, isScored, nameFromDomain, normalizeDomainInput, touchIndex, useToday } from "./lib";
+import { customerRows, inOverlay, isScored, isTyping, nameFromDomain, normalizeDomainInput, touchIndex, useToday } from "./lib";
 import { LogPicker } from "./log-picker";
 import { Prospects } from "./prospects";
 import { MapView } from "./map-view";
@@ -28,10 +28,28 @@ type View = "prospects" | "talking" | "customers" | "map";
 const VIEWS: View[] = ["prospects", "talking", "customers", "map"];
 const CLOSED: ClosedView[] = ["won", "lost", "nurture"];
 
+/** The view used last on this computer: /companies opens there (a Head of GTM who lives in the board lands on it). */
+const VIEW_KEY = "inroad.companies.view";
+function rememberedView(): View | null {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return VIEWS.find((x) => x === v) ?? null;
+  } catch {
+    return null; // private mode
+  }
+}
+function subscribeStorage(cb: () => void) {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+
 /**
  * Companies: Prospects · Talking · Customers. Everything is addressable by URL:
  *   ?view=prospects|talking|customers|map  ?c=<domain> (sheet)  ?add=<domain> (add & research)
  *   ?log=1 (pick a deal, then the sheet opens with &intent=log)  ?layout=table  ?closed=won|lost|nurture
+ *   ?viewId=<saved view> (Prospects)
+ * Without ?view it opens the view used last here, else the pipeline board when deals are open, else Prospects.
+ * Keys 1–4 switch views.
  */
 export function CompaniesView() {
   const { ws, error, dispatch, refresh } = useWorkspace();
@@ -41,7 +59,12 @@ export function CompaniesView() {
   const pathname = usePathname();
   const today = useToday();
 
-  const view = VIEWS.find((v) => v === params.get("view")) ?? "prospects";
+  const explicit = VIEWS.find((v) => v === params.get("view")) ?? null;
+  const remembered = useSyncExternalStore(subscribeStorage, rememberedView, () => null);
+  const openDeals = useMemo(() => (ws ? Object.values(ws.deals).filter((d) => OPEN_STAGES.includes(d.stage)).length : 0), [ws]);
+  // Until the workspace loads, a default can't be known yet: the tabs wait instead of jumping.
+  const resolved = explicit ?? remembered ?? (ws ? (openDeals > 0 ? "talking" : "prospects") : null);
+  const view: View = resolved ?? "prospects";
   const sheetDomain = params.get("c");
   const add = params.get("add");
   const log = params.get("log") === "1";
@@ -84,7 +107,7 @@ export function CompaniesView() {
   const findCompanies = useCallback(
     (opts: { brief?: string; count: number }) => {
       lastBrief.current = opts;
-      if (view !== "prospects") setParams({ view: null, closed: null, layout: null });
+      if (view !== "prospects") setParams({ view: "prospects", closed: null, layout: null });
       void start("discovery", { count: opts.count, brief: opts.brief, source: "manual" });
     },
     [start, setParams, view],
@@ -148,6 +171,33 @@ export function CompaniesView() {
     }
     void lookupDomain(domain, 5000).then((info) => addCompany(domain, info, true, { add: null }));
   }, [add, ws, addCompany, setParams]);
+
+  /* ─────────── The last view used, and 1–4 to switch ─────────── */
+
+  // From an effect (never render): the view counts as used once it's on screen, however it was reached.
+  useEffect(() => {
+    if (!explicit) return;
+    try {
+      localStorage.setItem(VIEW_KEY, explicit);
+    } catch {
+      // private mode: /companies opens on the default instead
+    }
+  }, [explicit]);
+
+  const chooseView = useCallback((v: View) => setParams({ view: v, closed: null }), [setParams]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || isTyping(e.target) || inOverlay(e.target)) return;
+      if (sheetDomain || log) return;
+      const i = ["1", "2", "3", "4"].indexOf(e.key);
+      if (i === -1) return;
+      e.preventDefault();
+      chooseView(VIEWS[i]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chooseView, sheetDomain, log]);
 
   /* ─────────── Counts ─────────── */
 
@@ -215,17 +265,21 @@ export function CompaniesView() {
       />
 
       <div className="mt-6">
-        <Segmented
-          value={view}
-          layoutId="companies-view"
-          onChange={(v) => setParams({ view: v === "prospects" ? null : v, closed: null })}
-          options={[
-            { value: "prospects", label: "Prospects", count: counts?.prospects },
-            { value: "talking", label: "Talking", count: counts?.talking },
-            { value: "customers", label: "Customers", count: counts?.customers },
-            { value: "map", label: "Map" },
-          ]}
-        />
+        {resolved ? (
+          <Segmented
+            value={view}
+            layoutId="companies-view"
+            onChange={chooseView}
+            options={[
+              { value: "prospects", label: "Prospects", count: counts?.prospects },
+              { value: "talking", label: "Talking", count: counts?.talking },
+              { value: "customers", label: "Customers", count: counts?.customers },
+              { value: "map", label: "Map" },
+            ]}
+          />
+        ) : (
+          <Skeleton className="h-10 w-[min(372px,100%)] rounded-lg" />
+        )}
       </div>
 
       {log && ws && <LogPicker ws={ws} onPick={(d) => openSheet(d, { log: null, intent: "log" })} onClose={() => setParams({ log: null })} />}
@@ -270,7 +324,7 @@ export function CompaniesView() {
             onLayout={(l) => setParams({ layout: l === "board" ? null : l })}
             onClosed={(c) => setParams({ closed: c })}
             onOpen={(d) => openSheet(d)}
-            onProspects={() => setParams({ view: null, closed: null, layout: null })}
+            onProspects={() => setParams({ view: "prospects", closed: null, layout: null })}
           />
         ) : view === "map" ? (
           <MapView onOpen={(d) => openSheet(d)} focusDomain={params.get("focus")} />

@@ -134,6 +134,18 @@ export type Action =
   | { type: "deal.create"; deal: Deal }
   | { type: "deal.update"; id: ID; patch: Partial<Deal>; at: string }
   | { type: "deal.setStage"; id: ID; stage: Stage; at: string; lossReason?: Deal["lossReason"]; nurtureUntil?: string }
+  /**
+   * Undo of one stage move (`stage` at `at`): the deal goes back exactly as it was and the history entry the move
+   * added is removed, so days in stage and the pipeline's stage history never see a move that didn't happen.
+   * Does nothing when the deal has moved again since.
+   */
+  | {
+      type: "deal.revertStage";
+      id: ID;
+      stage: Stage;
+      at: string;
+      previous: { stage: Stage; lossReason?: Deal["lossReason"]; nurtureUntil?: string; updatedAt: string; lastActivityAt: string; accountStatus?: Account["status"] };
+    }
   | { type: "deal.setNextStep"; id: ID; nextStep: Deal["nextStep"]; at: string }
   /** The owner of the number calls a deal's forecast category (null hands it back to the code's call). */
   | { type: "deal.forecastCall"; id: ID; category: ForecastCategory | null; note?: string; at: string }
@@ -694,6 +706,23 @@ export function applyAction(ws: Workspace, action: Action): void {
       if (action.stage === "nurture") deal.nurtureUntil = action.nurtureUntil ?? addDays(todayISO(), 60);
       const acc = ws.accounts[deal.accountDomain];
       if (acc) acc.status = action.stage === "won" ? "customer" : "in_pipeline";
+      return;
+    }
+    case "deal.revertStage": {
+      const deal = need(ws.deals[action.id], "Deal");
+      const last = deal.stageHistory.at(-1);
+      if (deal.stage !== action.stage || last?.stage !== action.stage || last.at !== action.at) return;
+      const p = action.previous;
+      deal.stageHistory.pop();
+      deal.stage = p.stage;
+      if (p.lossReason) deal.lossReason = p.lossReason;
+      else delete deal.lossReason;
+      if (p.nurtureUntil) deal.nurtureUntil = p.nurtureUntil;
+      else delete deal.nurtureUntil;
+      deal.updatedAt = p.updatedAt;
+      deal.lastActivityAt = p.lastActivityAt;
+      const acc = ws.accounts[deal.accountDomain];
+      if (acc && p.accountStatus) acc.status = p.accountStatus;
       return;
     }
     case "deal.setNextStep": {
