@@ -25,6 +25,25 @@ export interface HubState {
 }
 
 const LIMITS = { seen: 5000, inbound: 100, deliveries: 100, sync: 50 };
+/** Events each source keeps whatever the others send. */
+export const INBOUND_PER_SOURCE = 5;
+
+/**
+ * The newest `total` events, plus each source's newest `perSource` that aren't duplicates, newest first. One busy
+ * source (a 50-row Clay push) can't push another's last event (Calendly's) out of the log or off its status card.
+ */
+export function recentInbound(events: InboundLogEntry[], total: number, perSource = INBOUND_PER_SOURCE): InboundLogEntry[] {
+  const keep = new Set(events.slice(0, total));
+  const per = new Map<string, number>();
+  for (const e of events) {
+    if (e.status === "duplicate") continue;
+    const n = per.get(e.source) ?? 0;
+    if (n >= perSource) continue;
+    per.set(e.source, n + 1);
+    keep.add(e);
+  }
+  return events.filter((e) => keep.has(e));
+}
 
 function empty(): HubState {
   return { refs: {}, seen: {}, inbound: [], deliveries: [], sync: [], slack: {} };
@@ -39,7 +58,7 @@ export function readHub(): HubState {
 export async function mutateHub<R = void>(fn: (hub: HubState) => R): Promise<R> {
   const { value } = await db().update((draft) => {
     const value = fn(draft);
-    draft.inbound = draft.inbound.slice(0, LIMITS.inbound);
+    draft.inbound = recentInbound(draft.inbound, LIMITS.inbound);
     draft.deliveries = draft.deliveries.slice(0, LIMITS.deliveries);
     draft.sync = draft.sync.slice(0, LIMITS.sync);
     const keys = Object.keys(draft.seen);
