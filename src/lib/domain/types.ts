@@ -1137,6 +1137,8 @@ export interface Meeting {
   debrief?: Debrief;
   /** Indexes of brief questions the founder starred; they pin to the debrief form. */
   starred?: number[];
+  /** Came from the founder's calendar feed (src/lib/calendar), not a booking tool or a hand entry. */
+  source?: "calendar";
 }
 
 export interface Deal {
@@ -1612,7 +1614,9 @@ export type IntegrationId =
   | "mcp"
   | "gmail"
   | "calendly"
-  | "calcom";
+  | "calcom"
+  /** The founder's own calendar, read from its private iCal address (src/lib/calendar). */
+  | "calendar";
 
 export interface IntegrationState {
   id: IntegrationId;

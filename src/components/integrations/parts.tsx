@@ -8,6 +8,7 @@ import { CopyButton } from "@/components/ui/misc";
 import { Favicon } from "@/components/ui/favicon";
 import { cn } from "@/lib/client/cn";
 import { relativeTime } from "@/lib/client/format";
+import { bundledMark } from "./marks";
 import { useNow } from "./use-hub";
 
 export type Tone = "on" | "error" | "waiting" | "off";
@@ -36,8 +37,12 @@ export function Ago({ iso, className }: { iso?: string; className?: string }) {
   return <span className={cn("tnum", className)}>{relativeTime(iso, Math.max(now, Date.parse(iso) || 0))}</span>;
 }
 
-/** The tool's mark: its favicon, framed so every logo sits on the same paper. */
+/** The tool's mark: its favicon (or a bundled mark when its site has no icon we can serve), framed so every logo sits on the same paper. */
 export function ToolMark({ domain, name, icon }: { domain?: string; name: string; icon?: ReactNode }) {
+  const bundled = !icon ? bundledMark(domain) : null;
+  if (bundled) {
+    return <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-surface shadow-xs ring-1 ring-border">{bundled}</span>;
+  }
   if (icon || !domain) {
     return (
       <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-surface text-fg-3 shadow-xs ring-1 ring-border">

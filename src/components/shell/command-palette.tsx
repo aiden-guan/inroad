@@ -9,6 +9,7 @@ import {
   CalendarHeart,
   ClipboardList,
   Compass,
+  FileAudio,
   FileText,
   FileUp,
   Handshake,
@@ -48,12 +49,14 @@ import { MODES, useMarket, useSwitchMarket } from "./market-switch";
 import { SECONDARY, navFor } from "./nav";
 import { connectorChoices, connectorTargets, dealCandidates, proposalDeals, repliesToCheck, reviewThisWeek, upcomingMeetings, writeTargets } from "./palette-data";
 import { PasteReply } from "./paste-reply";
+import { TranscriptIntake } from "@/components/transcripts/transcript-intake";
 
 /** A ⌘K command that needs a choice first opens a page of the palette; Esc or ⌫ on an empty query goes back. */
-type Page = { kind: "reply" } | { kind: "write" } | { kind: "prep" } | { kind: "connector"; id?: string } | { kind: "asset" } | { kind: "proposal" } | { kind: "deal" };
+type Page = { kind: "reply" } | { kind: "transcript" } | { kind: "write" } | { kind: "prep" } | { kind: "connector"; id?: string } | { kind: "asset" } | { kind: "proposal" } | { kind: "deal" };
 
 const PAGE: Record<Page["kind"], { title: string; placeholder: string }> = {
   reply: { title: "Paste a reply", placeholder: "" },
+  transcript: { title: "Debrief from a transcript", placeholder: "" },
   write: { title: "Write to…", placeholder: "Who are you writing to?" },
   prep: { title: "Prep for…", placeholder: "Which meeting?" },
   connector: { title: "Ask a connector for intros", placeholder: "Who should you ask?" },
@@ -376,7 +379,7 @@ export function CommandPalette() {
       onValueChange={setSelected}
       loop
       onKeyDown={(e) => {
-        if (e.key === "Backspace" && !query && page && page.kind !== "reply") {
+        if (e.key === "Backspace" && !query && page && page.kind !== "reply" && page.kind !== "transcript") {
           e.preventDefault();
           go(page.kind === "connector" && page.id ? { kind: "connector" } : null);
         }
@@ -402,6 +405,8 @@ export function CommandPalette() {
         )}
         {page?.kind === "reply" ? (
           <p className="h-12 min-w-0 flex-1 truncate py-3.5 text-[13px] text-fg-3">Matched to who sent it, on this computer</p>
+        ) : page?.kind === "transcript" ? (
+          <p className="h-12 min-w-0 flex-1 truncate py-3.5 text-[13px] text-fg-3">Read and matched on this computer</p>
         ) : (
           <Command.Input
             ref={inputRef}
@@ -416,6 +421,16 @@ export function CommandPalette() {
       </div>
       {page?.kind === "reply" ? (
         <PasteReply onDone={() => setOpen(false)} />
+      ) : page?.kind === "transcript" ? (
+        <div className="max-h-[min(560px,72vh)] overflow-y-auto p-3">
+          <TranscriptIntake
+            autoFocus
+            onStarted={({ meetingId, domain }) => {
+              setOpen(false);
+              router.push(sheet(domain, `&intent=prep&ref=${encodeURIComponent(meetingId)}`));
+            }}
+          />
+        </div>
       ) : (
         <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto p-1.5 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-fg-3">
           <Command.Empty className="px-3 py-6 text-center text-[13px] text-fg-3">{empty}</Command.Empty>
@@ -485,6 +500,9 @@ export function CommandPalette() {
                   <>
                     <Item value="log a call debrief notes transcript" icon={<Phone className="size-4" />} onSelect={() => run(() => router.push("/companies?view=talking&log=1"))}>
                       Log a call
+                    </Item>
+                    <Item value="debrief a call from a transcript recording zoom meet teams fathom granola otter vtt srt upload file" icon={<FileAudio className="size-4" />} onSelect={() => go({ kind: "transcript" })} more>
+                      Debrief a call from a transcript
                     </Item>
                     <Item value="set revenue target quota number quarter forecast" icon={<Target className="size-4" />} onSelect={() => run(() => router.push("/revenue?target=1"))}>
                       Set the revenue target
