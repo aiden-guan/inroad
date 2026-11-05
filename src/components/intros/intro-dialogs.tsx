@@ -164,33 +164,51 @@ function MakeIntroForm({ onDone }: { onDone: () => void }) {
 }
 
 /** For asks made outside Inroad (a text, a hallway): log them so the follow-through still happens. */
-export function LogAskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function LogAskDialog({ open, onOpenChange, onAddConnector }: { open: boolean; onOpenChange: (o: boolean) => void; onAddConnector?: () => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Log an intro you asked for" description="Asked by text, at an event, anywhere. I'll keep track of whose move it is." className="max-w-[560px]">
-      {open && <LogAskForm onDone={() => onOpenChange(false)} />}
+      {open && <LogAskForm onDone={() => onOpenChange(false)} onAddConnector={onAddConnector} />}
     </Dialog>
   );
 }
 
-function LogAskForm({ onDone }: { onDone: () => void }) {
+/** People who introduce you first (investors, advisors, customers), then LinkedIn connections, each by name. */
+function askable(ws: Workspace) {
+  return [...ws.connectors].sort((a, b) => Number(a.relationship === "connection") - Number(b.relationship === "connection") || a.name.localeCompare(b.name));
+}
+
+function LogAskForm({ onDone, onAddConnector }: { onDone: () => void; onAddConnector?: () => void }) {
   const { ws, dispatch } = useWorkspace();
   const id = useId();
   const today = todayISO();
-  const [connectorId, setConnectorId] = useState(ws?.connectors.find((c) => c.relationship !== "connection")?.id ?? "");
+  const [picked, setConnectorId] = useState<string | null>(null);
   const [target, setTarget] = useState("");
   const [domain, setDomain] = useState("");
   const [askedOn, setAskedOn] = useState(today);
   const [stage, setStage] = useState<IntroStage>("asked");
   const [saving, setSaving] = useState(false);
   if (!ws) return null;
-  const connector = ws.connectors.find((c) => c.id === connectorId);
+  const choices = askable(ws);
+  // The select always shows a connector, so the form starts on one: the founder's pick if it still exists, else the
+  // first in the list. Defaulting to "" left it unsubmittable when every connector came from a LinkedIn import.
+  const connector = choices.find((c) => c.id === picked) ?? choices[0];
+  const connectorId = connector?.id ?? "";
   const accounts = Object.values(ws.accounts)
     .filter((a) => a.status !== "disqualified")
     .sort((x, y) => x.name.localeCompare(y.name));
   const ready = !!connector && target.trim().length >= 2 && askedOn <= today && askedOn >= addDays(today, -120);
 
   if (!ws.connectors.length) {
-    return <p className="px-5 pb-5 pt-3 text-[13.5px] leading-[21px] text-fg-2">Add the person you asked first, under “People who introduce you”.</p>;
+    return (
+      <div className="px-5 pb-5 pt-3">
+        <p className="text-[13.5px] leading-[21px] text-fg-2">Add the person you asked first, so I know who to follow up with.</p>
+        {onAddConnector && (
+          <Button variant="primary" className="mt-4" onClick={onAddConnector}>
+            Add someone who introduces you
+          </Button>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -238,7 +256,7 @@ function LogAskForm({ onDone }: { onDone: () => void }) {
             onChange={(e) => setConnectorId(e.target.value)}
             className="h-8 w-full rounded-sm bg-surface px-2 text-[13px] text-fg ring-1 ring-border-strong/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
           >
-            {ws.connectors.map((c) => (
+            {choices.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>

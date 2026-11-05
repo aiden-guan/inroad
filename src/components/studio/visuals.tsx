@@ -73,7 +73,7 @@ function UploadButton({ onUploaded, children, className }: { onUploaded?: (image
         }}
       />
       <button type="button" disabled={busy} onClick={() => input.current?.click()} className={className}>
-        {busy ? <span className="text-[11px] text-fg-3">Uploading…</span> : children}
+        {busy ? <span className="text-[12px] text-fg-3">Uploading…</span> : children}
       </button>
     </>
   );
@@ -94,7 +94,7 @@ function Thumb({ image, selected, onSelect }: { image: StudioImage; selected?: b
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- local files served by our own route */}
         <img src={fileUrl(image.file)} alt="" className="size-full object-cover" />
-        {image.source !== "upload" && <span className="absolute bottom-0.5 right-0.5 rounded-[3px] bg-black/60 px-1 font-mono text-[9px] text-white">AI</span>}
+        {image.source !== "upload" && <span className="absolute bottom-0.5 right-0.5 rounded-[3px] bg-black/60 px-1 font-mono text-[11px] text-white">AI</span>}
       </button>
     </Tooltip>
   );
@@ -201,7 +201,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           className="max-w-full overflow-x-auto"
         />
       </div>
-      <p className="mt-1.5 text-[11.5px] leading-4 text-fg-3">
+      <p className="mt-1.5 text-[12px] leading-4 text-fg-3">
         {preset.w}×{preset.h} ({aspectLabel(preset.w, preset.h)}) · {preset.note}
       </p>
 
@@ -244,7 +244,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
         >
           {ART_DIRECTIONS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
         </select>
-        <p className="mt-1.5 text-[11.5px] leading-4 text-fg-3">{ART_DIRECTIONS.find((d) => d.id === artDirection)?.detail}</p>
+        <p className="mt-1.5 text-[12px] leading-4 text-fg-3">{ART_DIRECTIONS.find((d) => d.id === artDirection)?.detail}</p>
         <fieldset className="mt-3">
           <legend className="mb-1.5 text-[12px] font-medium text-fg">Creative range</legend>
           <div className="flex flex-wrap gap-1.5">
@@ -256,8 +256,8 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
             ))}
           </div>
         </fieldset>
-        <p className="mt-2 text-[11.5px] leading-4 text-fg-3">One clear visual idea, explored through different concepts. Your specific direction takes priority.</p>
-        <details className="mt-2 text-[11.5px] leading-4 text-fg-3">
+        <p className="mt-2 text-[12px] leading-4 text-fg-3">One clear visual idea, explored through different concepts. Your specific direction takes priority.</p>
+        <details className="mt-2 text-[12px] leading-4 text-fg-3">
           <summary className="w-fit cursor-pointer rounded-sm text-fg-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Techniques from {VISUAL_REFERENCE_COUNT} brand studies</summary>
           <ul className="mt-2 space-y-2">
             {inspiration.map((r) => <li key={r.id}><a href={r.url} target="_blank" rel="noreferrer" className="font-medium text-accent-text underline-offset-2 hover:underline">{r.brand}</a><span> · {r.transfer}</span></li>)}
@@ -266,7 +266,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
         </details>
       </div>
 
-      {picture === "none" && studioAI.provider === "claude_plan" && <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Claude draws illustrations, shapes and type in SVG. Inroad renders the finished PNG; no image API is needed.</p>}
+      {picture === "none" && studioAI.provider === "claude_plan" && <p className="mt-2 text-[12px] leading-4 text-fg-3">Claude draws illustrations, shapes and type in SVG. Inroad renders the finished PNG; no image API is needed.</p>}
 
       {picture === "mine" && (
         <div className="mt-3">
@@ -276,13 +276,13 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
               className="flex size-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-border-strong bg-surface text-fg-3 transition-colors hover:text-fg"
             >
               <ImagePlus className="size-4" aria-hidden />
-              <span className="text-[10.5px]">Upload</span>
+              <span className="text-[12px]">Upload</span>
             </UploadButton>
             {images.map((img) => (
               <Thumb key={img.id} image={img} selected={img.id === imageId} onSelect={() => setImageId(img.id === imageId ? null : img.id)} />
             ))}
           </div>
-          <p className="mt-1 text-[11.5px] leading-4 text-fg-3">
+          <p className="mt-1 text-[12px] leading-4 text-fg-3">
             {chosen && chosen.source !== "upload" ? "A generated image layer. Download it below, or add checked typography with Design 2 graphics." : "A real screenshot of your product, or a photo you have the rights to. Claude looks at it and designs around it."}
           </p>
         </div>
@@ -314,7 +314,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
           )}
           </p>
           )}
-          <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Design 2 graphics includes a visual review and up to one image refinement. Generate image in ChatGPT makes one image without a separate review.</p>
+          <p className="mt-2 text-[12px] leading-4 text-fg-3">Design 2 graphics includes a visual review and up to one image refinement. Generate image in ChatGPT makes one image without a separate review.</p>
         </div>
       )}
 
@@ -327,7 +327,7 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
             <div className="mt-1.5 rounded-md bg-surface p-2.5 ring-1 ring-border">
               <p className="whitespace-pre-wrap text-[12.5px] leading-[18px] text-fg">{option.imagePrompt.text}</p>
               <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-[11.5px] leading-4 text-fg-3">Paste into ChatGPT, download the picture, then upload it under Your image.</p>
+                <p className="text-[12px] leading-4 text-fg-3">Paste into ChatGPT, download the picture, then upload it under Your image.</p>
                 <CopyButton text={option.imagePrompt.text} />
               </div>
             </div>
@@ -417,7 +417,7 @@ function VisualTile({ visual, headline }: { visual: StudioVisual; headline: stri
           )}
           {visual.review && (
             <Tooltip content={`Visual review: 8+ overall and 7+ for concept, originality and finish.${visual.review.concept !== undefined ? ` Concept ${visual.review.concept}/10 · Originality ${visual.review.distinctiveness}/10 · Finish ${visual.review.craft}/10.` : ""}`}>
-              <span className="ml-auto font-mono text-[11px] tnum text-fg-3">{visual.review.score}/10</span>
+              <span className="ml-auto font-mono text-[12px] tnum text-fg-3">{visual.review.score}/10</span>
             </Tooltip>
           )}
         </div>

@@ -82,7 +82,7 @@ export function SettingsView() {
               <nav aria-label="Settings sections" className="hidden space-y-5 @min-[880px]/page:block">
                 {SETTINGS_GROUPS.map((group) => (
                   <div key={group}>
-                    <p className="mb-1.5 px-2.5 text-[11px] font-medium text-fg-3">{group}</p>
+                    <p className="mb-1.5 px-2.5 text-[12px] font-medium text-fg-3">{group}</p>
                     <ul className="space-y-0.5">
                       {SETTINGS_PAGES.filter((page) => page.group === group).map((page) => (
                         <li key={page.id}>
@@ -114,7 +114,7 @@ export function SettingsView() {
                   <ul className="divide-y divide-border">
                     {results.map((item) => {
                       const page = SETTINGS_PAGES.find((page) => page.id === item.page)!;
-                      return <li key={item.id}><a href={`#${item.id}`} onClick={(event) => follow(event, item.id)} className="group flex items-center gap-4 rounded-sm px-3 py-4 transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"><div className="min-w-0 flex-1"><p className="text-[11px] text-fg-3">{page.group} / {page.label}</p><p className="mt-1 text-[14px] font-medium text-fg">{item.label}</p><p className="mt-1 text-[13px] leading-5 text-fg-2">{item.description}</p></div><ArrowRight aria-hidden className="size-4 shrink-0 text-fg-3 group-hover:text-fg" /></a></li>;
+                      return <li key={item.id}><a href={`#${item.id}`} onClick={(event) => follow(event, item.id)} className="group flex items-center gap-4 rounded-sm px-3 py-4 transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"><div className="min-w-0 flex-1"><p className="text-[12px] text-fg-3">{page.group} / {page.label}</p><p className="mt-1 text-[14px] font-medium text-fg">{item.label}</p><p className="mt-1 text-[13px] leading-5 text-fg-2">{item.description}</p></div><ArrowRight aria-hidden className="size-4 shrink-0 text-fg-3 group-hover:text-fg" /></a></li>;
                     })}
                   </ul>
                 ) : <EmptyState title="No settings found" body="Try a setting name or a term like model, email, theme or backup." action={<Button onClick={() => setQuery("")}>Clear search</Button>} />}

@@ -6,7 +6,7 @@ import { ArrowLeftRight, Handshake, NotebookPen, Plus, UserPlus } from "lucide-r
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useToday } from "@/components/companies/list/lib";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,8 @@ export function IntrosPage() {
     return n === "give" || n === "ask" || n === "connector" ? n : null;
   });
   const [editing, setEditing] = useState<Connector | undefined>(undefined);
-  const [showClosed, setShowClosed] = useState(false);
+  // null follows the link: a closed intro opened from Today or a sheet shows, instead of staying folded away.
+  const [showClosed, setShowClosed] = useState<boolean | null>(null);
 
   const groups = useMemo(() => {
     if (!ws || !today) return null;
@@ -51,11 +52,22 @@ export function IntrosPage() {
     return { yours, waiting, closed, made, answerRate: asks.length >= 3 ? Math.round((answered / asks.length) * 100) : null };
   }, [ws, today]);
 
-  // Arriving from Today or a sheet with ?i=: bring that intro into view.
+  // Arriving from Today or a sheet with ?i=: bring that intro into view once. Saves rebuild the groups, and
+  // scrolling again on each one made the page jump while the founder worked. Leaving the page (or the hidden
+  // prefetched copy going away) clears the mark, so the next arrival with the same ?i= scrolls again.
+  const scrolledTo = useRef<string | null>(null);
+  useEffect(
+    () => () => {
+      scrolledTo.current = null;
+    },
+    [],
+  );
   useEffect(() => {
-    if (!focus || !groups) return;
+    if (!focus || !groups || scrolledTo.current === focus) return;
     const el = document.getElementById(`intro-${focus}`);
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (!el) return;
+    scrolledTo.current = focus;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [focus, groups]);
 
   const closeDialog = () => {
@@ -66,6 +78,7 @@ export function IntrosPage() {
 
   if (!ws || !groups || !today) return <PageSkeleton />;
   const empty = !Object.keys(ws.intros ?? {}).length;
+  const closedShown = showClosed ?? (!!focus && groups.closed.some((x) => x.intro.id === focus));
 
   return (
     <div className="page-shell max-w-[1000px]">
@@ -115,7 +128,10 @@ export function IntrosPage() {
               Add someone who introduces you
             </Button>
             {!ws.network && (
-              <Link href="/integrations?import=linkedin" className="inline-flex h-8 items-center rounded-sm px-3 text-[13px] font-medium text-fg-2 ring-1 ring-border hover:bg-bg-subtle">
+              <Link
+                href="/integrations?import=linkedin"
+                className="inline-flex h-9 items-center rounded-md bg-surface px-3.5 text-[13px] font-medium text-fg shadow-xs ring-1 ring-inset ring-border-strong/80 transition-[background-color,box-shadow] duration-150 hover:bg-surface-raised hover:ring-border-strong focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--ring)]"
+              >
                 Import LinkedIn connections
               </Link>
             )}
@@ -165,10 +181,15 @@ export function IntrosPage() {
 
       {groups.closed.length > 0 && (
         <section className="mt-10">
-          <button type="button" onClick={() => setShowClosed((s) => !s)} className="px-1 text-[12px] font-medium text-fg-3 hover:text-fg-2" aria-expanded={showClosed}>
-            {showClosed ? "Hide" : "Show"} closed · {groups.closed.length}
+          <button
+            type="button"
+            onClick={() => setShowClosed(!closedShown)}
+            className="rounded-xs px-1 text-[12px] font-medium text-fg-3 transition-colors hover:text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+            aria-expanded={closedShown}
+          >
+            {closedShown ? "Hide" : "Show"} closed · {groups.closed.length}
           </button>
-          {showClosed && (
+          {closedShown && (
             <ul className="mt-2 space-y-2">
               {groups.closed.slice(0, 30).map(({ intro }, i) => (
                 <Row key={intro.id} i={i} intro={intro} ws={ws} today={today} open={focus === intro.id} highlight={focus === intro.id} />
@@ -179,7 +200,7 @@ export function IntrosPage() {
       )}
 
       <MakeIntroDialog open={dialog === "give"} onOpenChange={(o) => (o ? setDialog("give") : closeDialog())} />
-      <LogAskDialog open={dialog === "ask"} onOpenChange={(o) => (o ? setDialog("ask") : closeDialog())} />
+      <LogAskDialog open={dialog === "ask"} onOpenChange={(o) => (o ? setDialog("ask") : closeDialog())} onAddConnector={() => setDialog("connector")} />
       <ConnectorDialog open={dialog === "connector"} onOpenChange={(o) => (o ? setDialog("connector") : closeDialog())} connector={editing} />
     </div>
   );
@@ -190,7 +211,7 @@ function Group({ title, count, empty, children }: { title: string; count: number
     <section className="mt-10">
       <SectionLabel>
         {title}
-        {count > 0 && <span className="ml-1.5 font-mono text-[11px] tnum text-fg-3">{count}</span>}
+        {count > 0 && <span className="ml-1.5 font-mono text-[12px] tnum text-fg-3">{count}</span>}
       </SectionLabel>
       {count ? <ul className="space-y-2">{children}</ul> : <p className="px-1 text-[13px] text-fg-3">{empty}</p>}
     </section>

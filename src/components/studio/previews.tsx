@@ -54,8 +54,8 @@ function FeedPreview({ spec, parts, name }: { spec: FormatSpec; parts: Record<st
       <div className="flex items-center gap-2.5">
         <Avatar name={name} />
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium text-fg">{name}</p>
-          <p className="text-[11.5px] text-fg-3">{spec.id === "linkedin_post" ? "now" : "Sponsored"}</p>
+          <p className="truncate text-[13px] font-medium text-fg" title={name}>{name}</p>
+          <p className="text-[12px] text-fg-3">{spec.id === "linkedin_post" ? "now" : "Sponsored"}</p>
         </div>
       </div>
       <p className="mt-3 whitespace-pre-wrap text-[14px] leading-[21px] text-fg">
@@ -73,7 +73,7 @@ function FeedPreview({ spec, parts, name }: { spec: FormatSpec; parts: Record<st
         </div>
       )}
       {hookPart.fold && (
-        <p className="mt-2 font-mono text-[10.5px] text-fg-4">
+        <p className="mt-2 font-mono text-[12px] text-fg-4">
           Cut at about {fold} characters, where the feed usually folds ({hookPart.fold.verified === "secondary" ? "observed, not documented" : "documented"}).
         </p>
       )}
@@ -92,7 +92,7 @@ function ThreadPreview({ parts, name }: { parts: Record<string, string>; name: s
             <Avatar name={name} />
             <div className="min-w-0 flex-1">
               <p className="whitespace-pre-wrap text-[14px] leading-[20px] text-fg">{p}</p>
-              <p className={cn("mt-1 text-right font-mono text-[10.5px] tnum", n > 280 ? "text-danger" : "text-fg-4")}>
+              <p className={cn("mt-1 text-right font-mono text-[12px] tnum", n > 280 ? "text-danger" : "text-fg-4")}>
                 {n}/280{posts.length > 1 ? ` · ${i + 1}/${posts.length}` : ""}
               </p>
             </div>
@@ -114,7 +114,7 @@ function ImagePreview({ spec, parts }: { spec: FormatSpec; parts: Record<string,
           <button
             key={x.label}
             onClick={() => setI(k)}
-            className={cn("h-6 rounded-xs px-2 text-[11.5px] ring-1 transition-colors", k === i ? "bg-surface text-fg ring-border-strong" : "text-fg-3 ring-border hover:text-fg-2")}
+            className={cn("h-6 rounded-xs px-2 text-[12px] ring-1 transition-colors", k === i ? "bg-surface text-fg ring-border-strong" : "text-fg-3 ring-border hover:text-fg-2")}
           >
             {x.label}
           </button>
@@ -130,16 +130,16 @@ function ImagePreview({ spec, parts }: { spec: FormatSpec; parts: Record<string,
               <div className="absolute inset-y-0 right-0 bg-danger-subtle/70" style={{ width: `${a.safe.side * 100}%` }} />
             </>
           )}
-          <p className="absolute inset-x-6 top-1/2 -translate-y-1/2 px-2 text-center text-[11px] italic leading-4 text-fg-4">{parts.visual}</p>
+          <p className="absolute inset-x-6 top-1/2 -translate-y-1/2 px-2 text-center text-[12px] italic leading-4 text-fg-4">{parts.visual}</p>
           <div className="absolute inset-x-0 top-[16%] px-[9%] text-center">
             <p className="font-serif text-[22px] font-medium leading-[26px] tracking-[-0.01em] text-fg">{parts.headline}</p>
             {parts.support && <p className="mt-1.5 text-[12px] leading-4 text-fg-2">{parts.support}</p>}
           </div>
           {parts.cta && (
-            <span className="absolute bottom-[38%] left-1/2 -translate-x-1/2 rounded-sm bg-primary px-3 py-1 text-[11px] font-medium text-primary-fg">{parts.cta}</span>
+            <span className="absolute bottom-[38%] left-1/2 -translate-x-1/2 rounded-sm bg-primary px-3 py-1 text-[12px] font-medium text-primary-fg">{parts.cta}</span>
           )}
         </div>
-        {a.note && <p className="mt-1.5 text-center text-[11px] text-fg-3">{a.note}</p>}
+        {a.note && <p className="mt-1.5 text-center text-[12px] text-fg-3">{a.note}</p>}
       </div>
     </div>
   );
@@ -153,7 +153,7 @@ function SearchPreview({ parts, name }: { parts: Record<string, string>; name: s
     <div className="space-y-3">
       {[0, 1].map((k) => (
         <div key={k} className="rounded-md bg-surface p-3 ring-1 ring-border">
-          <p className="text-[11.5px] text-fg-2">
+          <p className="text-[12px] text-fg-2">
             <span className="font-semibold">Sponsored</span> · {host}
             {parts.path ? `/${parts.path}` : ""}
           </p>
@@ -161,7 +161,7 @@ function SearchPreview({ parts, name }: { parts: Record<string, string>; name: s
           <p className="mt-0.5 text-[13px] leading-[19px] text-fg-2">{[descs[k], descs[k + 1]].filter(Boolean).join(" ")}</p>
         </div>
       ))}
-      <p className="font-mono text-[10.5px] text-fg-4">Google mixes headlines and descriptions in any order; two sample combinations.</p>
+      <p className="font-mono text-[12px] text-fg-4">Google mixes headlines and descriptions in any order; two sample combinations.</p>
     </div>
   );
 }
@@ -184,7 +184,7 @@ function DocPreview({ spec, parts }: { spec: FormatSpec; parts: Record<string, s
         .filter((p) => parts[p.key])
         .map((p) => (
           <div key={p.key}>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-fg-3">{p.label}</p>
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">{p.label}</p>
             <p className={cn("mt-0.5 whitespace-pre-wrap text-fg", p.role === "hook" || p.role === "title" ? "font-serif text-[18px] leading-[24px]" : "text-[14px] leading-[21px]")}>{parts[p.key]}</p>
           </div>
         ))}

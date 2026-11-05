@@ -127,7 +127,7 @@ export function FounderTurn({ turn }: { turn: AskTurn }) {
           </button>
         )}
         {(turn.web || turn.deep) && (
-          <p className="mt-1 flex items-center gap-2 text-[11.5px] text-fg-3">
+          <p className="mt-1 flex items-center gap-2 text-[12px] text-fg-3">
             {turn.web && (
               <span className="inline-flex items-center gap-1">
                 <Globe className="size-3" /> Web
@@ -165,8 +165,8 @@ function InstantView({ turn, last, play, onFollowUp, onNavigate }: { turn: AskTu
               <>
                 {r.domain ? <Favicon domain={r.domain} name={r.label} size={16} /> : <span className="size-1.5 shrink-0 rounded-full bg-fg-4" />}
                 <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-                  <span className="block truncate text-[13.5px] text-fg sm:max-w-[45%] sm:shrink-0">{r.label}</span>
-                  {r.detail && <span className="block truncate text-[12.5px] text-fg-3">{r.detail}</span>}
+                  <span className="block truncate text-[13.5px] text-fg sm:max-w-[45%] sm:shrink-0" title={r.label}>{r.label}</span>
+                  {r.detail && <span className="block truncate text-[12.5px] text-fg-3" title={r.detail}>{r.detail}</span>}
                 </span>
               </>
             );
@@ -192,7 +192,7 @@ function InstantView({ turn, last, play, onFollowUp, onNavigate }: { turn: AskTu
 function InstantFooter({ last, play, onFollowUp }: { last: boolean; play: boolean; onFollowUp: (text: string) => void }) {
   return (
     <div className={cn("mt-2 flex flex-wrap items-center gap-x-3 gap-y-1", play && "fx-rise")} style={play ? { "--fx-delay": "1100ms" } as React.CSSProperties : undefined}>
-      <span className="inline-flex items-center gap-1 font-mono text-[11.5px] text-fg-3">
+      <span className="inline-flex items-center gap-1 font-mono text-[12px] text-fg-3">
         <Zap className="size-3" /> Instant · from your workspace · no AI cost
       </span>
       {last && (
@@ -215,7 +215,7 @@ function Receipt({ turn, onNavigate, hereHref }: { turn: AskTurn; onNavigate?: (
     r.modelName ?? (r.model === "strategist" ? MODEL_LABELS.strategist : null),
   ].filter(Boolean);
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-fg-3">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
       <span className="font-mono">{parts.join(" · ")}</span>
       {records.length > 0 && (
         <span className="flex min-w-0 flex-wrap items-center gap-1">
@@ -384,8 +384,8 @@ function EmptyState({
               <ArrowUp className="size-3.5 shrink-0 rotate-45 text-fg-4 transition-colors group-hover:text-fg-3" />
               <span className="min-w-0 flex-1">{s.text}</span>
               {s.instant && (
-                <Tooltip content="Answered from your workspace in code, with no AI cost">
-                  <span className="inline-flex shrink-0 items-center gap-0.5 font-mono text-[10.5px] text-fg-3">
+                <Tooltip content="Answered from your workspace without AI, so it costs nothing">
+                  <span className="inline-flex shrink-0 items-center gap-0.5 font-mono text-[12px] text-fg-3">
                     <Zap className="size-3" /> instant
                   </span>
                 </Tooltip>
@@ -396,13 +396,13 @@ function EmptyState({
       </ul>
       {recent && recent.length > 0 && (
         <div className="mt-6">
-          <p className="mb-1 px-2.5 text-[11.5px] font-medium text-fg-3">{label ? `Earlier about ${label}` : "Recent"}</p>
+          <p className="mb-1 px-2.5 text-[12px] font-medium text-fg-3">{label ? `Earlier about ${label}` : "Recent"}</p>
           <ul className="space-y-0.5">
             {recent.map((t) => (
               <li key={t.id}>
                 <button onClick={() => onOpenThread(t)} className="flex w-full items-baseline gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-bg-subtle">
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{t.title}</span>
-                  <span className="shrink-0 font-mono text-[11px] text-fg-3">{relativeTime(t.updatedAt)}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-fg" title={t.title}>{t.title}</span>
+                  <span className="shrink-0 font-mono text-[12px] text-fg-3">{relativeTime(t.updatedAt)}</span>
                 </button>
               </li>
             ))}
@@ -433,7 +433,7 @@ function ThreadMenu({ currentId, onOpen }: { currentId: string; onOpen: (t: AskT
         </IconButton>
       }
     >
-      <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-fg-3">Earlier conversations</p>
+      <p className="px-2 pb-1 pt-1.5 text-[12px] font-medium text-fg-3">Earlier conversations</p>
       {!list ? (
         <div className="space-y-2 p-2">
           <Skeleton className="h-4 w-3/4" />
@@ -453,9 +453,9 @@ function ThreadMenu({ currentId, onOpen }: { currentId: string; onOpen: (t: AskT
                 }}
                 className={cn("flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-bg-subtle", t.id === currentId && "bg-bg-subtle")}
               >
-                <span className="truncate text-[13px] text-fg">{t.title}</span>
-                <span className="flex items-center gap-1.5 truncate text-[11.5px] text-fg-3">
-                  {t.contextLabel && <span className="truncate">{t.contextLabel}</span>}
+                <span className="truncate text-[13px] text-fg" title={t.title}>{t.title}</span>
+                <span className="flex items-center gap-1.5 truncate text-[12px] text-fg-3">
+                  {t.contextLabel && <span className="truncate" title={t.contextLabel}>{t.contextLabel}</span>}
                   {t.contextLabel && <span>·</span>}
                   <span className="shrink-0 font-mono">{relativeTime(t.updatedAt)}</span>
                 </span>
@@ -470,20 +470,25 @@ function ThreadMenu({ currentId, onOpen }: { currentId: string; onOpen: (t: AskT
 
 /* ─────────────────────────────── Composer ─────────────────────────────── */
 
+/**
+ * A per-message option, drawn as one segment of the app's segmented control (the tabs on Companies): a raised pill
+ * when on. On a phone only the icon shows; the name stays for screen readers and the tooltip.
+ */
 function Toggle({ on, onChange, icon, label, hint }: { on: boolean; onChange: (on: boolean) => void; icon: ReactNode; label: string; hint: string }) {
   return (
     <Tooltip content={hint}>
       <button
         type="button"
         aria-pressed={on}
+        aria-label={label}
         onClick={() => onChange(!on)}
         className={cn(
-          "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium ring-1 transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.97]",
-          on ? "bg-accent-subtle text-accent-text ring-accent/30" : "text-fg-3 ring-border hover:bg-bg-subtle hover:text-fg-2",
+          "relative inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[12px] font-medium transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)]",
+          on ? "bg-surface text-fg shadow-xs ring-1 ring-inset ring-border-strong/60" : "text-fg-3 hover:text-fg-2",
         )}
       >
-        {icon}
-        <span>{label}</span>
+        <span className={cn("inline-flex", on && "text-accent-text")}>{icon}</span>
+        <span className="hidden sm:inline">{label}</span>
       </button>
     </Tooltip>
   );
@@ -562,10 +567,13 @@ function Composer({
         placeholder={placeholder}
         className="block max-h-44 min-h-[44px] w-full resize-none overflow-y-auto bg-transparent px-3 pb-1 pt-2.5 text-[14px] leading-[21px] text-fg outline-none placeholder:text-fg-3"
       />
-      <div className="flex items-center gap-1.5 px-2 pb-2 pt-1">
-        <Toggle on={web} onChange={setWeb} icon={<Globe className="size-3.5" />} label="Search the web" hint="For this message only: up to 2 web searches, about $0.02 more." />
-        <Toggle on={deep} onChange={setDeep} icon={<Sparkles className="size-3.5" />} label="Think harder" hint={deepHint} />
-        <span className="flex-1" />
+      <div className="flex min-w-0 items-center gap-1.5 px-2 pb-2 pt-1">
+        <div role="group" aria-label="For this message" className="inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-bg-subtle p-0.5 ring-1 ring-inset ring-border">
+          <Toggle on={web} onChange={setWeb} icon={<Globe className="size-3.5" />} label="Search the web" hint="For this message only: up to 2 web searches, about $0.02 more." />
+          <Toggle on={deep} onChange={setDeep} icon={<Sparkles className="size-3.5" />} label="Think harder" hint={deepHint} />
+        </div>
+        <span className="min-w-0 flex-1" />
+        <RunModelPicker value={route} onChange={setRoute} disabled={conv.busy} />
         {conv.busy ? (
           <Button type="button" size="sm" variant="secondary" onClick={conv.stop} icon={<Square className="size-3 fill-current" />}>
             Stop
@@ -575,12 +583,11 @@ function Composer({
             <Button type="submit" size="sm" variant="primary" disabled={!text.trim() || tooLong} aria-label="Send">
               <span className="hidden sm:inline">Send</span>
               <ArrowUp className="size-3.5 sm:hidden" />
-              <kbd className="ml-0.5 hidden font-mono text-[11px] opacity-70 sm:inline">↵</kbd>
+              <kbd className="ml-0.5 hidden font-mono text-[12px] opacity-70 md:pointer-fine:inline">↵</kbd>
             </Button>
           </Tooltip>
         )}
       </div>
-      <RunModelPicker value={route} onChange={setRoute} disabled={conv.busy} />
       {tooLong && (
         <p className="px-3 pb-2 text-[12px] text-danger">
           That&apos;s {text.length.toLocaleString()} characters; Ask takes up to {MAX_MESSAGE.toLocaleString()}. Paste the part of the call that matters.
@@ -680,7 +687,7 @@ export function Conversation({
                 transition={{ duration: 0.2, ease: ease.out }}
                 className="flex min-w-0"
               >
-                <StatusLine text={status} active className="text-[11.5px] leading-4 text-fg-3" />
+                <StatusLine text={status} active className="text-[12px] leading-4 text-fg-3" />
               </motion.span>
             )}
           </AnimatePresence>
@@ -713,7 +720,7 @@ export function Conversation({
       </div>
     ) : (
       <div className="flex shrink-0 items-center gap-1 pb-2">
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-fg-3">{conv.thread && conv.turns.length ? conv.thread.title : ""}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-fg-3" title={conv.thread && conv.turns.length ? conv.thread.title : ""}>{conv.thread && conv.turns.length ? conv.thread.title : ""}</span>
         <ThreadMenu currentId={conv.threadId} onOpen={(t) => conv.openThread(t.id, t.context)} />
         <IconButton label="New conversation" onClick={() => conv.newThread()} disabled={conv.turns.length === 0}>
           <SquarePen className="size-4" />

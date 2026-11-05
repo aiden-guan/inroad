@@ -153,8 +153,16 @@ function MessageBox({ ws, msg }: { ws: Workspace; msg: ReturnType<typeof message
     <div className="rounded-md bg-surface ring-1 ring-border">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5 text-[12px] text-fg-3">
         <span>{msg.where}</span>
-        {msg.to && <span className="truncate font-mono text-[11.5px]">{msg.to}</span>}
-        {msg.subject && <span className="truncate">“{msg.subject}”</span>}
+        {msg.to && (
+          <span className="min-w-0 truncate font-mono text-[12px]" title={msg.to}>
+            {msg.to}
+          </span>
+        )}
+        {msg.subject && (
+          <span className="min-w-0 truncate" title={msg.subject}>
+            “{msg.subject}”
+          </span>
+        )}
         {msg.optional && <span className="ml-auto">Optional</span>}
       </div>
       <Textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="Message" className="min-h-28 rounded-none bg-transparent px-3 py-2.5 text-[13.5px] leading-[21px] ring-0 hover:ring-0" />

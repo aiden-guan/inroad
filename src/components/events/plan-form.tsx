@@ -157,7 +157,7 @@ export function PlanForm({ ws, onClose, initialCity, initialKind, initialCoHost 
                 {clusters.map((c) => (
                   <Chip key={c.city} active={city === c.city} onClick={() => setCity(c.city)}>
                     {c.city}
-                    <span className="font-mono text-[11px] opacity-70">{c.accounts}</span>
+                    <span className="font-mono text-[12px] opacity-70">{c.accounts}</span>
                   </Chip>
                 ))}
               </div>
@@ -247,7 +247,7 @@ export function PlanForm({ ws, onClose, initialCity, initialKind, initialCoHost 
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <span className="flex items-center gap-1.5 font-mono text-[11.5px] text-fg-3">
+        <span className="flex items-center gap-1.5 font-mono text-[12px] text-fg-3">
           <AiBadge /> About a minute · ~${kind === "dinner" ? "0.12" : "0.08"}
         </span>
         <span className="flex-1" />

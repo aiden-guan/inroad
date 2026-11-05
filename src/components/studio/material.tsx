@@ -139,7 +139,7 @@ function BrandColors({ colors, onChange }: { colors: string[]; onChange: (colors
           }}
         />
       </div>
-      {error && <p className="mt-1 text-[11.5px] text-danger">{error}</p>}
+      {error && <p className="mt-1 text-[12px] text-danger">{error}</p>}
     </div>
   );
 }
@@ -183,7 +183,7 @@ export function MaterialCard({ ws }: { ws: Workspace }) {
 
       {!adding && open.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-fg-3">Worth answering</p>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">Worth answering</p>
           {open.slice(0, 4).map((q) => (
             <button
               key={q.kind}
@@ -201,13 +201,13 @@ export function MaterialCard({ ws }: { ws: Workspace }) {
           {material.map((m) => (
             <li key={m.id} className="group flex gap-2 py-2">
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-medium text-fg-3">
+                <p className="text-[12px] font-medium text-fg-3">
                   {intakeFor(m.kind)?.label ?? m.kind}
                   {m.permission === "anonymized_only" && " · don't name them"}
                   {m.uses > 0 && <span className="font-mono tnum"> · used {m.uses}×</span>}
                 </p>
                 <p className="mt-0.5 text-[13px] leading-[19px] text-fg">{m.text}</p>
-                {m.source && <p className="mt-0.5 text-[11.5px] text-fg-3">{m.source}</p>}
+                {m.source && <p className="mt-0.5 text-[12px] text-fg-3">{m.source}</p>}
               </div>
               <IconButton label="Remove" onClick={() => void dispatch({ type: "studio.material.remove", id: m.id })} className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100">
                 <X className="size-3.5" />
@@ -244,7 +244,7 @@ function AddMaterial({
           <button
             key={x.kind}
             onClick={() => onKind(x.kind)}
-            className={cn("h-6 rounded-xs px-2 text-[11.5px] ring-1 transition-colors", x.kind === kind ? "bg-bg-subtle text-fg ring-border-strong" : "text-fg-3 ring-border hover:text-fg-2")}
+            className={cn("h-6 rounded-xs px-2 text-[12px] ring-1 transition-colors", x.kind === kind ? "bg-bg-subtle text-fg ring-border-strong" : "text-fg-3 ring-border hover:text-fg-2")}
           >
             {x.label}
           </button>
