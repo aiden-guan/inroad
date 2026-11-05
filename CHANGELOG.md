@@ -37,6 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Background polls clear "Needs attention" once a connection works, and a waitlist- or calendar-only workspace syncs on its own.
 - Every hard load fetched the workspace twice; streamed run events re-rendered every reader on each token.
 
+### Security
+- The build tools' `minimatch` 9.x and 10.x copies (typescript-eslint, electron-builder) are overridden to 11.0.4 for GHSA-g3hv-75wg-m249; `npm audit` reports no vulnerabilities. Nothing that ships in the app changed.
+
 ---
 
 ## [v0.2.22] — 2026-10-30
