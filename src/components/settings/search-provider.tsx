@@ -1,10 +1,12 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useAutomation } from "@/components/research/use-automation";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { SEARCH_PROVIDERS, type SearchChoice } from "@/lib/search/providers";
 import { Group, Row } from "./parts";
 import type { useSettingsStatus } from "./use-settings";
@@ -114,7 +116,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             : "No external search is configured. Company sites and public records still work."
         }
       >
-        <select
+        <Select
           id={`${id}-provider`}
           value={selected}
           disabled={!status || busy}
@@ -125,16 +127,16 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             setError(null);
             setMessage(null);
           }}
-          className="w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px] text-fg"
+          className="w-full"
         >
-          <option value="auto">Automatic (existing Firecrawl first)</option>
+          <option value="auto">Automatic (Firecrawl first, if you use it)</option>
           {SEARCH_PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
           <option value="off">Off for models without built-in search</option>
-        </select>
+        </Select>
       </Row>
       {preset && preset.id !== "connected" && (
         <Row
@@ -143,7 +145,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
           hint={
             <>
               {status?.saved[preset.id] ? `Saved ${status.saved[preset.id]}. ` : ""}
-              {preset.id === "deepseek" ? "Uses your saved DeepSeek model key or DEEPSEEK_API_KEY if left blank. " : `Uses ${preset.env} if no key is saved. `}
+              {preset.id === "deepseek" ? "Leave blank to use the DeepSeek key you saved for AI. " : "Leave blank to use a key already set up on this computer. "}
               {preset.id === "firecrawl" && "An existing Firecrawl integration key also works. "}
               {preset.id === "custom" ? (
                 "Optional for a local adapter. Keys stay on this computer and are excluded from exports."
@@ -167,7 +169,7 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
         </Row>
       )}
       {selected === "custom" && (
-        <Row label="Search endpoint" htmlFor={`${id}-endpoint`} hint="Connect another search service through an adapter. Use HTTPS, or HTTP on localhost.">
+        <Row label="Search endpoint" htmlFor={`${id}-endpoint`} hint="The web address of another search service. Use https://, or http:// for one running on this computer.">
           <Input
             id={`${id}-endpoint`}
             type="url"
@@ -188,11 +190,11 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
             </Link>
           }
         >
-          <select
+          <Select
             id={`${id}-connection`}
             value={connectionId ?? status?.connectionId ?? ""}
             onChange={(e) => setConnectionId(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px]"
+            className="w-full"
           >
             <option value="">Choose a connection</option>
             {automation.data?.connections
@@ -202,13 +204,13 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
                   {c.name}
                 </option>
               ))}
-          </select>
+          </Select>
         </Row>
       )}
       <Row
         label="Daily search request limit"
         htmlFor={`${id}-limit`}
-        hint="Applies to external searches across research, agents and monitors. Cached results use no provider request."
+        hint="Counts every search sent to your provider, from research, agents and monitors. Repeat searches answered from saved results don't count."
       >
         <Input
           id={`${id}-limit`}
@@ -219,72 +221,95 @@ export function SearchProviderGroup({ settings }: { settings: ReturnType<typeof 
           onChange={(e) => setDailyLimit(e.target.value)}
         />
       </Row>
-      <Row
-        label="Connected page reader"
-        htmlFor={`${id}-page-reader`}
-        hint="If ordinary HTTP returns too little text, use this tool's mapped fetch capability before optional browser rendering."
-      >
-        <select
-          id={`${id}-page-reader`}
-          value={pageConnectionId ?? status?.pageConnectionId ?? ""}
-          onChange={(e) => setPageConnectionId(e.target.value)}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px]"
-        >
-          <option value="">None</option>
-          {automation.data?.connections
-            .filter((c) => c.enabled && c.bindings.some((b) => b.capability === "fetch"))
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-        </select>
-      </Row>
-      <Row
-        label="Optional browser extraction"
-        htmlFor={`${id}-browser`}
-        hint="Ordinary HTTP runs first. Enable TinyFish to render pages when readable text is missing. It uses your saved TinyFish search key or TINYFISH_API_KEY and may incur browser charges."
-      >
-        <select
-          id={`${id}-browser`}
-          value={browser ?? status?.browser ?? "off"}
-          onChange={(e) => setBrowser(e.target.value as "off" | "tinyfish")}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px]"
-        >
-          <option value="off">Off</option>
-          <option value="tinyfish">TinyFish Browser</option>
-        </select>
-      </Row>
-      {(browser ?? status?.browser) === "tinyfish" && selected !== "tinyfish" && (
-        <Row
-          label="TinyFish browser key"
-          htmlFor={`${id}-browser-key`}
-          hint={
-            status?.saved.tinyfish
-              ? `Saved ${status.saved.tinyfish}. Leave blank to keep it.`
-              : "Use a separate TinyFish key here while keeping your chosen search provider."
-          }
-        >
-          <Input
-            id={`${id}-browser-key`}
-            type="password"
-            autoComplete="new-password"
-            value={browserKey}
-            onChange={(e) => setBrowserKey(e.target.value)}
-            placeholder="Leave blank to use the existing key"
-          />
-        </Row>
-      )}
-      <Row label="Daily browser request limit" htmlFor={`${id}-browser-limit`} hint="Limits optional rendered-page reads; defaults to ten a day.">
-        <Input
-          id={`${id}-browser-limit`}
-          type="number"
-          min={1}
-          max={100}
-          value={browserLimit ?? String(status?.browserDailyLimit ?? 10)}
-          onChange={(e) => setBrowserLimit(e.target.value)}
-        />
-      </Row>
+      <details className="group/hard">
+        <summary className="flex cursor-pointer list-none items-center gap-1 px-5 py-3 text-[12.5px] font-medium text-fg-3 transition-colors hover:text-fg-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] [&::-webkit-details-marker]:hidden">
+          <ChevronRight aria-hidden className="size-3.5 transition-transform duration-150 group-open/hard:rotate-90" />
+          Advanced
+        </summary>
+        <div className="divide-y divide-border border-t border-border">
+          <Row
+            label="Connected page reader"
+            htmlFor={`${id}-page-reader`}
+            hint="When a page comes back nearly empty, read it through this connected tool first."
+          >
+            <Select
+              id={`${id}-page-reader`}
+              value={pageConnectionId ?? status?.pageConnectionId ?? ""}
+              onChange={(e) => setPageConnectionId(e.target.value)}
+              className="w-full"
+            >
+              <option value="">None</option>
+              {automation.data?.connections
+                .filter((c) => c.enabled && c.bindings.some((b) => b.capability === "fetch"))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </Select>
+          </Row>
+          <Row
+            label="Optional browser extraction"
+            htmlFor={`${id}-browser`}
+            hint="For pages that only show their text in a browser. TinyFish opens them in a real browser when a normal read finds nothing. It uses your TinyFish key and may cost extra."
+          >
+            <Select
+              id={`${id}-browser`}
+              value={browser ?? status?.browser ?? "off"}
+              onChange={(e) => setBrowser(e.target.value as "off" | "tinyfish")}
+              className="w-full"
+            >
+              <option value="off">Off</option>
+              <option value="tinyfish">TinyFish Browser</option>
+            </Select>
+          </Row>
+          {(browser ?? status?.browser) === "tinyfish" && selected !== "tinyfish" && (
+            <Row
+              label="TinyFish browser key"
+              htmlFor={`${id}-browser-key`}
+              hint={
+                status?.saved.tinyfish
+                  ? `Saved ${status.saved.tinyfish}. Leave blank to keep it.`
+                  : "Use a separate TinyFish key here while keeping your chosen search provider."
+              }
+            >
+              <Input
+                id={`${id}-browser-key`}
+                type="password"
+                autoComplete="new-password"
+                value={browserKey}
+                onChange={(e) => setBrowserKey(e.target.value)}
+                placeholder="Leave blank to use the existing key"
+              />
+            </Row>
+          )}
+          <Row label="Daily browser request limit" htmlFor={`${id}-browser-limit`} hint="How many pages a day may open in a browser. Ten unless you change it.">
+            <Input
+              id={`${id}-browser-limit`}
+              type="number"
+              min={1}
+              max={100}
+              value={browserLimit ?? String(status?.browserDailyLimit ?? 10)}
+              onChange={(e) => setBrowserLimit(e.target.value)}
+            />
+          </Row>
+          <p className="px-5 py-3 text-[12.5px] leading-[18px] text-fg-3 text-pretty">
+            Keys can also come from environment variables when nothing is saved here
+            {preset && preset.id !== "connected" ? (
+              <>
+                {" "}
+                (<span className="font-mono">{preset.env}</span> for {preset.name}, <span className="font-mono">TINYFISH_API_KEY</span> for the browser)
+              </>
+            ) : (
+              <>
+                {" "}
+                (<span className="font-mono">TINYFISH_API_KEY</span> for the browser)
+              </>
+            )}
+            .
+          </p>
+        </div>
+      </details>
       <Row
         label="Check the connection"
         hint="Testing makes one search and may use provider credits. Save changes before testing. Keys stay local and are never included in workspace exports."

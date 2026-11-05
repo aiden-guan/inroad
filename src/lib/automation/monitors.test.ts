@@ -29,6 +29,8 @@ describe("persistent monitors", () => {
     vi.mocked(researchWeb).mockResolvedValue(response(1, 2));
     await pollMonitors({ forceId: monitor.id });
     expect(readAutomation().observations).toHaveLength(0);
+    // A scheduled check isn't one of the founder's searches: it stays out of Recent research.
+    expect(researchWeb).toHaveBeenCalledWith(expect.objectContaining({ query: "new sales leader" }), expect.anything(), { session: false });
     vi.mocked(researchWeb).mockResolvedValue(response(2, 1));
     await pollMonitors({ forceId: monitor.id });
     expect(readAutomation().observations).toHaveLength(0);

@@ -26,6 +26,7 @@ import {
   wordCount,
 } from "./read.mjs";
 import { STUDIO_PLAYBOOKS } from "./studio.mjs";
+import { INTENT_PLAYBOOKS } from "./intent.mjs";
 
 const has = (ctx, ...names) => names.every((n) => ctx.toolNames.includes(n));
 const result = (title, url, age = "2 weeks ago") => ({ type: "web_search_result", title, url, encrypted_content: "x", page_age: age });
@@ -691,4 +692,484 @@ const critiquePlaybook = {
   },
 };
 
-export const PLAYBOOKS = [snapshotPlaybook, betPlaybook, screenPlaybook, networkPlaybook, candidatesPlaybook, dossierPlaybook, draftPlaybook, linkedinPlaybook, introPlaybook, replyPlaybook, replyReadPlaybook, critiquePlaybook, ...STUDIO_PLAYBOOKS];
+/* ───────────── Research columns · one question, one company ───────────── */
+
+/** `## url` blocks with a `Source:` line, as the research-column prompt and its tools write them. */
+function columnSources(text) {
+  const out = [];
+  let cur = null;
+  for (const line of String(text ?? "").split("\n")) {
+    const head = /^## (https?:\/\/\S+)\s*$/.exec(line);
+    if (head) {
+      cur = { url: head[1], label: "", date: null, lines: [] };
+      out.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    if (line.startsWith("Source: ")) {
+      cur.label = line.slice(8);
+      cur.date = /(?:read|dated) (\d{4}-\d{2}-\d{2})/.exec(line)?.[1] ?? null;
+    } else if (line.trim()) cur.lines.push(line.replace(/^(Title|Description|Headings): /, ""));
+  }
+  return out;
+}
+
+const COLUMN_STOP = new Set(["they", "their", "them", "does", "have", "this", "that", "with", "what", "which", "about", "from", "into", "your", "company", "companies", "currently"]);
+
+function columnAsk(ctx) {
+  const question = between(ctx.system, "question") ?? "";
+  const typeLine = /Answer type: ([^\n]+)/.exec(ctx.system)?.[1] ?? "";
+  const type = /^yes or no/.test(typeLine) ? "yes_no" : /^a number/.test(typeLine) ? "number" : /^exactly one/.test(typeLine) ? "pick_one" : "text";
+  const options = type === "pick_one" ? [...typeLine.matchAll(/"([^"]+)"/g)].map((m) => m[1]) : [];
+  const who = /Name: (.+) \(([^)\s]+)\)/.exec(between(ctx.firstText, "company") ?? "");
+  const fromTools = ctx.calls.filter((c) => !c.isError && c.result && (c.name === "read_page" || c.name === "search_web")).map((c) => c.result).join("\n\n");
+  const sources = [...columnSources(between(ctx.firstText, "sources")), ...columnSources(fromTools)];
+  return { question, type, options, name: who?.[1] ?? "Acme", domain: who?.[2] ?? "acme.example", sources };
+}
+
+/** The sentence that best answers the question, copied exactly, with the source it came from. */
+function columnMatch(a) {
+  const q = a.question.toLowerCase();
+  const pricing = /\b(bill|billing|billed|usage|pric\w*|charge\w*|pay|metered|plans?)\b/.test(q);
+  const hiring = /\b(hiring|recruit\w*|roles?|jobs?)\b/.test(q);
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !COLUMN_STOP.has(w));
+  let best = null;
+  for (const s of a.sources) {
+    for (const line of s.lines) {
+      for (const sentence of line.split(/(?<=[.!?])\s+/)) {
+        const t = sentence.toLowerCase();
+        let score = words.filter((w) => t.includes(w.replace(/s$/, ""))).length;
+        if (pricing && /\b(per|pay|priced|billed|usage|metered|seat|employee)\b/.test(t)) score += 2;
+        if (hiring && /job board|open roles|careers/.test(s.label + " " + s.url)) score += 1;
+        if (a.options.some((o) => t.includes(o.toLowerCase()))) score += 2;
+        if (score > (best?.score ?? 0)) best = { score, sentence: sentence.trim(), source: s };
+      }
+    }
+  }
+  return best && best.score >= 2 ? best : null;
+}
+
+function columnValue(a, sentence) {
+  const t = sentence.toLowerCase();
+  if (a.type === "yes_no") {
+    if (/per (seat|user|employee)|flat (fee|price)|\bno\b|\bnot\b|\bnone\b|never/.test(t)) return "no";
+    return "yes";
+  }
+  if (a.type === "number") {
+    const n = /(\d[\d,]*(?:\.\d+)?)/.exec(sentence)?.[1];
+    return n ? Number(n.replace(/,/g, "")) : null;
+  }
+  if (a.type === "pick_one") return a.options.find((o) => t.includes(o.toLowerCase())) ?? null;
+  return clip(sentence.replace(/[.!?]+$/, ""), 10, 110) || null;
+}
+
+const columnPlaybook = {
+  name: "research_column",
+  match: (ctx) => has(ctx, "submit_column_answer"),
+  thinking: () => ["Reading the question and what counts as an answer.", "Checking their own pages first, then their job board and what's on file.", "Quoting the line that settles it, or leaving it unknown."],
+  // Claude's own search runs only when nothing on file answers it, for some companies.
+  wantsSearch: (ctx) => !ctx.afterToolResult && !columnMatch(columnAsk(ctx)) && hash(columnAsk(ctx).domain) % 2 === 0,
+  search(ctx) {
+    const a = columnAsk(ctx);
+    const slug = slugOf(a.name);
+    return {
+      query: `"${a.name}" ${clip(a.question.replace(/\?$/, ""), 8)}`,
+      results: [result(`${a.name} pricing and plans`, `https://${a.domain}/pricing`, "3 weeks ago"), result(`${a.name} on ${a.question.toLowerCase().includes("hir") ? "careers" : "its product"}`, `https://www.example-news.com/${slug}`, "2 months ago")],
+    };
+  },
+  wantsFetch: () => false,
+  act(ctx) {
+    const a = columnAsk(ctx);
+    const found = columnMatch(a);
+    if (found) {
+      const value = columnValue(a, found.sentence);
+      if (value !== null) {
+        const own = found.source.label.startsWith("their site") || found.source.label.startsWith("their job board");
+        const snippet = found.source.label.startsWith("a search result");
+        return {
+          blocks: [
+            call("submit_column_answer", {
+              status: "answered",
+              answer: value,
+              confidence: snippet ? "low" : own ? "high" : "medium",
+              sources: [{ url: found.source.url, quote: clip(found.sentence, 30, 280), publishedAt: found.source.label.includes("dated") ? found.source.date : null }],
+              note: clip(`${sentenceCase(found.source.label.replace(/,.*$/, ""))} says: ${found.sentence}`, 22, 190),
+            }),
+          ],
+        };
+      }
+    }
+    // Nothing settles it: one search when there's a search tool and it hasn't run, else a native result, else unknown.
+    if (has(ctx, "search_web") && !ctx.calls.some((c) => c.name === "search_web") && hash(a.domain) % 3 !== 0) {
+      return { blocks: [text("Their pages don't say. One search. "), call("search_web", { query: `"${a.name}" ${clip(a.question.replace(/\?$/, ""), 8)}` })] };
+    }
+    const seen = ctx.results.find((r) => r.url.includes(a.domain));
+    if (seen && a.type === "yes_no" && /pric|bill|usage|charge/i.test(a.question)) {
+      return {
+        blocks: [call("submit_column_answer", { status: "answered", answer: "yes", confidence: "low", sources: [{ url: seen.url, quote: seen.title, publishedAt: null }], note: "Only a search result says so; their own pages didn't load." })],
+      };
+    }
+    return { blocks: [call("submit_column_answer", { status: "unknown", answer: null, confidence: "low", sources: [], note: clip(`Nothing on ${a.domain} or on file says.`, 20, 160) })] };
+  },
+};
+
+/* ───────────── Plays from a sentence: the recipe a careful reader would choose ───────────── */
+
+const CANNOT = [
+  [/\b(?:visit(?:s|ed|ing)?|view(?:s|ed)?|look(?:s|ed)? at|went to) (?:our|the|my) (?:site|website|pricing(?: page)?|demo page|docs?)\b|\bwebsite visit(?:or)?s?\b/i, "Website visits need visitor identification, which InRoad doesn't buy.", "A launch or pricing change on their site, or a page monitor in Research."],
+  [/\bintent (?:data|signals?)\b|\bg2\b|\bbombora\b/i, "Third-party intent data is paid; InRoad runs on free public signals.", "A buyer posting about the problem, or a request for help in a community."],
+  [/\blinkedin (?:engagement|likes?|comments?|activity)\b|\b(?:liked|commented on|engaged with) (?:our|my|a) post\b/i, "InRoad doesn't read LinkedIn engagement (no scraping).", "A buyer posting about the problem, from posts you capture."],
+  [/\b(?:open(?:s|ed)?|click(?:s|ed)?) (?:our|my|the|an?) (?:email|link)\b/i, "Opens and clicks aren't tracked.", "Replies, marked in Check replies on Today."],
+  [/\b(?:signs? up|signed up|free trial|product usage|active users?|hits? (?:their|the|a) (?:plan |usage )?limit)\b/i, "Product usage isn't an account signal yet.", "A first hire or a launch at the account."],
+  [/\b(?:deals?|proposals?)\b[^.]{0,40}\b(?:quiet|silent|stall(?:s|ed)?|dark)\b|\bgone (?:quiet|silent|dark)\b/i, "Deal silence isn't a signal a custom play can fire on.", "The built-in play Rescue a stalled deal (21 days quiet)."],
+  [/\bclosed[- ]lost\b|\blost deals?\b/i, "Lost deals come back on their own clock in a built-in play.", "The built-in play Revisit closed-lost."],
+  [/\bheadcount\b|\b\d+\+? employees\b/i, "Headcount isn't tracked over time.", "An ICP criterion about company size, or hiring signals."],
+  [/\b(?:auto-?send|automatically (?:send|email|post))\b/i, "InRoad never sends, posts or contacts anyone by itself. It drafts; you approve.", "A draft on Today for you to approve."],
+];
+
+const WINDOWS = { jd_names_pain: 45, first_hire: 45, hiring: 45, new_leader: 90, champion_job_change: 120, funding: 60, filing: 60, launch: 60, stack_change: 60, compliance_deadline: 180, persona_post: 30, community_request: 14, public_pain: 30 };
+const VARIANTS = { revops: ["revops", "revenue operations"], "rev ops": ["revops", "revenue operations"], finops: ["finops", "financial operations"], ar: ["accounts receivable"], ap: ["accounts payable"] };
+
+function recipeFor(ctx) {
+  const sentence = (between(ctx.firstText, "sentence") ?? ctx.userText ?? "").replace(/\s+/g, " ").trim();
+  const personas = (between(ctx.firstText, "personas") ?? "").split("\n").map((l) => /^([a-z_]+):\s*(.+)$/.exec(l.trim())).filter(Boolean).map((m) => ({ role: m[1], titles: m[2].split(/,\s*/) }));
+  const criteria = (between(ctx.firstText, "criteria") ?? "").split("\n").map((l) => /^(\S+) · \w+ · (.+)$/.exec(l.trim())).filter(Boolean).map((m) => ({ id: m[1], text: m[2] }));
+  const assumptions = [];
+  // The cooldown phrase also says "in the last N days": read it first, then leave it out of the trigger's window.
+  const cool = /(?:touched|contacted|reached|emailed|talked to|wrote to)[^.]*?(?:in|within) the (?:last|past) (\d+) days/i.exec(sentence);
+  const t = (cool ? sentence.replace(cool[0], "") : sentence).toLowerCase();
+
+  const signals = new Set();
+  const hiring = /\b(?:hir(?:e|es|ing)|job posts?|posts? (?:an? |for )?[\w /&-]{2,40}? (?:role|position|job)|opening|recruit\w*)\b/.test(t);
+  if (hiring) ["jd_names_pain", "first_hire"].forEach((s) => signals.add(s));
+  if (/\bany (?:job|role|post)|\bhiring\b/.test(t)) signals.add("hiring");
+  if (/\b(?:raise[sd]?|raising|funding|round|series [a-e])\b/.test(t)) ["funding", "filing"].forEach((s) => signals.add(s));
+  if (/\bnew (?:vp|head|cfo|cro|cto|leader|exec\w*|controller)|\bjoins? as\b|\bappointed\b/.test(t)) signals.add("new_leader");
+  if (/\b(?:champion|former (?:user|customer)|past user|changed jobs|job change)\b/.test(t)) signals.add("champion_job_change");
+  if (/\b(?:launch(?:es|ed)?|new pricing|pricing change|changes? (?:its |their )?pricing)\b/.test(t)) signals.add("launch");
+  if (/\b(?:migrat\w*|switch(?:es|ed)? to|moves? off)\b/.test(t)) signals.add("stack_change");
+  if (/\b(?:audit|soc ?2|compliance|deadline)\b/.test(t)) signals.add("compliance_deadline");
+  if (/\b(?:posts?|posted|wrote|writes) about\b|\bcomplain\w*/.test(t)) signals.add("persona_post");
+  if (/\b(?:asks? for|asked for|community|forum|hacker news)\b/.test(t)) signals.add("community_request");
+  if (!signals.size) ["jd_names_pain", "new_leader"].forEach((s) => signals.add(s));
+  const list = [...signals].slice(0, 6);
+
+  const keywords = [];
+  const role = /(?:posts?|hiring|hires?|opens?|lists?)\s+(?:an?\s+|for\s+(?:an?\s+)?)?([a-z][\w /&-]{1,40}?)\s+(?:role|roles|hire|position|job|lead|manager)\b/i.exec(t);
+  if (role) for (const part of role[1].split(/\s+or\s+|\s+and\s+|\/|,\s*/)) for (const k of VARIANTS[part.trim()] ?? [part.trim()]) if (k.length >= 2 && !keywords.includes(k)) keywords.push(k);
+  const said = /mention(?:s|ing)?\s+["“]?([\w -]{2,40}?)["”]?(?:[.,;]|$| and )/i.exec(t);
+  if (said && !keywords.includes(said[1])) keywords.push(said[1]);
+  const series = t.match(/series [a-e]/g) ?? [];
+  for (const s of series) if (!keywords.includes(s)) keywords.push(s);
+
+  const within = /(?:within|in the (?:last|past)|last) (\d+) (day|week)s?/.exec(t);
+  const withinDays = within ? Math.min(365, Number(within[1]) * (within[2] === "week" ? 7 : 1)) : Math.max(...list.map((s) => WINDOWS[s] ?? 45));
+
+  const icp = /\b(?:icp|ideal customer|target accounts?|good fit|fit compan\w*)\b/.test(t);
+  const tiers = /\btier a\b|\bbest (?:accounts|fit)\b/.test(t) ? ["A"] : icp ? ["A", "B"] : [];
+  const fit = /fit (?:score )?(?:of |above |over |at least )?(\d{2})\b/.exec(t);
+  const deal = /\bno (?:open )?deal|not in (?:the )?pipeline|not talking|haven't talked/.test(t) ? "none" : /\b(?:open|active) deal|\bin (?:the )?pipeline|\bproposal|\bpilot\b|\bqualified\b/.test(t) ? "open" : "any";
+  const stages = deal === "open" ? ["talking", "qualified", "pilot", "proposal"].filter((s) => new RegExp(`\\b${s}`).test(t)) : [];
+
+  const roles = [];
+  if (/hiring manager/.test(t) && personas.some((p) => p.role === "champion")) {
+    roles.push("champion");
+    assumptions.push("Read “the hiring manager” as your champion persona: job posts don't say who hires.");
+  }
+  for (const p of personas) {
+    const title = p.titles.find((x) => x && t.includes(x.toLowerCase()));
+    if (title && !roles.includes(p.role)) {
+      roles.push(p.role);
+      if (assumptions.length < 3) assumptions.push(`Read “${title}” as your ${p.role.replace(/_/g, " ")} persona.`);
+    }
+  }
+  if (/\bfinance lead|\bcfo\b|\bvp finance\b|\beconomic buyer\b/.test(t) && !roles.includes("economic_buyer") && personas.some((p) => p.role === "economic_buyer")) roles.push("economic_buyer");
+  if (!roles.length && personas.some((p) => p.role === "champion")) roles.push("champion");
+
+  const usage = /usage[- ]?(?:priced|based|billing|pricing)|\bmetered\b|pay[- ]as[- ]you[- ]go|\bconsumption\b/.test(t);
+  const crit = usage ? criteria.filter((c) => /usage|meter|consumption/i.test(c.text) && /pric|bill/i.test(c.text)).map((c) => c.id).slice(0, 1) : [];
+  const market = /\b(fintech|healthtech|insurtech|proptech|devtools?|marketplace|e-?commerce)s?\b/.exec(t);
+
+  const kind = /\b(?:research|dossier|look into|dig into)\b/.test(t) ? "research" : /\bintro(?:duction)?s?\b/.test(t) ? "intro" : deal === "open" && /\b(?:check[- ]in|follow up|deal review|multi-?thread)\b/.test(t) ? "deal" : "write";
+  const ref = /(?:that|which) (?:references?|mentions?|cites?|talks about) (.+?)(?:[.,;]|$)/.exec(sentence);
+  const angle = ref ? `Reference ${ref[1]} and the work it creates for them.` : kind === "research" ? "Confirm the signal on their site before deciding to write." : "Write about what the signal changes for them, citing it.";
+  const measure = /\b(?:meetings?|calls?|demos?)\b/.test(t) ? "meeting" : /\b(?:won|close (?:the|a) deal|closed won|revenue)\b/.test(t) ? "won" : "reply";
+  const cap = /(?:at most|max(?:imum)?|up to|no more than|cap(?: of)?) (\d+)(?: (?:a|per) week| weekly)?/.exec(t);
+
+  const unsupported = [];
+  for (const [re, why, nearest] of CANNOT) {
+    const hit = re.exec(sentence);
+    if (hit && unsupported.length < 5) unsupported.push({ phrase: hit[0], why, nearest });
+  }
+
+  const topic = keywords.filter((k) => !/ /.test(k) || k.startsWith("series")).slice(0, 2);
+  const nameBase = topic.length ? `${topic.map((k) => (k === "revops" ? "RevOps" : k.replace(/^series ([a-e])/, (_, x) => `Series ${x.toUpperCase()}`))).join(" or ")} ${hiring ? "hire" : "signal"}` : clip(sentence.replace(/^when\s+/i, ""), 5, 50);
+  const name = clip(sentenceCase(`${nameBase}${deal === "none" ? ", no open deal" : deal === "open" && stages.length ? `, ${stages[0]} deals` : ""}`), 8, 60);
+
+  return {
+    name: name.length >= 3 ? name : "My play",
+    trigger: { signals: list, withinDays: Math.max(1, withinDays), keywords: keywords.slice(0, 8), minStrength: /\b(?:strong|clear)\b/.test(t) ? 2 : 1, stack: /\bboth\b|\btwo signals\b|\bstack/.test(t) && list.length > 1 ? 2 : 1 },
+    audience: {
+      tiers,
+      minFit: fit ? Math.min(100, Number(fit[1])) : icp ? 60 : 0,
+      statuses: [],
+      deal,
+      stages,
+      personas: roles.slice(0, 4),
+      excludePersonas: [],
+      criteria: crit,
+      keywords: market ? [market[1].replace(/s$/, "")] : [],
+    },
+    guardrails: { cooldownDays: cool ? Math.min(365, Number(cool[1])) : 30, maxPerWeek: cap ? Math.max(1, Math.min(50, Number(cap[1]))) : 5 },
+    action: { kind, angle: angle.slice(0, 240) },
+    measure,
+    unsupported,
+    assumptions: assumptions.slice(0, 3),
+  };
+}
+
+const playRecipePlaybook = {
+  name: "play_recipe",
+  match: (ctx) => has(ctx, "submit_recipe"),
+  thinking: () => ["Splitting the sentence into the trigger, who it's for, and what to do.", "Mapping each part to a signal I can see; anything I can't detect goes in its own list.", "Then the recipe."],
+  act: (ctx) => ({ blocks: [call("submit_recipe", recipeFor(ctx))] }),
+};
+
+/* ───────────── W8 · debrief: quotes copied from the call, fields that cite them ───────────── */
+
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+
+/** "two thousand five hundred dollars" → 2500, "$2,500" → 2500. */
+function amountIn(text) {
+  const digits = /\$\s?([\d,]+(?:\.\d+)?)\s*(k\b)?/i.exec(text);
+  if (digits) return Math.round(Number(digits[1].replace(/,/g, "")) * (digits[2] ? 1000 : 1));
+  const m = /((?:(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]*)+(?:thousand|hundred)(?:[\s-]+(?:and\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand))*)\s+dollars/i.exec(text);
+  if (!m) return null;
+  let total = 0;
+  let cur = 0;
+  for (const w of m[1].toLowerCase().split(/[\s-]+/)) {
+    if (w === "and") continue;
+    if (w === "hundred") cur = (cur || 1) * 100;
+    else if (w === "thousand") {
+      total += (cur || 1) * 1000;
+      cur = 0;
+    } else cur += NUMBER_WORDS[w] ?? 0;
+  }
+  return total + cur || null;
+}
+
+const WEEKDAY = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+const debriefPlaybook = {
+  name: "debrief",
+  match: (ctx) => has(ctx, "submit_debrief"),
+  act(ctx) {
+    const t = ctx.firstText;
+    const transcript = between(t, "transcript") ?? between(t, "transcript_excerpts");
+    const raw = transcript ?? between(t, "founder_notes") ?? "";
+    const callDate = /on (\d{4}-\d{2}-\d{2})\. Resolve relative dates/.exec(t)?.[1] ?? todayOf(t);
+    const lines = raw
+      .split("\n")
+      .map((l) => /^(?:\[[\d:]+\]\s*)?([^:\[\]]{1,60}):\s+(.+)$/.exec(l.trim()))
+      .filter(Boolean)
+      .map((m) => ({ speaker: m[1].replace(/\s*\([^)]*\)\s*$/, "").trim(), text: m[2].trim() }));
+    // The founder asks the questions.
+    const asks = new Map();
+    for (const l of lines) asks.set(l.speaker, (asks.get(l.speaker) ?? 0) + (l.text.match(/\?/g) ?? []).length);
+    const founder = [...asks.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const sentences = lines.flatMap((l) => (l.text.match(/[^.?!]+[.?!]+/g) ?? [l.text]).map((x) => ({ speaker: l.speaker, text: x.trim() })));
+    const buyer = sentences.filter((x) => x.speaker !== founder);
+    const quotes = [];
+    const push = (hit) => {
+      const q = { id: `q${quotes.length + 1}`, speaker: transcript ? hit.speaker : null, text: hit.text.slice(0, 300) };
+      quotes.push(q);
+      return q;
+    };
+    // The sentence that passes the most tests, earliest first (or latest, for what's agreed at the end).
+    const pick = (tests, { from = buyer, last = false, min = 1 } = {}) => {
+      let top = null;
+      let topScore = 0;
+      for (const x of from) {
+        if (quotes.some((q) => q.text === x.text.slice(0, 300))) continue;
+        const score = tests.reduce((n, re) => n + (re.test(x.text) ? 1 : 0), 0);
+        if (score > topScore || (last && score === topScore && score > 0)) [top, topScore] = [x, score];
+      }
+      return top && topScore >= min ? top : null;
+    };
+    const take = (tests, opts) => {
+      const hit = pick(tests, opts);
+      return hit ? push(hit) : null;
+    };
+    const pain = take([/\b(takes|took|spends?)\b/i, /\b\w+ (days?|hours?|weeks?)\b/i, /\b(tie-out|close|reconcil|spreadsheet|workbook|manual)/i], { min: 2 });
+    const impact = take([/\b(wrote off|write-off|written off|gap|credit)\b/i, /\$|\bdollars?\b|\bpercent\b|%/i], { min: 2 });
+    const spend = take([/\b(contractor|consultant|headcount|hire|hiring|analyst)\b/i, /\b(pay|cost|quarter|role)\b/i], { min: 2 });
+    const critical = take([/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/, /\b(first|deadline|contracts?|go-live|launch)\b/i], { min: 2 });
+    const consequence = take([/\b(if we can'?t|otherwise)\b/i, /\b(fee|board|weakness|miss)\b/i], { min: 2 });
+    const decision = take([/\b(signs?|sign-off|approve)\b/i, /\b(over|anything|budget)\b/i], { min: 2 });
+    const champ = take([/\b(I can bring|I'll (bring|loop|walk)|loop in)\b/i]);
+    const security = take([/\bsecurity review\b/i]);
+    const objection = take([/\b(timing|won't happen|worried|concern)\b/i, /\b(December|year-end|small|setup)\b/i], { min: 2 });
+    const referralQ = take([/\btalk to [A-Z]\w+ [A-Z]\w+ at [A-Z]/]);
+    const mine = sentences.filter((x) => x.speaker === founder);
+    const priceLine = mine.find((x) => amountIn(x.text));
+    const priceQ = priceLine ? push(priceLine) : null;
+    const ask = pick([/\b(monday|tuesday|wednesday|thursday|friday)\b/i, /\b(next step|suggest|working session|would\b.*\bwork)\b/i], { from: mine, last: true, min: 2 });
+    // "Would next Thursday at two work?" names the day; the sentence before it says what the step is.
+    const askAt = ask ? sentences.indexOf(ask) : -1;
+    const proposal = ask && ask.text.split(/\s+/).length <= 8 && sentences[askAt - 1]?.speaker === founder ? { ...sentences[askAt - 1], day: ask.text } : ask ? { ...ask, day: ask.text } : null;
+    const agreed = ask ? take([/\bworks\b/i], { from: buyer.filter((x) => sentences.indexOf(x) > askAt) }) : null;
+    const field = (q, status = "captured", score = 2) => (q ? { value: clip(q.text, 30, 240), quoteIds: [q.id], status, score } : { value: null, quoteIds: [], status: "not_covered", score: 0 });
+    const mainBuyer = [...new Set(buyer.map((x) => x.speaker))][0] ?? null;
+    const eb = /([A-Z][a-z]+),? (?:our|the) (CFO|CEO|VP Finance|COO)/.exec(raw);
+    const named = eb ? `${eb[1]}` : null;
+
+    let nextStep = null;
+    if (proposal) {
+      const day = WEEKDAY.findIndex((d) => new RegExp(`\\b${d}\\b`, "i").test(proposal.day));
+      let date = null;
+      if (day >= 0) {
+        const base = new Date(`${callDate}T12:00:00Z`);
+        let n = (day - base.getUTCDay() + 7) % 7 || 7;
+        if (/\bnext\b/i.test(proposal.day) && n < 4) n += 7;
+        date = addDays(callDate, n);
+      }
+      nextStep = { what: clip(proposal.text.replace(/^(here's what I'd suggest as a next step\.?\s*)/i, ""), 18, 140), date, owner: "both", buyerAgreed: !!agreed };
+    }
+    const dated = !!nextStep?.date && nextStep.buyerAgreed;
+
+    const words = (who) => lines.filter((l) => (who ? l.speaker === who : true)).reduce((n, l) => n + wordCount(l.text), 0);
+    const share = lines.length && founder ? Math.round((100 * words(founder)) / Math.max(1, words())) : null;
+    const questions = founder ? asks.get(founder) ?? 0 : 0;
+    const first = (name) => String(name ?? "").split(" ")[0];
+    const heard = [pain, impact, critical].filter(Boolean).map((q) => `- "${clip(q.text, 26, 200)}"`);
+    const recap = [
+      `${[...new Set(buyer.map((x) => first(x.speaker)))].slice(0, 2).join(", ") || "Hi"}, thanks for the time today.`,
+      "",
+      transcript ? "What I heard:" : "My understanding:",
+      ...(heard.length ? heard : ["- The current process takes longer than it should."]),
+      "",
+      "What we agreed:",
+      nextStep ? `- ${nextStep.what}${nextStep.date ? ` (${nextStep.date})` : ""}` : "- Nothing dated yet.",
+      ...(security ? ["", "Open items:", "- I'll send the security questionnaire answers and a data-flow diagram tomorrow."] : []),
+      "",
+      "Did I miss or misstate anything?",
+    ].join("\n");
+    const referral = referralQ ? /talk to ([A-Z][a-z]+ [A-Z][a-z]+) at ([A-Z][\w]+)/.exec(referralQ.text) : null;
+    // Their own words for the problem: short noun phrases that appear in what they said.
+    const customerWords = [];
+    for (const q of quotes.filter((x) => x.speaker !== founder)) {
+      const m = /\b(the (?:usage |)tie-out|the monster|late events|committed-use contracts|a key audit matter|the workbook|month-end)\b/i.exec(q.text);
+      if (m && !customerWords.some((c) => c.phrase.toLowerCase() === m[1].toLowerCase())) customerWords.push({ phrase: m[1], quoteId: q.id });
+    }
+
+    return {
+      blocks: [
+        call("submit_debrief", {
+          quotes,
+          card: {
+            pain: { ...field(pain), impact: impact ? clip(impact.text, 12, 90) : null },
+            spend: field(spend, "captured", 1),
+            criticalEvent: { ...field(critical), date: null, consequence: consequence ? clip(consequence.text, 18, 140) : null },
+            champion: { ...field(champ, champ ? "partial" : "not_covered", champ ? 1 : 0), name: champ ? champ.speaker : null, championStatus: champ ? "untested" : "none" },
+            economicBuyer: { ...field(decision, decision ? "partial" : "not_covered", decision ? 1 : 0), name: named, engaged: false },
+            fit: field(pain, pain ? "partial" : "not_covered", pain ? 1 : 0),
+            decisionProcess: decision ? { value: clip(decision.text, 40, 300), quoteIds: [decision.id], status: "partial" } : { value: null, quoteIds: [], status: "not_covered" },
+          },
+          stageSuggestion: null,
+          nextStep,
+          recap: { body: recap },
+          schedulingEmail: dated ? null : { subject: "next step", body: `Would Tuesday at 11am or Wednesday at 2pm next week work for 30 minutes to go through your numbers together?` },
+          committeeUpdates: [...new Set(buyer.map((x) => x.speaker))].slice(0, 4).map((name) => ({ name, title: null, role: name === mainBuyer ? "champion" : null, quoteId: null })).concat(named ? [{ name: named, title: eb[2], role: "economic_buyer", quoteId: decision?.id ?? null }] : []),
+          map: null,
+          pilotCriteria: null,
+          offerProposal: /\bpilot\b/i.test(raw),
+          tasks: [
+            ...(security ? [{ what: "Send security questionnaire answers and a data-flow diagram", dueDate: addDays(callDate, 1), owner: "founder" }] : []),
+            ...(nextStep?.date ? [{ what: "Send the invite and agenda for the working session", dueDate: addDays(callDate, 1), owner: "founder" }] : []),
+          ],
+          newObjections: objection ? [{ text: clip(objection.text, 20, 140), category: /security/i.test(objection.text) ? "security" : "timing", quoteId: objection.id }] : [],
+          customerWords,
+          povCandidates: [],
+          priceQuoted: priceLine && priceQ ? { amountUsd: amountIn(priceLine.text), quoteId: priceQ.id } : null,
+          referrals: referral ? [{ name: referral[1], company: referral[2], quoteId: referralQ.id }] : [],
+          toConfirm: ["Who runs the security review on their side, and how long it takes", "Whether next year's budget is set before the pilot ends"],
+          coaching: [
+            ...(share !== null ? [`You talked about ${share}% of the time and asked ${questions} questions.`] : []),
+            dated ? "Next step booked on the call, with a date and an owner." : "No dated next step yet. Book one before the week is out.",
+          ],
+        }),
+      ],
+    };
+  },
+};
+
+/* ───────────── Buyer voice: names for the clusters code built, and a battlecard from the quotes ───────────── */
+
+const voiceNamesPlaybook = {
+  name: "voice_names",
+  match: (ctx) => has(ctx, "submit_voice_names"),
+  thinking: () => ["Reading each cluster's quotes.", "Naming each one the way buyers put it, without counting anything."],
+  act(ctx) {
+    const block = between(ctx.firstText, "clusters") ?? "";
+    const clusters = [...block.matchAll(/<cluster id="(c\d+)" kind="[a-z]+" conversations="\d+" current_label="([^"]*)">\n([\s\S]*?)\n<\/cluster>/g)].map((m) => {
+      const first = /: "([^"]+)"/.exec(m[3])?.[1] ?? "";
+      const name = clip(plain(m[2].replace(/\d+/g, "")), 6, 60) || "What buyers raised";
+      return { id: m[1], name: sentenceCase(name), gist: clip(plain(first.replace(/\d+/g, "")), 16, 140) || "What buyers said on these calls.", mergeInto: null, outliers: [] };
+    });
+    return { blocks: [call("submit_voice_names", { clusters })] };
+  },
+};
+
+const battlecardPlaybook = {
+  name: "battlecard",
+  match: (ctx) => has(ctx, "submit_battlecard"),
+  thinking: () => ["Reading what buyers said about it.", "Answering only from their quotes and the approved claims."],
+  act(ctx) {
+    const t = ctx.firstText;
+    const subject = /Draft the battlecard for: (.+?) \(/.exec(t)?.[1] ?? "this";
+    const quotes = [...t.matchAll(/<quote id="(q\d+)"[^>]*>([^<]+)<\/quote>/g)].map((m) => ({ id: m[1], text: m[2] }));
+    const claims = [...t.matchAll(/<claim id="([^"]+)" kind="[^"]*">([^<]+)<\/claim>/g)].map((m) => ({ id: m[1], text: m[2] }));
+    const vendor = /an alternative buyers named, competitor/.test(t);
+    const claim = claims.find((c) => /\d/.test(c.text)) ?? claims[0];
+    const objection = clip(plain(quotes[0]?.text ?? ""), 18, 140) || `We already have ${subject}.`;
+    return {
+      blocks: [
+        call("submit_battlecard", {
+          objection,
+          category: vendor ? "competitor" : /build/i.test(subject) ? "build" : "status_quo",
+          underlyingConcern: "They don't want a second tool if the one they already have might be enough.",
+          clarifyingQ: `When the numbers don't tie with ${subject} in place, who finds the cause, and how long does it take?`,
+          response: clip(`That's worth checking first. ${claim ? claim.text : "Let's look at last month's close together."} Want to run one month through it and compare?`, 60, 600),
+          walkAwayIf: "Everything already ties out line by line and nobody spends days on it.",
+          landmines: vendor ? [`Does ${subject} see usage that arrives after the invoice run?`, `Who explains a variance when ${subject} and the warehouse disagree?`] : [],
+          whenWeWin: null,
+          whenWeLose: null,
+          quoteIds: quotes.slice(0, 2).map((q) => q.id),
+          claimIds: claim ? [claim.id] : [],
+        }),
+      ],
+    };
+  },
+};
+
+export const PLAYBOOKS = [
+  snapshotPlaybook,
+  betPlaybook,
+  screenPlaybook,
+  networkPlaybook,
+  candidatesPlaybook,
+  dossierPlaybook,
+  draftPlaybook,
+  linkedinPlaybook,
+  introPlaybook,
+  replyPlaybook,
+  replyReadPlaybook,
+  critiquePlaybook,
+  columnPlaybook,
+  playRecipePlaybook,
+  debriefPlaybook,
+  voiceNamesPlaybook,
+  battlecardPlaybook,
+  ...STUDIO_PLAYBOOKS,
+  ...INTENT_PLAYBOOKS,
+];

@@ -189,7 +189,7 @@ function CheckRow({ check }: { check: DomainCheck }) {
         {check.record && (
           <div className="mt-2 rounded-md bg-sunken p-2.5 ring-1 ring-inset ring-border">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-mono text-[11px] text-fg-3">
+              <p className="font-mono text-[12px] text-fg-3">
                 {check.record.type} · host <span className="text-fg-2">{check.record.host}</span>
               </p>
               <CopyButton text={check.record.value} label="Copy record" className="h-6" />
@@ -198,7 +198,7 @@ function CheckRow({ check }: { check: DomainCheck }) {
           </div>
         )}
         {check.found && !check.record && (
-          <p className="mt-1.5 line-clamp-3 whitespace-pre-line break-all font-mono text-[11.5px] leading-[17px] text-fg-3" title={check.found}>
+          <p className="mt-1.5 line-clamp-3 whitespace-pre-line break-all font-mono text-[12px] leading-[17px] text-fg-3" title={check.found}>
             {check.found}
           </p>
         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ChevronRight, Circle, FileText, Plus, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -26,6 +26,7 @@ import {
   stageCriteria,
 } from "@/lib/deals/rules";
 import { addDays, daysBetween, newId, nowISO } from "@/lib/domain/ids";
+import { parseDollars } from "@/lib/domain/money";
 import { STAGE_LABELS, type Account, type Deal, type MutualActionPlan, type Person, type PersonaRole, type Stage } from "@/lib/domain/types";
 import { BAND_LABEL, BAND_TONE, RiskList } from "@/components/revenue/risk-list";
 import { CallMenu } from "@/components/revenue/deal-calls";
@@ -348,13 +349,26 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
+  // One add at a time: Enter then a click (or a double click) made the same person twice.
+  const inFlight = useRef(false);
+  const [busy, setBusy] = useState(false);
   if (!ws) return null;
   const contacts = deal.contacts.map((c) => ({ ...c, person: ws.people[c.personId] })).filter((c): c is typeof c & { person: Person } => !!c.person);
   const available = account.peopleIds.map((id) => ws.people[id]).filter((p): p is Person => !!p && !deal.contacts.some((c) => c.personId === p.id));
   const at = () => nowISO();
   const setContacts = (next: Deal["contacts"]) => dispatch({ type: "deal.update", id: deal.id, patch: { contacts: next }, at: at() });
   const addNew = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      await addPerson();
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+  const addPerson = async () => {
     const person: Person = {
       id: newId("per"),
       accountDomain: account.domain,
@@ -412,7 +426,7 @@ function Contacts({ deal, account }: { deal: Deal; account: Account }) {
         <div className="mb-3 flex flex-wrap gap-2 animate-[fade-in_150ms_var(--ease-out)]">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Name" className="w-44" />
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Title" className="w-44" onKeyDown={(e) => e.key === "Enter" && void addNew()} />
-          <Button size="sm" variant="primary" onClick={() => void addNew()} disabled={!name.trim()}>
+          <Button size="sm" variant="primary" onClick={() => void addNew()} loading={busy} disabled={!name.trim()}>
             Add
           </Button>
         </div>
@@ -668,7 +682,7 @@ function Pilot({ deal, today }: { deal: Deal; today: string }) {
           {pilot.paid && (
             <div className="w-32">
               <Label htmlFor="pilot-fee">Fee ($)</Label>
-              <CommitInput type="number" value={pilot.feeUsd ? String(pilot.feeUsd) : ""} onCommit={(v) => void write({ feeUsd: Number(v) > 0 ? Math.round(Number(v)) : undefined })} ariaLabel="Pilot fee" placeholder="10000" className="h-8 ring-border" />
+              <CommitInput value={pilot.feeUsd ? String(pilot.feeUsd) : ""} onCommit={(v) => commitDollars(v, (feeUsd) => void write({ feeUsd }))} ariaLabel="Pilot fee" placeholder="10000" className="h-8 ring-border" />
             </div>
           )}
           <div className="w-40">
@@ -691,14 +705,29 @@ function Pilot({ deal, today }: { deal: Deal; today: string }) {
   );
 }
 
+const notAnAmount = (typed: string) => `“${typed.trim()}” isn't an amount. Type it like 25000 or $25K.`;
+
+/** A dollar field as typed ("$25K", "25,000"): empty clears it; anything that isn't an amount is refused, not saved as $0. */
+function commitDollars(typed: string, save: (usd: number | undefined) => void) {
+  if (!typed.trim()) return save(undefined);
+  const n = parseDollars(typed);
+  if (n === null) toast.error(notAnAmount(typed));
+  else save(n > 0 ? n : undefined);
+}
+
 function Pricing({ deal, today }: { deal: Deal; today: string }) {
   const { dispatch } = useWorkspace();
   const [amount, setAmount] = useState("");
   const [outcome, setOutcome] = useState<"" | "accepted" | "pushback" | "lost">("");
   const quotes = deal.priceQuotes ?? [];
   const log = () => {
-    const n = Math.round(Number(amount.replace(/[^0-9.]/g, "")));
-    if (!n) return;
+    if (!amount.trim()) return;
+    // "$25K" is 25,000 (stripping the K would log $25, and the first quote becomes the deal's value).
+    const n = parseDollars(amount);
+    if (!n) {
+      toast.error(n === 0 ? "A quote needs an amount above $0." : notAnAmount(amount));
+      return;
+    }
     void dispatch({ type: "deal.update", id: deal.id, patch: { priceQuotes: [...quotes, { at: today, amountUsd: n, outcome: outcome || undefined }], amountUsd: deal.amountUsd ?? n }, at: nowISO() });
     setAmount("");
     setOutcome("");
@@ -718,14 +747,14 @@ function Pricing({ deal, today }: { deal: Deal; today: string }) {
           </ul>
           <div className="mb-3 w-44">
             <Label>Deal value ($)</Label>
-            <CommitInput type="number" value={deal.amountUsd ? String(deal.amountUsd) : ""} onCommit={(v) => void dispatch({ type: "deal.update", id: deal.id, patch: { amountUsd: Number(v) > 0 ? Math.round(Number(v)) : undefined }, at: nowISO() })} ariaLabel="Deal value" className="h-8 ring-border" />
+            <CommitInput value={deal.amountUsd ? String(deal.amountUsd) : ""} onCommit={(v) => commitDollars(v, (amountUsd) => void dispatch({ type: "deal.update", id: deal.id, patch: { amountUsd }, at: nowISO() }))} ariaLabel="Deal value" className="h-8 ring-border" />
           </div>
         </>
       ) : (
         <p className="mb-2 text-[13px] text-fg-2">No price quoted yet, so there&apos;s no dollar value on this deal. Log a quote once you&apos;ve said a number out loud.</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <Input value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === "Enter" && log()} placeholder="$ quoted" aria-label="Amount quoted" inputMode="numeric" className="w-32" />
+        <Input value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === "Enter" && log()} placeholder="$ quoted" aria-label="Amount quoted" className="w-32" />
         <Select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} aria-label="Their reaction" className="h-8 rounded-sm bg-surface px-2 text-[13px] ring-1 ring-border-strong/70">
           <option value="">Reaction?</option>
           <option value="accepted">Accepted</option>

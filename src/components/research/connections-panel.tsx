@@ -128,15 +128,43 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
       setMessage("Connection and mapping saved. Run a preview to verify the returned records.");
     });
   }
+  const connected = (automation.data?.connections.length ?? 0) > 0;
   return (
     <div className="space-y-6">
-      <div className="rounded-lg bg-bg-subtle p-4 text-[13px] leading-6 text-fg-2">
-        Connect an MCP server or import an OpenAPI document. Inroad discovers read operations and maps them to search, fetching, enrichment or record lookup.{" "}
-        <Link href="/integrations#inbound" className="underline">
-          Existing CRM, sequencer and webhook connections
-        </Link>{" "}
-        remain available in Integrations.
-      </div>
+      <section>
+        <h2 className="text-[18px] font-medium text-fg">Bring in what your other tools know</h2>
+        <p className="mt-1 max-w-[70ch] text-[13px] leading-6 text-fg-2">
+          Search with the engine you already pay for, import companies and people from another tool&apos;s export, or let your automations send leads in. Everything
+          here reads; nothing changes or sends anything in those tools. CRM, sequencer and webhook connections live in{" "}
+          <Link href="/integrations#inbound" className="underline">
+            Integrations
+          </Link>
+          .
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-surface p-4 shadow-xs ring-1 ring-inset ring-border">
+            <h3 className="text-[14px] font-medium text-fg">Use your own search engine</h3>
+            <p className="mt-1 text-[12.5px] leading-[18px] text-fg-2">Firecrawl, Exa, Tavily, Brave and others, with a daily request limit you set.</p>
+            <Link href="/settings#web-search" className="mt-2 inline-block text-[12.5px] font-medium text-fg underline underline-offset-2">
+              Choose a search provider
+            </Link>
+          </div>
+          <div className="rounded-xl bg-surface p-4 shadow-xs ring-1 ring-inset ring-border">
+            <h3 className="text-[14px] font-medium text-fg">Import records from another tool</h3>
+            <p className="mt-1 text-[12.5px] leading-[18px] text-fg-2">Paste a JSON export, map its fields, and preview before anything is added. Opt-outs are kept.</p>
+            <a href="#import-records" className="mt-2 inline-block text-[12.5px] font-medium text-fg underline underline-offset-2">
+              Paste an export
+            </a>
+          </div>
+          <div className="rounded-xl bg-surface p-4 shadow-xs ring-1 ring-inset ring-border">
+            <h3 className="text-[14px] font-medium text-fg">Automate with n8n, Zapier or Make</h3>
+            <p className="mt-1 text-[12.5px] leading-[18px] text-fg-2">Read your playbook or send in accounts from a workflow. Starter files below.</p>
+            <a href="#automations" className="mt-2 inline-block text-[12.5px] font-medium text-fg underline underline-offset-2">
+              See the starters
+            </a>
+          </div>
+        </div>
+      </section>
       {automation.data?.connections.map((connection) => (
         <article key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4">
           <div className="min-w-0">
@@ -193,7 +221,12 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
           </div>
         </article>
       ))}
-      <section className="space-y-4 rounded-xl border border-border bg-surface p-5">
+      <details open={connected || !!discovered || undefined} className="group rounded-xl ring-1 ring-inset ring-border">
+        <summary className="cursor-pointer list-none rounded-xl px-5 py-3.5 hover:bg-bg-subtle/60 [&::-webkit-details-marker]:hidden">
+          <span className="text-[14px] font-medium text-fg">Advanced: connect an MCP server or an OpenAPI tool</span>
+          <span className="mt-0.5 block text-[12.5px] text-fg-3">For tools without a built-in connection. Inroad finds their read-only operations and you map the fields.</span>
+        </summary>
+      <section className="space-y-4 border-t border-border p-5">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-[17px] font-medium">{existing ? `Manage ${discovered!.name}` : "Connect a tool"}</h2>
           {discovered && (
@@ -412,20 +445,28 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
             )}
           </div>
         )}
-        {error && <FieldError>{error}</FieldError>}
-        {message && (
-          <p role="status" className="text-[12px] text-fg-2">
-            {message}
-          </p>
-        )}
-        {output !== undefined && (
-          <>
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[11px]">{JSON.stringify(output, null, 2)}</pre>
-            <ImportMapper key={JSON.stringify(output).slice(0, 500)} data={output} name={name} automation={automation} />
-          </>
-        )}
       </section>
-      <section className="space-y-3 rounded-xl border border-border p-5">
+      </details>
+      {(error || message) && (
+        <div className="-mt-3 px-1">
+          {error && <FieldError>{error}</FieldError>}
+          {message && (
+            <p role="status" className="text-[12px] text-fg-2">
+              {message}
+            </p>
+          )}
+        </div>
+      )}
+      {output !== undefined && (
+        <section className="space-y-3 rounded-xl p-5 ring-1 ring-inset ring-border">
+          <details className="text-[12px] text-fg-3">
+            <summary className="cursor-pointer">Raw response</summary>
+            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[11px]">{JSON.stringify(output, null, 2)}</pre>
+          </details>
+          <ImportMapper key={JSON.stringify(output).slice(0, 500)} data={output} name={name} automation={automation} />
+        </section>
+      )}
+      <section id="import-records" className="scroll-mt-24 space-y-3 rounded-xl p-5 ring-1 ring-inset ring-border">
         <h2 className="text-[16px] font-medium">Import records from another tool</h2>
         <p className="text-[12px] text-fg-3">Paste a JSON export or preview response. CSV imports remain available in Integrations.</p>
         <Textarea aria-label="JSON records to import" rows={5} value={json} onChange={(e) => setJson(e.target.value)} />
@@ -443,7 +484,7 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
           Map JSON records
         </Button>
       </section>
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section id="automations" className="grid scroll-mt-24 gap-3 sm:grid-cols-3">
         {examples.map((example) => (
           <article key={example.name} className="rounded-lg bg-bg-subtle p-4">
             <h3 className="text-[14px] font-medium">{example.name}</h3>

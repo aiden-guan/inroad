@@ -16,7 +16,7 @@ import { useRewritePlaybook } from "@/components/shell/market-switch";
 import { CONSUMER_MODEL_LABELS, MARKET_LABELS, playbookMarket } from "@/lib/consumer/market";
 import type { ConsumerModel, Market } from "@/lib/domain/types";
 import { UpdatesGroup } from "@/components/updates/updates-group";
-import { ChoiceList, Group, Row, SettingsSection } from "./parts";
+import { Advanced, ChoiceList, Group, Row, SettingsSection } from "./parts";
 import { IMAGE_MODELS } from "@/lib/studio/visuals";
 import type { CompanyIcons, Geocoder, NewsSource } from "./types";
 import { useThemePref, type ThemePref, type useSettingsStatus } from "./use-settings";
@@ -149,7 +149,7 @@ function ImagesGroup({ settings }: { settings: Settings }) {
     const problem = await save({ openaiApiKey: null });
     setBusy(null);
     if (problem) toast.error(problem);
-    else toast("OpenAI key removed from this machine.");
+    else toast("OpenAI key removed from this computer.");
   };
 
   const chooseModel = async (id: string) => {
@@ -164,12 +164,10 @@ function ImagesGroup({ settings }: { settings: Settings }) {
     <Skeleton className="mt-1 h-4 w-48" />
   ) : openai.keySource === "settings" ? (
     <>
-      Saved on this machine <span className="font-mono text-[12px] text-fg-2">{openai.keyHint}</span>. Images bill to your OpenAI account.
+      Saved on this computer <span className="font-mono text-[12px] text-fg-2">{openai.keyHint}</span>. Images bill to your OpenAI account.
     </>
   ) : openai.keySource === "env" ? (
-    <>
-      Using <span className="font-mono text-[12px]">OPENAI_API_KEY</span> from your environment. Images bill to that OpenAI account.
-    </>
+    "Using an OpenAI key already set up on this computer. Images bill to that OpenAI account."
   ) : (
     "Optional. Without a key, Studio writes the image prompt for you to paste into ChatGPT, and you upload the result."
   );
@@ -270,10 +268,16 @@ function ImagesGroup({ settings }: { settings: Settings }) {
           </form>
           <FieldError>{error}</FieldError>
           <p id="openai-key-help" className="mt-2 text-[12px] leading-[18px] text-fg-3">
-            Kept only in <span className="font-mono">settings.json</span> on this machine and sent only to OpenAI. OpenAI may ask you to verify your organization before its image
-            models work.
+            Kept only on this computer, in Inroad&apos;s settings, and sent only to OpenAI. OpenAI may ask you to verify your organization before its image models work.
           </p>
         </div>
+      )}
+      {openai?.keySource === "env" && (
+        <Advanced summary="Where this key comes from">
+          <p>
+            Inroad reads <span className="font-mono">OPENAI_API_KEY</span> from the environment it was started in. A key saved here takes priority.
+          </p>
+        </Advanced>
       )}
       {openai?.hasKey && (
         <ChoiceList<string>
@@ -370,7 +374,7 @@ function IconsGroup({ settings }: { settings: Settings }) {
   };
 
   return (
-    <Group id="icons" title="Company icons" hint="A favicon service would see every company on your list, so none is used. Tool logos on Integrations always load.">
+    <Group id="icons" title="Company icons" hint="An outside icon service would see every company on your list, so Inroad doesn't use one. Tool logos on Integrations always load.">
       {status ? (
         <ChoiceList<CompanyIcons>
           name="company-icons"
@@ -420,7 +424,7 @@ function NewsGroup({ settings }: { settings: Settings }) {
     <Group
       id="news"
       title="News signals"
-      hint="Funding, launches and leadership news are why-now signals. I fetch them in code, so they cost no tokens either way."
+      hint="Funding, launches and leadership news are why-now signals. I look them up without AI, so they cost nothing either way."
     >
       {status ? (
         <ChoiceList<NewsSource>
@@ -457,7 +461,7 @@ function PublicDataGroup({ settings }: { settings: Settings }) {
     <Group
       id="public-data"
       title="Public records"
-      hint="SEC Form D filings, Hacker News hiring threads, GitHub and podcasts are read in code, for free. Both of these are optional."
+      hint="SEC funding filings, Hacker News hiring threads, GitHub and podcasts are read without AI, for free. Both of these are optional."
     >
       {status ? (
         <>
@@ -493,7 +497,7 @@ function GithubTokenRow({ settings }: { settings: Settings }) {
     }
     setToken("");
     setOpen(false);
-    toast(value ? "GitHub token saved. GitHub accepted it." : "GitHub token removed from this machine.");
+    toast(value ? "GitHub token saved. GitHub accepted it." : "GitHub token removed from this computer.");
   };
 
   return (
@@ -503,10 +507,10 @@ function GithubTokenRow({ settings }: { settings: Settings }) {
         hint={
           hint ? (
             <>
-              Saved on this machine <span className="font-mono text-[12px] text-fg-2">{hint}</span>. 5,000 lookups an hour, so up to 300 stargazers at once.
+              Saved on this computer <span className="font-mono text-[12px] text-fg-2">{hint}</span>. 5,000 lookups an hour, enough for about 300 people who starred a repo at once.
             </>
           ) : (
-            "Without one GitHub allows 60 lookups an hour, about 50 stargazer profiles. A fine-grained token with no permissions is enough."
+            "Without one, GitHub allows 60 lookups an hour, about 50 profiles of people who starred a repo. A token with no permissions is enough."
           )
         }
       >
@@ -609,7 +613,7 @@ function SecContactRow({ settings }: { settings: Settings }) {
   };
 
   return (
-    <Row label="Contact for SEC lookups" htmlFor="sec-contact" hint="The SEC asks tools that read EDGAR to name a contact. Sent only to sec.gov, with Form D lookups." align="start">
+    <Row label="Contact for SEC lookups" htmlFor="sec-contact" hint="The SEC asks tools that read its filings to name a contact. Sent only to sec.gov, with funding filing (Form D) lookups." align="start">
       <form
         className="flex gap-1.5"
         onSubmit={(e) => {

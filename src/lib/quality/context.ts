@@ -58,7 +58,7 @@ export function recentDraftsFor(ws: Workspace, excludeId: string | null, account
   const out: RecentDraft[] = [];
   for (const pkg of Object.values(ws.outreach)) {
     if (pkg.id === excludeId || pkg.mode !== "cold") continue;
-    const ageDays = daysBetween(pkg.createdAt.slice(0, 10), today);
+    const ageDays = daysBetween(pkg.createdAt, today);
     if (ageDays > 14) continue;
     const s1 = pkg.steps.find((s) => s.step === 1);
     if (!s1 || !s1.body.trim()) continue;

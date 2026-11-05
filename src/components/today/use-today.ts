@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import type { Workspace } from "@/lib/domain/types";
+import { deskSnapshot, type DeskSnapshot } from "@/lib/moves/since";
 
 /** A coarse clock for ages and time-of-day rules. Never read Date.now() during render. */
 export function useClock(intervalMs = 60_000): number {
@@ -140,4 +142,92 @@ export function useReveal(today: string) {
   }, [phase, today]);
 
   return phase;
+}
+
+/* ───────────── Since your last visit ───────────── */
+
+/** A tab away from Today this long starts a new visit. */
+const NEW_VISIT_AFTER_MS = 30 * 60_000;
+const visitKey = (id: string) => `inroad:visit:${id}`;
+const baseKey = (id: string) => `inroad:visit-base:${id}`;
+
+interface StoredVisit {
+  snapshot: DeskSnapshot;
+  leftAt: string;
+}
+
+function readJSON<T>(storage: () => Storage, key: string): T | null {
+  try {
+    const raw = storage().getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJSON(storage: () => Storage, key: string, value: unknown) {
+  try {
+    storage().setItem(key, JSON.stringify(value));
+  } catch {
+    // private mode or a full disk: "since your last visit" falls back to the last 24 hours
+  }
+}
+
+/**
+ * The snapshot Today compares against for "since your last visit": the state when the founder last left Today, kept
+ * per workspace. A reload, or a trip to another page and back within 30 minutes, is the same visit. Everything here
+ * reads and writes from effects, never during render: Next renders prefetched routes in hidden trees, where render
+ * runs but effects wait until the page is shown. `undefined` until read; `null` when there's no earlier visit.
+ */
+/** The base this tab counts from: kept for its session (reloads, other pages), else the end of the last visit. Read only. */
+function visitBase(id: string): DeskSnapshot | null {
+  const stored = readJSON<StoredVisit>(() => localStorage, visitKey(id));
+  const kept = readJSON<{ base: DeskSnapshot | null }>(() => sessionStorage, baseKey(id));
+  const away = stored ? Date.now() - Date.parse(stored.leftAt) : Infinity;
+  if (kept && away < NEW_VISIT_AFTER_MS) return kept.base;
+  return stored?.snapshot ?? null;
+}
+
+export function useSinceLastVisit(ws: Workspace): { base: DeskSnapshot | null | undefined; markSeen: () => void } {
+  const id = ws.createdAt;
+  // Reading storage is fine during render; every write below happens in an effect or a handler.
+  const [base, setBase] = useState<DeskSnapshot | null | undefined>(() => (typeof window === "undefined" ? undefined : visitBase(id)));
+  const wsRef = useRef(ws);
+  useEffect(() => {
+    wsRef.current = ws;
+  });
+
+  useEffect(() => {
+    const local = () => localStorage;
+    const session = () => sessionStorage;
+    // This tab keeps counting from the same base through reloads and trips to other pages.
+    writeJSON(session, baseKey(id), { base: visitBase(id) });
+    const save = () => writeJSON(local, visitKey(id), { snapshot: deskSnapshot(wsRef.current, new Date()), leftAt: new Date().toISOString() } satisfies StoredVisit);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") return save();
+      // Back after a long time away: a new visit, measured from when they left.
+      const last = readJSON<StoredVisit>(local, visitKey(id));
+      if (last && Date.now() - Date.parse(last.leftAt) >= NEW_VISIT_AFTER_MS) {
+        writeJSON(session, baseKey(id), { base: last.snapshot });
+        setBase(last.snapshot);
+      }
+    };
+    const every = setInterval(() => document.visibilityState === "visible" && save(), 60_000);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", save);
+    return () => {
+      clearInterval(every);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", save);
+      save();
+    };
+  }, [id]);
+
+  const markSeen = useCallback(() => {
+    const now = deskSnapshot(wsRef.current, new Date());
+    writeJSON(() => sessionStorage, baseKey(id), { base: now });
+    setBase(now);
+  }, [id]);
+
+  return { base, markSeen };
 }

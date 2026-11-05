@@ -61,7 +61,7 @@ export function CampaignLibrary({
   return (
     <section aria-labelledby="campaign-library-title">
       <div className="mb-7 max-w-[70ch]">
-        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
+        <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
           The campaign playbook
         </p>
         <h2
@@ -160,7 +160,7 @@ export function CampaignLibrary({
                 onOpen={() => open(campaign)}
               />
               <div className="flex flex-1 flex-col p-5">
-                <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                <div className="flex items-baseline justify-between gap-3 text-[12px]">
                   <p className="font-semibold text-fg">{campaign.brand}</p>
                   <p className="shrink-0 text-fg-3">
                     {campaign.study?.year ?? "Current reference"}
@@ -174,7 +174,7 @@ export function CampaignLibrary({
                 </p>
                 <div className="mt-auto pt-5">
                   <div className="mb-4 border-y border-border py-3">
-                    <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-fg-3">
+                    <p className="mb-1 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                       {EVIDENCE_LABELS[campaign.evidence]}
                     </p>
                     <p className="text-[13px] leading-5 text-fg">
@@ -189,7 +189,7 @@ export function CampaignLibrary({
                     </p>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-[11px] text-fg-3">
+                    <p className="text-[12px] text-fg-3">
                       {campaign.study?.playbooks[0] &&
                         PLAYBOOKS[campaign.study.playbooks[0]]}
                     </p>
@@ -215,7 +215,7 @@ export function CampaignLibrary({
           action={<Button onClick={reset}>Clear filters</Button>}
         />
       )}
-      <p className="mt-6 max-w-[78ch] text-[11px] leading-[18px] text-fg-3">
+      <p className="mt-6 max-w-[78ch] text-[12px] leading-[18px] text-fg-3">
         Reported outcomes retain their source and measurement window. The
         explanations are our creative analysis, not controlled tests of
         individual techniques. Older launches and incomplete records are
@@ -280,7 +280,7 @@ function Evidence({ campaign }: { campaign: Campaign }) {
       aria-label="Results and evidence"
       className="rounded-lg bg-bg-subtle p-5"
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
         {EVIDENCE_LABELS[campaign.evidence]}
       </p>
       {campaign.evidence !== "reference" && (
@@ -295,7 +295,7 @@ function Evidence({ campaign }: { campaign: Campaign }) {
         {campaign.study?.resultScope ?? campaign.result.detail}
       </p>
       <div className="mt-4 border-t border-border pt-4">
-        <p className="text-[11px] font-semibold text-fg">What this tells us</p>
+        <p className="text-[12px] font-semibold text-fg">What this tells us</p>
         <p className="mt-1 text-[12px] leading-5 text-fg-2">
           {campaign.caveat}
         </p>
@@ -365,10 +365,12 @@ function StudyBody({
     <>
       <div
         ref={tabList}
-        className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-border bg-surface-raised px-2 py-2 sm:px-4"
+        className="sticky top-0 z-10 overflow-x-auto border-b border-border bg-surface-raised px-2 py-2 scrollbar-none sm:px-4"
         role="tablist"
         aria-label="Campaign study sections"
       >
+        {/* The app's segmented tabs (Companies, an event), so Studio's sections look like every other set of tabs. */}
+        <div className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle p-1 ring-1 ring-inset ring-border">
         {tabs.map((item) => (
           <button
             key={item.id}
@@ -399,18 +401,19 @@ function StudyBody({
               document.getElementById(`study-tab-${tabs[next].id}`)?.focus();
             }}
             className={cn(
-              "shrink-0 rounded-md px-2 py-2 text-[12px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:px-3 sm:text-[13px]",
+              "inline-flex h-8 shrink-0 items-center rounded-md px-2 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:px-3 sm:text-[13px]",
               tab === item.id
-                ? "bg-bg-subtle text-fg"
-                : "text-fg-3 hover:text-fg",
+                ? "bg-surface text-fg shadow-xs ring-1 ring-inset ring-border-strong/60"
+                : "text-fg-3 hover:text-fg-2",
             )}
           >
             {item.label}
           </button>
         ))}
+        </div>
       </div>
       <div className="p-5 sm:p-7">
-        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-3">
+        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-3">
           <span>{study.year ?? "Date not published"}</span>
           <span aria-hidden>·</span>
           <span>{study.market}</span>
@@ -430,7 +433,7 @@ function StudyBody({
               </div>
               <div className="my-7 grid gap-5 border-y border-border py-5 sm:grid-cols-2">
                 <div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-fg-3">
+                  <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                     The objective
                   </h3>
                   <p className="mt-2 text-[14px] leading-6 text-fg">
@@ -438,7 +441,7 @@ function StudyBody({
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-fg-3">
+                  <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                     The audience
                   </h3>
                   <p className="mt-2 text-[14px] leading-6 text-fg">
@@ -474,7 +477,7 @@ function StudyBody({
           )}
           {tab === "why" && (
             <>
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-fg-3">
+              <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                 The strategic breakdown
               </p>
               <h3 className="font-serif text-[28px] leading-9 text-fg">
@@ -491,7 +494,7 @@ function StudyBody({
                 numbered
               />
               <div className="my-7 border-y border-border py-5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-3">
+                <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                   Look for this in the creative
                 </p>
                 <p className="mt-2 text-[14px] leading-6 text-fg">
@@ -516,7 +519,7 @@ function StudyBody({
           )}
           {tab === "adapt" && (
             <>
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-fg-3">
+              <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                 Borrow the structure
               </p>
               <h3 className="font-serif text-[28px] leading-9 text-fg">
@@ -594,7 +597,7 @@ function StudyBody({
               </li>
             ))}
           </ol>
-          <p className="mt-5 text-[11px] text-fg-3">
+          <p className="mt-5 text-[12px] text-fg-3">
             Sources reviewed {campaign.reviewedAt}. Original media remains
             subject to publisher availability.
           </p>
@@ -625,7 +628,7 @@ export function CampaignDetails({
         campaign ? (
           <div className="flex min-w-0 items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-fg-3">
+              <p className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3">
                 {campaign.brand} · Case study
               </p>
               <h2 className="mt-1 truncate font-serif text-[20px] leading-6 text-fg">

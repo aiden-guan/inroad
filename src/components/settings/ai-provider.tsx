@@ -8,17 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/misc";
+import { Select } from "@/components/ui/select";
 import type { ModelTier } from "@/lib/ai/models";
 import { providerById, PROVIDERS, type ProviderId } from "@/lib/ai/providers";
 import { forgetActiveProvider } from "@/lib/client/ai-provider";
-import { Group, Row } from "./parts";
+import { Advanced, Group, Row } from "./parts";
 import type { AiStatus } from "./types";
 import type { SettingsUpdate, useSettingsStatus } from "./use-settings";
 
 type Settings = ReturnType<typeof useSettingsStatus>;
 
-const selectClass =
-  "h-8 w-full min-w-0 rounded-sm bg-surface px-2 text-[13px] text-fg ring-1 ring-border-strong/70 transition-shadow hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-60";
+const selectClass = "h-8 w-full";
 
 const short = (id: ProviderId) => providerById(id)!.name.replace(/ \(.*\)$/, "");
 
@@ -71,7 +71,7 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
       </>
     );
   } else if (active && status.keySource === "env") {
-    summary = active.id === "ollama" ? `${active.models.operator}, running on this computer.` : `Using the ${short(active.id)} key from your environment variables. A key saved here takes priority.`;
+    summary = active.id === "ollama" ? `${active.models.operator}, running on this computer.` : `Using a ${short(active.id)} key already set up on this computer. A key saved here takes priority.`;
   } else if (ai.chosen && ai.saved[ai.chosen] && !active) {
     summary = `${short(ai.chosen)} needs a model picked before it can work.`;
   } else {
@@ -138,7 +138,12 @@ export function AiProviderGroup({ settings }: { settings: Settings }) {
           </div>
         )}
       </Row>
-      {confirmRemove && <p className="px-4 py-2.5 text-[12.5px] text-fg-2">Without a key, research and drafting stop until you add one again. Runs already going will finish.</p>}
+      {confirmRemove && <p className="px-5 py-3 text-[12.5px] text-fg-2">Without a key, research and drafting stop until you add one again. Runs already going will finish.</p>}
+      {!open && active && !active.connectionId && status?.keySource === "env" && active.id !== "ollama" && (
+        <Advanced summary="Where this key comes from">
+          <p>Inroad found this key in the environment it was started in (an environment variable), so nothing is saved here. Paste a key under Change to save one instead.</p>
+        </Advanced>
+      )}
       {open && ai && (
         <ConnectForm
           ai={ai}
@@ -223,14 +228,14 @@ function ConnectForm({ ai, save, canCancel, onCancel, onSaved }: { ai: AiStatus;
       }}
     >
       <div className="grid gap-2 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
-        <select id={`${id}-p`} aria-label="AI provider" value={form.provider} onChange={(e) => form.setProvider(e.target.value as ProviderId)} className={selectClass}>
+        <Select id={`${id}-p`} aria-label="AI provider" value={form.provider} onChange={(e) => form.setProvider(e.target.value as ProviderId)} className={selectClass}>
           {PROVIDERS.filter((p) => p.id !== "cloudflare" && p.id !== "vercel").map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
               {ai.saved[p.id] ? ` · saved ${ai.saved[p.id]!.hint}` : ""}
             </option>
           ))}
-        </select>
+        </Select>
         {preset.needsKey && (
           <Input
             ref={input}
@@ -238,7 +243,7 @@ function ConnectForm({ ai, save, canCancel, onCancel, onSaved }: { ai: AiStatus;
             type="password"
             autoComplete="off"
             spellCheck={false}
-            placeholder={saved ? `Saved ${saved.hint}. Paste a new key to replace it` : fromEnv ? "Using the key from your environment. Paste one to save it here" : preset.placeholder}
+            placeholder={saved ? `Saved ${saved.hint}. Paste a new key to replace it` : fromEnv ? "Using the key already on this computer. Paste one to save it here" : preset.placeholder}
             aria-label={`${short(form.provider)} API key`}
             aria-invalid={!!form.error}
             aria-describedby={`${id}-help`}
@@ -304,13 +309,13 @@ function ModelRows({ ai, run, busy }: { ai: AiStatus; run: (label: string, body:
       <Row label="Model" htmlFor={`${id}-m`} hint={ai.available.length ? `Runs everything unless you split it by task. ${ai.available.length} chat models are open to your key.` : "Type the model's name as your provider writes it."} align="start">
         <div className="flex gap-1.5">
           {ai.available.length ? (
-            <select id={`${id}-m`} value={main} disabled={busy === "model"} onChange={(e) => void run("model", { ai: { provider: active.id, model: e.target.value } }, `Using ${e.target.value}.`)} className={selectClass}>
+            <Select id={`${id}-m`} value={main} disabled={busy === "model"} onChange={(e) => void run("model", { ai: { provider: active.id, model: e.target.value } }, `Using ${e.target.value}.`)} className={selectClass}>
               {options.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
-            </select>
+            </Select>
           ) : (
             <Input
               id={`${id}-m`}
@@ -331,7 +336,7 @@ function ModelRows({ ai, run, busy }: { ai: AiStatus; run: (label: string, body:
             {TIERS.map(({ tier, label }) => (
               <label key={tier} className="flex flex-col gap-1 text-[12px] text-fg-2">
                 {label}
-                <select
+                <Select
                   value={ai.models[tier] ?? ""}
                   disabled={busy === `tier-${tier}`}
                   onChange={(e) => void run(`tier-${tier}`, { ai: { provider: active.id, models: { [tier]: e.target.value || null } } })}
@@ -343,7 +348,7 @@ function ModelRows({ ai, run, busy }: { ai: AiStatus; run: (label: string, body:
                       {m}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             ))}
           </div>

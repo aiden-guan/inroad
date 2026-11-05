@@ -90,7 +90,7 @@ export function DataSection({
           label={
             <span className="flex items-center gap-2">
               <HardDrive className="size-3.5 text-fg-3" aria-hidden />
-              Data stays on this machine
+              Data stays on this computer
             </span>
           }
           hint="What leaves it: calls to your AI provider with the context a task needs (none with Ollama), and free public lookups that carry company names and domains (and place names for the map, unless you turn that off in Data sources). Connected tools get only what you push to them."
@@ -110,11 +110,18 @@ export function DataSection({
             )}
           </div>
           {dataDirInApp && (
-            <p className="mt-2 text-[12px] leading-[17px] text-fg-3 text-pretty">
-              <span className="font-medium text-warning">This is inside Inroad&apos;s own folder,</span> so deleting or re-cloning Inroad deletes your data
-              with it. To keep it safe, start Inroad with <span className="font-mono text-[11.5px] text-fg-2">GTM_DATA_DIR</span> set to a folder of its
-              own; the README shows how.
-            </p>
+            <div className="mt-2 text-[12px] leading-[17px] text-fg-3 text-pretty">
+              <p>
+                <span className="font-medium text-warning">This is inside Inroad&apos;s own folder,</span> so deleting or reinstalling Inroad deletes your data with it. Move it
+                to a folder of its own to keep it safe.
+              </p>
+              <details className="mt-1.5">
+                <summary className="w-fit cursor-pointer rounded-xs text-fg-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]">How to move it</summary>
+                <p className="mt-1">
+                  Start Inroad with <span className="font-mono text-fg-2">GTM_DATA_DIR</span> set to the new folder. The README shows how.
+                </p>
+              </details>
+            </div>
           )}
         </div>
       </Group>
@@ -248,7 +255,7 @@ function WorkspaceActions({ ws, refresh }: { ws: Workspace; refresh: () => Promi
 
       {!ws.sample && (
         <div>
-          <Row label="Reset workspace" hint="Clears your playbook, companies, deals, drafts and history on this machine, after saving a backup. Your API key and connected tools stay.">
+          <Row label="Reset workspace" hint="Clears your playbook, companies, deals, drafts and history on this computer, after saving a backup. Your API key and connected tools stay.">
             <div className="flex sm:justify-end">
               <Button
                 variant="danger"

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { sampleWorkspace } from "@/lib/sample";
 import { DATA_DIR } from "@/lib/store/settings";
 import { readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
@@ -12,17 +12,25 @@ import type { Scope } from "./types";
 /**
  * The MCP endpoint end to end: a real key store and workspace in this file's temp data folder
  * (see src/test/setup.ts), requests built the way an MCP client sends them.
+ * The tools read the clock (the forecast's cutoff, "today" for intros and plays), so the clock is pinned to
+ * the day the sample is built for: the suite reads the same on any date it runs.
  */
 
 const tokens: Record<"read" | "records" | "drafts", string> = { read: "", records: "", drafts: "" };
 
 beforeAll(async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   expect(DATA_DIR).toBe(process.env.GTM_DATA_DIR);
   await replaceWorkspace(sampleWorkspace(NOW));
   const make = async (name: string, scopes: Scope[]) => (await createKey({ name, client: "other", scopes })).token;
   tokens.read = await make("Reader", ["read"]);
   tokens.records = await make("Muse", ["write_records"]);
   tokens.drafts = await make("Claude", ["write_records", "submit_drafts"]);
+});
+
+afterAll(() => {
+  vi.useRealTimers();
 });
 
 interface RpcReply {
@@ -338,7 +346,8 @@ describe("consumer tools", () => {
     expect(r.result?.structuredContent).toEqual({ added: 1, updated: 0 });
     const again = await call("add_partners", { source: "modash", partners: [{ ...partners[0], handle: "@Maya.Runs" }] }, tokens.records);
     expect(again.result?.structuredContent).toEqual({ added: 0, updated: 1 });
-    const added = Object.values(readWorkspace().partners ?? {});
+    // The sample workspace has partners of its own; these are the ones the tool wrote.
+    const added = Object.values(readWorkspace().partners ?? {}).filter((p) => p.source === "integration");
     expect(added).toHaveLength(1);
     expect(added[0]).toMatchObject({ handle: "@maya.runs", followers: 18200, stage: "shortlist", source: "integration" });
     // A read-only key can't write.

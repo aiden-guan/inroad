@@ -54,23 +54,26 @@ describe("moves on the sample workspace", () => {
         "mv_prep_mtg_lumenwire_checkin today.meeting_prep 126 2026-10-20",
         "mv_reply_act_034 today.reply 120 2026-10-20",
         "mv_nextstep_deal_rowanstack_2026-10-18 today.next_step 107.5 2026-10-20",
+        "mv_reply_act_sam_referral today.reply 105 2026-10-20",
         "mv_replies_2026-10-20 today.check_replies 92 2026-10-20",
         "mv_signal_glassmoor.example_sig_gm_job today.signal 73 2026-10-20",
         "mv_signal_hollowpine.example_sig_hp_job today.signal 73 2026-10-20",
-        "mv_nextstep_deal_saltmarsh_none today.next_step 71.5 2026-10-20",
+        "mv_remind_act_020 today.remind 72.6 2026-10-20",
         "mv_followup_pkg_driftglass_cold_2 today.follow_up 70 2026-10-20",
         "mv_event_nearby_evt_nyc_dinner today.event_nearby 60 2026-10-20",
         "mv_intro_intro_ines_cinderpath_nudge today.intro_nudge 58.7 2026-10-20",
-        "mv_connector_con_claire_donovan_2026-10-19 today.intro_draft 58 2026-10-20",
+        "mv_introdraft_pkg_ashgrove_intro today.intro_draft 58 2026-10-20",
         "mv_review_monday_2026-10-19 today.review_monday 56 2026-10-20",
-        "mv_signal_fernwick.example_sig_fw_jd today.cold_draft 55 2026-10-21",
+        "mv_signal_fernwick.example_sig_fw_jd today.cold_draft 55 2026-10-20",
         "mv_play_closed_lost_revisit_deal_larkspur today.play 50 2026-10-21",
         "mv_li_pkg_bramblecast_linkedin today.linkedin 50 2026-10-21",
         "mv_research_ashgrove.example today.research 50 2026-10-21",
         "mv_research_bramblecast.example today.research 50 2026-10-21",
         "mv_research_glassmoor.example today.research 50 2026-10-21",
+        "mv_play_cp_revops_hire_tallyhook.example_sig_th_jd today.play 50 2026-10-21",
         "mv_review_monthly_2026-10 today.review_monthly 46 2026-10-21",
         "mv_play_lookalike_quayside.example today.play 44 2026-10-21",
+        "mv_reply_act_030 today.reply 40 2026-10-20",
         "mv_questions_fq_soc2 today.questions 35 2026-10-21",
         "mv_discover_2026-10-19 today.discover 28 2026-10-21",
       ]
@@ -88,30 +91,35 @@ describe("moves on the sample workspace", () => {
     expect(moves.map((m) => m.priority)).toEqual([...moves.map((m) => m.priority)].sort((a, b) => b - a));
   });
 
-  it(`keeps at most ${DAILY_OPEN_MAX} open moves today and moves the overflow to tomorrow`, () => {
-    const today = moves.filter((m) => m.dueOn === TODAY);
+  it(`keeps at most ${DAILY_OPEN_MAX} open moves today, replies aside, and moves the overflow to tomorrow`, () => {
+    const lane = moves.filter((m) => m.kind === "reply");
+    const today = moves.filter((m) => m.dueOn === TODAY && m.kind !== "reply");
     const tomorrow = moves.filter((m) => m.dueOn === day(1));
     expect(today).toHaveLength(DAILY_OPEN_MAX);
-    expect(today.length + tomorrow.length).toBe(moves.length);
+    // Replies sit in their own lane and never wait for tomorrow because the desk is full.
+    expect(lane.length).toBeGreaterThan(0);
+    expect(lane.every((m) => m.dueOn === TODAY)).toBe(true);
+    expect(today.length + lane.length + tomorrow.length).toBe(moves.length);
     expect(Math.min(...today.map((m) => m.priority))).toBeGreaterThanOrEqual(Math.max(...tomorrow.map((m) => m.priority)));
-    expect(visibleMoves(mergeMoves({}, moves, TODAY), TODAY)).toHaveLength(DAILY_OPEN_MAX);
+    expect(visibleMoves(mergeMoves({}, moves, TODAY), TODAY)).toHaveLength(DAILY_OPEN_MAX + lane.length);
   });
 
   it("frees a slot for each move the founder finishes or skips", () => {
     const s = sampleWorkspace(NOW);
     s.moves = mergeMoves({}, computeMoves(s, NOW), TODAY);
-    const [a, b, c] = visibleMoves(s.moves, TODAY);
+    const desk = (list: Move[]) => list.filter((m) => m.kind !== "reply");
+    const [a, b, c] = desk(visibleMoves(s.moves, TODAY));
     applyAction(s, { type: "move.done", id: a.id });
     applyAction(s, { type: "move.done", id: b.id });
     applyAction(s, { type: "move.skip", id: c.id, reason: "not_relevant_now" });
     s.moves = mergeMoves(s.moves, computeMoves(s, NOW), TODAY);
     const visible = visibleMoves(s.moves, TODAY);
-    expect(visible).toHaveLength(DAILY_OPEN_MAX);
+    expect(desk(visible)).toHaveLength(DAILY_OPEN_MAX);
     expect(ids(visible)).not.toContain(a.id);
     expect(s.moves[a.id].status).toBe("done");
     expect(s.moves[c.id]).toMatchObject({ status: "skipped", skipReason: "not_relevant_now" });
     // The first three that overflowed this morning moved up into today.
-    expect(ids(visible)).toEqual(expect.arrayContaining(ids(moves.slice(DAILY_OPEN_MAX, DAILY_OPEN_MAX + 3))));
+    expect(ids(visible)).toEqual(expect.arrayContaining(ids(desk(moves).slice(DAILY_OPEN_MAX, DAILY_OPEN_MAX + 3))));
   });
 
   it("after 16:30 folds the missing-next-step cards into one close-out", () => {
@@ -172,13 +180,21 @@ describe("move rules", () => {
       expect(m.why).toBe("Positive · replied 2d ago");
     });
 
-    it("skips replies that were answered, out-of-office, older than 14 days, or already on a webhook card", () => {
+    it("skips replies that were answered, older than 14 days, or already on a webhook card", () => {
       const answered = pipeline({ activities: [reply(), makeActivity("act_t", { kind: "touch_sent", personId: "per_ana", at: at(-1) })] });
       expect(ofRule(computeMoves(answered, NOW), "reply")).toEqual([]);
-      expect(ofRule(computeMoves(pipeline({ activities: [reply({ sentiment: "ooo" })] }), NOW), "reply")).toEqual([]);
       expect(ofRule(computeMoves(pipeline({ activities: [reply({ at: at(-15) })] }), NOW), "reply")).toEqual([]);
       const inbound = makeMove("mv_inbound", { rule: "inbound.reply", kind: "reply", activityId: "act_r", status: "done" });
       expect(ofRule(computeMoves(pipeline({ activities: [reply()], moves: { mv_inbound: inbound } }), NOW), "reply")).toEqual([]);
+    });
+
+    it("gives an out-of-office a quiet row to hold follow-ups, until they're back", () => {
+      const ooo = (patch = {}) => ofRule(computeMoves(pipeline({ activities: [reply({ sentiment: "ooo", body: undefined, ...patch })] }), NOW), "reply");
+      expect(ooo()).toEqual([expect.objectContaining({ id: "mv_reply_act_r", title: "Ana is out of office", priority: 40, why: "Auto-reply 2d ago · hold your follow-ups" })]);
+      // Their own words name the day they're back.
+      expect(ooo({ sentiment: undefined, body: "I'm out of the office until Friday." })[0].title).toBe(`Ana is out until Oct 23`);
+      expect(ooo({ sentiment: undefined, body: "Out of office until Monday, October 19." })).toEqual([]);
+      expect(ooo({ at: at(-8) })).toEqual([]);
     });
 
     it("tells the founder to stop when someone unsubscribes", () => {

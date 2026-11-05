@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { syncCalendar } from "@/lib/calendar/sync";
 import { connectorFor } from "@/lib/connectors";
 import { BOOKING_IDS, CONNECTORS, CRM_IDS, SEQUENCER_IDS, isBooking, type BookingId, type CrmId, type SequencerId } from "@/lib/connectors/catalog";
 import type { ConnectorConfig, ConnectorError, CrmChanges, PollCursor } from "@/lib/connectors/types";
@@ -29,11 +30,14 @@ import { mutateHub, readHub, type HubState } from "./store";
  *   the CRM's amount and close date; a stage that differs becomes a question for the founder,
  *   because Inroad never changes a stage by itself.
  *
+ * - The founder's calendar (a private iCal address): every 15 minutes, through src/lib/calendar/sync.ts,
+ *   which hands meetings with companies to the same booking path.
+ *
  * Runs while the app is open (client timer, POST /api/integrations/poll) and before Today prepares.
  * Each connector keeps its own cursor and cadence in hub.json; one poll runs at a time.
  */
 
-type PolledId = SequencerId | CrmId | BookingId;
+type PolledId = SequencerId | CrmId | BookingId | "calendar";
 
 /** Minimum gap between polls, from the rate limits in research 06. */
 const EVERY_MS: Record<PolledId, number> = {
@@ -49,6 +53,8 @@ const EVERY_MS: Record<PolledId, number> = {
   // A poll makes 1–21 calls (Calendly reads each changed booking's invitees); Cal.com allows 120 a minute.
   calendly: 5 * 60_000,
   calcom: 5 * 60_000,
+  // One GET of the whole feed; Google refreshes secret addresses every few hours at best.
+  calendar: 15 * 60_000,
 };
 const BACKOFF_MS: Partial<Record<ConnectorError["code"], number>> = { rate_limited: 10 * 60_000, auth: 30 * 60_000, forbidden: 30 * 60_000, plan: 6 * 60 * 60_000 };
 const DEFAULT_BACKOFF_MS = 5 * 60_000;
@@ -89,6 +95,7 @@ export function dueConnectors(ws: Workspace, hub: HubState, now: number, force =
     if (due(id)) out.push(id);
   }
   for (const id of CRM_IDS) if (ws.integrations[id]?.enabled && due(id)) out.push(id);
+  if (ws.integrations.calendar?.enabled && due("calendar")) out.push("calendar");
   return out;
 }
 
@@ -109,7 +116,7 @@ async function pollDue({ force = false }: { force?: boolean }): Promise<PollResu
   const out: PollResult[] = [];
   for (const id of ids) {
     try {
-      out.push(CRM_IDS.includes(id as CrmId) ? await pollCrm(id as CrmId) : await pollSequencer(id as SequencerId | BookingId));
+      out.push(id === "calendar" ? await pollCalendar() : CRM_IDS.includes(id as CrmId) ? await pollCrm(id as CrmId) : await pollSequencer(id as SequencerId | BookingId));
     } catch (err) {
       console.error("[poll]", id, err);
       await record(id, { ok: false, message: err instanceof Error ? err.message : "Polling failed." });
@@ -137,6 +144,25 @@ async function record(id: PolledId, r: { ok: true; cursor: PollCursor; summary?:
       if (st) st.lastError = { at, message: r.message };
     });
   }
+  // Working again (a new key, a fixed address, the tool back up): it no longer needs attention.
+  if (r.ok && readWorkspace().integrations[id]?.lastError) {
+    await mutateWorkspace((ws) => {
+      const st = ws.integrations[id];
+      if (st) delete st.lastError;
+    });
+  }
+}
+
+/** The founder's calendar: read, decided and applied in src/lib/calendar/sync.ts. */
+async function pollCalendar(): Promise<PollResult> {
+  const r = await syncCalendar();
+  if (!r.ok) {
+    // An address that returns something other than a calendar needs the founder, like one that's refused.
+    await record("calendar", { ok: false, message: r.message, code: r.code === "validation" ? "auth" : r.code });
+    return { id: "calendar", ok: false, changed: false, summary: r.message };
+  }
+  await record("calendar", { ok: true, cursor: {}, summary: r.summary });
+  return { id: "calendar", ok: true, changed: r.changed, summary: r.summary };
 }
 
 const batchKey = (events: unknown[]) => `poll:${createHash("sha256").update(JSON.stringify(events)).digest("hex").slice(0, 32)}`;

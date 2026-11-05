@@ -34,7 +34,7 @@ function TaskRow({ ev, task, index }: { ev: GtmEvent; task: TimelineTask; index:
       </button>
       <div className="min-w-0 flex-1">
         <p className={cn("text-[13.5px] leading-5", task.done ? "text-fg-3 line-through decoration-fg-4" : "text-fg")}>{task.task}</p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-fg-3">
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-fg-3">
           <span className="font-mono">{task.offset}</span>
           {task.owner !== "founder" && <Badge tone={task.owner === "ember" ? "agent" : "outline"}>{OWNER[task.owner]}</Badge>}
         </p>

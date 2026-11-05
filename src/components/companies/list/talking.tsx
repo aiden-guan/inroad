@@ -72,10 +72,13 @@ export function Talking({
   const commit = (id: string, to: Stage, extra: { lossReason?: LossReason } = {}) => {
     const d = ws.deals[id];
     if (!d || d.stage === to) return;
-    const from = d.stage;
-    void dispatch({ type: "deal.setStage", id, stage: to, at: nowISO(), ...extra });
+    const at = nowISO();
+    // Undo reverts this move (and drops its history entry) instead of recording a second one: days in stage
+    // and the pipeline's stage history never see a move that was taken back.
+    const previous = { stage: d.stage, lossReason: d.lossReason, nurtureUntil: d.nurtureUntil, updatedAt: d.updatedAt, lastActivityAt: d.lastActivityAt, accountStatus: ws.accounts[d.accountDomain]?.status };
+    void dispatch({ type: "deal.setStage", id, stage: to, at, ...extra });
     toast(`Moved ${nameOf(d)} to ${STAGE_LABELS[to]}`, {
-      action: { label: "Undo", onClick: () => void dispatch({ type: "deal.setStage", id, stage: from, at: nowISO() }) },
+      action: { label: "Undo", onClick: () => void dispatch({ type: "deal.revertStage", id, stage: to, at, previous }) },
     });
   };
 

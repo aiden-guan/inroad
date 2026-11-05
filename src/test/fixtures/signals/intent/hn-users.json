@@ -1,0 +1,22 @@
+{
+ "fixture_jlindgren": {
+  "about": "Controller at <a href=\"https:&#x2F;&#x2F;quayside.example\" rel=\"nofollow\">quayside.example</a>. Ex-auditor.",
+  "karma": 412,
+  "username": "fixture_jlindgren"
+ },
+ "fixture_nkoval": {
+  "about": "Head of Finance Ops at pebblecart.example. Spreadsheets are my love language.",
+  "karma": 88,
+  "username": "fixture_nkoval"
+ },
+ "fixture_mkessler": {
+  "about": "Bug fixer.",
+  "karma": 1570,
+  "username": "fixture_mkessler"
+ },
+ "fixture_odalys": {
+  "about": "",
+  "karma": 23,
+  "username": "fixture_odalys"
+ }
+}

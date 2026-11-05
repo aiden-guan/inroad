@@ -53,7 +53,7 @@ All four screens show the built-in sample workspace: Ledgerline and every person
 
 | Today's Moves | Sourced Deal Dossiers |
 | :--- | :--- |
-| **Five moves a day, ranked**<br/>Reply checks, deal reviews, touch approvals and closeouts are scored from 78 rule types in [`src/lib/moves/rules.ts`](src/lib/moves/rules.ts). The top five (`TOP_MOVES = 5`) arrive with ready-to-send copy. | **Every claim has a source**<br/>Angles, pains and qualification hypotheses link to source URLs and dates. Inferences are labeled as unconfirmed bets. |
+| **Five moves a day, ranked**<br/>Reply checks, deal reviews, touch approvals and closeouts are scored from 78 rule types in [`src/lib/moves/rules.ts`](src/lib/moves/rules.ts). The top five (`TOP_MOVES = 5`) arrive with ready-to-send copy. A replies lane takes one-key actions; skips lower a persona or signal for 30 days, each listed with Undo. | **Every claim has a source**<br/>Angles, pains and qualification hypotheses link to source URLs and dates. Inferences are labeled as unconfirmed bets. |
 
 | Warm Intro State Machine | Deterministic Signal Radar |
 | :--- | :--- |
@@ -68,6 +68,16 @@ All four screens show the built-in sample workspace: Ledgerline and every person
 | Deal Inspection | Metrics & Weekly Priorities |
 | :--- | :--- |
 | **Every risk with its fix**<br/>Slips, overdue or unconfirmed next steps, thin threading, no economic buyer, stalls and silence are flagged against research-backed thresholds, each with a one-click fix. A weekly update for the CEO or board uses a numbers table built in code. | **Read-only PostHog, Stripe and Polar syncs**<br/>Metrics refresh every 15 minutes while the app is open. An initiative captures its baseline and tracks progress automatically. Pipeline creation and stage progression show their denominators. See [business metrics](docs/business-metrics.md) and [GTM execution](docs/gtm-execution.md). |
+
+### Capture & learn
+
+| Calendar & Call Capture | Research Columns |
+| :--- | :--- |
+| **Meetings and calls fill themselves in**<br/>Paste a private iCal address, and each external meeting is matched to its company and deal, prepped before the call, and followed when it moves or is canceled. Drop a Zoom, Meet, Teams, Fathom, Granola or Otter transcript, and the debrief is drafted from verbatim quotes. | **One question, every company**<br/>On Companies, **+ Column** asks each prospect one question ("Do they bill on usage?"). It runs five first and shows the measured cost before running the rest. Every answer keeps its source, quote and date, and an unsupported answer stays Unknown. Views save as tabs. |
+
+| Plays in Your Own Words | Buyer Voice & Intent |
+| :--- | :--- |
+| **A sentence becomes a recipe**<br/>Describe a play, and Inroad turns it into an editable recipe. It dry-runs the recipe on today's accounts, with the reasons it skipped others, and backtests it against your won and lost deals before you turn it on. | **What buyers say, and who's asking**<br/>Playbook → Buyer voice counts objections, pains and competitors across calls and replies, with quotes and the win rate when each came up. Research → Intent finds people on Hacker News, Stack Exchange, GitHub and Reddit asking for what you sell, with a reply draft you post yourself. |
 
 ### Market & research
 

@@ -1,7 +1,8 @@
 import { connection } from "next/server";
+import { errorResponse, jsonText } from "@/lib/server/http";
 import { ensureStarted } from "@/lib/server/startup";
 import { ensureDailySnapshot } from "@/lib/store/backup";
-import { publicWorkspace, readWorkspace } from "@/lib/store/workspace";
+import { publicWorkspaceJSON } from "@/lib/store/workspace";
 
 export async function GET() {
   await connection();
@@ -13,5 +14,11 @@ export async function GET() {
   } catch (err) {
     console.warn("[backup] Daily backup failed:", err instanceof Error ? err.message : err);
   }
-  return Response.json(publicWorkspace(readWorkspace()), { headers: { "Cache-Control": "no-store" } });
+  try {
+    // Serialized once per save, not once per load (every window focus and finished run reloads it).
+    return jsonText(publicWorkspaceJSON(), { headers: { "Cache-Control": "no-store" } });
+  } catch (err) {
+    // A workspace.json that can't be read: say why in JSON, not an HTML error page the client can't parse.
+    return errorResponse(err);
+  }
 }

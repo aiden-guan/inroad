@@ -1,4 +1,5 @@
 import { isConsumer } from "@/lib/consumer/market";
+import { localDay } from "@/lib/domain/ids";
 import type { IntegrationState, Workspace } from "@/lib/domain/types";
 import { METRIC_PROVIDERS } from "@/lib/metrics/catalog";
 import { METRIC_PROVIDER_IDS, type BusinessMetric, type MetricSnapshot } from "@/lib/metrics/types";
@@ -17,12 +18,16 @@ function describeMetric(snapshot: MetricSnapshot, state: IntegrationState, metri
   return { id, provider: snapshot.provider, key: metric.key, label: metric.label, sourceLabel: `${METRIC_PROVIDERS[snapshot.provider].name} · ${snapshot.accountLabel}`, currency: metric.currency, period: metric.period, definition: metric.definition, test: snapshot.environment === "test", href: `/integrations#${snapshot.provider}` };
 }
 
-/** Preserve the first baseline and the latest daily observation, without inventing missing days. */
+/**
+ * Preserve the first baseline and the latest daily observation, without inventing missing days. A day is the founder's
+ * local date: an evening sync stays that day's reading instead of being overwritten by the next morning's (same UTC date).
+ */
 export function recordDaily(points: MetricPoint[], point: MetricPoint): MetricPoint[] {
   if (!Number.isFinite(point.value) || !Number.isFinite(Date.parse(point.at))) return points;
   if (points.length && point.at < points.at(-1)!.at) return points;
   const next = [...points];
-  const index = next.findLastIndex((p) => p.at.slice(0, 10) === point.at.slice(0, 10));
+  const day = localDay(point.at);
+  const index = next.findLastIndex((p) => localDay(p.at) === day);
   if (index < 0 || (index === 0 && next[0].value !== point.value && next[0].at !== point.at)) next.push(point);
   else if (index !== 0 || next[0].at === point.at) next[index] = point;
   return next;
@@ -64,7 +69,8 @@ export function currentMetrics(ws: Workspace, now = new Date(), options: { pipel
       ["qualified_open", "Qualified open deals", pulse.openQualified, "Current", "Deals currently Qualified, in Pilot or at Proposal.", undefined],
       ["open_usd", "Known qualified pipeline", pulse.knownOpenUsd, "Current", "Current stated USD values of qualified open deals. Missing values are excluded; no average deal sizes are substituted.", "USD"],
     ] as const) readings.push({ id: JSON.stringify(["pipeline", scope, key]), provider: "pipeline", key, label, value, period, definition, currency, sourceLabel: "Tracked deals", href: "/revenue#pipeline-conversion", at: now.toISOString() });
-    for (const row of pulse.rows) if (row.conversion !== null) readings.push({ id: JSON.stringify(["pipeline", scope, `conversion_${row.stage}`, 90]), provider: "pipeline", key: `conversion_${row.stage}`, label: `${row.label} progression`, value: row.conversion * 100, unit: "percent", n: row.advanced + row.lost, period: "90-day entry cohort", definition: "Share of decided stage exits that moved forward. Open and undated outcomes are excluded. This describes observed cohorts, not an A/B test.", sourceLabel: "Tracked stage history", href: "/revenue#pipeline-conversion", at: now.toISOString() });
+    // Moves to nurture became decided exits (not losses): a new counting definition, so a new identity and a deliberate new baseline.
+    for (const row of pulse.rows) if (row.conversion !== null) readings.push({ id: JSON.stringify(["pipeline", scope, `conversion_${row.stage}`, 90, "nurture_exits"]), provider: "pipeline", key: `conversion_${row.stage}`, label: `${row.label} progression`, value: row.conversion * 100, unit: "percent", n: row.decided, period: "90-day entry cohort", definition: "Share of decided stage exits that moved forward. A move to nurture is a decided exit that didn't move forward, not a loss. Open and undated outcomes are excluded. This describes observed cohorts, not an A/B test.", sourceLabel: "Tracked stage history", href: "/revenue#pipeline-conversion", at: now.toISOString() });
   }
   return readings;
 }

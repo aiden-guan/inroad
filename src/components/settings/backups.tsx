@@ -134,7 +134,7 @@ function BackupRow({ entry, open, onToggle, onRestored }: { entry: BackupEntry; 
         label={when}
         hint={
           <>
-            {REASON_LABEL[entry.reason]} <span aria-hidden>·</span> <span className="font-mono text-[11.5px] tnum">{fileSize(entry.bytes)}</span>
+            {REASON_LABEL[entry.reason]} <span aria-hidden>·</span> <span className="font-mono text-[12px] tnum">{fileSize(entry.bytes)}</span>
           </>
         }
       >

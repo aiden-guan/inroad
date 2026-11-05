@@ -52,7 +52,8 @@ export interface OperationReceipt {
 }
 export const MonitorInput = z.object({
   name: z.string().trim().min(1).max(120),
-  kind: z.enum(["topic", "page"]),
+  /** intent: the Research → Intent queries over the free sources, in code only (src/lib/intent/monitor.ts). */
+  kind: z.enum(["topic", "page", "intent"]),
   query: z.string().trim().min(1).max(1000),
   intervalMinutes: z.number().int().min(60).max(43_200).default(1440),
   recipe: z.enum(["custom", "leadership", "revival", "meeting"]).default("custom"),

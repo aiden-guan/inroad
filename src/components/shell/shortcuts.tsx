@@ -36,7 +36,7 @@ export function ShortcutsDialog() {
       <div className="grid max-h-[min(640px,76vh)] gap-x-8 gap-y-5 overflow-y-auto px-5 pb-5 pt-3 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((g) => (
           <section key={g.title}>
-            <h3 className="mb-1.5 text-[11.5px] font-medium text-fg-3">{g.title}</h3>
+            <h3 className="mb-1.5 text-[12px] font-medium text-fg-3">{g.title}</h3>
             <dl className="space-y-1">
               {g.rows.map(([keys, what]) => (
                 <div key={what} className="flex items-center justify-between gap-3 text-[13px]">
@@ -44,7 +44,7 @@ export function ShortcutsDialog() {
                   <dd className="flex shrink-0 items-center gap-1">
                     {keys.map((k, i) => (
                       <span key={k} className="flex items-center gap-1">
-                        {i > 0 && keys[0] === "G" && <span className="text-[11px] text-fg-4">then</span>}
+                        {i > 0 && keys[0] === "G" && <span className="text-[12px] text-fg-3">then</span>}
                         <Kbd>{k}</Kbd>
                       </span>
                     ))}

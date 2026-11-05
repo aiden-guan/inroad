@@ -21,6 +21,8 @@ import { lintDraft } from "@/lib/quality/lint";
 import { ease } from "@/lib/motion";
 import { ReferralLeads } from "@/components/people/referral-leads";
 import { debriefReferrals } from "@/lib/deals/referrals";
+import { TalkShare } from "@/components/transcripts/transcript-intake";
+import { parseTranscript } from "@/lib/transcripts/parse";
 import { Callout, DraftBlock, gmailHref, Section, useNow } from "./shared";
 
 type ChangeKey = "card" | "nextStep" | "stage" | "people" | "price" | "map" | "pilot";
@@ -107,6 +109,14 @@ export function DebriefReview({ deal, meeting, debrief, today }: { deal: Deal; m
   const proposalActive = !!proposalRun && (proposalRun.status === "running" || proposalRun.status === "queued");
   const [proposalPending, setProposalPending] = useState(false);
   const applied = !!debrief.appliedAt;
+  // Who talked how much, counted in code from the transcript the debrief read (never the model's estimate).
+  const founderName = ws?.founder.name;
+  const senderName = ws?.sender?.name;
+  const talk = useMemo(() => {
+    if (debrief.source !== "transcript" || !meeting.notesRaw) return null;
+    const p = parseTranscript(meeting.notesRaw, { now: new Date(debrief.generatedAt), founderNames: [founderName, senderName].filter((n): n is string => !!n) });
+    return p.speakers.length > 1 ? p : null;
+  }, [debrief.source, debrief.generatedAt, meeting.notesRaw, founderName, senderName]);
   if (!ws) return null;
 
   // Tasks already added from this meeting (an earlier apply of a re-debriefed call) aren't offered again.
@@ -186,9 +196,17 @@ export function DebriefReview({ deal, meeting, debrief, today }: { deal: Deal; m
 
   return (
     <div className="space-y-6">
-      <p className="flex flex-wrap items-center gap-2 font-mono text-[11.5px] text-fg-3">
-        <AiBadge /> Debriefed {relativeTime(debrief.generatedAt, now)} · from {debrief.source === "transcript" ? "the transcript" : "your notes"}
-      </p>
+      <div>
+        <p className="flex flex-wrap items-center gap-2 font-mono text-[11.5px] text-fg-3">
+          <AiBadge /> Debriefed {relativeTime(debrief.generatedAt, now)} · from {debrief.source === "transcript" ? "the transcript" : "your notes"}
+        </p>
+        {talk && (
+          <div className="mt-2.5 max-w-[520px]">
+            <p className="text-[11px] font-medium text-fg-3">Talk share, counted from the transcript</p>
+            <TalkShare p={talk} className="mt-1" />
+          </div>
+        )}
+      </div>
 
       {debrief.noNextStepWarning && (
         <Callout tone="danger">

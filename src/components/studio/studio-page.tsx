@@ -9,9 +9,10 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +20,11 @@ import { Button, IconButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
+import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
 import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
+import { spring } from "@/lib/motion";
 import { relativeTime } from "@/lib/client/format";
 import { newId } from "@/lib/domain/ids";
 import type {
@@ -159,28 +162,36 @@ function StudioContent() {
 
   if (!ws) {
     return (
-      <div className="mx-auto w-full max-w-[1180px] px-6 pt-8 md:px-10 md:pt-12">
+      <div className="page-shell max-w-[1180px]" aria-busy={loading || undefined}>
         {loading ? (
-          <Skeleton className="h-9 w-40" />
+          <>
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="mt-4 h-11 w-48" />
+            <Skeleton className="mt-4 h-4 w-96 max-w-full" />
+            <Skeleton className="mt-10 h-10 w-80 max-w-full rounded-lg" />
+          </>
         ) : (
-          <p className="text-[13px] text-danger">
-            {error ?? "Couldn't load your workspace."} Reload the page to try
-            again.
-          </p>
+          <EmptyState
+            title="Couldn't open Studio"
+            body={`${error ?? "Your workspace didn't load."} Reload the page to try again.`}
+            action={<Button onClick={() => window.location.reload()}>Reload</Button>}
+          />
         )}
       </div>
     );
   }
   const format = formatPick ?? formatsFor(audienceFor(ws))[0].id;
+  // One creator control at a time, beside the button it affects in the open view.
+  const creator = <StudioAIChoice />;
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-6 pb-24 pt-8 md:px-10 md:pt-12">
-      <header>
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="font-serif text-[32px] leading-9 tracking-[-0.02em] text-fg">
-            Studio
-          </h1>
-          <div className="flex flex-wrap gap-2">
+    <div className="page-shell max-w-[1180px]">
+      <PageHeader
+        title="Studio"
+        eyebrow="Words and pictures"
+        description="Campaign ideas, copy and graphics, made from your own material."
+        actions={
+          <>
             <Button
               aria-label="Brand & material"
               icon={<Settings2 aria-hidden className="size-3.5" />}
@@ -201,46 +212,19 @@ function StudioContent() {
                 Create
               </Button>
             )}
-          </div>
-        </div>
-        <p className="mt-2 max-w-[60ch] text-[14px] leading-6 text-fg-2">
-          Campaign ideas, copy and graphics. Made from your own material.
-        </p>
-      </header>
+          </>
+        }
+      />
 
-      <div hidden={view === "campaigns"}><StudioAIChoice /></div>
-
-      <nav
-        aria-label="Studio views"
-        className="mb-6 mt-6 flex gap-5 overflow-x-auto border-b border-border md:mb-8"
-      >
-        {[
+      <ViewTabs
+        view={view}
+        items={[
           { id: "create", label: "Create" },
           { id: "graphics", label: "Graphics" },
-          { id: "campaigns", label: "Campaign library" },
-          { id: "work", label: "Your work" },
-        ].map((item) => (
-          <Link
-            key={item.id}
-            href={`/studio?view=${item.id}`}
-            scroll={false}
-            aria-current={view === item.id ? "page" : undefined}
-            className={cn(
-              "flex min-h-11 shrink-0 items-center gap-2 border-b-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ring)]",
-              view === item.id
-                ? "border-fg font-medium text-fg"
-                : "border-transparent text-fg-3 hover:text-fg",
-            )}
-          >
-            {item.label}
-            {item.id === "work" && pieces.length > 0 && (
-              <span className="font-mono text-[11px] text-fg-3">
-                {pieces.length}
-              </span>
-            )}
-          </Link>
-        ))}
-      </nav>
+          { id: "campaigns", label: "Campaign library", short: "Library" },
+          { id: "work", label: "Your work", count: pieces.length || undefined },
+        ]}
+      />
 
       <div hidden={view !== "create"}>
         <NewPiece
@@ -256,6 +240,7 @@ function StudioContent() {
           onGraphics={() => openGraphics()}
           onWrite={(args) => void write(args)}
           busy={submitting}
+          creator={view === "create" ? creator : undefined}
         />
       </div>
       <div hidden={view !== "graphics"}>
@@ -269,6 +254,7 @@ function StudioContent() {
             router.push("/studio?view=create", { scroll: false });
           }}
           onEdit={select}
+          creator={view === "graphics" ? creator : undefined}
         />
       </div>
       <div hidden={view !== "campaigns"}>
@@ -301,6 +287,7 @@ function StudioContent() {
               router.replace("/studio?view=work", { scroll: false })
             }
             onGraphics={openGraphics}
+            creator={view === "work" ? creator : undefined}
           />
         ) : selected ? (
           selectedRun?.status === "running" ||
@@ -355,6 +342,56 @@ function StudioContent() {
   );
 }
 
+/**
+ * Studio's views as segmented tabs, matching the app's other tabs (Companies, an event). They stay links, so each view
+ * has its own URL and browser history works.
+ */
+function ViewTabs({ view, items }: { view: string; items: { id: string; label: string; short?: string; count?: number }[] }) {
+  const reduce = useReducedMotion();
+  // Unique per mount, like Segmented: the hidden prefetched copy of the page must not share the sliding indicator.
+  const indicator = `${useId()}-studio-view`;
+  return (
+    <nav aria-label="Studio views" className="mb-6 mt-6 md:mb-8">
+      <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-bg-subtle p-1 ring-1 ring-inset ring-border scrollbar-none">
+        {items.map((item) => {
+          const active = view === item.id;
+          return (
+            <Link
+              key={item.id}
+              href={`/studio?view=${item.id}`}
+              scroll={false}
+              aria-current={active ? "page" : undefined}
+              aria-label={item.short ? item.label : undefined}
+              className={cn(
+                "relative inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] sm:gap-2 sm:px-3 sm:text-[13px]",
+                active ? "text-fg" : "text-fg-3 hover:text-fg-2",
+              )}
+            >
+              {active && (
+                <motion.span
+                  layoutId={indicator}
+                  transition={reduce ? { duration: 0 } : spring.snappy}
+                  className="absolute inset-0 rounded-md bg-surface shadow-xs ring-1 ring-inset ring-border-strong/60"
+                />
+              )}
+              {item.short ? (
+                <>
+                  {/* A shorter word on a phone keeps all four tabs in view. */}
+                  <span className="relative sm:hidden">{item.short}</span>
+                  <span className="relative hidden sm:inline">{item.label}</span>
+                </>
+              ) : (
+                <span className="relative">{item.label}</span>
+              )}
+              {item.count !== undefined && <span className="relative font-mono text-[12px] tnum text-fg-3">{item.count}</span>}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 function PieceView({
   ws,
   piece,
@@ -362,6 +399,7 @@ function PieceView({
   busy,
   onRemoved,
   onGraphics,
+  creator,
 }: {
   ws: Workspace;
   piece: StudioPiece;
@@ -369,6 +407,8 @@ function PieceView({
   busy: boolean;
   onRemoved: () => void;
   onGraphics: (pieceId: string, optionId: string) => void;
+  /** Who writes more: the compact Create with control, beside Write more. */
+  creator?: ReactNode;
 }) {
   const studioAI = useStudioAI();
   const { dispatch } = useWorkspace();
@@ -391,15 +431,16 @@ function PieceView({
           </div>
           <h2
             id="studio-piece-title"
-            className="mt-2 font-serif text-[22px] leading-[28px] tracking-[-0.01em] text-fg"
+            className="mt-2 text-pretty font-serif text-[22px] leading-[28px] tracking-[-0.01em] text-fg [overflow-wrap:anywhere]"
           >
             {piece.title || spec.label}
           </h2>
-          <p className="mt-0.5 font-mono text-[11.5px] tnum text-fg-3">
+          <p className="mt-0.5 font-mono text-[12px] tnum text-fg-3">
             {piece.options.length} options · {ready} ready ·{" "}
             {relativeTime(piece.updatedAt)}
           </p>
         </div>
+        {creator}
         <Button
           variant="agent"
           size="sm"
@@ -412,7 +453,7 @@ function PieceView({
         </Button>
         <Menu
           trigger={
-            <IconButton label="More">
+            <IconButton label="More for this piece">
               <MoreHorizontal className="size-4" />
             </IconButton>
           }
@@ -547,7 +588,7 @@ function WorkLibrary({
                 onClick={() => onSelect(piece.id)}
                 className="block w-full rounded-sm px-4 py-4 text-left transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ring)]"
               >
-                <span className="flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-fg-3">
+                <span className="flex flex-wrap items-baseline justify-between gap-2 text-[12px] text-fg-3">
                   <span>{FORMATS[piece.format].label}</span>
                   <span>{relativeTime(piece.updatedAt)}</span>
                 </span>

@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { NATIVE_IDS } from "@/lib/connectors/catalog";
 import { inboundSecret, signingSecret } from "@/lib/hub/secrets";
-import { mutateHub, readHub } from "@/lib/hub/store";
+import { mutateHub, readHub, recentInbound } from "@/lib/hub/store";
 import type { HubStatus } from "@/lib/hub/types";
 import { errorResponse } from "@/lib/server/http";
 import { isLocalRequest } from "@/lib/server/local-request";
@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     const hub = readHub();
     const body: HubStatus = {
       appUrl: hub.appUrl,
-      inbound: { secret: inboundSecret(), events: hub.inbound.slice(0, 40) },
+      // Each source's own last events too, so its card never reads "Not set up" after another tool's burst.
+      inbound: { secret: inboundSecret(), events: recentInbound(hub.inbound, 40) },
       signing: { secret: signingSecret() },
       deliveries: hub.deliveries.slice(0, 20),
       sync: hub.sync.slice(0, 20),

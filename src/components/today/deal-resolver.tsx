@@ -8,6 +8,7 @@ import { Input, Label, Select } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
 import { addDays, daysBetween, nowISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Deal, type LossReason } from "@/lib/domain/types";
+import { localDate } from "@/lib/moves/util";
 import { HoldButton } from "./parts";
 
 const LOSS_REASONS: { id: LossReason; label: string }[] = [
@@ -45,7 +46,8 @@ const PLACEHOLDER: Record<string, string> = {
  * date, or close it as lost with a reason (hold to confirm). Nothing is ever blocked.
  */
 export function DealResolver({ deal, today, company, onResolved, compact }: { deal: Deal; today: string; company: string; onResolved: () => void; compact?: boolean }) {
-  const staleDays = deal.nextStep?.date ? daysBetween(deal.nextStep.date, today) : daysBetween((deal.lastActivityAt || deal.updatedAt).slice(0, 10), today);
+  // Local calendar days, as Revenue counts them (an ISO timestamp's first ten characters are the UTC day).
+  const staleDays = deal.nextStep?.date ? daysBetween(deal.nextStep.date, today) : daysBetween(localDate(deal.lastActivityAt || deal.updatedAt), today);
   const { dispatch } = useWorkspace();
   const [mode, setMode] = useState<"next" | "nurture" | "lost">("next");
   const [what, setWhat] = useState(deal.nextStep?.what ?? "");
@@ -56,7 +58,7 @@ export function DealResolver({ deal, today, company, onResolved, compact }: { de
   const id = useId();
 
   const save = async () => {
-    if (!what.trim()) return;
+    if (!what.trim() || !date) return;
     const ok = await dispatch({ type: "deal.setNextStep", id: deal.id, nextStep: { what: what.trim(), date, buyerAgreed: agreed }, at: nowISO() });
     if (ok) onResolved();
   };
@@ -98,12 +100,12 @@ export function DealResolver({ deal, today, company, onResolved, compact }: { de
               They agreed to it
             </label>
             <span className="flex-1" />
-            {what.trim() ? (
+            {what.trim() && date ? (
               <Button type="submit" variant="primary" size="sm">
                 Save next step
               </Button>
             ) : (
-              <span className="text-[12px] text-fg-3">Type the step to save it</span>
+              <span className="text-[12px] text-fg-3">{what.trim() ? "Pick a date to save it" : "Type the step to save it"}</span>
             )}
           </div>
         </form>
@@ -118,13 +120,17 @@ export function DealResolver({ deal, today, company, onResolved, compact }: { de
           <Button
             variant="primary"
             size="sm"
+            // A parked deal without a date would never come back.
+            disabled={!until || until < today}
             onClick={async () => {
+              if (!until || until < today) return;
               const ok = await dispatch({ type: "deal.setStage", id: deal.id, stage: "nurture", nurtureUntil: until, at: nowISO() });
               if (ok) onResolved();
             }}
           >
             Move to nurture
           </Button>
+          {(!until || until < today) && <span className="pb-2 text-[12px] text-fg-3">Pick the day to check back</span>}
         </div>
       )}
 

@@ -343,7 +343,7 @@ export function Channels({ hint, active }: { hint?: string; active?: number } = 
 function Commercial() {
   const { ws, p, set } = usePlaybook();
   const c = p.commercial;
-  const { band, assumed } = priceBand(ws);
+  const { band, assumed, fromBet } = priceBand(ws);
   const b = PRICE_BANDS[band];
   const log = quoteLog(ws);
   const days = pilotDays(c);
@@ -367,6 +367,11 @@ function Commercial() {
             {assumed && (
               <a href="#icp" className="ml-1.5 text-[12.5px] font-normal text-fg-3 underline underline-offset-2 hover:text-fg">
                 set your company size
+              </a>
+            )}
+            {fromBet && (
+              <a href="#icp" className="ml-1.5 text-[12.5px] font-normal text-fg-3 underline underline-offset-2 hover:text-fg">
+                from your segment bet
               </a>
             )}
           </span>

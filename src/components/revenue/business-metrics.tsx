@@ -39,8 +39,26 @@ export function BusinessMetrics({ mode = "revenue" }: { mode?: "revenue" | "grow
     setBusy(false);
   }
 
+  // On Revenue the deals are the number; a source to connect is one line there, not a card above the forecast.
+  if (mode === "revenue" && connected.length === 0) {
+    return (
+      <p id="business-metrics" className="flex scroll-mt-24 flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-fg-3">
+        <Plug className="size-3.5 shrink-0" aria-hidden />
+        <span>Bring active users and revenue next to the forecast:</span>
+        {METRIC_PROVIDER_IDS.map((id, i) => (
+          <span key={id}>
+            <Link href={`/integrations#${id}`} className="font-medium text-fg-2 underline decoration-border-strong underline-offset-4 hover:text-fg">
+              {METRIC_PROVIDERS[id].name}
+            </Link>
+            {i < METRIC_PROVIDER_IDS.length - 1 ? "," : ""}
+          </span>
+        ))}
+      </p>
+    );
+  }
+
   return (
-    <section id="business-metrics" aria-labelledby="business-metrics-title" className="mb-9 scroll-mt-24">
+    <section id="business-metrics" aria-labelledby="business-metrics-title" className={mode === "growth" ? "mb-9 scroll-mt-24" : "scroll-mt-24"}>
       <SectionLabel right={<div className="flex items-center gap-2">{connected.length > 0 && <Button size="xs" variant="ghost" icon={<RefreshCw className="size-3" />} loading={busy} onClick={() => void sync()}>Sync now</Button>}<Link href="/integrations#business-metrics" className="flex items-center gap-1 py-1 text-[12px] text-fg-2 hover:underline">Manage sources <ArrowUpRight className="size-3" /></Link></div>}>
         <span id="business-metrics-title">Your business, kept in sync</span>
       </SectionLabel>
@@ -67,7 +85,7 @@ export function BusinessMetrics({ mode = "revenue" }: { mode?: "revenue" | "grow
               {snapshot ? <MetricValues snapshot={snapshot} trends={trends} /> : <p className="text-[13px] text-fg-3">No figures yet. Sync now to import them.</p>}
             </Card>;
           })}
-          <p className="px-1 text-[12px] leading-5 text-fg-3">Refreshes every 15 minutes while Inroad is open. Each source keeps its own definitions; sources are never added together. {mode === "growth" ? "The growth history below uses your logged weeks; rolling provider windows do not overwrite them." : "The deal forecast below uses your tracked deals."}</p>
+          <p className="px-1 text-[12px] leading-5 text-fg-3">Refreshes every 15 minutes while Inroad is open. Each source keeps its own definitions; sources are never added together. {mode === "growth" ? "The growth history below uses your logged weeks; rolling provider windows do not overwrite them." : "They sit beside the deal forecast and never change it."}</p>
         </div>
       )}
     </section>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/field";
 import { LoadingSignal } from "@/components/ui/loading";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { PageHeader } from "@/components/ui/page-header";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/client/cn";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { todayISO } from "@/lib/domain/ids";
@@ -67,7 +68,7 @@ export function SettingsView() {
 
   return (
     <div className="@container/page">
-      <div className="page-shell max-w-[1100px]">
+      <div className="page-shell">
         <PageHeader title="Settings" eyebrow="Make it yours" description="Your workspace, preferences and connected services." className="mb-8" />
 
         <div className="@min-[880px]/page:grid @min-[880px]/page:grid-cols-[200px_minmax(0,720px)] @min-[880px]/page:gap-10">
@@ -82,7 +83,7 @@ export function SettingsView() {
               <nav aria-label="Settings sections" className="hidden space-y-5 @min-[880px]/page:block">
                 {SETTINGS_GROUPS.map((group) => (
                   <div key={group}>
-                    <p className="mb-1.5 px-2.5 text-[11px] font-medium text-fg-3">{group}</p>
+                    <p className="mb-1.5 px-2.5 text-[12px] font-medium text-fg-3">{group}</p>
                     <ul className="space-y-0.5">
                       {SETTINGS_PAGES.filter((page) => page.group === group).map((page) => (
                         <li key={page.id}>
@@ -96,9 +97,9 @@ export function SettingsView() {
 
               <div className="@min-[880px]/page:hidden">
                 <label htmlFor="settings-section" className="mb-1.5 block text-[12px] font-medium text-fg-2">Settings section</label>
-                <select id="settings-section" value={current} onChange={(event) => { setQuery(""); navigateToHash(event.target.value, true); }} className="h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+                <Select id="settings-section" value={current} onChange={(event) => { setQuery(""); navigateToHash(event.target.value, true); }} className="h-10 w-full">
                   {SETTINGS_GROUPS.map((group) => <optgroup key={group} label={group}>{SETTINGS_PAGES.filter((page) => page.group === group).map((page) => <option key={page.id} value={page.id}>{page.label}</option>)}</optgroup>)}
-                </select>
+                </Select>
               </div>
             </div>
           </aside>
@@ -114,7 +115,7 @@ export function SettingsView() {
                   <ul className="divide-y divide-border">
                     {results.map((item) => {
                       const page = SETTINGS_PAGES.find((page) => page.id === item.page)!;
-                      return <li key={item.id}><a href={`#${item.id}`} onClick={(event) => follow(event, item.id)} className="group flex items-center gap-4 rounded-sm px-3 py-4 transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"><div className="min-w-0 flex-1"><p className="text-[11px] text-fg-3">{page.group} / {page.label}</p><p className="mt-1 text-[14px] font-medium text-fg">{item.label}</p><p className="mt-1 text-[13px] leading-5 text-fg-2">{item.description}</p></div><ArrowRight aria-hidden className="size-4 shrink-0 text-fg-3 group-hover:text-fg" /></a></li>;
+                      return <li key={item.id}><a href={`#${item.id}`} onClick={(event) => follow(event, item.id)} className="group flex items-center gap-4 rounded-sm px-3 py-4 transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"><div className="min-w-0 flex-1"><p className="text-[12px] text-fg-3">{page.group} / {page.label}</p><p className="mt-1 text-[14px] font-medium text-fg">{item.label}</p><p className="mt-1 text-[13px] leading-5 text-fg-2">{item.description}</p></div><ArrowRight aria-hidden className="size-4 shrink-0 text-fg-3 group-hover:text-fg" /></a></li>;
                     })}
                   </ul>
                 ) : <EmptyState title="No settings found" body="Try a setting name or a term like model, email, theme or backup." action={<Button onClick={() => setQuery("")}>Clear search</Button>} />}
@@ -131,7 +132,7 @@ export function SettingsView() {
 
 export function SettingsSkeleton() {
   return (
-    <div className="page-shell max-w-[1100px] [animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
+    <div className="page-shell [animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
       <LoadingSignal label="Opening settings" className="mb-7" />
       <Skeleton className="h-9 w-36" /><Skeleton className="mt-3 h-4 w-72 max-w-full" />
       <div className="mt-8 grid gap-8 md:grid-cols-[200px_1fr]">

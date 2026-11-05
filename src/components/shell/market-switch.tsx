@@ -1,18 +1,18 @@
 "use client";
 
-import { Building2, ChevronsUpDown, UsersRound, type LucideIcon } from "lucide-react";
+import { Building2, ChevronsUpDown, Keyboard, Settings, UsersRound, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
+import { useRuns, useRunsSelector, type RunState } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
-import { Select } from "@/components/ui/field";
 import { Popover } from "@/components/ui/menu";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/client/cn";
 import { CONSUMER_MODEL_LABELS, consumerModelOf, playbookMarket } from "@/lib/consumer/market";
 import type { ConsumerModel, Market } from "@/lib/domain/types";
@@ -20,10 +20,10 @@ import { ease, spring } from "@/lib/motion";
 import { landingAfterSwitch, shellMarket } from "./nav";
 
 /**
- * Who the company sells to, switched from the company row at the top of the sidebar (and the phone menu, and ⌘K).
- * Switching is instant and keeps everything: the shell shows that market's pages, Today and every draft follow it,
- * and each market's own goal comes back when you return to it. Only the playbook waits to be asked, since
- * rewriting it is a model run.
+ * Who the company sells to, switched from the company menu at the top of the sidebar (and the phone menu, ⌘K and
+ * Settings). Switching is instant and keeps everything: the shell shows that market's pages, Today and every draft
+ * follow it, and each market's own goal comes back when you return to it. Only the playbook waits to be asked,
+ * since rewriting it is a model run.
  */
 
 export const MODES: Record<Market, { label: string; line: string; icon: LucideIcon; gives: string }> = {
@@ -75,7 +75,7 @@ export function MarketToggle({ value, onChange, className }: { value: Market; on
             )}
             <span
               className={cn(
-                "relative flex h-10 items-center justify-center gap-1.5 rounded-md text-[13px] md:h-8 md:text-[12.5px] font-medium transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring)]",
+                "relative flex h-10 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring)] md:h-8 md:text-[12.5px]",
                 on ? "text-fg" : "text-fg-3 hover:text-fg-2",
               )}
             >
@@ -89,62 +89,109 @@ export function MarketToggle({ value, onChange, className }: { value: Market; on
   );
 }
 
-/** The company row at the top of the sidebar: who you are, who you sell to, and the switch behind it. */
-export function CompanySwitcher() {
+/**
+ * The company menu at the top of the sidebar (and of the phone menu): the workspace, named the founder's company.
+ * It holds who you sell to (the switch that swaps the pages), and the way to Settings and the shortcuts.
+ */
+export function CompanyMenu({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
   const { ws } = useWorkspace();
   const [open, setOpen] = useState(false);
-  if (!ws?.company) return null;
-  const market = shellMarket(ws);
+  if (!ws?.company) {
+    return (
+      <div aria-hidden className={cn("flex h-9 items-center gap-2.5 px-2", className)}>
+        <span className="skeleton size-[18px] rounded-[5px]" />
+        <span className="skeleton h-3 w-24 rounded-sm" />
+      </div>
+    );
+  }
+  const close = () => {
+    setOpen(false);
+    onNavigate?.();
+  };
+  const { name, domain } = ws.company;
   return (
-    <div className="mx-4 mb-5 shrink-0 border-b border-border pb-3">
-      <Popover
-        open={open}
-        onOpenChange={setOpen}
-        align="start"
-        className="w-[320px] p-3"
-        trigger={
-          <button
-            title="Who you sell to"
-            className="group -mx-1.5 flex w-[calc(100%+12px)] min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors duration-150 hover:bg-surface/70 data-[state=open]:bg-surface/70"
-          >
-            <Favicon domain={ws.company.domain} size={20} />
-            <span className="min-w-0 flex-1">
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-[12px] font-medium leading-4 text-fg-2 transition-colors group-hover:text-fg">{ws.company.name}</span>
-                {ws.sample && (
-                  <Badge tone="warning" className="h-4 px-1 text-[10px]">
-                    Sample
-                  </Badge>
-                )}
-              </span>
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={market}
-                  initial={{ opacity: 0, y: 3, filter: "blur(2px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, y: -3, filter: "blur(2px)", transition: { duration: 0.1 } }}
-                  transition={{ duration: 0.18, ease: ease.out }}
-                  className="block truncate text-[11px] leading-4 text-fg-3"
-                >
-                  {MODES[market].line}
-                </motion.span>
-              </AnimatePresence>
-            </span>
-            <ChevronsUpDown className="size-3.5 shrink-0 text-fg-4 transition-colors duration-150 group-hover:text-fg-3" aria-hidden />
-          </button>
-        }
-      >
-        <MarketPanel onNavigate={() => setOpen(false)} />
-      </Popover>
-    </div>
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      align="start"
+      className="w-[300px] p-0"
+      trigger={
+        <button
+          title="Your company, who you sell to, and settings"
+          className={cn(
+            "group flex h-9 w-full min-w-0 items-center gap-2.5 rounded-md px-2 text-left transition-colors duration-150 hover:bg-surface/70 data-[state=open]:bg-surface/70",
+            className,
+          )}
+        >
+          <Favicon domain={domain} name={name} size={18} />
+          <span className="min-w-0 truncate text-[13px] font-medium text-fg">{name}</span>
+          {ws.sample && <Badge tone="warning">Sample</Badge>}
+          <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-fg-3 transition-colors duration-150 group-hover:text-fg-2" aria-hidden />
+        </button>
+      }
+    >
+      <div className="flex items-center gap-2.5 border-b border-border px-3 py-2.5">
+        <Favicon domain={domain} name={name} size={24} />
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-medium leading-5 text-fg">{name}</p>
+          {domain && <p className="truncate font-mono text-[12px] leading-4 text-fg-3">{domain}</p>}
+        </div>
+      </div>
+      <div className="p-3">
+        <MarketPanel />
+      </div>
+      <div className="border-t border-border p-1.5">
+        <MenuRow href="/settings#company" icon={Building2} onSelect={close}>
+          Company and market
+        </MenuRow>
+        <MenuRow href="/settings" icon={Settings} keys="G S" onSelect={close}>
+          Settings
+        </MenuRow>
+        <MenuRow
+          icon={Keyboard}
+          keys="?"
+          onSelect={() => {
+            close();
+            window.dispatchEvent(new Event("inroad:shortcuts"));
+          }}
+        >
+          Keyboard shortcuts
+        </MenuRow>
+      </div>
+    </Popover>
   );
 }
+
+/** The sidebar's company row under its earlier name. */
+export const CompanySwitcher = CompanyMenu;
+
+function MenuRow({ href, icon: Icon, keys, onSelect, children }: { href?: string; icon: LucideIcon; keys?: string; onSelect: () => void; children: ReactNode }) {
+  const body = (
+    <>
+      <Icon className="size-4 shrink-0 text-fg-3" aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {keys && <span className="hidden font-mono text-[12px] text-fg-3 md:pointer-fine:inline">{keys}</span>}
+    </>
+  );
+  const row = "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-[13px] text-fg-2 transition-colors duration-100 hover:bg-bg-subtle hover:text-fg";
+  return href ? (
+    <Link href={href} onClick={onSelect} className={row}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onSelect} className={row}>
+      {body}
+    </button>
+  );
+}
+
+const rewritingNow = (runs: Record<string, RunState>) => Object.values(runs).some((r) => r.workflow === "foundation" && (r.status === "running" || r.status === "queued"));
 
 /** Rewrites the playbook for the market chosen now (a foundation refresh). Everything the founder approved stays. */
 export function useRewritePlaybook() {
   const { ws } = useWorkspace();
   const { start } = useRuns();
-  const rewriting = useActiveRuns().some((r) => r.workflow === "foundation");
+  const rewriting = useRunsSelector(rewritingNow);
   const [asking, setAsking] = useState(false);
   const rewrite = async () => {
     if (!ws?.company) return;
@@ -190,7 +237,7 @@ export function PlaybookMismatch({ className }: { className?: string }) {
   );
 }
 
-function MarketPanel({ onNavigate }: { onNavigate: () => void }) {
+function MarketPanel() {
   const { ws } = useWorkspace();
   const switchTo = useSwitchMarket();
   const written = useMismatch();
@@ -202,7 +249,7 @@ function MarketPanel({ onNavigate }: { onNavigate: () => void }) {
 
   return (
     <div>
-      <p className="mb-2 px-0.5 text-[11.5px] font-medium text-fg-3">Who you sell to</p>
+      <p className="mb-2 px-0.5 text-[12px] font-medium text-fg-3">Who you sell to</p>
       <MarketToggle value={market} onChange={(m) => void switchTo(m)} />
       <AnimatePresence mode="wait" initial={false}>
         <motion.p
@@ -213,13 +260,13 @@ function MarketPanel({ onNavigate }: { onNavigate: () => void }) {
           transition={{ duration: 0.18, ease: ease.out }}
           className="mt-2 px-0.5 text-pretty text-[12.5px] leading-[18px] text-fg-2"
         >
-          {MODES[market].gives}
+          {MODES[market].gives} <span className="text-fg-3">Nothing is deleted; switch back any time.</span>
         </motion.p>
       </AnimatePresence>
 
       {market === "consumer" && (
         <div className="mt-3">
-          <label htmlFor={modelId} className="mb-1.5 block px-0.5 text-[11.5px] font-medium text-fg-3">
+          <label htmlFor={modelId} className="mb-1.5 block px-0.5 text-[12px] font-medium text-fg-3">
             Kind of consumer company
           </label>
           <Select id={modelId} value={model} onChange={(e) => void switchTo("consumer", e.target.value as ConsumerModel)} className="h-8 w-full text-[12.5px]">
@@ -243,13 +290,6 @@ function MarketPanel({ onNavigate }: { onNavigate: () => void }) {
           </Button>
         </div>
       )}
-
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border px-0.5 pt-2.5 text-[11.5px] text-fg-3">
-        <span>Nothing is deleted. Switch back any time.</span>
-        <Link href="/settings#market" onClick={onNavigate} className="shrink-0 rounded-xs underline-offset-4 transition-colors hover:text-fg hover:underline">
-          Settings
-        </Link>
-      </div>
     </div>
   );
 }

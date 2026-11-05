@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, Check, Minus, Plus, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Minus, Plus, X } from "lucide-react";
 import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { FieldError, Input, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
@@ -59,6 +59,22 @@ export function Row({ label, hint, htmlFor, children, className, align = "center
   );
 }
 
+/**
+ * Technical details for the people who want them (environment variables, files, protocols), folded under a row so
+ * the setting itself reads in plain words. Sits inside a Group like a Row.
+ */
+export function Advanced({ summary = "Advanced", children, className }: { summary?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <details className={cn("group/advanced px-5 py-3", className)}>
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs text-[12.5px] font-medium text-fg-3 transition-colors hover:text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] [&::-webkit-details-marker]:hidden">
+        <ChevronRight aria-hidden className="size-3.5 transition-transform duration-150 group-open/advanced:rotate-90" />
+        {summary}
+      </summary>
+      <div className="mt-2 space-y-2 pl-[18px] text-[12.5px] leading-[18px] text-fg-3 text-pretty">{children}</div>
+    </details>
+  );
+}
+
 /** An inline confirm or detail that opens under its row (never a modal). */
 export function Expand({ open, children }: { open: boolean; children: ReactNode }) {
   return (
@@ -88,7 +104,7 @@ export function SavedMark({ show, className }: { show: boolean; className?: stri
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, transition: { duration: 0.12 } }}
           transition={{ duration: 0.18, ease: ease.out }}
-          className={cn("inline-flex items-center gap-1 text-[11.5px] text-fg-3", className)}
+          className={cn("inline-flex items-center gap-1 text-[12px] text-fg-3", className)}
           role="status"
         >
           <Check className="size-3" aria-hidden /> Saved

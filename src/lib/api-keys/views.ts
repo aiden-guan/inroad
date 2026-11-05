@@ -10,7 +10,8 @@ import { isSuppressed, normalizeDomain, normalizeEmail } from "@/lib/hub/records
 import { computeMoves, mergeMoves, visibleMoves } from "@/lib/moves/rules";
 import { linkedinKey } from "@/lib/network/csv";
 import { AI_VOCAB_FOR_PROMPT, BANNED_FOR_PROMPT, HYPE_FOR_PROMPT, LIMITS } from "@/lib/quality/lint";
-import { PLAYS, playEnabled, playMatches, playResults } from "@/lib/plays/catalog";
+import { playEnabled, playMatches, playResults } from "@/lib/plays/catalog";
+import { playsFor } from "@/lib/plays/recipes";
 import { baseline, computeForecast, computePlan, forecastChanges } from "@/lib/revenue/forecast";
 import type { Observed } from "@/lib/revenue/stats";
 
@@ -471,7 +472,8 @@ export function forecastView(ws: Workspace, now: Date, base: string, dealId?: st
 
 export function playsView(ws: Workspace, today: string, base: string, args: { play_id?: string; limit?: number }) {
   const limit = args.limit ?? 5;
-  const plays = PLAYS.filter((p) => !args.play_id || p.id === args.play_id).map((p) => {
+  // The founder's own plays (src/lib/plays/recipes.ts) are listed first, beside the built-ins.
+  const plays = playsFor(ws).filter((p) => !args.play_id || p.id === args.play_id).map((p) => {
     const matches = playMatches(ws, p, today);
     const live = matches.filter((m) => !m.worked);
     return {

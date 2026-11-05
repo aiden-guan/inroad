@@ -36,7 +36,7 @@ export function FunnelBar({ funnel, className, size = "md" }: { funnel: Funnel; 
       <dl className="mt-2 grid grid-cols-5 gap-1">
         {STAGES.map((s) => (
           <div key={s.key} className="min-w-0">
-            <dt className="truncate text-[11px] text-fg-3">{s.label}</dt>
+            <dt className="truncate text-[12px] text-fg-3" title={s.label}>{s.label}</dt>
             <dd className="font-mono text-[13px] tnum text-fg">
               {funnel[s.key]}
               {s.key === "invited" && funnel.target > 0 && <span className="text-fg-3">/{funnel.target}</span>}

@@ -52,7 +52,7 @@ function Attribution({ ev, ws }: { ev: GtmEvent; ws: Workspace }) {
                       <li key={d.id}>
                         <Link href={`/companies?c=${encodeURIComponent(d.accountDomain)}`} className="flex items-center gap-2 text-[13px] text-fg hover:underline">
                           <Favicon domain={d.accountDomain} size={14} />
-                          <span className="truncate">{ws.accounts[d.accountDomain]?.name ?? d.name}</span>
+                          <span className="truncate" title={ws.accounts[d.accountDomain]?.name ?? d.name}>{ws.accounts[d.accountDomain]?.name ?? d.name}</span>
                           <Badge>{STAGE_LABELS[d.stage]}</Badge>
                         </Link>
                       </li>
@@ -87,12 +87,12 @@ function GuestAfter({ ev, g, ws }: { ev: GtmEvent; g: Guest; ws: Workspace }) {
       <div className="flex items-start gap-3">
         {g.accountDomain ? <Favicon domain={g.accountDomain} size={22} /> : <span className="size-[22px]" />}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-medium text-fg">{guestLabel(g)}</p>
-          <p className="truncate text-[12.5px] text-fg-3">{[g.name ? g.title : null, company].filter(Boolean).join(" · ")}</p>
+          <p className="truncate text-[14px] font-medium text-fg" title={guestLabel(g)}>{guestLabel(g)}</p>
+          <p className="truncate text-[12.5px] text-fg-3" title={[g.name ? g.title : null, company].filter(Boolean).join(" · ")}>{[g.name ? g.title : null, company].filter(Boolean).join(" · ")}</p>
         </div>
         <span className="flex shrink-0 items-center gap-1.5">
           {d && <Badge tone={d.fit === "pursue" ? "neutral" : "outline"}>{FIT_LABEL[d.fit]}</Badge>}
-          <span className={cn("font-mono text-[11.5px] tnum", used >= MAX_TOUCHES ? "text-warning" : "text-fg-3")} title="Human touches in the 90 days after the event">
+          <span className={cn("font-mono text-[12px] tnum", used >= MAX_TOUCHES ? "text-warning" : "text-fg-3")} title="Human touches in the 90 days after the event">
             {used}/{MAX_TOUCHES}
           </span>
         </span>
@@ -156,7 +156,7 @@ function GuestAfter({ ev, g, ws }: { ev: GtmEvent; g: Guest; ws: Workspace }) {
             <span className="min-w-0 flex-1 text-fg-2">
               <span className="text-fg-3">Next touch · </span>
               {nextStep.touch}
-              {day && <span className="font-mono text-[11.5px] text-fg-3"> · {shortDate(addDays(day, nextStep.day))}</span>}
+              {day && <span className="font-mono text-[12px] text-fg-3"> · {shortDate(addDays(day, nextStep.day))}</span>}
             </span>
             {(!d || sentNote || nextStep.day > 1) && (
               <Button size="xs" variant="secondary" onClick={() => void actions.logTouch(g, nextStep.day <= 1 && !sentNote ? "Next-morning note" : nextStep.touch)}>

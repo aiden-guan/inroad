@@ -203,7 +203,7 @@ export function AnswerText({
             return (
               <div key={i} className="draft-rule rounded-r-md bg-surface py-2.5 pl-3.5 pr-2.5 font-sans ring-1 ring-border">
                 <div className="mb-1.5 flex h-6 items-center justify-between gap-2">
-                  <span className="text-[11.5px] font-medium text-fg-3">Draft</span>
+                  <span className="text-[12px] font-medium text-fg-3">Draft</span>
                   {!b.open && b.text && <CopyButton text={b.text} />}
                 </div>
                 <p className="whitespace-pre-wrap text-[14px] leading-[21px] text-fg-2">{words(b.text, ctx, `d${i}.`)}</p>

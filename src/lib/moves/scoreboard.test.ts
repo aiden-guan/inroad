@@ -35,7 +35,8 @@ describe("computeScoreboard", () => {
       weekOf: "2026-10-19",
       conversations: [1, 10],
       firstTouches: [0, 25],
-      replies: 2,
+      // Dana's question and Sam's referral (Monday), and Grace's out-of-office.
+      replies: 3,
       positiveReplies: 1,
       meetingsBooked: 2,
       qualifiedDeals: 3,

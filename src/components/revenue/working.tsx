@@ -9,6 +9,9 @@ import type { Workspace } from "@/lib/domain/types";
 import { byPersona, bySignal, bySource, lossReasons, type TouchRow } from "@/lib/revenue/attribution";
 import { money, type Forecast } from "@/lib/revenue/forecast";
 
+/** On a phone the table scrolls sideways under its first column, which stays put so every number keeps its row name. */
+const STICKY = "sticky left-0 z-[1] bg-surface shadow-[1px_0_0_var(--border)] md:static md:shadow-none";
+
 const SAMPLE_NOTE = {
   anecdote: "Under 20: an anecdote, not a rate.",
   directional: "20–99: directional.",
@@ -43,10 +46,21 @@ export function Working({ ws, f }: { ws: Workspace; f: Forecast }) {
   const losses = lossReasons(ws, f.stats);
   // One reason behind 30% or more of at least five losses is a pattern, not bad luck (docs/research/12 §F4).
   const lossTotal = losses.reduce((n, l) => n + l.count, 0);
-  if (!sources.length && !signals.length) return null;
+  if (!sources.length && !signals.length) {
+    return (
+      <section aria-labelledby="working-label">
+        <SectionLabel>
+          <span id="working-label">What&apos;s working</span>
+        </SectionLabel>
+        <p className="rounded-lg bg-surface px-5 py-4 text-[13.5px] leading-[21px] text-fg-2 ring-1 ring-inset ring-border">
+          Nothing to compare yet. Once deals carry where they came from and first touches go out, this shows which sources, signals and buyers turn into deals, as counts until there are enough for a rate.
+        </p>
+      </section>
+    );
+  }
 
   return (
-    <section className="mt-12" aria-labelledby="working-label">
+    <section aria-labelledby="working-label">
       <SectionLabel right={<span className="text-[12px] text-fg-3">Counts until there&apos;s enough to call a rate</span>}>
         <span id="working-label">What&apos;s working</span>
       </SectionLabel>
@@ -57,7 +71,7 @@ export function Working({ ws, f }: { ws: Workspace; f: Forecast }) {
             <caption className="sr-only">Deals by where they came from</caption>
             <thead>
               <tr className="border-b border-border text-[11.5px] text-fg-3">
-                <th scope="col" className="px-4 py-2 font-medium">Where deals come from</th>
+                <th scope="col" className={cn("px-4 py-2 font-medium", STICKY)}>Where deals come from</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Deals</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Qualified</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Won of closed</th>
@@ -69,12 +83,12 @@ export function Working({ ws, f }: { ws: Workspace; f: Forecast }) {
             <tbody className="divide-y divide-border">
               {sources.map((r) => (
                 <tr key={r.key}>
-                  <th scope="row" className="px-4 py-2.5 font-medium text-fg">{r.label}</th>
+                  <th scope="row" className={cn("max-w-[11rem] px-4 py-2.5 font-medium text-fg sm:max-w-none", STICKY)}>{r.label}</th>
                   <td className="px-3 py-2.5 text-right font-mono tnum text-fg-2">{r.deals}</td>
                   <td className="px-3 py-2.5 text-right text-fg-2">
                     <Frac n={r.qualified} of={r.deals} />
                   </td>
-                  <td className="px-3 py-2.5 text-right text-fg-2">{r.winRate ? <Frac n={r.won} of={r.winRate.n} sample={r.winRate.n >= 100 ? "reliable" : r.winRate.n >= 20 ? "directional" : "anecdote"} /> : <span className="text-fg-4">—</span>}</td>
+                  <td className="px-3 py-2.5 text-right text-fg-2">{r.winRate ? <Frac n={Math.round(r.winRate.value * r.winRate.n)} of={r.winRate.n} sample={r.winRate.n >= 100 ? "reliable" : r.winRate.n >= 20 ? "directional" : "anecdote"} /> : <span className="text-fg-4">—</span>}</td>
                   <td className="px-3 py-2.5 text-right font-mono tnum text-fg">{r.wonUsd ? money(r.wonUsd) : <span className="text-fg-4">—</span>}</td>
                   <td className="px-3 py-2.5 text-right font-mono tnum text-fg-2">{r.openUsd ? money(r.openUsd) : <span className="text-fg-4">—</span>}</td>
                   <td className="px-4 py-2.5 text-right font-mono tnum text-fg-3">{r.cycleDays !== null ? `${Math.round(r.cycleDays)}d` : "—"}</td>
@@ -96,7 +110,7 @@ export function Working({ ws, f }: { ws: Workspace; f: Forecast }) {
           <ul className="divide-y divide-border">
             {losses.map((l) => (
               <li key={l.reason} className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:gap-4">
-                <span className="flex w-52 shrink-0 items-center gap-1.5 text-[13px] font-medium text-fg">
+                <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-fg sm:w-52">
                   {l.label} <span className="font-mono text-[12px] tnum text-fg-3">×{l.count}</span>
                   {lossTotal >= 5 && l.count / lossTotal >= 0.3 && <Badge tone="warning">Pattern</Badge>}
                 </span>
@@ -114,11 +128,11 @@ export function Working({ ws, f }: { ws: Workspace; f: Forecast }) {
 function TouchTable({ title, rows }: { title: string; rows: TouchRow[] }) {
   return (
     <div className="overflow-x-auto rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border">
-      <table className="w-full min-w-[360px] text-left text-[13px]">
+      <table className="w-full min-w-[320px] text-left text-[13px]">
         <caption className="sr-only">{title}</caption>
         <thead>
           <tr className="border-b border-border text-[11.5px] text-fg-3">
-            <th scope="col" className="px-4 py-2 font-medium">{title}</th>
+            <th scope="col" className={cn("px-4 py-2 font-medium", STICKY)}>{title}</th>
             <th scope="col" className="px-3 py-2 text-right font-medium">Replied</th>
             <th scope="col" className="px-4 py-2 text-right font-medium">Became deals</th>
           </tr>
@@ -126,7 +140,7 @@ function TouchTable({ title, rows }: { title: string; rows: TouchRow[] }) {
         <tbody className="divide-y divide-border">
           {rows.slice(0, 6).map((r) => (
             <tr key={r.key}>
-              <th scope="row" className={cn("px-4 py-2.5 font-medium", r.key === "none" ? "text-fg-3" : "text-fg")}>{r.label}</th>
+              <th scope="row" className={cn("px-4 py-2.5 font-medium", STICKY, r.key === "none" ? "text-fg-3" : "text-fg")}>{r.label}</th>
               <td className="px-3 py-2.5 text-right text-fg-2">
                 <Frac n={r.replied} of={r.touched} sample={r.sample} />
               </td>

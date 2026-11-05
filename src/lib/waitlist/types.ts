@@ -1,3 +1,5 @@
+import { localDay } from "@/lib/domain/ids";
+
 export type WaitlistProvider = "convex" | "postgres";
 
 export interface WaitlistTable {
@@ -41,11 +43,12 @@ export function detectWaitlist(tables: WaitlistTable[]): WaitlistTable | undefin
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+/** One reading per local day (an evening sync isn't overwritten by the next morning's), after the first one kept as the baseline. */
 export function recordWaitlist(history: WaitlistReading[], reading: WaitlistReading): WaitlistReading[] {
   const next = [...history];
   const first = next.findIndex((r) => r.sourceId === reading.sourceId);
-  const day = reading.at.slice(0, 10);
-  const latest = next.findLastIndex((r) => r.sourceId === reading.sourceId && r.at.slice(0, 10) === day);
+  const day = localDay(reading.at);
+  const latest = next.findLastIndex((r) => r.sourceId === reading.sourceId && localDay(r.at) === day);
   if (latest < 0 || (latest === first && next[first].total !== reading.total)) next.push(reading);
   else if (latest !== first) next[latest] = reading;
   return next;

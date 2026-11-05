@@ -15,6 +15,7 @@ import type { Action } from "@/lib/domain/actions";
 import { newId, nowISO, todayISO } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
 import { awaitingOutcome, gmailSearchLinks, searchDays, type AwaitingPerson } from "@/lib/moves/replies";
+import { readIntent } from "@/lib/replies/intent";
 import { ago } from "@/lib/moves/util";
 
 export interface CheckRepliesHandle {
@@ -108,6 +109,8 @@ export function CheckReplies({
   const saveReply = async (row: AwaitingPerson) => {
     const text = (replyText[row.personId] ?? "").trim();
     if (!text) return;
+    // An auto-reply or an opt-out is certain in code; logged as one, an out-of-office holds the sequence instead of ending it.
+    const certain = readIntent(text)?.intent;
     const ok = await dispatch([
       {
         type: "activity.log",
@@ -122,6 +125,7 @@ export function CheckReplies({
           summary: `Reply from ${row.name}`,
           body: text.slice(0, 8000),
           source: "founder",
+          ...(certain === "ooo" || certain === "unsubscribe" ? { sentiment: certain } : {}),
         },
       },
       { type: "activity.markOutcome", ids: row.touches.map((t) => t.id), outcome: "replied", at: at() },

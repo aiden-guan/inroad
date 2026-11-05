@@ -6,7 +6,7 @@ import { ACTIVATION, GROWTH_MEETING } from "@/lib/consumer/benchmarks";
 import { readGrowth, sizeExperiment, STAGE_LABELS, type GrowthRead } from "@/lib/consumer/growth";
 import { partnerResults, PARTNER_STAGE_LABELS } from "@/lib/consumer/partners";
 import { ACTIVE_MOTIONS } from "@/lib/consumer/plan";
-import { newId, weekOf } from "@/lib/domain/ids";
+import { localDay, newId, weekOf } from "@/lib/domain/ids";
 import type { Experiment, ReviewProposal, Workspace } from "@/lib/domain/types";
 import { MOTION_LABELS } from "@/components/playbook/model";
 import { clip, plural } from "@/lib/moves/util";
@@ -95,7 +95,7 @@ export function growthData(ws: Workspace, today: string): GrowthData {
   const all = Object.values(ws.partners ?? {});
   const stages = ["shortlist", "contacted", "replied", "agreed", "live", "done", "passed"] as const;
   const weekStart = weekOf(today);
-  const thisWeek = ws.activities.filter((a) => a.at.slice(0, 10) >= weekStart);
+  const thisWeek = ws.activities.filter((a) => localDay(a.at) >= weekStart);
   const talks = ws.activities.filter((a) => a.kind === "user_conversation").slice(-5);
   const plan = ws.foundation?.channelPlan.motions ?? [];
   return {

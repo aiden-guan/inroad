@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Check, ChevronDown } from "lucide-react";
+import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { AiBadge, Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/client/cn";
 import type { DinnerPlan, GtmEvent } from "@/lib/domain/types";
 import { spring } from "@/lib/motion";
 import { GOALS, GOAL_LABEL, START_TIME, computeTimeline, eventDateTime, eventDay, type EventGoal } from "./plan-math";
-import { AgentNote, Sources, Stat } from "./ui";
+import { AgentNote, Sources } from "./ui";
 
 const COHOST_KIND: Record<NonNullable<DinnerPlan["coHost"]>["kind"], string> = {
   vc_platform: "VC platform team",
@@ -60,7 +60,7 @@ function Themes({ ev, plan }: { ev: GtmEvent; plan: DinnerPlan }) {
               <div className="flex flex-wrap items-center gap-2 px-4 pb-3 pl-11">
                 <Sources ids={t.evidenceIds} sources={t.sources} />
                 {t.prompts.length > 0 && (
-                  <span className="font-mono text-[11px] text-fg-3">
+                  <span className="font-mono text-[12px] text-fg-3">
                     {t.prompts.length} prompts · {t.reservePrompts.length} in reserve
                   </span>
                 )}
@@ -99,8 +99,9 @@ function WhenWhere({ ev, plan }: { ev: GtmEvent; plan: DinnerPlan }) {
               Date
             </Label>
             <div className="flex flex-wrap gap-2">
-              <Input id="ev-date" type="date" value={day} onChange={(e) => setDate(e.target.value)} className="min-w-0 flex-1 font-mono" />
-              <Input aria-label="Start time" type="time" value={time} onChange={(e) => e.target.value && setDate(day, e.target.value)} className="w-28 font-mono" />
+              <Input id="ev-date" type="date" value={day} onChange={(e) => setDate(e.target.value)} className="min-w-[10.5rem] flex-1 font-mono" />
+              {/* Wide enough for "06:30 PM" and the picker icon in every locale; it wraps under the date when space runs out. */}
+              <Input aria-label="Start time" type="time" value={time} onChange={(e) => e.target.value && setDate(day, e.target.value)} className="w-[9.5rem] shrink-0 font-mono" />
             </div>
           </div>
           {ev.kind === "dinner" ? (
@@ -255,10 +256,86 @@ function Notes({ plan }: { plan: DinnerPlan }) {
   );
 }
 
-function Rail({ ev, plan }: { ev: GtmEvent; plan: DinnerPlan }) {
-  const { dispatch } = useWorkspace();
+/** "1 in 4" for a rate, when a whole number says it better than a percentage. */
+function oneIn(rate: number): string | null {
+  if (!(rate > 0 && rate < 0.6)) return null;
+  return `1 in ${Math.round(1 / rate)}`;
+}
+
+/**
+ * The invite math, said in plain words with the numbers: how many invites, how many yeses that should bring, and how
+ * many seats that fills. Shown as a short path first (36 invites → 12 yeses → 10 seats), then one line for each step.
+ */
+function InviteMath({ ev, plan, weeklyCap }: { ev: GtmEvent; plan: DinnerPlan; weeklyCap?: number }) {
   const m = plan.inviteMath;
   const c = plan.composition;
+  const pct = (r: number) => `${Math.round(r * 100)}%`;
+  const yes = oneIn(m.expectedAcceptRate);
+  const noShow = oneIn(1 - m.expectedShowRate);
+  const steps: [number, string][] = [
+    [m.invites, m.invites === 1 ? "invite" : "invites"],
+    [m.confirmsTarget, m.confirmsTarget === 1 ? "yes" : "yeses"],
+    [m.seats, m.seats === 1 ? "seat" : "seats"],
+  ];
+  const table = c
+    ? [
+        ev.kind === "dinner" ? `you and ${plan.coHost ? plan.coHost.name : "a co-host"} as hosts` : "you as host",
+        c.anchor ? `1 ${ev.kind === "roundtable" ? "framer who opens the question" : "anchor guest"}` : null,
+        c.customers ? `${c.customers} ${c.customers === 1 ? "customer" : "customers"}` : null,
+        `${c.prospects} prospects`,
+        c.connector ? "1 connector" : null,
+      ].filter(Boolean)
+    : [];
+  return (
+    <section>
+      <SectionLabel>Invite math</SectionLabel>
+      <Card className="p-4">
+        {/* The path at a glance; the sentences below say the same for screen readers. */}
+        <ol aria-hidden className="flex items-start">
+          {steps.map(([n, word], i) => (
+            <li key={word} className="flex min-w-0 flex-1 items-start">
+              {i > 0 && <ArrowRight className="mr-2 mt-[7px] size-3.5 shrink-0 text-fg-3" aria-hidden />}
+              <span className="min-w-0">
+                <span className="block font-mono text-[20px] leading-7 tnum text-fg">{n}</span>
+                <span className="block text-[12px] text-fg-3">{word}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <ul className="mt-4 space-y-2.5 border-t border-border pt-3 text-[13px] leading-5 text-fg-2">
+          <li>
+            Send <span className="font-mono tnum text-fg">{m.invites}</span> invites. I expect {yes ? `about ${yes} to say yes (${pct(m.expectedAcceptRate)})` : `${pct(m.expectedAcceptRate)} to say yes`}.
+          </li>
+          <li>
+            Aim for <span className="font-mono tnum text-fg">{m.confirmsTarget}</span> yeses to fill <span className="font-mono tnum text-fg">{m.seats}</span> seats.
+            {m.expectedShowRate < 1 && (
+              <>
+                {" "}
+                {noShow ? `About ${noShow} people who say yes don't come` : `About ${pct(1 - m.expectedShowRate)} of people who say yes don't come`}, so the extra yeses keep the room full.
+              </>
+            )}
+          </li>
+          {m.warmInvites !== undefined && m.coldInvites !== undefined && (
+            <li>
+              <span className="font-mono tnum text-fg">{m.warmInvites}</span> go to people you know or can be introduced to.{" "}
+              {m.coldInvites > 0 ? (
+                <>
+                  <span className="font-mono tnum text-fg">{m.coldInvites}</span> {m.coldInvites === 1 ? "is cold and counts" : "are cold and count"} toward your limit of {weeklyCap ?? "a few"} first emails a week.
+                </>
+              ) : (
+                "None are cold, so they don't touch your weekly limit on first emails."
+              )}
+            </li>
+          )}
+        </ul>
+        {table.length > 0 && <p className="mt-3 border-t border-border pt-3 text-[12.5px] leading-[18px] text-fg-3">At the table: {table.join(", ")}.</p>}
+      </Card>
+    </section>
+  );
+}
+
+function Rail({ ev, plan }: { ev: GtmEvent; plan: DinnerPlan }) {
+  const { ws, dispatch } = useWorkspace();
   const setGoal = (goal: EventGoal) => void dispatch({ type: "event.update", id: ev.id, patch: { plan: { ...plan, goal } } });
   return (
     <aside className="space-y-6">
@@ -280,39 +357,14 @@ function Rail({ ev, plan }: { ev: GtmEvent; plan: DinnerPlan }) {
           {GOALS.map((g) => (
             <MenuItem key={g.value} onSelect={() => setGoal(g.value)} hint={g.value === plan.goal ? "Current" : undefined}>
               <span className="block">{g.label}</span>
-              <span className="block text-[11.5px] text-fg-3">{g.hint}</span>
+              <span className="block text-[12px] text-fg-3">{g.hint}</span>
             </MenuItem>
           ))}
         </Menu>
-        <p className="mt-1.5 text-[11.5px] leading-4 text-fg-3">One goal per room. Re-plan to re-rank guests for a new goal.</p>
+        <p className="mt-1.5 text-[12px] leading-4 text-fg-3">One goal per room. Re-plan to re-rank guests for a new goal.</p>
       </section>
 
-      <section>
-        <SectionLabel>Invite math</SectionLabel>
-        <Card className="p-4">
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-4">
-            <Stat label="Seats" value={m.seats} />
-            <Stat label="Confirm" value={m.confirmsTarget} hint="125% of seats" />
-            <Stat label="Invites" value={m.invites} />
-            <Stat label="Warm" value={m.warmInvites ?? "—"} />
-            <Stat label="Cold" value={m.coldInvites ?? "—"} hint="Count against the cap" />
-            <Stat label="Accept" value={`${Math.round(m.expectedAcceptRate * 100)}%`} hint={`Show ${Math.round(m.expectedShowRate * 100)}%`} />
-          </dl>
-          {c && (
-            <p className="mt-4 border-t border-border pt-3 text-[12.5px] leading-[18px] text-fg-2">
-              {[
-                `${c.hosts} host${c.hosts === 1 ? "" : "s"}`,
-                c.anchor ? `1 ${ev.kind === "roundtable" ? "framer" : "anchor"}` : null,
-                c.customers ? `${c.customers} customer${c.customers === 1 ? "" : "s"}` : null,
-                `${c.prospects} prospects`,
-                c.connector ? "1 connector" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          )}
-        </Card>
-      </section>
+      <InviteMath ev={ev} plan={plan} weeklyCap={ws?.caps.firstTouchesPerWeek} />
 
       <section>
         <SectionLabel>Budget</SectionLabel>

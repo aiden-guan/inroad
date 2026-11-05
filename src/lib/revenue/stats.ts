@@ -126,27 +126,64 @@ export function quarterOf(today: ISODate): { start: ISODate; end: ISODate; label
   return { start, end: addDays(next, -1), label: `Q${q + 1} ${y}` };
 }
 
+/**
+ * The saved target, while it still governs: during its period, or before it starts (a target set ahead for next
+ * quarter). Once its period has ended it's last period's number, not this one's, so the forecast rolls on.
+ */
+export function liveTarget(target: RevenueTarget | undefined, today: ISODate): RevenueTarget | undefined {
+  return target && target.periodEnd >= today ? target : undefined;
+}
+
+/** A saved target whose period is over: history, and the default offered for the period running now. */
+export function endedTarget(target: RevenueTarget | undefined, today: ISODate): RevenueTarget | undefined {
+  return target && target.periodEnd < today ? target : undefined;
+}
+
+/** The period the forecast calls: the live target's, else the calendar quarter that contains `today`. */
 export function periodOf(target: RevenueTarget | undefined, today: ISODate): Period {
+  const live = liveTarget(target, today);
   const q = quarterOf(today);
-  const start = target?.periodStart ?? q.start;
-  const end = target?.periodEnd ?? q.end;
+  const start = live?.periodStart ?? q.start;
+  const end = live?.periodEnd ?? q.end;
   const total = Math.max(1, daysBetween(start, end) + 1);
   const daysLeft = today > end ? 0 : Math.max(0, daysBetween(today < start ? start : today, end) + 1);
   return {
     start,
     end,
-    label: target?.label || q.label,
+    label: live?.label || q.label,
     daysLeft,
     weeksLeft: Math.ceil(daysLeft / 7),
     elapsed: Math.min(1, Math.max(0, (total - daysLeft) / total)),
   };
 }
 
-/** The period right after this one, same length (next quarter's coverage is this quarter's early warning). */
-export function nextPeriod(p: Period): { start: ISODate; end: ISODate } {
-  const length = daysBetween(p.start, p.end);
+/** Whole calendar months from `start` (a 1st) to `end` (a month's last day), or null when the period isn't month-aligned. */
+function wholeMonths(start: ISODate, end: ISODate): number | null {
+  if (start.slice(8, 10) !== "01" || addDays(end, 1).slice(8, 10) !== "01") return null;
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em] = end.split("-").map(Number);
+  const n = (ey - sy) * 12 + (em - sm) + 1;
+  return n > 0 ? n : null;
+}
+
+/** The 1st of the month `n` months after `first` (itself a 1st). */
+function monthsAfter(first: ISODate, n: number): ISODate {
+  const [y, m] = first.split("-").map(Number);
+  const k = m - 1 + n;
+  return `${y + Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, "0")}-01`;
+}
+
+/**
+ * The period right after this one (next quarter's coverage is this quarter's early warning). Calendar boundaries,
+ * not day counts: after a quarter comes the next calendar quarter (Q4 → Jan 1–Mar 31, never Apr 2), after any
+ * whole-month period the same number of months. Only a period that doesn't start and end on month edges repeats
+ * its length in days.
+ */
+export function nextPeriod(p: { start: ISODate; end: ISODate }): { start: ISODate; end: ISODate } {
   const start = addDays(p.end, 1);
-  return { start, end: addDays(start, length) };
+  const months = wholeMonths(p.start, p.end);
+  if (months) return { start, end: addDays(monthsAfter(start, months), -1) };
+  return { start, end: addDays(start, daysBetween(p.start, p.end)) };
 }
 
 /* ─────────────────────────────── Amounts ─────────────────────────────── */
@@ -194,25 +231,61 @@ function avgDealPrior(ws: Workspace): number {
   return band === "lt50" ? 15_000 : band === "gt300" ? 100_000 : 35_000;
 }
 
+/* ─────────────────────────────── Deals that came in from a file ─────────────────────────────── */
+
+export type ImportUnknown = NonNullable<NonNullable<Deal["imported"]>["unknown"]>[number];
+
+/** The file had no such date (or contacts, or source): the import time stands in, and code doesn't read it as history. */
+export function importUnknown(deal: Deal, what: ImportUnknown): boolean {
+  return !!deal.imported?.unknown?.includes(what);
+}
+
+/** Arrived already closed. It never went through this workspace's funnel, so it counts toward sizes and cycles, never rates. */
+export function importedClosed(deal: Deal): boolean {
+  return deal.imported?.stage === "won" || deal.imported?.stage === "lost";
+}
+
+/** A stage entry the file wrote rather than one recorded here: on or before the moment of import. */
+function fromFile(deal: Deal, entry: { at: string }): boolean {
+  return !!deal.imported && Date.parse(entry.at) <= Date.parse(deal.imported.at);
+}
+
+/**
+ * Days spent in a stage before leaving it, or null when the history can't say. A file only knows a deal's current
+ * stage (the ones before it are missing), so a span between two entries it wrote isn't a stage duration, and a
+ * span that starts at an entry dated by the import time starts too late.
+ */
+function stageSpan(deal: Deal, i: number): number | null {
+  const from = deal.stageHistory[i];
+  const to = deal.stageHistory[i + 1];
+  if (!to) return null;
+  if (fromFile(deal, from) && (fromFile(deal, to) || (from.at === deal.imported!.at && importUnknown(deal, i === 0 ? "created" : "stage_date")))) return null;
+  return Math.max(0, daysBetween(localDate(from.at), localDate(to.at)));
+}
+
 export function revenueStats(ws: Workspace, today: ISODate): RevenueStats {
   const deals = Object.values(ws.deals);
   const won = deals.filter((d) => d.stage === "won");
   const lost = deals.filter((d) => d.stage === "lost");
   const closed = [...won, ...lost];
+  // Rates come from deals seen through the funnel here. A file of open deals plus this quarter's wins, and none of
+  // the losses, would make every rate look better than it is.
+  const rated = closed.filter((d) => !importedClosed(d));
   const target = ws.revenue?.target;
 
-  const closedQualified = closed.filter((d) => FUNNEL.slice(1).some((s) => reached(d, s)) || d.stage === "won");
+  const closedQualified = rated.filter((d) => FUNNEL.slice(1).some((s) => reached(d, s)) || d.stage === "won");
   const wonQualified = closedQualified.filter((d) => d.stage === "won").length;
   const winRate = blended(target?.winRate ?? ws.goal.winRate ?? PRIORS.winRate, wonQualified, closedQualified.length);
 
   const wonAmounts = won.map((d) => d.amountUsd ?? d.priceQuotes?.at(-1)?.amountUsd ?? 0).filter((n) => n > 0);
   const avgDealUsd = observed(avgDealPrior(ws), median(wonAmounts), wonAmounts.length, MIN_WON);
 
-  const cycles = won.map((d) => daysBetween(startedOn(d), closedOn(d) ?? today)).filter((n) => n >= 0);
+  const cycles = won.filter((d) => !importUnknown(d, "created")).map((d) => daysBetween(startedOn(d), closedOn(d) ?? today)).filter((n) => n >= 0);
   const cycleDays = observed(target?.cycleDays ?? PRIORS.cycleDays, median(cycles), cycles.length, MIN_WON);
 
-  // A first conversation has had its chance to qualify once it qualified or closed.
-  const decided = deals.filter((d) => d.stage !== "talking" && d.stage !== "nurture");
+  // A first conversation has had its chance to qualify once it qualified or closed. A deal that arrived already past
+  // Talking is a survivor (the file has no first meetings that went nowhere), so it doesn't count either way.
+  const decided = deals.filter((d) => d.stage !== "talking" && d.stage !== "nurture" && (!d.imported || d.imported.stage === "talking"));
   const qualifiedOf = decided.filter((d) => FUNNEL.slice(1).some((s) => reached(d, s)) || d.stage === "won").length;
   const meetingToQualified = blended(ws.goal.discoveryToQualified ?? PRIORS.meetingToQualified, qualifiedOf, decided.length);
 
@@ -223,10 +296,11 @@ export function revenueStats(ws: Workspace, today: ISODate): RevenueStats {
     for (const d of deals) {
       const i = d.stageHistory.findIndex((h) => h.stage === stage);
       if (i < 0 || i === d.stageHistory.length - 1) continue; // never in it, or still in it
-      spans.push(Math.max(0, daysBetween(localDate(d.stageHistory[i].at), localDate(d.stageHistory[i + 1].at))));
+      const span = stageSpan(d, i);
+      if (span !== null) spans.push(span);
     }
     stageDays[stage] = observed(PRIORS.stageDays[stage], median(spans), spans.length, MIN_STAGE_EXITS);
-    const through = closed.filter((d) => reached(d, stage) || (stage === "talking" && d.stageHistory.length > 0));
+    const through = rated.filter((d) => reached(d, stage) || (stage === "talking" && d.stageHistory.length > 0));
     const throughWon = through.filter((d) => d.stage === "won").length;
     stageWin[stage] = blended(PRIORS.stageWin[stage], throughWon, through.length);
   }

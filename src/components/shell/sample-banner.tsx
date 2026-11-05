@@ -7,7 +7,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/client/cn";
 import { ease } from "@/lib/motion";
 
 /**
@@ -44,10 +43,11 @@ export function useLeaveSample() {
 }
 
 /**
- * Says the sample is made up wherever the founder is, with the way out next to it. A card at the top
- * of the sidebar on desktop, a slim bar under the header on a phone.
+ * Says the sample is made up wherever the founder is, with the way out next to it: a slim strip across the top of
+ * the page column, on every page and at every size. (It used to be a card in the sidebar, where it pushed the
+ * pages and ⌘K below the fold.) The company menu keeps a "Sample" badge while the strip scrolls away.
  */
-export function SampleBanner({ variant }: { variant: "sidebar" | "bar" }) {
+export function SampleBanner() {
   const { ws } = useWorkspace();
   const { leave, busy } = useLeaveSample();
   const name = ws?.company?.name ?? "This company";
@@ -62,29 +62,22 @@ export function SampleBanner({ variant }: { variant: "sidebar" | "bar" }) {
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0, transition: { duration: 0.15 } }}
           transition={{ duration: 0.22, ease: ease.out }}
-          className={cn("shrink-0 overflow-hidden", variant === "bar" && "md:hidden")}
+          className="shrink-0 overflow-hidden"
         >
-          {variant === "sidebar" ? (
-            <div className="mx-2 mb-2 rounded-md bg-warning-subtle px-3 py-2.5">
-              <p className="flex items-center gap-1.5 text-[12px] font-medium text-warning">
-                <FlaskConical className="size-3.5" aria-hidden /> Sample workspace
-              </p>
-              <p className="mt-0.5 text-[12px] leading-[17px] text-fg-2 text-pretty">{name} and everyone here are made up.</p>
-              <Button size="xs" variant="ghost" loading={busy} onClick={() => void leave()} className="-ml-2 mt-1 text-fg hover:bg-surface/70">
-                Start with my company <ArrowRight className="size-3" aria-hidden />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 border-b border-border bg-warning-subtle px-4 py-2 text-[12.5px]">
-              <FlaskConical className="size-3.5 shrink-0 text-warning" aria-hidden />
-              <p className="min-w-0 flex-1 truncate text-fg-2" title={`${name} and everyone here are made up`}>
-                <span className="font-medium text-fg">Sample</span> <span aria-hidden>·</span> made up
-              </p>
-              <Button size="xs" variant="ghost" loading={busy} onClick={() => void leave()} className="-mr-2 shrink-0 text-fg hover:bg-surface/70">
-                Start with my company <ArrowRight className="size-3" aria-hidden />
-              </Button>
-            </div>
-          )}
+          <div className="flex min-h-10 items-center gap-2.5 border-b border-border bg-warning-subtle px-4 py-1 text-[13px] md:px-6">
+            <FlaskConical className="size-3.5 shrink-0 text-warning" aria-hidden />
+            <p className="min-w-0 flex-1 truncate text-fg-2" title={`${name} and everyone here are made up`}>
+              <span className="font-medium text-fg">
+                Sample<span className="hidden sm:inline"> workspace</span>
+              </span>
+              <span aria-hidden> · </span>
+              <span className="hidden sm:inline">{name} and everyone here are made up.</span>
+              <span className="sm:hidden">made up</span>
+            </p>
+            <Button size="xs" variant="ghost" loading={busy} onClick={() => void leave()} className="-mr-2 shrink-0 text-fg hover:bg-surface/70">
+              Start with my company <ArrowRight className="size-3" aria-hidden />
+            </Button>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

@@ -68,9 +68,9 @@ export function Sources({ ids = [], sources = [], className }: { ids?: ID[]; sou
 export function Stat({ label, value, hint, className }: { label: string; value: ReactNode; hint?: ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0", className)}>
-      <dt className="text-[11.5px] text-fg-3">{label}</dt>
+      <dt className="text-[12px] text-fg-3">{label}</dt>
       <dd className="mt-0.5 font-mono text-[15px] tnum text-fg">{value}</dd>
-      {hint && <p className="mt-0.5 text-[11.5px] leading-4 text-fg-3">{hint}</p>}
+      {hint && <p className="mt-0.5 text-[12px] leading-4 text-fg-3">{hint}</p>}
     </div>
   );
 }
@@ -106,7 +106,7 @@ export function DraftBlock({
   const over = maxWords !== undefined && words > maxWords;
   return (
     <div className={cn("draft-rule rounded-r-md bg-surface py-3 pl-4 pr-3", className)}>
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11.5px] text-fg-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-fg-3">
         <span className="font-medium text-fg-2">{label}</span>
         {to && <span className="truncate font-mono">to {to}</span>}
         <span className="flex-1" />
@@ -173,7 +173,7 @@ export function SummaryReceipt({ summary }: { summary: RunSummary }) {
   const r = summary.receipt;
   const parts = [`Worked for ${duration(r.durationMs)}`, r.sources ? `${r.sources} source${r.sources === 1 ? "" : "s"}` : null, usd(r.costUsd)].filter(Boolean);
   return (
-    <span className="inline-flex h-6 items-center gap-1.5 font-mono text-[11.5px] text-fg-3">
+    <span className="inline-flex h-6 items-center gap-1.5 font-mono text-[12px] text-fg-3">
       <Orb state={summary.status === "error" ? "error" : "idle"} size={10} />
       {parts.join(" · ")}
     </span>

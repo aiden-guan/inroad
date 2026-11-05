@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { SectionLabel } from "@/components/ui/card";
@@ -22,8 +22,12 @@ import { BAND_LABEL, BAND_TONE, RiskList, SEVERITY_DOT } from "./risk-list";
  * call it differently, and the code's call stays visible beside theirs. A row opens in place (no modal)
  * to show what's at risk and the fix for each.
  */
-export function DealCalls({ f, focus }: { f: Forecast; focus?: string | null }) {
+export function DealCalls({ f, focus, onImport }: { f: Forecast; focus?: string | null; onImport?: () => void }) {
   const [open, setOpen] = useState<string | null>(focus ?? null);
+  // A link to one deal (?d=) opens its row and brings it into view, once the page is on screen.
+  useEffect(() => {
+    if (focus) document.getElementById(`deal-${focus}`)?.scrollIntoView({ block: "center" });
+  }, [focus]);
   const groups = CATEGORY_ORDER.map((cat) => ({ cat, calls: f.calls.filter((c) => c.category === cat) })).filter((g) => g.calls.length);
 
   if (!f.calls.length) {
@@ -32,11 +36,19 @@ export function DealCalls({ f, focus }: { f: Forecast; focus?: string | null }) 
         <SectionLabel>
           <span id="calls-label">Deals in the forecast</span>
         </SectionLabel>
-        <p className="rounded-lg bg-surface px-5 py-6 text-[14px] text-fg-2 ring-1 ring-border">
-          No open deals yet. A deal starts at the first real conversation; log one from{" "}
+        <p className="rounded-lg bg-surface px-5 py-6 text-[14px] leading-[22px] text-fg-2 ring-1 ring-border">
+          No open deals right now. A deal starts at the first real conversation; log one from{" "}
           <Link href="/companies?log=1" className="font-medium text-fg underline-offset-2 hover:underline">
             Companies
           </Link>
+          {onImport && (
+            <>
+              , or{" "}
+              <button type="button" onClick={onImport} className="font-medium text-fg underline-offset-2 hover:underline">
+                import open deals from a CSV
+              </button>
+            </>
+          )}
           .
         </p>
       </section>
@@ -78,13 +90,14 @@ function CallRow({ c, open, onToggle }: { c: DealCall; open: boolean; onToggle: 
   const top = c.risks[0];
   const passed = c.risks.some((r) => r.code === "close_passed");
   return (
-    <div className={cn("border-b border-border last:border-b-0", open && "bg-bg-subtle/40")}>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 md:grid-cols-[minmax(0,1fr)_88px_92px_minmax(0,180px)_120px]">
+    <div id={`deal-${c.deal.id}`} className={cn("scroll-mt-24 border-b border-border last:border-b-0", open && "bg-bg-subtle/40")}>
+      {/* Phones: two rows (the deal and its amount; its health and the call). From md: one row of five columns. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-4 py-3 md:grid-cols-[minmax(0,1fr)_88px_92px_minmax(0,180px)_120px] md:gap-x-4 md:gap-y-1 md:py-2.5">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={open}
-          className="flex min-w-0 items-center gap-2.5 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          className="col-start-1 row-start-1 flex min-w-0 items-center gap-2.5 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
         >
           <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 text-fg-4 transition-transform duration-150", open && "rotate-90")} />
           <Favicon domain={c.deal.accountDomain} name={c.deal.name} size={18} />
@@ -96,7 +109,7 @@ function CallRow({ c, open, onToggle }: { c: DealCall; open: boolean; onToggle: 
             </span>
           </span>
         </button>
-        <span className="text-right font-mono text-[13px] tnum text-fg md:order-none">
+        <span className="col-start-2 row-start-1 text-right font-mono text-[13px] tnum text-fg">
           {money(c.amount.usd)}
           {c.amount.source !== "deal" && (
             <Tooltip content={c.amount.source === "quote" ? "From the last price you quoted." : "No amount yet: your typical deal, until one is set."}>
@@ -106,17 +119,20 @@ function CallRow({ c, open, onToggle }: { c: DealCall; open: boolean; onToggle: 
             </Tooltip>
           )}
         </span>
-        <span className={cn("hidden font-mono text-[12.5px] tnum md:block", passed ? "text-danger" : "text-fg-2")}>
+        <span className={cn("hidden font-mono text-[12.5px] tnum md:col-start-3 md:row-start-1 md:block", passed ? "text-danger" : "text-fg-2")}>
           {shortDay(c.closeDate)}
           {c.closeEstimated && <span className="ml-1 text-[11px] text-fg-4">est.</span>}
         </span>
-        <span className="col-span-2 flex min-w-0 items-center gap-2 pl-[50px] text-[12.5px] md:col-span-1 md:pl-0">
+        <span className="col-start-1 row-start-2 flex min-w-0 items-center gap-2 pl-[50px] text-[12.5px] md:col-start-4 md:row-start-1 md:pl-0">
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", top ? SEVERITY_DOT[top.severity] : "bg-success")} />
           <span className={cn("shrink-0 font-medium", BAND_TONE[c.band])}>{BAND_LABEL[c.band]}</span>
-          {top && <span className="truncate text-fg-3">· {top.label}</span>}
-          <span className="ml-auto font-mono text-[12px] tnum text-fg-3 md:hidden">{shortDay(c.closeDate)}</span>
+          {top && <span className="min-w-0 truncate text-fg-3">· {top.label}</span>}
+          <span className={cn("ml-auto shrink-0 pl-1 font-mono text-[12px] tnum md:hidden", passed ? "text-danger" : "text-fg-3")}>
+            {shortDay(c.closeDate)}
+            {c.closeEstimated && " est."}
+          </span>
         </span>
-        <div className="col-span-2 flex justify-end md:col-span-1">
+        <div className="col-start-2 row-start-2 flex justify-end md:col-start-5 md:row-start-1">
           <CallMenu c={c} />
         </div>
       </div>
