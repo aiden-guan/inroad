@@ -642,7 +642,10 @@ function persist(w: Workspace, { domain, out, ledger, at, today, runId, digest }
           addPath({ kind: "linkedin", value: l.url, via: "Search result", verified: false, founderConfirmed: false });
         }
       }
+      // Someone on file keeps everything research doesn't rebuild (relationship tags, Apollo id, notes, champion
+      // test…): a refresh only updates what it found, so it never wipes the founder's own facts or buys a contact again.
       const person: Person = {
+        ...existing,
         id: existing?.id ?? newId("per"),
         accountDomain: domain,
         name: p.name.slice(0, 80),
@@ -658,8 +661,6 @@ function persist(w: Workspace, { domain, out, ledger, at, today, runId, digest }
         contactPaths: rankPaths(paths),
         jurisdiction: location ? jurisdictionOf(location) : existing?.jurisdiction && existing.jurisdiction !== "unknown" ? existing.jurisdiction : hqJurisdiction,
         doNotContact: existing?.doNotContact ?? false,
-        champion: existing?.champion,
-        notes: existing?.notes,
         source: existing?.source ?? "web_search",
       };
       w.people[person.id] = person;
