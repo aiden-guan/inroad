@@ -1,5 +1,6 @@
 import { addDays, todayISO } from "@/lib/domain/ids";
 import { STAGE_LABELS, type Account, type EntityRef, type Move, type Workspace } from "@/lib/domain/types";
+import { isAutoReply } from "@/lib/replies/intent";
 import { firstThreeDomains } from "./rules";
 import { dealsMissingNextStep } from "./scoreboard";
 import { clip, clockTime, companyName, daysSince, first, isOpen, localDate, plural, researchState } from "./util";
@@ -110,7 +111,12 @@ export function codeGreeting(ws: Workspace, visible: Move[], now: Date): string 
     return `${hello} ${plural(missing, "deal")} still ${missing === 1 ? "has" : "have"} no dated next step.`;
   }
 
-  const replies = visible.filter((m) => m.kind === "reply").length;
+  // An out-of-office isn't a reply to read: it only holds the follow-ups.
+  const replies = visible.filter((m) => {
+    if (m.kind !== "reply") return false;
+    const a = m.activityId ? ws.activities.find((x) => x.id === m.activityId) : undefined;
+    return !a || !isAutoReply(ws, a);
+  }).length;
   const meetings = visible.filter((m) => m.kind === "meeting_prep").length;
   if (replies || meetings) {
     const parts = [replies ? `${plural(replies, "reply", "replies")} to read` : "", meetings ? `${plural(meetings, "meeting")} today` : ""].filter(Boolean);

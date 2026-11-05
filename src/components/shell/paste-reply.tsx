@@ -2,14 +2,16 @@
 
 import { Building2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
 import { Input, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
-import { targetOf, type PasteTarget, type SenderMatch } from "@/lib/replies/sender";
+import { todayISO } from "@/lib/domain/ids";
+import { INTENT_LABEL, readIntent, replyBy } from "@/lib/replies/intent";
+import { replyBody, targetOf, type PasteTarget, type SenderMatch } from "@/lib/replies/sender";
 
 const WHY: Record<string, string> = { email: "by their address", name: "by name", domain: "new here" };
 
@@ -58,6 +60,8 @@ export function PasteReply({ onDone }: { onDone: () => void }) {
         ? targetOf(matches[pick])
         : null;
   const ready = text.trim().length >= 2 && !!target && !busy;
+  // How it reads, in code, before anything is spent: the same read Today's replies lane shows.
+  const read = useMemo(() => (text.trim().length >= 8 ? readIntent(replyBody(text)) : null), [text]);
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -157,14 +161,29 @@ export function PasteReply({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
+      {read && <ReadsAs intent={read.intent} cue={read.cue} />}
+
       {error && <p className="px-1 text-[12.5px] text-danger">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
         <Button type="submit" variant="agent" size="sm" kbd="⌘↵" loading={busy} disabled={!ready}>
           Read it and draft a reply
         </Button>
-        <span className="text-[12px] text-fg-3">Logs it and stops their follow-ups. The draft costs a few cents.</span>
+        <span className="text-[12px] text-fg-3">{read?.intent === "ooo" ? "Logs it and holds their follow-ups. No draft needed." : "Logs it and stops their follow-ups. It joins your replies on Today. The draft costs a few cents."}</span>
       </div>
     </form>
+  );
+}
+
+/** "Reads as Question · reply today": code's read of the paste (zero tokens), with the phrase that decided it. */
+function ReadsAs({ intent, cue }: { intent: keyof typeof INTENT_LABEL; cue?: string }) {
+  const due = replyBy(intent, new Date().toISOString());
+  const today = todayISO();
+  return (
+    <p className="px-1 text-[12px] leading-[17px] text-fg-3" title={cue ? `Read in code from “${cue}”` : undefined}>
+      Reads as <span className="font-medium text-fg-2">{INTENT_LABEL[intent]}</span>
+      {due ? ` · reply ${due === today ? "today" : `by ${new Date(`${due}T12:00:00`).toLocaleDateString("en-US", { weekday: "long" })}`}` : intent === "ooo" ? " · no reply owed" : ""}
+      {cue && <span className="hidden sm:inline"> · from “{cue.length > 70 ? `${cue.slice(0, 69)}…` : cue}”</span>}
+    </p>
   );
 }

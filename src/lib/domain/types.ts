@@ -1286,6 +1286,15 @@ export interface Activity {
   editDistance?: number;
   /** Replies only: a yes the founder answered and then let go (no call, and no deal to close as lost). */
   loopClosedAt?: ISODateTime;
+  /** Replies only: how the founder says it reads, when they corrected Today's chip. Wins over every other read. */
+  intent?: ReplyIntent;
+  /**
+   * Founder sends: the day a follow-up comes due if nothing is heard back ("Remind me if no reply"). Set by default
+   * when a draft is marked sent; null means the founder turned the reminder off. Unset on older sends: no reminder.
+   */
+  remindOn?: ISODate | null;
+  /** Replies only (out of office, not now): follow-ups to this person wait until this date, then Today brings them back. */
+  holdUntil?: ISODate;
   /**
    * Set when "Delete their details" anonymised it: `who` is one opaque id per deleted person (in place of
    * personId), `draft` what the touch was (the draft itself is gone), so the cold cap, the per-company
@@ -1351,6 +1360,23 @@ export interface Move {
   autoDone?: true;
   /** The play this move came from, when one did (see `src/lib/plays`). */
   playId?: string;
+  /** When the founder finished, skipped or put it off (today's progress counts these; a skip's learning window starts here). */
+  settledAt?: ISODateTime;
+  /** Skipped: who and what the card was about, stamped at the skip, so what Today learns outlives the person or the signal. */
+  skipTarget?: SkipTarget;
+  /** The founder took this skip back out of what Today learns from ("What I've learned" → Undo). */
+  learnIgnored?: true;
+  /** Snoozed until this person writes back, or `snoozedUntil`, whichever comes first. */
+  untilReply?: { personId: ID; since: ISODateTime };
+}
+
+/** What a skipped card targeted: the persona it was written to and the why-now signal it rested on. */
+export interface SkipTarget {
+  /** A playbook persona (`psn:<id>`), else a buying role (`role:<role>`), else a title (`title:<title>`). */
+  persona?: { key: string; label: string };
+  signalType?: SignalType;
+  domain?: string;
+  personId?: ID;
 }
 
 export interface Scoreboard {

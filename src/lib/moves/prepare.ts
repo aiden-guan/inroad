@@ -37,7 +37,7 @@ export interface PrepareResult {
 
 function nextBrief(ws: Workspace, now: Date): Brief {
   const today = todayISO(now);
-  const moves = mergeMoves(ws.moves, computeMoves(ws, now), today);
+  const moves = mergeMoves(ws.moves, computeMoves(ws, now), today, ws);
   const visible = visibleMoves(moves, today);
   const prev = ws.briefs[today];
   const base: Brief = prev ?? { date: today, kind: "daily", greeting: "", matters: [], generatedAt: now.toISOString(), seen: [] };
@@ -88,7 +88,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
 
   // Dry run against the cached snapshot so an unchanged day costs no write.
   const snapshot = readWorkspace();
-  const dryMoves = mergeMoves(snapshot.moves, computeMoves(snapshot, now), today);
+  const dryMoves = mergeMoves(snapshot.moves, computeMoves(snapshot, now), today, snapshot);
   const dryBrief = nextBrief(snapshot, now);
   const fresh = briefInputs(snapshot, now).fresh;
   // Anything a brief covered in the last 14 days (the signal window; replies use 7) isn't new again today.
@@ -117,7 +117,7 @@ export async function prepareToday(opts: { force?: boolean } = {}): Promise<Prep
   let ahead: AheadPlan = { preps: [], drafts: [], keys: [] };
   if (changed) {
     const { value } = await mutateWorkspace((ws) => {
-      ws.moves = mergeMoves(ws.moves, computeMoves(ws, now), today);
+      ws.moves = mergeMoves(ws.moves, computeMoves(ws, now), today, ws);
       // Planned against the merged desk and claimed in the same write, so two tabs never start the same run.
       const plan: AheadPlan = canPrepareAhead ? planAhead(ws, now) : { preps: [], drafts: [], keys: [] };
       const brief = nextBrief(ws, now);
