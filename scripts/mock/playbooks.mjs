@@ -26,6 +26,7 @@ import {
   wordCount,
 } from "./read.mjs";
 import { STUDIO_PLAYBOOKS } from "./studio.mjs";
+import { INTENT_PLAYBOOKS } from "./intent.mjs";
 
 const has = (ctx, ...names) => names.every((n) => ctx.toolNames.includes(n));
 const result = (title, url, age = "2 weeks ago") => ({ type: "web_search_result", title, url, encrypted_content: "x", page_age: age });
@@ -1170,4 +1171,5 @@ export const PLAYBOOKS = [
   voiceNamesPlaybook,
   battlecardPlaybook,
   ...STUDIO_PLAYBOOKS,
+  ...INTENT_PLAYBOOKS,
 ];

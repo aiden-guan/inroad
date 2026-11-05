@@ -127,6 +127,8 @@ const RESERVE_USD: Partial<Record<WorkflowDef<unknown>["id"], number>> = {
   network: 0.4,
   ask: 0.5,
   dinner_plan: 0.8,
+  // At most 60 posts through the fast model (about $0.003); the radar uses none.
+  intent: 0.05,
 };
 const RESERVE_DEFAULT_USD = 0.3;
 

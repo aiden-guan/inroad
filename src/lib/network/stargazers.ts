@@ -32,6 +32,11 @@ function placeOf(ws: Workspace, s: Stargazer, dir: YcCompany[]): { domain: strin
 export async function importStargazers(input: { repo: string }): Promise<ImportBatch> {
   const r = await githubStargazers(input.repo);
   if (!r) throw new ActionError("I couldn't find that repository on GitHub. Use owner/name, like acme/acme-sdk, or paste its GitHub link. It has to be public.");
+  if (r.restricted) {
+    throw new ActionError(
+      `GitHub now shows who starred ${r.repo} only to its admins and collaborators. ${hasGithubToken() ? "The saved GitHub token's account isn't one of them." : "Add a GitHub token from an account with access in Settings → General."} To see developers engaging with other repositories, use Research → Intent → Developers.`,
+    );
+  }
   if (!r.stargazers.length) {
     throw new ActionError(
       r.rateLimited

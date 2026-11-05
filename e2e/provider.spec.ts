@@ -169,6 +169,8 @@ test("roadmap: research, provenance, monitors, an existing API, mapping, and out
     expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
     expect((await request.post("/api/settings", { data: { search: { provider: "custom", endpoint: `${origin}/search` } } })).ok()).toBe(true);
     await page.goto("/research");
+    // The sample lands on Intent (it has example posts); the web search is the next tab.
+    await page.getByRole("tab", { name: "Search", exact: true }).click();
     await page.getByLabel("What companies or evidence are you looking for?", { exact: true }).fill("billing startups");
     await page.getByLabel("Include domains", { exact: true }).fill("company.org");
     await page.getByRole("button", { name: "Search the web", exact: true }).click();
@@ -189,6 +191,7 @@ test("roadmap: research, provenance, monitors, an existing API, mapping, and out
     await expect(monitor).toContainText("Paused");
 
     await page.getByRole("tab", { name: "Connections", exact: true }).click();
+    await page.getByText("Advanced: connect an MCP server or an OpenAPI tool", { exact: true }).click();
     await page.getByLabel("Connection name", { exact: true }).fill("Legacy API");
     await page.getByLabel("Connection type", { exact: true }).selectOption("openapi");
     await page.getByLabel("Tool endpoint", { exact: true }).fill(`${origin}/api`);

@@ -11,6 +11,7 @@ import type { WaitlistTracking } from "@/lib/waitlist/types";
 import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
 import type { CustomPlay } from "@/lib/plays/recipe-types";
 import type { BuyerVoiceState } from "@/lib/voice/types";
+import type { IntentState } from "@/lib/intent/types";
 
 export type ID = string;
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -1716,7 +1717,8 @@ export type WorkflowId =
   | "gtm_update"
   | "research_column"
   | "play_compile"
-  | "buyer_voice";
+  | "buyer_voice"
+  | "intent";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 
@@ -2197,6 +2199,8 @@ export interface Workspace {
     snapshots?: ForecastSnapshot[];
     updates?: GtmUpdate[];
   };
+  /** Research → Intent: public posts asking for what the company sells, and the developer radar (src/lib/intent). */
+  intent?: IntentState;
   /** Plays by id (see `src/lib/plays/catalog.ts`). A play with no entry runs with its default. */
   plays?: Record<string, PlayState>;
   /** Plays the founder wrote, by id: recipes with versions (see `src/lib/plays/recipes.ts`). On/off and runs live in `plays`. */

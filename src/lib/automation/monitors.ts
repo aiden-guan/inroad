@@ -5,6 +5,7 @@ import { readWorkspace } from "@/lib/store/workspace";
 import { canonicalUrl } from "@/lib/search/quality";
 import { ResearchInput, researchWeb } from "@/lib/search/research";
 import { readResearchPage } from "@/lib/search/pages";
+import { intentCandidates } from "@/lib/intent/monitor";
 import { MonitorInput, type Monitor } from "./types";
 import { readAutomation, recordOperation, updateAutomation } from "./store";
 
@@ -57,8 +58,9 @@ async function execute(monitor: Monitor, abort: AbortController, epoch: number) 
   const started = Date.now();
   try {
     let hash: string, urls: string[], summary: string;
-    if (monitor.kind === "topic") {
-      const result = await researchWeb(ResearchInput.parse({ query: monitor.query, fresh: true, limit: 20 }), abort.signal);
+    if (monitor.kind === "topic" || monitor.kind === "intent") {
+      const result =
+        monitor.kind === "intent" ? await intentCandidates(abort.signal) : await researchWeb(ResearchInput.parse({ query: monitor.query, fresh: true, limit: 20 }), abort.signal);
       if (result.warnings.some((warning) => !warning.startsWith("Some sources") && !warning.startsWith("No results")))
         throw new Error(result.warnings.join(" "));
       const matching = result.results.filter(

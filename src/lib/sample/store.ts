@@ -19,6 +19,7 @@ import { DATA_DIR } from "@/lib/store/settings";
 import { emptyWorkspace, holdsRealWork, migrateWorkspace, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
 import { sampleConnections, sampleRunSteps, sampleWorkspace } from "./index";
 import { sampleColumns } from "./columns";
+import { sampleAutomation } from "./research";
 
 export { holdsRealWork };
 
@@ -75,7 +76,7 @@ export async function loadSampleWorkspace(): Promise<Workspace> {
   rememberOptOuts(readWorkspace());
   const now = new Date();
   const ws = await replaceWorkspace(sampleWorkspace(now));
-  for (const name of WORKSPACE_FILES) resetDataFile(name, name === "connections.json" ? sampleConnections(now) : name === "columns.json" ? sampleColumns(now) : null);
+  for (const name of WORKSPACE_FILES) resetDataFile(name, name === "connections.json" ? sampleConnections(now) : name === "columns.json" ? sampleColumns(now) : name === "automation.json" ? sampleAutomation(now) : null);
   await replaceRunSteps(sampleRunSteps(now));
   return ws;
 }

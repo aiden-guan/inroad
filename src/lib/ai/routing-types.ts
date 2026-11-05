@@ -13,6 +13,7 @@ export const AI_TASKS = {
   research_column: "Research columns",
   play_compile: "Plays from a sentence",
   buyer_voice: "Buyer voice",
+  intent: "Intent radar",
 } as const;
 export type AiTask = keyof typeof AI_TASKS;
 export interface ModelTarget { connectionId: string; model?: string }

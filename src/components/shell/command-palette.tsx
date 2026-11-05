@@ -504,7 +504,8 @@ export function CommandPalette() {
               cmd({ id: "do:log-numbers", name: "Log last week's numbers", keywords: "weekly growth signups retention active users", icon: <FileUp className="size-4" />, label: "Log last week's numbers", onSelect: () => run(() => router.push("/growth?log=1")) }),
               cmd({ id: "do:growth-review", name: "Run the weekly growth review", keywords: "monday numbers experiment", icon: <ClipboardList className="size-4" />, label: "Run the weekly growth review", onSelect: () => review("growth") }),
             ]),
-        cmd({ id: "do:research", name: b2b ? "Search the web and research companies" : "Search the web", keywords: "research sources", icon: <Search className="size-4" />, label: b2b ? "Search the web and research companies" : "Search the web", onSelect: () => run(() => router.push("/research")) }),
+        cmd({ id: "do:research", name: b2b ? "Search the web and research companies" : "Search the web", keywords: "research sources", icon: <Search className="size-4" />, label: b2b ? "Search the web and research companies" : "Search the web", onSelect: () => run(() => router.push("/research?tab=search")) }),
+        cmd({ id: "do:intent", name: b2b ? "Find people asking for what you sell" : "Find people asking for what you make", keywords: "intent buyers questions hacker news reddit stack exchange github developers radar", icon: <Search className="size-4" />, label: b2b ? "Find people asking for what you sell" : "Find people asking for what you make", onSelect: () => run(() => router.push("/research?tab=intent")) }),
         ...(b2b ? [cmd({ id: "do:discover", name: "Find new companies to talk to", keywords: "discover accounts prospects", icon: <Compass className="size-4" />, label: "Find new companies to talk to", onSelect: () => run(() => void start("discovery", {})) })] : []),
         cmd({
           id: "do:partners",

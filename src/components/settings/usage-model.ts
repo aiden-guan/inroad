@@ -29,6 +29,7 @@ export const WORKFLOW_META: Record<WorkflowId, { label: string; tiers: ModelTier
   research_column: { label: "Research columns", tiers: ["fast"] },
   play_compile: { label: "Plays from a sentence", tiers: ["fast"] },
   buyer_voice: { label: "Buyer voice", tiers: ["fast", "operator"] },
+  intent: { label: "Intent radar", tiers: ["fast"] },
 };
 
 export function workflowLabel(id: WorkflowId): string {
