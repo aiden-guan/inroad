@@ -1669,7 +1669,8 @@ export type WorkflowId =
   | "studio"
   | "visual"
   | "agent_ask"
-  | "gtm_update";
+  | "gtm_update"
+  | "research_column";
 
 export type ModelTierName = "strategist" | "operator" | "fast" | "none";
 

@@ -691,4 +691,125 @@ const critiquePlaybook = {
   },
 };
 
-export const PLAYBOOKS = [snapshotPlaybook, betPlaybook, screenPlaybook, networkPlaybook, candidatesPlaybook, dossierPlaybook, draftPlaybook, linkedinPlaybook, introPlaybook, replyPlaybook, replyReadPlaybook, critiquePlaybook, ...STUDIO_PLAYBOOKS];
+/* ───────────── Research columns · one question, one company ───────────── */
+
+/** `## url` blocks with a `Source:` line, as the research-column prompt and its tools write them. */
+function columnSources(text) {
+  const out = [];
+  let cur = null;
+  for (const line of String(text ?? "").split("\n")) {
+    const head = /^## (https?:\/\/\S+)\s*$/.exec(line);
+    if (head) {
+      cur = { url: head[1], label: "", date: null, lines: [] };
+      out.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    if (line.startsWith("Source: ")) {
+      cur.label = line.slice(8);
+      cur.date = /(?:read|dated) (\d{4}-\d{2}-\d{2})/.exec(line)?.[1] ?? null;
+    } else if (line.trim()) cur.lines.push(line.replace(/^(Title|Description|Headings): /, ""));
+  }
+  return out;
+}
+
+const COLUMN_STOP = new Set(["they", "their", "them", "does", "have", "this", "that", "with", "what", "which", "about", "from", "into", "your", "company", "companies", "currently"]);
+
+function columnAsk(ctx) {
+  const question = between(ctx.system, "question") ?? "";
+  const typeLine = /Answer type: ([^\n]+)/.exec(ctx.system)?.[1] ?? "";
+  const type = /^yes or no/.test(typeLine) ? "yes_no" : /^a number/.test(typeLine) ? "number" : /^exactly one/.test(typeLine) ? "pick_one" : "text";
+  const options = type === "pick_one" ? [...typeLine.matchAll(/"([^"]+)"/g)].map((m) => m[1]) : [];
+  const who = /Name: (.+) \(([^)\s]+)\)/.exec(between(ctx.firstText, "company") ?? "");
+  const fromTools = ctx.calls.filter((c) => !c.isError && c.result && (c.name === "read_page" || c.name === "search_web")).map((c) => c.result).join("\n\n");
+  const sources = [...columnSources(between(ctx.firstText, "sources")), ...columnSources(fromTools)];
+  return { question, type, options, name: who?.[1] ?? "Acme", domain: who?.[2] ?? "acme.example", sources };
+}
+
+/** The sentence that best answers the question, copied exactly, with the source it came from. */
+function columnMatch(a) {
+  const q = a.question.toLowerCase();
+  const pricing = /\b(bill|billing|billed|usage|pric\w*|charge\w*|pay|metered|plans?)\b/.test(q);
+  const hiring = /\b(hiring|recruit\w*|roles?|jobs?)\b/.test(q);
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !COLUMN_STOP.has(w));
+  let best = null;
+  for (const s of a.sources) {
+    for (const line of s.lines) {
+      for (const sentence of line.split(/(?<=[.!?])\s+/)) {
+        const t = sentence.toLowerCase();
+        let score = words.filter((w) => t.includes(w.replace(/s$/, ""))).length;
+        if (pricing && /\b(per|pay|priced|billed|usage|metered|seat|employee)\b/.test(t)) score += 2;
+        if (hiring && /job board|open roles|careers/.test(s.label + " " + s.url)) score += 1;
+        if (a.options.some((o) => t.includes(o.toLowerCase()))) score += 2;
+        if (score > (best?.score ?? 0)) best = { score, sentence: sentence.trim(), source: s };
+      }
+    }
+  }
+  return best && best.score >= 2 ? best : null;
+}
+
+function columnValue(a, sentence) {
+  const t = sentence.toLowerCase();
+  if (a.type === "yes_no") {
+    if (/per (seat|user|employee)|flat (fee|price)|\bno\b|\bnot\b|\bnone\b|never/.test(t)) return "no";
+    return "yes";
+  }
+  if (a.type === "number") {
+    const n = /(\d[\d,]*(?:\.\d+)?)/.exec(sentence)?.[1];
+    return n ? Number(n.replace(/,/g, "")) : null;
+  }
+  if (a.type === "pick_one") return a.options.find((o) => t.includes(o.toLowerCase())) ?? null;
+  return clip(sentence.replace(/[.!?]+$/, ""), 10, 110) || null;
+}
+
+const columnPlaybook = {
+  name: "research_column",
+  match: (ctx) => has(ctx, "submit_column_answer"),
+  thinking: () => ["Reading the question and what counts as an answer.", "Checking their own pages first, then their job board and what's on file.", "Quoting the line that settles it, or leaving it unknown."],
+  // Claude's own search runs only when nothing on file answers it, for some companies.
+  wantsSearch: (ctx) => !ctx.afterToolResult && !columnMatch(columnAsk(ctx)) && hash(columnAsk(ctx).domain) % 2 === 0,
+  search(ctx) {
+    const a = columnAsk(ctx);
+    const slug = slugOf(a.name);
+    return {
+      query: `"${a.name}" ${clip(a.question.replace(/\?$/, ""), 8)}`,
+      results: [result(`${a.name} pricing and plans`, `https://${a.domain}/pricing`, "3 weeks ago"), result(`${a.name} on ${a.question.toLowerCase().includes("hir") ? "careers" : "its product"}`, `https://www.example-news.com/${slug}`, "2 months ago")],
+    };
+  },
+  wantsFetch: () => false,
+  act(ctx) {
+    const a = columnAsk(ctx);
+    const found = columnMatch(a);
+    if (found) {
+      const value = columnValue(a, found.sentence);
+      if (value !== null) {
+        const own = found.source.label.startsWith("their site") || found.source.label.startsWith("their job board");
+        const snippet = found.source.label.startsWith("a search result");
+        return {
+          blocks: [
+            call("submit_column_answer", {
+              status: "answered",
+              answer: value,
+              confidence: snippet ? "low" : own ? "high" : "medium",
+              sources: [{ url: found.source.url, quote: clip(found.sentence, 30, 280), publishedAt: found.source.label.includes("dated") ? found.source.date : null }],
+              note: clip(`${sentenceCase(found.source.label.replace(/,.*$/, ""))} says: ${found.sentence}`, 22, 190),
+            }),
+          ],
+        };
+      }
+    }
+    // Nothing settles it: one search when there's a search tool and it hasn't run, else a native result, else unknown.
+    if (has(ctx, "search_web") && !ctx.calls.some((c) => c.name === "search_web") && hash(a.domain) % 3 !== 0) {
+      return { blocks: [text("Their pages don't say. One search. "), call("search_web", { query: `"${a.name}" ${clip(a.question.replace(/\?$/, ""), 8)}` })] };
+    }
+    const seen = ctx.results.find((r) => r.url.includes(a.domain));
+    if (seen && a.type === "yes_no" && /pric|bill|usage|charge/i.test(a.question)) {
+      return {
+        blocks: [call("submit_column_answer", { status: "answered", answer: "yes", confidence: "low", sources: [{ url: seen.url, quote: seen.title, publishedAt: null }], note: "Only a search result says so; their own pages didn't load." })],
+      };
+    }
+    return { blocks: [call("submit_column_answer", { status: "unknown", answer: null, confidence: "low", sources: [], note: clip(`Nothing on ${a.domain} or on file says.`, 20, 160) })] };
+  },
+};
+
+export const PLAYBOOKS = [snapshotPlaybook, betPlaybook, screenPlaybook, networkPlaybook, candidatesPlaybook, dossierPlaybook, draftPlaybook, linkedinPlaybook, introPlaybook, replyPlaybook, replyReadPlaybook, critiquePlaybook, columnPlaybook, ...STUDIO_PLAYBOOKS];

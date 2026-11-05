@@ -446,7 +446,7 @@ export function CommandPalette() {
                     run(() => {
                       const domain = cleanDomain(q);
                       void start("discovery", { count: 10, brief: `Companies like ${domain}`, seedDomains: [domain], source: "manual" });
-                      router.push("/companies");
+                      router.push("/companies?view=prospects");
                     })
                   }
                 >

@@ -57,6 +57,18 @@ function toEvents(action: Action, ws: Workspace): Emit[] {
         },
       ];
     }
+    case "deal.revertStage": {
+      // An undone move tells the CRM and webhooks the deal is back where it was (unless the undo was stale).
+      const d = ws.deals[action.id];
+      const last = d?.stageHistory.at(-1);
+      if (!d || d.stage !== action.previous.stage || (last?.stage === action.stage && last.at === action.at)) return [];
+      return [
+        {
+          type: "deal.stage_changed",
+          data: { deal: dealData(ws, d.id), from: action.stage, to: d.stage, loss_reason: d.lossReason ?? null, account: accountData(ws, d.accountDomain) },
+        },
+      ];
+    }
     case "account.add":
       return ws.accounts[action.account.domain] ? [{ type: "account.added", data: { account: accountData(ws, action.account.domain) } }] : [];
     case "account.track":
