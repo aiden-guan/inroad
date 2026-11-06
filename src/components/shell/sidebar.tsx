@@ -6,6 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useSyncExternalStore } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
+import { BrandMark } from "@/components/ui/brand-mark";
+import { BRAND } from "@/lib/brand";
 import { AiBadge } from "@/components/ui/badge";
 import { useKeyboardDriven } from "@/components/ui/fx";
 import { Kbd } from "@/components/ui/kbd";
@@ -147,8 +149,9 @@ export function Sidebar() {
   const reduce = useReducedMotion();
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col border-r border-border bg-bg-subtle md:flex">
-      <div className="flex shrink-0 flex-col gap-1 px-2 pb-2 pt-3">
+    <aside className="sticky top-0 hidden h-dvh w-[224px] shrink-0 flex-col bg-bg-subtle lg:flex">
+      <div className="flex h-[68px] shrink-0 items-center gap-2.5 px-5"><BrandMark draw="once" className="size-7 text-accent-text" /><span className="font-serif text-[27px] font-medium tracking-[-0.04em]">{BRAND.product}</span></div>
+      <div className="flex shrink-0 flex-col gap-1 px-2 pb-2">
         <CompanyMenu />
         <div className="pt-1">
           <PaletteButton />
@@ -277,7 +280,7 @@ function NavLink({
         <motion.span
           layoutId="nav-selection"
           transition={keyboard ? { duration: 0 } : spring.glide}
-          className="absolute inset-0 rounded-md bg-surface shadow-xs ring-1 ring-inset ring-border"
+          className="absolute inset-0 rounded-md bg-surface ring-1 ring-inset ring-border"
         />
       )}
       <Icon className={cn("relative size-4 shrink-0 transition-colors duration-150", active ? "text-fg" : "text-fg-3")} />

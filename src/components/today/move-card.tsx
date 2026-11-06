@@ -70,13 +70,13 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
     <div
       data-move={move.id}
       tabIndex={-1}
-      className={cn("group/move relative scroll-mt-24 scroll-mb-6 rounded-xl bg-surface shadow-xs outline-none ring-1 ring-inset transition-[box-shadow,background-color] duration-200 hover:shadow-sm", p.focused ? "ring-accent/40" : "ring-border")}
+      className={cn("group/move relative scroll-mt-24 scroll-mb-6 rounded-xl bg-surface outline-none ring-1 ring-inset transition-[box-shadow,background-color] duration-150 hover:bg-bg/60", p.focused ? "ring-accent/40" : "ring-border")}
     >
       <div className={cn("relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 md:px-5", p.focused && "draft-wash", p.expanded || p.skipOpen ? "rounded-t-xl" : "rounded-xl")}>
         <span
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset transition-colors duration-200",
-            leaving === "done" ? "bg-success-subtle ring-success/20" : "bg-bg-subtle ring-border/60",
+            "mt-0.5 flex size-5 shrink-0 items-center justify-center transition-colors duration-150",
+            leaving === "done" ? "text-success" : "text-fg-3",
           )}
           title={ruleLabel(move.rule)}
         >

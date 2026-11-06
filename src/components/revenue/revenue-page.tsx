@@ -126,7 +126,7 @@ export function RevenuePage() {
     <PageContainer>
       <PageHeader
         title="Revenue"
-        eyebrow="The number"
+        eyebrow="Growth overview"
         description={
           f.hasTarget ? (
             <>

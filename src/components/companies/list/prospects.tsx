@@ -804,7 +804,7 @@ export function Prospects({
         >
           <div style={gridVars(n)} className={cn(n > 0 && "md:min-w-[var(--minw-md)] lg:min-w-[var(--minw-lg)]")}>
             {/* Column labels */}
-            <div className={cn("hidden h-10 items-center gap-3 rounded-t-lg border-b border-border bg-bg-subtle px-3 text-[12px] font-medium text-fg-3 md:grid", GRID)}>
+            <div className={cn("hidden h-10 items-center gap-3 border-b border-border px-3 text-[12px] font-medium text-fg-3 md:grid", GRID)}>
               <div className={cn("flex min-w-0 items-center gap-3 md:bg-bg-subtle", PIN)}>
                 <button
                   role="checkbox"
@@ -1108,10 +1108,11 @@ function ProspectRow({
           </span>
         </Tooltip>
         <div className="min-w-0 flex-1">
-          {/* The name gets the space; the domain is in the icon's tooltip and the source chip, not repeated here. */}
+          {/* The company identity stays readable beside its research columns. */}
           <button onClick={onOpen} className="block min-w-0 max-w-full truncate text-left font-medium text-fg outline-none focus-visible:underline">
             {a.name}
           </button>
+          <span className="mt-0.5 hidden truncate text-[12px] leading-4 text-fg-3 md:block">{a.domain}</span>
           {/* Phone: why-now under the name, with the age instead of the full source chip */}
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] md:hidden">
             {top ? (
@@ -1173,7 +1174,7 @@ function ProspectRow({
           )
         }
       >
-        <span className="relative z-[1] hidden cursor-default font-mono text-[12px] tnum text-fg-2 md:block">{scored ? a.fitScore : "–"}</span>
+        <span className="relative z-[1] hidden cursor-default text-right font-mono text-[12px] tnum text-fg-2 md:block">{scored ? a.fitScore : "–"}</span>
       </Tooltip>
 
       {/* Why now */}

@@ -29,6 +29,7 @@ import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { DeskEnd } from "./end-state";
 import { LearnedButton } from "./learned";
+import { GrowthPulse } from "./growth-pulse";
 import { Masthead, type Target } from "./masthead";
 import { MoveCard, MoveExits } from "./move-card";
 import { cardDraft, endsInBody, writesNote } from "./move-body";
@@ -54,12 +55,7 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  // The right padding at xl is the margin the masthead's source notes hang in; the feed column keeps its width inside.
-  return (
-    <PageContainer className={cn("xl:pr-[280px]", className)}>
-      <div className="max-w-[820px]">{children}</div>
-    </PageContainer>
-  );
+  return <PageContainer className={className}>{children}</PageContainer>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -587,6 +583,7 @@ export function Today({ ws }: { ws: Workspace }) {
           }
         />
 
+        <div className={cn(!consumer && "dashboard-grid", consumer && "mt-6")}><div className="min-w-0">
         <MoveExits.Provider value={exits}>
           <div
             ref={deskRef}
@@ -711,6 +708,7 @@ export function Today({ ws }: { ws: Workspace }) {
             ]}
           />
         )}
+        </div>{!consumer && <GrowthPulse ws={ws} now={now} />}</div>
       </div>
     </Column>
   );

@@ -152,7 +152,7 @@ export function IntegrationsHub() {
 
   return (
     <PageContainer>
-      <PageHeader title="Integrations" eyebrow="Connected, considered" description="Connect the tools you already use. Every connection here is optional.">
+      <PageHeader title="Integrations" eyebrow="Your connected stack" description="Connect the tools you already use. Every connection here is optional.">
         {summary && (
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
             <span>

@@ -1,10 +1,9 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { AiBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DigitPop, TextReveal, fx, useFirstSight } from "@/components/ui/fx";
+import { DigitPop, TextReveal, fx } from "@/components/ui/fx";
 import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -15,15 +14,15 @@ import { quarterOf } from "@/lib/revenue/stats";
 const USD = { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 } as const;
 
 /**
- * Ink shades only: the accent belongs to the agent, and color in charts is reserved for risk. Each measure has one
+ * Blue pencil carries the forecast data. Each measure has one
  * swatch, and the bar and the figures under it use the same one. The measures are running totals, so each band
  * starts at zero: pipeline holds best case, best case holds commit, commit holds closed won.
  */
 const SWATCH = {
-  pipeline: "bg-fg/[0.08] ring-1 ring-inset ring-fg/15",
-  best: "bg-fg/[0.2]",
-  commit: "bg-fg/[0.42]",
-  won: "bg-fg",
+  pipeline: "bg-accent/10 ring-1 ring-inset ring-accent/20",
+  best: "bg-accent/30",
+  commit: "bg-accent/65",
+  won: "bg-accent",
 } as const;
 
 const TIP_TRIGGER = "cursor-help rounded-[2px] underline decoration-dotted decoration-fg-4 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
@@ -88,7 +87,7 @@ function BulletChart({ f, play }: { f: Forecast; play: boolean }) {
             ) : null,
           )}
           {f.closedWon.usd > 0 && (
-            <div className={cn("absolute left-0 top-1/2 h-[34%] -translate-y-1/2 rounded-r-[2px] bg-fg", play && "fx-wipe")} style={{ width: pct(f.closedWon.usd), ...(play ? fx(0, 700, { animationDuration: "700ms" }) : {}) }} />
+            <div className={cn("absolute left-0 top-1/2 h-[34%] -translate-y-1/2 rounded-r-[2px] bg-accent", play && "fx-wipe")} style={{ width: pct(f.closedWon.usd), ...(play ? fx(0, 700, { animationDuration: "700ms" }) : {}) }} />
           )}
           {gap > 0 && (
             <div
@@ -128,32 +127,30 @@ function BulletChart({ f, play }: { f: Forecast; play: boolean }) {
  * the target. The sentence above the bar is the plan's headline: what it takes.
  */
 export function ForecastHero({ f, plan, onSetTarget, onDataQuality }: { f: Forecast; plan: RevenuePlan; onSetTarget: () => void; onDataQuality: () => void }) {
-  const reduce = useReducedMotion();
-  // The first look this session is choreographed: the call is read out, the bands draw, the markers drop in, the
-  // numbers roll up from zero. After that the page just shows the number. The seen flag is written in an effect.
-  const play = useFirstSight("revenue-hero") && !reduce;
-  const [rolled, setRolled] = useState(!play);
-  useEffect(() => {
-    if (rolled) return;
-    const t = setTimeout(() => setRolled(true), 420);
-    return () => clearTimeout(t);
-  }, [rolled]);
+  // Financial values appear immediately; the chart retains its true initial geometry.
+  const play = false;
+  const rolled = true;
   const short = f.hasTarget && f.coverage !== null && f.coverage < f.coverageNeeded;
   const of = (n: number) => `${Math.round((n / f.target) * 100)}% of target`;
   const q = quarterOf(f.period.start);
   const quarterly = q.start === f.period.start && q.end === f.period.end;
 
   return (
-    <section aria-label="Forecast" className="mt-8 overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border">
+    <section id="forecast" aria-label="Forecast" className="forecast-progress mt-8 scroll-mt-6 overflow-hidden rounded-xl ring-1 ring-inset ring-border">
       <div className="px-5 pb-6 pt-5 sm:px-7 sm:pt-6">
-        <div className="mb-3 flex items-center gap-2 text-[12px] text-fg-3">
-          <Orb size={14} state={plan.verdict === "behind" || plan.verdict === "too_late" ? "needs" : "idle"} />
-          <span className="font-medium text-fg-2">The call</span>
-          <AiBadge />
+        <div className="mb-5 flex items-center justify-between gap-3 text-[12px] text-fg-3"><span className="font-medium text-fg-2">Revenue outlook</span><span>{f.period.label}</span></div>
+        <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+          <div>
+            <p className="text-[12px] text-fg-3">Expected revenue <Tooltip content="Closed won, plus open deals at their forecast category odds. Estimates, rather than guaranteed revenue."><span tabIndex={0} className={cn(TIP_TRIGGER, "ml-1")}>The call</span></Tooltip></p>
+            <p className="mt-1 text-[40px] font-medium leading-[48px] tracking-[-0.045em] tnum"><Num value={f.call} format={USD} /></p>
+            <p className="mt-1 text-[12px] text-fg-3">{f.hasTarget ? `${Math.round((f.call / f.target) * 100)}% of ${money(f.target)} target` : "Weighted from the deals on file"}</p>
+          </div>
+          <div className="max-w-[48ch] border-l-2 border-accent/30 pl-4">
+            <div className="mb-2 flex items-center gap-2 text-[12px] text-fg-3"><Orb size={14} state={plan.verdict === "behind" || plan.verdict === "too_late" ? "needs" : "idle"} /><span className="font-medium text-fg-2">Where to focus</span><AiBadge /></div>
+            <p className="text-pretty font-serif text-[19px] leading-[27px] text-fg"><TextReveal text={plan.headline} play={false} /></p>
+            {f.hasTarget && plan.gap > 0 && <p className="mt-2 text-[12px] leading-4 text-fg-3">Plan based on {money(f.weighted)} in stage-weighted revenue.</p>}
+          </div>
         </div>
-        <p className="max-w-[62ch] text-pretty font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg sm:text-[24px] sm:leading-[33px]">
-          <TextReveal text={plan.headline} play={play} step={22} delay={60} />
-        </p>
         {!f.hasTarget && (
           <Button size="sm" variant="primary" className="mt-4" onClick={onSetTarget}>
             {f.ended ? `Set the ${f.period.label} target` : "Set a revenue target"}
@@ -162,7 +159,7 @@ export function ForecastHero({ f, plan, onSetTarget, onDataQuality }: { f: Forec
 
         <BulletChart f={f} play={play} />
 
-        <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-border pt-5 sm:grid-cols-4">
           <Stat label="Closed won" swatch={SWATCH.won} value={rolled ? f.closedWon.usd : 0} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} tip="Deals won inside the period." />
           <Stat
             label="Commit"
@@ -170,13 +167,6 @@ export function ForecastHero({ f, plan, onSetTarget, onDataQuality }: { f: Forec
             value={rolled ? f.commit : 0}
             note={f.hasTarget ? of(f.commit) : "Won plus commit deals"}
             tip="The floor: closed won plus deals that pass every commit test (economic buyer engaged, paper process known, a buyer-agreed step within two weeks, a firm close date)."
-          />
-          <Stat
-            label="The call"
-            marker
-            value={rolled ? f.call : 0}
-            note={f.hasTarget ? of(f.call) : "Each deal at its odds"}
-            tip="Closed won, plus each open deal at its category's odds: commit 90%, best case 50%, pipeline 15%. Starting odds, until two quarters of your own forecasts can check them."
           />
           <Stat label="Best case" swatch={SWATCH.best} value={rolled ? f.bestCase : 0} note={f.hasTarget ? of(f.bestCase) : "Commit plus best-case deals"} tip="The ceiling: commit plus the deals that could still close this period." />
           <Stat label="Pipeline" swatch={SWATCH.pipeline} value={rolled ? f.pipeline : 0} note={`Worth ${money(f.weighted)} at stage odds`} tip="Closed won plus every open deal dated to close this period." />
