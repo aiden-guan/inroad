@@ -1119,6 +1119,13 @@ const cases: Record<Action["type"], () => void> = {
     expect(s.growthLog?.map((w) => w.signups)).toEqual([30, 45]);
   },
 
+  "growth.dashboard": () => {
+    const s = consumerWorkspace();
+    const before = structuredClone(s.growthLog);
+    apply(s, { type: "growth.dashboard", layout: { cards: [{ id: "metric:posthog:active_7d", wide: false }, { id: "waitlist", wide: true }] } });
+    expect(s.growthDashboard?.cards.map((c) => c.id)).toEqual(["metric:posthog:active_7d", "waitlist"]);
+    expect(s.growthLog).toEqual(before);
+  },
   "growth.remove": () => {
     const s = apply(consumerWorkspace(), { type: "growth.log", week: makeWeek(day(-7)) }, { type: "growth.remove", weekOf: day(-7) });
     expect(s.growthLog).toEqual([]);

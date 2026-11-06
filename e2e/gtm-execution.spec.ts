@@ -110,7 +110,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByText(/\+22 \(\+110\.0%\) since/)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole("region", { name: "This week's GTM priorities", exact: true }).screenshot({ path: testInfo.outputPath(`initiatives-${width}.png`), animations: "disabled" });
-    await page.getByRole("region", { name: "Your business, kept in sync", exact: true }).screenshot({ path: testInfo.outputPath(`metric-trends-${width}.png`), animations: "disabled" });
+    await page.getByRole("region", { name: "Active users · 7 days", exact: true }).screenshot({ path: testInfo.outputPath(`metric-trends-${width}.png`), animations: "disabled" });
     await page.getByRole("button", { name: "Add initiative", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Add a GTM initiative", exact: true });
     await expect(dialog).toBeVisible();
