@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu as MenuIcon, X } from "lucide-react";
+import { ChevronRight, Menu as MenuIcon, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -23,7 +23,22 @@ import { SampleBanner } from "./sample-banner";
 import { ShortcutsDialog } from "./shortcuts";
 import { CompanyMenu, useMarket } from "./market-switch";
 import { SECONDARY, goKeys, navFor } from "./nav";
-import { AgentLine, NorthStarLine, Sidebar } from "./sidebar";
+import { AgentLine, NorthStarLine, Sidebar, useTheme } from "./sidebar";
+
+function WorkspaceBar() {
+  const pathname = usePathname();
+  const market = useMarket();
+  const { ws } = useWorkspace();
+  const current = [...navFor(market), ...SECONDARY].find((item) => pathname.startsWith(item.href));
+  return (
+    <div className="workspace-bar hidden h-12 items-center justify-between gap-4 px-6 lg:flex">
+      <div className="flex min-w-0 items-center gap-2 text-[12px] text-fg-3">
+        <span className="truncate">{ws?.company?.name ?? "Your workspace"}</span><ChevronRight aria-hidden className="size-3 shrink-0 text-fg-4" /><span className="font-medium text-fg-2">{current?.label ?? "Workspace"}</span>
+      </div>
+      <button onClick={() => window.dispatchEvent(new Event("inroad:palette"))} aria-haspopup="dialog" className="flex items-center gap-2 rounded-md px-2 py-1 text-[12px] text-fg-3 transition-colors hover:bg-surface hover:text-fg"><Orb size={13} /> Ask Inroad <span className="ml-2 font-mono text-[11px] text-fg-4">⌘K</span></button>
+    </div>
+  );
+}
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -57,6 +72,7 @@ function useGoKeys() {
 
 /** Reads the pathname, so it renders under Suspense (dynamic routes can't resolve it while prerendering). */
 function MobileNav({ onNavigate }: { onNavigate: () => void }) {
+  const { theme, toggle } = useTheme();
   const pathname = usePathname();
   const counts = useNavCounts();
   const market = useMarket();
@@ -87,6 +103,7 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
           </Link>
         );
       })}
+      <button onClick={() => toggle()} className="col-span-2 mt-2 min-h-11 border-t border-border px-3 pt-2 text-left text-[13px] text-fg-2">Switch to {theme === "dark" ? "light" : "dark"} theme</button>
     </nav>
   );
 }
@@ -100,7 +117,7 @@ function MobileHeader({ navOpen, onToggleNav, menuRef }: { navOpen: boolean; onT
   const wide = useWide();
   const [runsOpen, setRunsOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-50 flex h-12 items-center gap-2 border-b border-border bg-bg/90 px-4 backdrop-blur md:hidden">
+    <header className="sticky top-0 z-50 flex h-12 items-center gap-2 border-b border-border bg-bg-subtle px-4 lg:hidden">
       <button
         ref={menuRef}
         aria-label="Menu"
@@ -247,12 +264,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [loading, ws, router]);
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="workspace-frame flex min-h-dvh bg-bg-subtle">
       <a href="#main-content" className="fixed left-4 top-3 z-[90] -translate-y-24 rounded-lg bg-primary px-4 py-2 text-primary-fg focus:translate-y-0">Skip to content</a>
-      <Suspense fallback={<div aria-hidden className="sticky top-0 hidden h-dvh w-[240px] shrink-0 border-r border-border bg-bg-subtle md:block" />}>
+      <Suspense fallback={<div aria-hidden className="sticky top-0 hidden h-dvh w-[224px] shrink-0 bg-bg-subtle lg:block" />}>
         <Sidebar />
       </Suspense>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 lg:pb-2 lg:pr-2">
+        <Suspense fallback={<div className="hidden h-12 lg:block" />}><WorkspaceBar /></Suspense>
         <MobileHeader navOpen={nav.open} onToggleNav={() => nav.setOpen((o) => !o)} menuRef={nav.menuRef} />
         <AnimatePresence>
           {nav.open && (
@@ -264,7 +282,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               exit={{ opacity: 0, transition: { duration: 0.12 } }}
               transition={{ duration: 0.18, ease: ease.out }}
               onClick={() => nav.setOpen(false)}
-              className="fixed inset-0 top-12 z-40 bg-overlay/40 md:hidden"
+              className="fixed inset-0 top-12 z-40 bg-overlay/40 lg:hidden"
             />
           )}
           {nav.open && (
@@ -274,7 +292,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4, transition: { duration: 0.12, ease: ease.inQuad } }}
               transition={{ duration: 0.2, ease: ease.out }}
-              className="fixed inset-x-0 top-12 z-40 border-b border-border bg-bg shadow-md md:hidden"
+              className="fixed inset-x-0 top-12 z-40 border-b border-border bg-bg shadow-md lg:hidden"
             >
               <Suspense fallback={null}>
                 <MobileNav onNavigate={() => nav.setOpen(false)} />
@@ -287,7 +305,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </AnimatePresence>
         <SampleBanner />
         <WorkspaceNotice />
-        <main id="main-content" tabIndex={-1} className="workspace-main min-h-dvh min-w-0 outline-none">
+        <main id="main-content" tabIndex={-1} className="workspace-main min-w-0 outline-none">
           <WorkspaceGate>{children}</WorkspaceGate>
         </main>
       </div>

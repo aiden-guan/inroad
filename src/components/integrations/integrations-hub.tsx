@@ -151,8 +151,8 @@ export function IntegrationsHub() {
   };
 
   return (
-    <div className="page-shell max-w-[920px]">
-      <PageHeader title="Integrations" eyebrow="Connected, considered" description="Connect the tools you already use. Every connection here is optional.">
+    <div className="page-shell">
+      <PageHeader title="Integrations" eyebrow="Your connected stack" description="Connect the tools you already use. Every connection here is optional.">
         {summary && (
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
             <span>
@@ -376,7 +376,7 @@ function outboundStatus(ws: Workspace): RowStatus {
 
 function HubSkeleton() {
   return (
-    <div className="page-shell max-w-[920px]" aria-busy="true">
+    <div className="page-shell" aria-busy="true">
       <LoadingSignal label="Loading your connections" className="mb-7" />
       <Skeleton className="h-9 w-64" />
       <Skeleton className="mt-4 h-4 w-full max-w-[520px]" />

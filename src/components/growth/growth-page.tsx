@@ -61,7 +61,7 @@ export function GrowthPage() {
 
   if (!ws || !data) {
     return error ? (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <EmptyState
           title="Couldn't load your workspace"
           body={`${error} Your data is still on this machine.`}
@@ -80,7 +80,7 @@ export function GrowthPage() {
   // A business's number is on Revenue. Growth says so, says how to switch, and shows nothing else.
   if (!isConsumer(ws)) {
     return (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <PageHeader title="Growth" eyebrow="The number" description="Growth reads a consumer company's weekly numbers: active users, retention and the pace to its goal." />
         <section aria-labelledby="growth-business-title" className="mt-8 max-w-[720px] rounded-xl bg-surface px-5 py-6 shadow-sm ring-1 ring-inset ring-border sm:px-7">
           <h2 id="growth-business-title" className="text-balance font-serif text-[21px] leading-[30px] text-fg">
@@ -113,8 +113,8 @@ export function GrowthPage() {
   const waitlistFirst = !!ws.waitlist && !g.latest && !logging;
 
   const productGrowth = <>
-      <BusinessMetrics mode="growth" />
       <GrowthHero goal={ws.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />
+      <div className="mt-8"><BusinessMetrics mode="growth" /></div>
       <Numbers ws={ws} today={today} g={g} logging={logging || empty} onLogging={setLogging} />
       <WhatItTakes ws={ws} g={g} pace={pace} funnel={funnel} talks={talks} />
       <Working ws={ws} g={g} />
@@ -130,7 +130,7 @@ export function GrowthPage() {
   </>;
 
   return (
-    <div className="page-shell max-w-[1080px]">
+    <div className="page-shell">
       <PageHeader
         title="Growth"
         eyebrow="The number"

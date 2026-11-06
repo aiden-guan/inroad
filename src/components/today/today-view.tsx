@@ -28,6 +28,7 @@ import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { DeskEnd } from "./end-state";
 import { LearnedButton } from "./learned";
+import { GrowthPulse } from "./growth-pulse";
 import { Masthead, type Target } from "./masthead";
 import { MoveCard, MoveExits } from "./move-card";
 import { cardDraft, endsInBody, writesNote } from "./move-body";
@@ -61,7 +62,7 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("page-shell max-w-[900px] xl:max-w-[1120px] xl:pr-[280px]", className)}>{children}</div>;
+  return <div className={cn("page-shell", className)}>{children}</div>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -589,6 +590,7 @@ export function Today({ ws }: { ws: Workspace }) {
           }
         />
 
+        <div className={cn(!consumer && "dashboard-grid", consumer && "mt-6")}><div className="min-w-0">
         <MoveExits.Provider value={exits}>
           <div
             ref={deskRef}
@@ -713,6 +715,7 @@ export function Today({ ws }: { ws: Workspace }) {
             ]}
           />
         )}
+        </div>{!consumer && <GrowthPulse ws={ws} now={now} />}</div>
       </div>
     </Column>
   );

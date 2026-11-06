@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AiBadge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { Orb } from "@/components/ui/orb";
-import { MarginNote, SourceChip } from "@/components/ui/source";
+import { SourceChip } from "@/components/ui/source";
 import { cn } from "@/lib/client/cn";
 import { age } from "@/lib/client/format";
 import type { Brief, EntityRef, Workspace } from "@/lib/domain/types";
@@ -64,6 +64,7 @@ export function Masthead({
   tools?: ReactNode;
 }) {
   const reduce = useReducedMotion();
+  const [showAllMatters, setShowAllMatters] = useState(false);
   // The bar fills from empty on the morning reveal only.
   const [rolled, setRolled] = useState(!reveal);
   useEffect(() => {
@@ -76,11 +77,10 @@ export function Masthead({
 
   return (
     <header className="relative">
+      <p className="page-eyebrow mb-3">Your daily brief</p>
       <div className="flex items-center justify-between gap-3">
-        <h1 className="page-eyebrow min-w-0 truncate">
+        <h1 className="page-heading min-w-0">
           <span className="truncate">{dateLabel}</span>
-          <span aria-hidden className="text-fg-4">·</span>
-          <span className="truncate">Your daily brief</span>
         </h1>
         <button
           onClick={onRefresh}
@@ -114,7 +114,7 @@ export function Masthead({
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 sm:pl-[24px]">
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-bg/65 px-4 py-4 ring-1 ring-inset ring-border">
         <Link href={star.href} title={`${star.label}. Open ${star.href === "/revenue" ? "the forecast" : star.href === "/growth" ? "Growth" : "your plan"}`} className="group inline-flex min-w-0 items-center gap-2.5 text-[13px] leading-5 text-fg-2">
           <span
             role="progressbar"
@@ -125,7 +125,7 @@ export function Masthead({
             aria-valuetext={star.headline}
             className="progress-track w-14 shrink-0"
           >
-            <span className="progress-fill block" style={{ transform: `scaleX(${rolled ? ratio : 0})` }} />
+            <span className="progress-fill block !bg-accent" style={{ transform: `scaleX(${rolled ? ratio : 0})` }} />
           </span>
           <span className="min-w-0 truncate">
             <span className="font-medium text-fg tnum group-hover:underline group-hover:underline-offset-4">{star.headline}</span>
@@ -153,27 +153,25 @@ export function Masthead({
       )}
 
       {matters.length > 0 && (
-        <ul className="mt-3 space-y-1 sm:pl-[24px]" aria-label="Worth knowing">
-          {matters.map((m) => {
+        <ul id="daily-updates" className="mt-4 grid gap-x-8 gap-y-3 sm:pl-[24px] lg:grid-cols-2" aria-label="Worth knowing">
+          {matters.map((m, i) => {
             const t = targetOf({ ref: m.ref, loose: true });
             return (
-              <li key={m.text} className="relative">
+              <li key={m.text} className={cn("relative", i > 0 && !showAllMatters && "hidden sm:block")}>
                 <div className="flex items-start gap-2">
                   <MatterLine text={m.text} target={t} onOpen={onOpen} />
                   {(m.url || m.ref) && (
-                    <span className="mt-[3px] shrink-0 xl:hidden">{m.url ? <SourceChip url={m.url} publishedAt={m.date} quote={m.quote} /> : m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} />}</span>
+                    <span className="mt-[3px] shrink-0">{m.url ? <SourceChip url={m.url} publishedAt={m.date} quote={m.quote} /> : m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} />}</span>
                   )}
                 </div>
-                {m.url ? (
-                  <MarginNote url={m.url} publishedAt={m.date} quote={m.quote} className="absolute left-[calc(100%+40px)] top-1 hidden w-[200px] xl:block" />
-                ) : (
-                  m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} margin className="absolute left-[calc(100%+40px)] top-1 hidden w-[200px] xl:block" />
-                )}
+
               </li>
             );
           })}
         </ul>
       )}
+
+      {matters.length > 1 && <button onClick={() => setShowAllMatters((show) => !show)} aria-controls="daily-updates" aria-expanded={showAllMatters} className="mt-2 min-h-9 rounded-sm text-[12px] font-medium text-fg-2 underline decoration-border-strong underline-offset-4 sm:hidden">{showAllMatters ? "Show fewer updates" : `${matters.length - 1} more updates`}</button>}
 
       {error && (
         <p className="mt-3 text-[12.5px] text-danger">

@@ -1,9 +1,7 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
 import { AiBadge } from "@/components/ui/badge";
-import { TextReveal, fx, useFirstSight } from "@/components/ui/fx";
+import { TextReveal, fx } from "@/components/ui/fx";
 import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -40,15 +38,8 @@ export function growthHeadline(goal: Pick<Goal, "target" | "targetLabel" | "byDa
  * the date, and the inputs under it (signups, retention against the bar, paying). Ink shades only; color is for risk.
  */
 export function GrowthHero({ goal, g, pace, signupsPerWeek, today }: { goal: Goal; g: GrowthRead; pace: GoalPace | null; signupsPerWeek: number; today: string }) {
-  const reduce = useReducedMotion();
-  // The first look this session is choreographed, like Revenue's: the read, the bar, the target, the numbers.
-  const play = useFirstSight("growth-hero") && !reduce;
-  const [rolled, setRolled] = useState(!play);
-  useEffect(() => {
-    if (rolled) return;
-    const t = setTimeout(() => setRolled(true), 420);
-    return () => clearTimeout(t);
-  }, [rolled]);
+  const play = false;
+  const rolled = true;
 
   const current = g.goal.current ?? 0;
   const projected = pace?.projected ?? null;
@@ -57,36 +48,36 @@ export function GrowthHero({ goal, g, pace, signupsPerWeek, today }: { goal: Goa
   const ahead = projected !== null && projected > current ? projected - current : 0;
   const weeksLeft = Math.max(0, Math.ceil(daysBetween(today, goal.byDate) / 7));
   const repeat = g.model.retention.metric === "m3_repeat";
-  const prev = g.weeks.at(-2);
-  const metric = goal.metric === "paying" ? "paying" : "active";
-  const prevValue = prev?.[metric];
-  const wow = prevValue && g.goal.current !== null ? (g.goal.current - prevValue) / prevValue : undefined;
   const behind = !!pace && !pace.onPace && current < goal.target;
 
   return (
-    <section aria-label="The number" className="mt-8 overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border">
+    <section aria-label="The number" className="forecast-progress mt-8 overflow-hidden rounded-xl ring-1 ring-inset ring-border">
       <div className="px-5 pb-6 pt-5 sm:px-7 sm:pt-6">
-        <div className="mb-3 flex items-center gap-2 text-[12px] text-fg-3">
-          <Orb size={14} state={behind || g.verdicts.some((v) => v.severity === "block") ? "needs" : "idle"} />
-          <span className="font-medium text-fg-2">The read</span>
-          <AiBadge />
+        <div className="mb-5 flex items-center justify-between gap-3 text-[12px] text-fg-3"><span className="font-medium text-fg-2">Growth outlook</span><span>Goal by {shortDate(goal.byDate)}</span></div>
+        <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+          <div>
+            <p className="text-[12px] text-fg-3">Current {goal.targetLabel}</p>
+            <p className="mt-1 text-[40px] font-medium leading-[48px] tracking-[-0.045em] tnum">{g.goal.current === null ? <span className="text-fg-3">—</span> : <Num value={g.goal.current} />}</p>
+            <p className="mt-1 text-[12px] text-fg-3">{g.goal.current === null ? "Log your weekly numbers to begin" : `${goal.target > 0 ? Math.round((current / goal.target) * 100) : 0}% of ${goal.target.toLocaleString("en-US")} goal`}</p>
+          </div>
+          <div className="max-w-[48ch] border-l-2 border-accent/30 pl-4">
+            <div className="mb-2 flex items-center gap-2 text-[12px] text-fg-3"><Orb size={14} state={behind || g.verdicts.some((v) => v.severity === "block") ? "needs" : "idle"} /><span className="font-medium text-fg-2">Where to focus</span><AiBadge /></div>
+            <p className="text-pretty font-serif text-[19px] leading-[27px] text-fg"><TextReveal text={growthHeadline(goal, g, pace)} play={false} /></p>
+          </div>
         </div>
-        <p className="max-w-[62ch] text-pretty font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg sm:text-[24px] sm:leading-[33px]">
-          <TextReveal text={growthHeadline(goal, g, pace)} play={play} step={22} delay={60} />
-        </p>
 
         <div className="mt-7">
-          <div className="relative h-11">
+          <div className="relative h-6">
             <div className="absolute inset-0 overflow-hidden rounded-md bg-bg-subtle ring-1 ring-inset ring-border">
               <div className={cn("flex h-full", play && "fx-wipe")} style={play ? fx(0, 380, { animationDuration: "1100ms" }) : undefined}>
                 {current > 0 && (
                   <Tooltip content={`Now: ${current.toLocaleString("en-US")} ${goal.targetLabel}`}>
-                    <div tabIndex={-1} className="h-full border-r border-bg/70 bg-fg" style={{ width: pct(current) }} />
+                    <div tabIndex={0} className="h-full border-r border-bg/70 bg-accent" style={{ width: pct(current) }} />
                   </Tooltip>
                 )}
                 {ahead > 0 && (
                   <Tooltip content={`At this pace by ${shortDate(goal.byDate)}: about ${projected!.toLocaleString("en-US")}`}>
-                    <div tabIndex={-1} className="h-full bg-fg/12 bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgb(127_127_127/0.12)_4px_5px)]" style={{ width: pct(ahead) }} />
+                    <div tabIndex={0} className="h-full bg-accent/15 bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgb(127_127_127/0.12)_4px_5px)]" style={{ width: pct(ahead) }} />
                   </Tooltip>
                 )}
               </div>
@@ -106,17 +97,10 @@ export function GrowthHero({ goal, g, pace, signupsPerWeek, today }: { goal: Goa
           </div>
         </div>
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
-          <Stat
-            label="Now"
-            swatch="bg-fg"
-            value={rolled ? g.goal.current : 0}
-            empty={g.goal.current === null}
-            note={wow !== undefined ? `${wow >= 0 ? "+" : "−"}${Math.abs(Math.round(wow * 100))}% on the week` : goal.targetLabel}
-          />
+        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-border pt-5 sm:grid-cols-4">
           <Stat
             label={`By ${shortDate(goal.byDate)}`}
-            swatch="bg-fg/12"
+            swatch="bg-accent/15"
             value={rolled ? projected : 0}
             empty={projected === null}
             note={pace ? `At ${perWeek(pace.perWeek)} a week` : "Two weeks of numbers to tell"}
