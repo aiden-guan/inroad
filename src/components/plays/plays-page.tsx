@@ -43,7 +43,7 @@ export function PlaysPage() {
   const { ws, error, refresh } = useWorkspace();
   if (!ws) {
     return error ? (
-      <div className="page-shell max-w-[1000px]">
+      <div className="page-shell">
         <EmptyState
           title="Couldn't load your workspace"
           body={`${error} Your data is still on this machine.`}
@@ -137,7 +137,7 @@ function Plays({ ws }: { ws: Workspace }) {
   };
 
   return (
-    <div className="page-shell max-w-[1000px]">
+    <div className="page-shell">
       <PageHeader
         title="Plays"
         eyebrow="Always on"

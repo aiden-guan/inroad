@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+- Refreshed the workspace with a warm frame, an inset working sheet, quieter controls and clearer typography. Phone and tablet navigation gives content more room while retaining company switching, agent status and update notices.
+- Revenue and Growth lead with the current number, goal progress and where to focus. Revenue retains its cumulative forecast bands and call/target markers; Growth keeps projected values distinct from recorded weekly numbers.
+- Today adds an interactive seven-day view of recorded conversations and replies, pipeline counts and the next meeting, alongside the reply lane and work queue. Additional daily updates collapse on phones.
+- Improved company identity rows, numeric alignment, field contrast and shared cards without changing existing research columns, weekly priorities or calendar workflows.
+
 ---
 
 ## [v0.2.23] — 2026-11-05

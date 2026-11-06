@@ -61,7 +61,7 @@ export function GrowthPage() {
 
   if (!ws || !data) {
     return error ? (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <EmptyState
           title="Couldn't load your workspace"
           body={`${error} Your data is still on this machine.`}
@@ -80,7 +80,7 @@ export function GrowthPage() {
   // A business's number is on Revenue. Growth says so, says how to switch, and shows nothing else.
   if (!isConsumer(ws)) {
     return (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <PageHeader title="Growth" eyebrow="The number" description="Growth reads a consumer company's weekly numbers: active users, retention and the pace to its goal." />
         <section aria-labelledby="growth-business-title" className="mt-8 max-w-[720px] rounded-xl bg-surface px-5 py-6 shadow-sm ring-1 ring-inset ring-border sm:px-7">
           <h2 id="growth-business-title" className="text-balance font-serif text-[21px] leading-[30px] text-fg">
@@ -112,9 +112,10 @@ export function GrowthPage() {
   const logged = hasLoggedLastWeek(ws, today);
   const waitlistFirst = !!ws.waitlist && !g.latest && !logging;
 
+  const growthHero = <GrowthHero goal={ws.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />;
   const productGrowth = <>
-      <BusinessMetrics mode="growth" />
-      <GrowthHero goal={ws.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />
+      {!g.latest && growthHero}
+      <div className="mt-8"><BusinessMetrics mode="growth" /></div>
       <Numbers ws={ws} today={today} g={g} logging={logging || empty} onLogging={setLogging} />
       <WhatItTakes ws={ws} g={g} pace={pace} funnel={funnel} talks={talks} />
       <Working ws={ws} g={g} />
@@ -130,15 +131,14 @@ export function GrowthPage() {
   </>;
 
   return (
-    <div className="page-shell max-w-[1080px]">
+    <div className="page-shell">
       <PageHeader
         title="Growth"
         eyebrow="The number"
         description={
           waitlistFirst ? "Your waitlist total, progress and history, kept in sync with your signup database. Product growth is ready below for when you launch." : g.goal.current !== null ? (
             <>
-              {ws.goal.target.toLocaleString("en-US")} {ws.goal.targetLabel} by {shortDate(ws.goal.byDate)}; <span className="font-mono tnum text-fg">{g.goal.current.toLocaleString("en-US")}</span> last week. Every
-              weekly number is counted from the weeks you log. Connected sources keep your active users and revenue up to date.
+              {ws.goal.target.toLocaleString("en-US")} {ws.goal.targetLabel} by {shortDate(ws.goal.byDate)}. Your weekly numbers, progress and next focus.
             </>
           ) : (
             "Your waitlist, active users and revenue from connected sources, alongside your weekly growth goal, pace and retention readings."
@@ -151,6 +151,7 @@ export function GrowthPage() {
         }
       />
 
+      {g.latest && growthHero}
       <WaitlistCard />
       <GtmInitiatives />
       {waitlistFirst ? <details className="mt-8"><summary className="w-fit cursor-pointer py-2 text-[13px] font-medium text-fg-2">Product growth, after launch</summary><div className="mt-5">{productGrowth}</div></details> : productGrowth}
