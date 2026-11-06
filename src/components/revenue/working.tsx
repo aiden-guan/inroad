@@ -70,7 +70,7 @@ export function Working({ ws, f }: { ws: Workspace; f: Forecast }) {
           <table className="w-full min-w-[620px] text-left text-[13px]">
             <caption className="sr-only">Deals by where they came from</caption>
             <thead>
-              <tr className="border-b border-border text-[11.5px] text-fg-3">
+              <tr className="border-b border-border text-[12px] text-fg-3">
                 <th scope="col" className={cn("px-4 py-2 font-medium", STICKY)}>Where deals come from</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Deals</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Qualified</th>
@@ -131,7 +131,7 @@ function TouchTable({ title, rows }: { title: string; rows: TouchRow[] }) {
       <table className="w-full min-w-[320px] text-left text-[13px]">
         <caption className="sr-only">{title}</caption>
         <thead>
-          <tr className="border-b border-border text-[11.5px] text-fg-3">
+          <tr className="border-b border-border text-[12px] text-fg-3">
             <th scope="col" className={cn("px-4 py-2 font-medium", STICKY)}>{title}</th>
             <th scope="col" className="px-3 py-2 text-right font-medium">Replied</th>
             <th scope="col" className="px-4 py-2 text-right font-medium">Became deals</th>

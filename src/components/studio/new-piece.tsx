@@ -3,6 +3,7 @@
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Label, Textarea } from "@/components/ui/field";
 import type {
   StudioFormatId,
@@ -36,8 +37,6 @@ export interface NewPieceArgs {
 }
 
 const ALL_OCCASIONS = Object.keys(OCCASIONS) as StudioOccasion[];
-const selectClass =
-  "h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
 
 export function NewPiece({
   ws,
@@ -125,13 +124,13 @@ export function NewPiece({
         <div className="grid gap-4 min-[380px]:grid-cols-2">
           <div>
             <Label htmlFor="studio-format">Format</Label>
-            <select
+            <Select
               id="studio-format"
               value={format}
               onChange={(event) =>
                 onFormatChange(event.target.value as StudioFormatId)
               }
-              className={selectClass}
+              className="h-10 w-full"
             >
               {GROUPS.map((group) => (
                 <optgroup key={group.id} label={group.label}>
@@ -144,24 +143,24 @@ export function NewPiece({
                     ))}
                 </optgroup>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <Label htmlFor="studio-occasion">Occasion</Label>
-            <select
+            <Select
               id="studio-occasion"
               value={occasion}
               onChange={(event) =>
                 setOccasion(event.target.value as StudioOccasion)
               }
-              className={selectClass}
+              className="h-10 w-full"
             >
               {occasions.map((id) => (
                 <option key={id} value={id}>
                   {OCCASIONS[id].label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
         <p className="mt-3 text-[12.5px] leading-5 text-fg-3">{spec.blurb}</p>

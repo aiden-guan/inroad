@@ -1,6 +1,6 @@
 "use client";
 
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, MapPin, Plus, Video } from "lucide-react";
 import Link from "next/link";
@@ -231,7 +231,7 @@ export function EventsPage() {
   const planningTitle = (id: string) => active.find((r) => r.ref?.kind === "event" && r.ref.id === id)?.title;
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <PageHeader
         title="Events"
         eyebrow="Make room for a conversation"
@@ -313,6 +313,6 @@ export function EventsPage() {
           </>
         )
       )}
-    </div>
+    </PageContainer>
   );
 }

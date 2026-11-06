@@ -73,12 +73,12 @@ export function OutcomesPanel({ automation }: { automation: AutomationController
                 {receipt.provider} · {receipt.kind}
                 {receipt.cached ? " · cached" : ""}
               </p>
-              <p className="text-[11px] text-fg-3">
+              <p className="text-[12px] text-fg-3">
                 {new Date(receipt.at).toLocaleString()} · {receipt.durationMs}ms
               </p>
             </div>
             <p className="mt-1 break-words text-[12px] text-fg-2">{receipt.query}</p>
-            <p className="mt-1 text-[11px] text-fg-3">
+            <p className="mt-1 text-[12px] text-fg-3">
               {receipt.resultCount} results{receipt.accountDomains?.length ? ` · tracked ${receipt.accountDomains.join(", ")}` : ""}
             </p>
             {receipt.error && <p className="mt-1 text-[12px] text-danger">{receipt.error}</p>}

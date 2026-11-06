@@ -74,7 +74,7 @@ export const DescribePlay = forwardRef<HTMLTextAreaElement, { ws: Workspace; tex
             <label id="describe-play-label" htmlFor="describe-play">
               <Micro>{rewriting ? "Rewrite this play from a sentence" : "Describe a play"}</Micro>
             </label>
-            <span className="hidden items-center gap-1.5 text-[11.5px] text-fg-3 md:pointer-fine:flex">
+            <span className="hidden items-center gap-1.5 text-[12px] text-fg-3 md:pointer-fine:flex">
               <Kbd>N</Kbd> to type · <Kbd>↵</Kbd> to compile
             </span>
           </div>

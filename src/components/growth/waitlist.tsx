@@ -79,14 +79,14 @@ function WaitlistTrend({ state }: { state: WaitlistTracking }) {
   return <div role="img" aria-label={`Waitlist history: ${points[0].total.toLocaleString("en-US")} on ${date(points[0].at)} to ${points.at(-1)!.total.toLocaleString("en-US")} on ${date(points.at(-1)!.at)}. The count scale starts at zero.`}>
     <div className="mb-3 flex items-center justify-between gap-3 text-[12px] text-fg-3"><span>Signup history</span><span>{points.length} recorded counts</span></div>
     <div className="flex gap-3" aria-hidden>
-      <div className="flex h-40 min-w-8 flex-col justify-between py-1 text-right font-mono text-[11px] leading-4 text-fg-3"><span>{ceiling.toLocaleString("en-US")}</span><span>{(ceiling / 2).toLocaleString("en-US")}</span><span>0</span></div>
+      <div className="flex h-40 min-w-8 flex-col justify-between py-1 text-right font-mono text-[12px] leading-4 text-fg-3"><span>{ceiling.toLocaleString("en-US")}</span><span>{(ceiling / 2).toLocaleString("en-US")}</span><span>0</span></div>
       <div className="min-w-0 flex-1">
         <svg viewBox="0 0 600 160" preserveAspectRatio="none" className="h-40 w-full overflow-visible text-accent">
           {[8, 80, 152].map((at) => <line key={at} x1="0" x2="600" y1={at} y2={at} stroke="var(--border)" strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
           <path d={path} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
           <circle cx="592" cy={y(points.at(-1)!.total)} r="3" fill="currentColor" />
         </svg>
-        <div className="mt-2 flex justify-between gap-2 text-[11px] text-fg-3">{[0, 0.5, 1].map((fraction) => <span key={fraction}>{tickLabel(start + duration * fraction)}</span>)}</div>
+        <div className="mt-2 flex justify-between gap-2 text-[12px] text-fg-3">{[0, 0.5, 1].map((fraction) => <span key={fraction}>{tickLabel(start + duration * fraction)}</span>)}</div>
       </div>
     </div>
   </div>;

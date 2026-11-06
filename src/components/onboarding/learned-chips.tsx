@@ -120,11 +120,11 @@ export function LearnedChips({ ws, waiting }: { ws: Workspace; waiting: boolean 
                       >
                         {chip.text}
                       </button>
-                      <span className="ml-2 text-[11.5px] text-fg-3">You said this was wrong</span>
+                      <span className="ml-2 text-[12px] text-fg-3">You said this was wrong</span>
                       <button
                         type="button"
                         onClick={() => void dispatch({ type: "company.correctChip", key: chip.key, text: chip.text })}
-                        className="ml-2 rounded-xs text-[11.5px] text-fg-2 underline underline-offset-2 transition-colors duration-150 hover:text-fg"
+                        className="ml-2 rounded-xs text-[12px] text-fg-2 underline underline-offset-2 transition-colors duration-150 hover:text-fg"
                       >
                         Undo
                       </button>
@@ -145,9 +145,9 @@ export function LearnedChips({ ws, waiting }: { ws: Workspace; waiting: boolean 
                         </>
                       )}
                       {chip.corrected ? (
-                        <span className="ml-2 text-[11.5px] text-fg-3">Your words</span>
+                        <span className="ml-2 text-[12px] text-fg-3">Your words</span>
                       ) : (
-                        chip.confidence === "low" && <span className="ml-2 font-mono text-[10.5px] text-fg-3">guess</span>
+                        chip.confidence === "low" && <span className="ml-2 font-mono text-[12px] text-fg-3">guess</span>
                       )}
                     </div>
                   )}
@@ -169,7 +169,7 @@ export function LearnedChips({ ws, waiting }: { ws: Workspace; waiting: boolean 
                           transition={{ duration: 0.4, ease: ease.out }}
                           onAnimationComplete={() => setTimeout(() => setLearned((k) => (k === chip.key ? null : k)), 900)}
                         />
-                        <span className="absolute right-0 top-2 text-[11px] leading-4 text-accent-text">Learned</span>
+                        <span className="absolute right-0 top-2 text-[12px] leading-4 text-accent-text">Learned</span>
                       </motion.span>
                     )}
                   </AnimatePresence>

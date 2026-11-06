@@ -193,8 +193,8 @@ function ValueThemeCard({ theme, index }: { theme: ValueTheme; index: number }) 
                   <Check className="mt-0.5 size-3.5 shrink-0 text-fg-3" aria-hidden />
                   <span className="min-w-0 flex-1">
                     {claim?.text ?? pr.text}
-                    {claim && !claim.approved && <span className="ml-1.5 text-[11.5px] text-warning">claim not approved yet</span>}
-                    {pr.claimId && !claim && <span className="ml-1.5 text-[11.5px] text-warning">claim removed</span>}
+                    {claim && !claim.approved && <span className="ml-1.5 text-[12px] text-warning">claim not approved yet</span>}
+                    {pr.claimId && !claim && <span className="ml-1.5 text-[12px] text-warning">claim removed</span>}
                     {pr.evidenceId && <Cite ids={[pr.evidenceId]} />}
                   </span>
                   <RemoveButton

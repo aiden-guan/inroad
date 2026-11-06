@@ -156,7 +156,7 @@ export function WordCount({ n, max, className }: { n: number; max: number; class
   return (
     <span
       className={cn(
-        "font-mono text-[11px] tnum transition-colors duration-150",
+        "font-mono text-[12px] tnum transition-colors duration-150",
         n > max ? "text-danger" : n > max * 0.9 ? "text-warning" : "text-fg-3",
         className,
       )}
@@ -457,7 +457,7 @@ export function Stamp({ label, isBet, className }: { label: string; isBet: boole
     <p className={cn("flex items-center gap-1.5 font-serif text-[14px] italic leading-5 text-fg-3", className)}>
       {!isBet && <Check className="size-3.5 shrink-0 not-italic text-fg-2" aria-hidden />}
       <span>
-        {isBet && <span className="not-italic font-sans text-[11px] font-medium uppercase tracking-[0.06em] text-fg-3">Bet · </span>}
+        {isBet && <span className="not-italic font-sans text-[12px] font-medium uppercase tracking-[0.06em] text-fg-3">Bet · </span>}
         {label}
       </span>
     </p>
@@ -483,7 +483,7 @@ export function Drafted({ draft, children, className }: { draft: boolean; childr
 }
 
 export function DraftLabel() {
-  return <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-accent-text">Draft</span>;
+  return <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-text">Draft</span>;
 }
 
 /**

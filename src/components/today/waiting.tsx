@@ -34,7 +34,7 @@ export function WaitingOn({ ws, now }: { ws: Workspace; now: number }) {
         >
           <Hourglass aria-hidden className="size-3.5 text-fg-3" />
           Waiting on {plural(list.length, "person", "people")}
-          {due > 0 && <span className="font-mono text-[11px] tnum text-fg-3">· {due} due</span>}
+          {due > 0 && <span className="font-mono text-[12px] tnum text-fg-3">· {due} due</span>}
         </button>
       }
     >
@@ -69,7 +69,7 @@ function WaitingRow({ w, ws }: { w: Waiting; ws: Workspace }) {
         <Link href={`/companies?c=${encodeURIComponent(w.domain)}`} className="min-w-0 truncate text-[13px] font-medium text-fg hover:underline">
           {w.name} <span className="font-normal text-fg-3">· {w.company}</span>
         </Link>
-        <span className={cn("ml-auto shrink-0 font-mono text-[11px] tnum", w.due ? "text-fg" : "text-fg-3")}>{w.due ? "due" : remindLabel(on, today)}</span>
+        <span className={cn("ml-auto shrink-0 font-mono text-[12px] tnum", w.due ? "text-fg" : "text-fg-3")}>{w.due ? "due" : remindLabel(on, today)}</span>
       </div>
       <div className="mt-0.5 flex items-center gap-2 text-[12px] text-fg-3">
         <span className="min-w-0 truncate">

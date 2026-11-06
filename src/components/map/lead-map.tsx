@@ -518,7 +518,7 @@ export function LeadMap({ pins, center, radiusKm, selectedId, hoveredId, onSelec
           <span className="shimmer-text text-[12.5px]">Drawing the map…</span>
         </div>
       )}
-      {offline && ready && <p className="absolute left-3 top-3 rounded-sm bg-surface/90 px-2 py-1 text-[11.5px] text-fg-3 ring-1 ring-border">Map tiles are unavailable offline. Pins still show.</p>}
+      {offline && ready && <p className="absolute left-3 top-3 rounded-sm bg-surface/90 px-2 py-1 text-[12px] text-fg-3 ring-1 ring-border">Map tiles are unavailable offline. Pins still show.</p>}
     </div>
   );
 }

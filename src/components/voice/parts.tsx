@@ -32,7 +32,7 @@ export function SourceTag({ s, className }: { s: Pick<VoiceSnippet, "source" | "
     <span
       title={src.hint}
       className={cn(
-        "inline-flex h-[18px] shrink-0 items-center rounded-[3px] px-1 font-mono text-[10.5px] font-medium tracking-wide ring-1 ring-inset",
+        "inline-flex h-[18px] shrink-0 items-center rounded-[3px] px-1 font-mono text-[12px] font-medium tracking-wide ring-1 ring-inset",
         s.verbatim ? "text-fg-2 ring-border-strong/70" : "bg-bg-subtle text-fg-3 ring-border",
         className,
       )}
@@ -55,7 +55,7 @@ export function QuoteRow({ s, compact, highlight }: { s: VoiceSnippet; compact?:
         </blockquote>
       ) : (
         <p className={cn("leading-[21px] text-fg-2 [overflow-wrap:anywhere]", compact ? "text-[13px]" : "text-[13.5px]")}>
-          <span className="mr-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-3">Paraphrase</span>
+          <span className="mr-1.5 text-[12px] font-medium uppercase tracking-[0.06em] text-fg-3">Paraphrase</span>
           {s.text}
         </p>
       )}
@@ -102,7 +102,7 @@ export function TrendLabel({ trend }: { trend: VoiceTrend }) {
   if (!trend.label) return null;
   const text = trend.label === "new" ? "New this month" : trend.label === "rising" ? "Rising" : "Quieter lately";
   return (
-    <span className={cn("inline-flex h-5 items-center rounded-xs px-1.5 text-[11px] font-medium ring-1 ring-inset", trend.label === "fading" ? "text-fg-3 ring-border" : "bg-accent-subtle text-accent-text ring-transparent")}>
+    <span className={cn("inline-flex h-5 items-center rounded-xs px-1.5 text-[12px] font-medium ring-1 ring-inset", trend.label === "fading" ? "text-fg-3 ring-border" : "bg-accent-subtle text-accent-text ring-transparent")}>
       {text}
     </span>
   );

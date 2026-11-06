@@ -233,7 +233,7 @@ function Body({
         <span className="text-[12px] font-medium text-fg-2">Answer</span>
         <Segmented value={type} onChange={(v) => setPicked(v)} layoutId="column-type" className="h-7 [&_button]:h-6 [&_button]:px-2 [&_button]:text-[12px]" options={TYPES} />
       </div>
-      {!picked && question.trim().length > 2 && <p className="mt-1 text-right text-[11.5px] text-fg-3">Proposed from how it&rsquo;s worded. Change it if it&rsquo;s wrong.</p>}
+      {!picked && question.trim().length > 2 && <p className="mt-1 text-right text-[12px] text-fg-3">Proposed from how it&rsquo;s worded. Change it if it&rsquo;s wrong.</p>}
 
       {type === "pick_one" && (
         <div className="mt-3 space-y-1.5">
@@ -273,7 +273,7 @@ function Body({
               <Plus className="size-3.5" /> Add option
             </button>
           )}
-          <p className="text-[11.5px] leading-[16px] text-fg-3">If none fits what the sources show, the answer is Unknown.</p>
+          <p className="text-[12px] leading-[16px] text-fg-3">If none fits what the sources show, the answer is Unknown.</p>
         </div>
       )}
 

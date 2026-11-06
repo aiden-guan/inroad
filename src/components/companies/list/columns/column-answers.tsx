@@ -24,7 +24,7 @@ export function ColumnAnswers({ domain, name, className }: { domain: string; nam
 
   return (
     <section className={cn("mt-10", className)} aria-label="Research columns">
-      <SectionLabel right={<span className="font-mono text-[11px] text-fg-3">from the Companies table</span>}>Research columns</SectionLabel>
+      <SectionLabel right={<span className="font-mono text-[12px] text-fg-3">from the Companies table</span>}>Research columns</SectionLabel>
       <ul className="divide-y divide-border rounded-lg bg-surface ring-1 ring-border">
         {data.columns.map((c) => {
           const cell = data.cells[c.id]?.[domain];

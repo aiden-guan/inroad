@@ -202,7 +202,7 @@ export function AddCompany({
                   <p className="line-clamp-2 text-[12px] leading-[17px] text-fg-2">{data?.oneLiner ?? (current?.status === "loading" ? "Checking…" : "")}</p>
                 )}
                 {data?.yc && (
-                  <p className="mt-0.5 font-mono text-[11px] text-fg-3">
+                  <p className="mt-0.5 font-mono text-[12px] text-fg-3">
                     YC {data.yc.batch}
                     {data.yc.teamSize ? ` · ${data.yc.teamSize} people` : ""}
                     {data.yc.location ? ` · ${data.yc.location}` : ""}

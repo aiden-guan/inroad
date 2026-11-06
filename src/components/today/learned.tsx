@@ -86,7 +86,7 @@ export function LearnedList({ ws, today, visible, className }: { ws: Workspace; 
                 {a.skips.map((s) => (
                   <li key={`${s.moveId}:${s.at}`} className="flex gap-2 text-[12px] leading-[18px] text-fg-2">
                     <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                    <span className="shrink-0 font-mono text-[11px] tnum text-fg-3">{shortDay(localDate(s.at))}</span>
+                    <span className="shrink-0 font-mono text-[12px] tnum text-fg-3">{shortDay(localDate(s.at))}</span>
                   </li>
                 ))}
               </ul>
@@ -113,7 +113,7 @@ export function LearnedButton({ ws, today, visible }: { ws: Workspace; today: st
           aria-label={`What I've learned from your skips: ${plural(n, "change")}`}
         >
           <Sparkle aria-hidden className="size-3.5 text-accent-text" />
-          Learned <span className="font-mono text-[11px] tnum text-fg-3">{n}</span>
+          Learned <span className="font-mono text-[12px] tnum text-fg-3">{n}</span>
         </button>
       }
     >

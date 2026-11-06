@@ -262,7 +262,7 @@ function ReviewList({ review, busy, onTrack, onIgnore }: { review: ReviewCompany
     <section aria-labelledby="calendar-review-label">
       <SubLabel
         right={
-          <span className="hidden items-center gap-1 text-[11px] text-fg-3 md:pointer-fine:flex">
+          <span className="hidden items-center gap-1 text-[12px] text-fg-3 md:pointer-fine:flex">
             <Kbd>T</Kbd> track <Kbd>X</Kbd> ignore
           </span>
         }
@@ -286,7 +286,7 @@ function ReviewList({ review, busy, onTrack, onIgnore }: { review: ReviewCompany
                 <div className="min-w-0 flex-1">
                   <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="truncate text-[13.5px] font-medium text-fg">{r.name}</span>
-                    <span className="truncate font-mono text-[11.5px] text-fg-3">{r.domain}</span>
+                    <span className="truncate font-mono text-[12px] text-fg-3">{r.domain}</span>
                     {r.status !== "new" && <Badge tone="outline">{STATUS_LABEL[r.status]}</Badge>}
                   </p>
                   {meeting && (
@@ -349,9 +349,9 @@ function Agenda({ items }: { items: AgendaItem[] }) {
             const busy = it.meetingId ? prepping(it.meetingId) : false;
             const state =
               it.kind === "personal" ? (
-                <span className="text-[11.5px] text-fg-3">Personal address</span>
+                <span className="text-[12px] text-fg-3">Personal address</span>
               ) : it.kind === "ignored" ? (
-                <span className="text-[11.5px] text-fg-3">Ignored</span>
+                <span className="text-[12px] text-fg-3">Ignored</span>
               ) : it.kind === "review" ? (
                 <Badge tone="warning">Not tracked</Badge>
               ) : meeting?.debrief ? (
@@ -372,11 +372,11 @@ function Agenda({ items }: { items: AgendaItem[] }) {
                   Prep
                 </Button>
               ) : (
-                <span className="text-[11.5px] text-fg-3">Adding to the deal</span>
+                <span className="text-[12px] text-fg-3">Adding to the deal</span>
               );
             return (
               <li key={it.id} className="flex items-center gap-3 px-3 py-2">
-                <span className="w-[88px] shrink-0 font-mono text-[11.5px] leading-4 tnum text-fg-3">
+                <span className="w-[88px] shrink-0 font-mono text-[12px] leading-4 tnum text-fg-3">
                   {day(it.start).replace(/,.*/, "")}
                   <br />
                   {time(it.start)}
@@ -385,7 +385,7 @@ function Agenda({ items }: { items: AgendaItem[] }) {
                   {it.domain ? <Favicon domain={it.domain} name={it.company} size={16} /> : <CalendarDays className="size-4 shrink-0 text-fg-3" aria-hidden />}
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] text-fg">{it.title || "Meeting"}</span>
-                    <span className="flex items-center gap-1 truncate text-[11.5px] text-fg-3">
+                    <span className="flex items-center gap-1 truncate text-[12px] text-fg-3">
                       {it.company ?? it.guests.map((g) => g.name ?? g.email).join(", ")}
                       {it.conference && (
                         <>

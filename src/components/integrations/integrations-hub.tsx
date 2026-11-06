@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingSignal } from "@/components/ui/loading";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { CalendarDays, FileAudio, FileSpreadsheet, Star, Users, Webhook } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -151,7 +151,7 @@ export function IntegrationsHub() {
   };
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <PageHeader title="Integrations" eyebrow="Your connected stack" description="Connect the tools you already use. Every connection here is optional.">
         {summary && (
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
@@ -178,176 +178,179 @@ export function IntegrationsHub() {
         )}
       </PageHeader>
 
-      <MetricSources current={current} onToggle={toggle} />
-      <WaitlistCard />
+      {/* Rows of connections read best at a settings width; the header keeps the page's full frame. */}
+      <div className="max-w-[840px]">
+        <MetricSources current={current} onToggle={toggle} />
+        <WaitlistCard />
 
-      {(!isConsumer(ws) || ws.integrations.calendar?.enabled) && (
-        <div className="mt-10">
-          <Group id="capture" question="Bring in your meetings" note="Calendar meetings arrive matched and prepped. Transcripts become a debrief you review. Both are read in code; only briefs and debriefs use your AI key.">
-            <IntegrationRow
-              id="calendar"
-              name="Calendar"
-              blurb="Every meeting with someone outside your company, matched to its company, prepped before the call."
-              icon={<CalendarDays className="size-4" />}
-              status={calendarStatus(calendar.digest, !!ws.integrations.calendar?.enabled, ws.integrations.calendar?.lastError?.message)}
-              open={current === "calendar"}
-              onToggle={() => toggle("calendar")}
-            >
-              <CalendarPanel digest={calendar.digest} error={calendar.error} onDigest={calendar.setDigest} onReload={calendar.reload} />
-            </IntegrationRow>
-            {!isConsumer(ws) && (
+        {(!isConsumer(ws) || ws.integrations.calendar?.enabled) && (
+          <div className="mt-10">
+            <Group id="capture" question="Bring in your meetings" note="Calendar meetings arrive matched and prepped. Transcripts become a debrief you review. Both are read in code; only briefs and debriefs use your AI key.">
               <IntegrationRow
-                id="transcripts"
-                name="Call transcripts"
-                blurb="Drop a Zoom, Meet, Teams, Fathom, Granola or Otter transcript. I match it to the call and debrief it."
-                icon={<FileAudio className="size-4" />}
-                status={transcriptStatus(ws)}
-                open={current === "transcripts"}
-                onToggle={() => toggle("transcripts")}
+                id="calendar"
+                name="Calendar"
+                blurb="Every meeting with someone outside your company, matched to its company, prepped before the call."
+                icon={<CalendarDays className="size-4" />}
+                status={calendarStatus(calendar.digest, !!ws.integrations.calendar?.enabled, ws.integrations.calendar?.lastError?.message)}
+                open={current === "calendar"}
+                onToggle={() => toggle("calendar")}
               >
-                <TranscriptIntake calendar={calendar.pending} onStarted={({ meetingId, domain }) => router.push(`/companies?c=${encodeURIComponent(domain)}&intent=prep&ref=${encodeURIComponent(meetingId)}`)} />
+                <CalendarPanel digest={calendar.digest} error={calendar.error} onDigest={calendar.setDigest} onReload={calendar.reload} />
               </IntegrationRow>
-            )}
-          </Group>
+              {!isConsumer(ws) && (
+                <IntegrationRow
+                  id="transcripts"
+                  name="Call transcripts"
+                  blurb="Drop a Zoom, Meet, Teams, Fathom, Granola or Otter transcript. I match it to the call and debrief it."
+                  icon={<FileAudio className="size-4" />}
+                  status={transcriptStatus(ws)}
+                  open={current === "transcripts"}
+                  onToggle={() => toggle("transcripts")}
+                >
+                  <TranscriptIntake calendar={calendar.pending} onStarted={({ meetingId, domain }) => router.push(`/companies?c=${encodeURIComponent(domain)}&intent=prep&ref=${encodeURIComponent(meetingId)}`)} />
+                </IntegrationRow>
+              )}
+            </Group>
+          </div>
+        )}
+
+        <div className="mt-6 rounded-lg bg-surface p-4 ring-1 ring-border">
+          <p className="text-[14px] font-medium text-fg">Start with your own inbox</p>
+          <p className="mt-1 text-pretty text-[13px] leading-5 text-fg-2">Find prospects, review drafts, then open them in Gmail or copy them to your email app.</p>
+          <Link href="/today" className="mt-3 inline-flex min-h-9 items-center rounded-sm px-3 text-[13px] font-medium text-fg ring-1 ring-border-strong transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">Go to Today →</Link>
         </div>
-      )}
 
-      <div className="mt-6 rounded-lg bg-surface p-4 ring-1 ring-border">
-        <p className="text-[14px] font-medium text-fg">Start with your own inbox</p>
-        <p className="mt-1 text-pretty text-[13px] leading-5 text-fg-2">Find prospects, review drafts, then open them in Gmail or copy them to your email app.</p>
-        <Link href="/today" className="mt-3 inline-flex min-h-9 items-center rounded-sm px-3 text-[13px] font-medium text-fg ring-1 ring-border-strong transition-colors hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">Go to Today →</Link>
+        <div className="my-6 rounded-lg border border-border bg-surface p-4"><p className="text-[14px] font-medium">Connect another research tool</p><p className="mt-2 text-[13px] leading-5 text-fg-2">MCP servers, OpenAPI read operations, JSON field mapping and reusable monitors now live in Research.</p><Link href="/research?tab=tools" className="mt-3 inline-block text-[13px] underline underline-offset-2">Open connections and mapping</Link></div>
+        <Group id="leads" question="Import leads" note="Already have a list? Import it here. Inroad handles duplicates.">
+          <LinkRow
+            id="linkedin"
+            href="/integrations?import=linkedin"
+            name="LinkedIn connections"
+            blurb="Find potential customers among people you already know."
+            icon={<Users className="size-4" />}
+            status={ws.network ? { tone: "on", label: <>{ws.network.total.toLocaleString("en-US")} imported · <Ago iso={ws.network.importedAt} /></> } : { tone: "off", label: "Not imported" }}
+            badge={startBadge("linkedin")}
+          />
+          <LinkRow
+            id="csv"
+            href="/integrations?import=csv"
+            name="CSV list"
+            blurb="Import companies and contacts. Columns are matched automatically."
+            icon={<FileSpreadsheet className="size-4" />}
+            status={csvCount ? { tone: "on", label: `${csvCount.toLocaleString("en-US")} compan${csvCount === 1 ? "y" : "ies"} imported` } : { tone: "off", label: "Drop in a file" }}
+          />
+          <LinkRow
+            id="github"
+            href="/integrations?import=github"
+            name="GitHub stargazers"
+            blurb="Find prospects who starred your developer tool."
+            icon={<Star className="size-4" />}
+            status={starCount ? { tone: "on", label: `${starCount.toLocaleString("en-US")} stargazer${starCount === 1 ? "" : "s"} placed` } : { tone: "off", label: "Not imported" }}
+          />
+        </Group>
+
+        <Group id="outreach" question="Send through an outreach tool" note="Choose one if you use email campaigns. Otherwise, send from your own inbox.">
+          {native("instantly")}
+          {native("smartlead")}
+          {native("lemlist")}
+        </Group>
+
+        <Group id="deals" question="Sync your CRM" note="Choose your CRM. Enable write-back when you want Inroad to update it.">
+          {native("hubspot")}
+          {native("attio")}
+        </Group>
+
+        <details ref={moreTools} id="more-tools" className="mt-8 scroll-mt-24 border-t border-border pt-5">
+          <summary className="cursor-pointer rounded-sm text-[14px] font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+            More tools
+            {moreNeedsAttention && <Badge tone="warning" className="ml-2">Needs attention</Badge>}
+            <span className="mt-1 block text-[12px] font-normal text-fg-3">People lookup, meetings, alerts and automation</span>
+          </summary>
+
+        <Group id="people" question="Find people and email addresses" note="Search is free. Adding contacts and finding emails uses Firecrawl credits.">
+          {native("firecrawl")}
+        </Group>
+
+        <Group id="meetings" question="Meeting bookings">
+          {BOOKING_SOURCES.map((s) => {
+            const id = isBooking(s.id) ? s.id : null;
+            const keyed = id ? ws.integrations[id] : undefined;
+            return (
+              <IntegrationRow
+                key={s.id}
+                id={s.id}
+                name={s.name}
+                blurb="Turn new bookings into meetings and call prep."
+                domain={s.domain}
+                status={id && keyed?.enabled ? nativeStatus(id, ws) : hookStatus(events, [s.id])}
+                open={current === s.id}
+                onToggle={() => toggle(s.id)}
+              >
+                <HookPanel
+                  sources={[s]}
+                  status={status}
+                  onRefresh={refresh}
+                  showExample={false}
+                  extra={
+                    id ? (
+                      <BookingKey
+                        id={id}
+                        state={keyed}
+                        replacing={replacing === id}
+                        onReplace={() => setReplacing(id)}
+                        onDone={() => {
+                          setReplacing(null);
+                          void refresh();
+                        }}
+                      />
+                    ) : undefined
+                  }
+                />
+              </IntegrationRow>
+            );
+          })}
+        </Group>
+
+        <Group id="alerts" question="Alerts">
+          {native("slack")}
+        </Group>
+
+        <Group id="automation" question="Automation">
+          <IntegrationRow
+            id="inbound"
+            name="Import from Clay, Zapier, n8n or Make"
+            blurb="Bring in leads and activity automatically."
+            icon={<Webhook className="size-4" />}
+            status={hookStatus(events, LEAD_HOOK_IDS)}
+            open={current === "inbound"}
+            onToggle={() => toggle("inbound")}
+          >
+            <HookPanel sources={LEAD_SOURCES} status={status} onRefresh={refresh} />
+          </IntegrationRow>
+          <IntegrationRow
+            id="webhooks"
+            name="Outbound webhooks"
+            blurb="Send approvals, replies and deal updates to your other tools."
+            icon={<Webhook className="size-4" />}
+            status={outboundStatus(ws)}
+            open={current === "webhooks"}
+            onToggle={() => toggle("webhooks")}
+          >
+            <OutboundPanel status={status} onRefresh={refresh} />
+          </IntegrationRow>
+        </Group>
+
+        <section id="agents" aria-labelledby="agents-label" className="mt-10 scroll-mt-24">
+          <SectionLabel>
+            <span id="agents-label">Connect AI agents</span>
+          </SectionLabel>
+          <p className="mb-3 max-w-[60ch] px-1 text-[13px] leading-[19px] text-fg-3">
+            Let Claude, Cursor, ChatGPT or another agent read your playbook and add leads. You approve outbound messages.
+          </p>
+          <AgentsCard />
+        </section>
+        </details>
       </div>
-
-      <div className="my-6 rounded-lg border border-border bg-surface p-4"><p className="text-[14px] font-medium">Connect another research tool</p><p className="mt-2 text-[13px] leading-5 text-fg-2">MCP servers, OpenAPI read operations, JSON field mapping and reusable monitors now live in Research.</p><Link href="/research?tab=tools" className="mt-3 inline-block text-[13px] underline underline-offset-2">Open connections and mapping</Link></div>
-      <Group id="leads" question="Import leads" note="Already have a list? Import it here. Inroad handles duplicates.">
-        <LinkRow
-          id="linkedin"
-          href="/integrations?import=linkedin"
-          name="LinkedIn connections"
-          blurb="Find potential customers among people you already know."
-          icon={<Users className="size-4" />}
-          status={ws.network ? { tone: "on", label: <>{ws.network.total.toLocaleString("en-US")} imported · <Ago iso={ws.network.importedAt} /></> } : { tone: "off", label: "Not imported" }}
-          badge={startBadge("linkedin")}
-        />
-        <LinkRow
-          id="csv"
-          href="/integrations?import=csv"
-          name="CSV list"
-          blurb="Import companies and contacts. Columns are matched automatically."
-          icon={<FileSpreadsheet className="size-4" />}
-          status={csvCount ? { tone: "on", label: `${csvCount.toLocaleString("en-US")} compan${csvCount === 1 ? "y" : "ies"} imported` } : { tone: "off", label: "Drop in a file" }}
-        />
-        <LinkRow
-          id="github"
-          href="/integrations?import=github"
-          name="GitHub stargazers"
-          blurb="Find prospects who starred your developer tool."
-          icon={<Star className="size-4" />}
-          status={starCount ? { tone: "on", label: `${starCount.toLocaleString("en-US")} stargazer${starCount === 1 ? "" : "s"} placed` } : { tone: "off", label: "Not imported" }}
-        />
-      </Group>
-
-      <Group id="outreach" question="Send through an outreach tool" note="Choose one if you use email campaigns. Otherwise, send from your own inbox.">
-        {native("instantly")}
-        {native("smartlead")}
-        {native("lemlist")}
-      </Group>
-
-      <Group id="deals" question="Sync your CRM" note="Choose your CRM. Enable write-back when you want Inroad to update it.">
-        {native("hubspot")}
-        {native("attio")}
-      </Group>
-
-      <details ref={moreTools} id="more-tools" className="mt-8 scroll-mt-24 border-t border-border pt-5">
-        <summary className="cursor-pointer rounded-sm text-[14px] font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-          More tools
-          {moreNeedsAttention && <Badge tone="warning" className="ml-2">Needs attention</Badge>}
-          <span className="mt-1 block text-[12px] font-normal text-fg-3">People lookup, meetings, alerts and automation</span>
-        </summary>
-
-      <Group id="people" question="Find people and email addresses" note="Search is free. Adding contacts and finding emails uses Firecrawl credits.">
-        {native("firecrawl")}
-      </Group>
-
-      <Group id="meetings" question="Meeting bookings">
-        {BOOKING_SOURCES.map((s) => {
-          const id = isBooking(s.id) ? s.id : null;
-          const keyed = id ? ws.integrations[id] : undefined;
-          return (
-            <IntegrationRow
-              key={s.id}
-              id={s.id}
-              name={s.name}
-              blurb="Turn new bookings into meetings and call prep."
-              domain={s.domain}
-              status={id && keyed?.enabled ? nativeStatus(id, ws) : hookStatus(events, [s.id])}
-              open={current === s.id}
-              onToggle={() => toggle(s.id)}
-            >
-              <HookPanel
-                sources={[s]}
-                status={status}
-                onRefresh={refresh}
-                showExample={false}
-                extra={
-                  id ? (
-                    <BookingKey
-                      id={id}
-                      state={keyed}
-                      replacing={replacing === id}
-                      onReplace={() => setReplacing(id)}
-                      onDone={() => {
-                        setReplacing(null);
-                        void refresh();
-                      }}
-                    />
-                  ) : undefined
-                }
-              />
-            </IntegrationRow>
-          );
-        })}
-      </Group>
-
-      <Group id="alerts" question="Alerts">
-        {native("slack")}
-      </Group>
-
-      <Group id="automation" question="Automation">
-        <IntegrationRow
-          id="inbound"
-          name="Import from Clay, Zapier, n8n or Make"
-          blurb="Bring in leads and activity automatically."
-          icon={<Webhook className="size-4" />}
-          status={hookStatus(events, LEAD_HOOK_IDS)}
-          open={current === "inbound"}
-          onToggle={() => toggle("inbound")}
-        >
-          <HookPanel sources={LEAD_SOURCES} status={status} onRefresh={refresh} />
-        </IntegrationRow>
-        <IntegrationRow
-          id="webhooks"
-          name="Outbound webhooks"
-          blurb="Send approvals, replies and deal updates to your other tools."
-          icon={<Webhook className="size-4" />}
-          status={outboundStatus(ws)}
-          open={current === "webhooks"}
-          onToggle={() => toggle("webhooks")}
-        >
-          <OutboundPanel status={status} onRefresh={refresh} />
-        </IntegrationRow>
-      </Group>
-
-      <section id="agents" aria-labelledby="agents-label" className="mt-10 scroll-mt-24">
-        <SectionLabel>
-          <span id="agents-label">Connect AI agents</span>
-        </SectionLabel>
-        <p className="mb-3 max-w-[60ch] px-1 text-[13px] leading-[19px] text-fg-3">
-          Let Claude, Cursor, ChatGPT or another agent read your playbook and add leads. You approve outbound messages.
-        </p>
-        <AgentsCard />
-      </section>
-      </details>
 
       <Dialog
         open={importKind !== null}
@@ -357,7 +360,7 @@ export function IntegrationsHub() {
       >
         <div className="px-5 pb-5 pt-3">{importKind && <ImportFlow kind={importKind} onDone={closeImport} />}</div>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -376,7 +379,7 @@ function outboundStatus(ws: Workspace): RowStatus {
 
 function HubSkeleton() {
   return (
-    <div className="page-shell" aria-busy="true">
+    <PageContainer aria-busy="true">
       <LoadingSignal label="Loading your connections" className="mb-7" />
       <Skeleton className="h-9 w-64" />
       <Skeleton className="mt-4 h-4 w-full max-w-[520px]" />
@@ -397,7 +400,7 @@ function HubSkeleton() {
           </Card>
         </div>
       ))}
-    </div>
+    </PageContainer>
   );
 }
 

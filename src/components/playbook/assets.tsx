@@ -117,7 +117,7 @@ export function AssetsBlock() {
         assets.length > 0 && (
           <>
             <AssetList assets={assets} />
-            <p className="mt-2 font-mono text-[11.5px] text-fg-3">
+            <p className="mt-2 font-mono text-[12px] text-fg-3">
               {approved} of {assets.length} approved for outreach
             </p>
           </>
@@ -251,7 +251,7 @@ function AssetRow({ asset }: { asset: Asset }) {
         ) : (
           <DraftLabel />
         )}
-        <span className="hidden w-12 text-right font-mono text-[11.5px] text-fg-3 sm:inline">{shortDate(asset.updatedAt)}</span>
+        <span className="hidden w-12 text-right font-mono text-[12px] text-fg-3 sm:inline">{shortDate(asset.updatedAt)}</span>
         <ChevronDown className={cn("size-4 shrink-0 text-fg-3 transition-transform duration-200", open && "rotate-180")} aria-hidden />
       </button>
       <AnimatePresence initial={false}>
@@ -356,7 +356,7 @@ function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () 
                   )}
                 >
                   {d.name}
-                  <span className={cn("text-[11.5px]", dealId === d.id ? "text-bg/70" : "text-fg-3")}>{STAGE_LABELS[d.stage]}</span>
+                  <span className={cn("text-[12px]", dealId === d.id ? "text-bg/70" : "text-fg-3")}>{STAGE_LABELS[d.stage]}</span>
                 </button>
               ))}
             </div>
@@ -456,7 +456,7 @@ function NewAsset({ composer, onClose }: { composer: ComposerState; onClose: () 
           </Button>
         )}
         <div className="flex items-center gap-3">
-          <span className="hidden font-mono text-[11.5px] text-fg-3 sm:inline">about $0.05 · no web</span>
+          <span className="hidden font-mono text-[12px] text-fg-3 sm:inline">about $0.05 · no web</span>
           <Button size="sm" variant="agent" onClick={() => void draft()} loading={busy} disabled={!!gate}>
             Draft {meta.noun.replace(/^an? /, "the ")}
             <AiBadge className="ml-0.5 text-accent-fg ring-accent-fg/30" />
@@ -593,7 +593,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
         {asset.origin === "agent" && !liveRun && summary?.receipt && (
           <>
             <span aria-hidden>·</span>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-[12px]">
               drafted in {duration(summary.receipt.durationMs)} · {usd(summary.receipt.costUsd)}
             </span>
           </>
@@ -611,7 +611,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
                     key={ph}
                     type="button"
                     onClick={() => goTo(ph)}
-                    className="inline-flex h-6 items-center rounded-xs bg-surface px-2 font-mono text-[11.5px] text-fg-2 ring-1 ring-border transition-colors hover:text-fg"
+                    className="inline-flex h-6 items-center rounded-xs bg-surface px-2 font-mono text-[12px] text-fg-2 ring-1 ring-border transition-colors hover:text-fg"
                   >
                     {ph}
                   </button>
@@ -680,7 +680,7 @@ function AssetEditor({ asset }: { asset: Asset }) {
           }}
           className="h-8 font-mono text-[12.5px]"
         />
-        <span className="font-mono text-[11.5px] text-fg-3 sm:text-right">{dirty ? (mode === "write" ? `Unsaved · ${keys("⌘S")}` : "Unsaved") : "Saved"}</span>
+        <span className="font-mono text-[12px] text-fg-3 sm:text-right">{dirty ? (mode === "write" ? `Unsaved · ${keys("⌘S")}` : "Unsaved") : "Saved"}</span>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">

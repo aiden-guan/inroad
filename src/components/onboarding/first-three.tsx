@@ -47,7 +47,7 @@ function AccountRow({ a, i, talkTo, showWarm }: { a: Account; i: number; talkTo?
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-baseline gap-2">
           <span className="truncate text-[14px] font-medium text-fg">{a.name}</span>
-          <span className="truncate font-mono text-[11.5px] text-fg-3">{a.domain}</span>
+          <span className="truncate font-mono text-[12px] text-fg-3">{a.domain}</span>
         </p>
         {why && (
           <p className="mt-0.5 text-pretty text-[13.5px] leading-5 text-fg-2">
@@ -206,7 +206,7 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               <span className="text-fg-3">Your starting plan: </span>
               {f.icp.hypothesis.sentence}
             </p>
-            <p className="mt-2 font-mono text-[11px] leading-4 text-fg-3">
+            <p className="mt-2 font-mono text-[12px] leading-4 text-fg-3">
               {provenance}
             </p>
           </div>
@@ -340,7 +340,7 @@ export function FirstThree({ ws, onLeave }: { ws: Workspace; onLeave: () => void
       </motion.div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 px-1">
-        {receipt ? <span className="font-mono text-[11.5px] text-fg-3">{receipt}</span> : <span />}
+        {receipt ? <span className="font-mono text-[12px] text-fg-3">{receipt}</span> : <span />}
         {f && (
           <button
             type="button"

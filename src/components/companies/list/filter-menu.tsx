@@ -62,7 +62,7 @@ export function FilterMenu<T extends string>({
                 </DM.ItemIndicator>
               </span>
               <span className="flex-1">{o.label}</span>
-              {o.count !== undefined && <span className="font-mono text-[11px] tnum text-fg-3">{o.count}</span>}
+              {o.count !== undefined && <span className="font-mono text-[12px] tnum text-fg-3">{o.count}</span>}
             </DM.CheckboxItem>
           ))}
           {active && (

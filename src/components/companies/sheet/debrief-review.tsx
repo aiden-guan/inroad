@@ -197,12 +197,12 @@ export function DebriefReview({ deal, meeting, debrief, today }: { deal: Deal; m
   return (
     <div className="space-y-6">
       <div>
-        <p className="flex flex-wrap items-center gap-2 font-mono text-[11.5px] text-fg-3">
+        <p className="flex flex-wrap items-center gap-2 font-mono text-[12px] text-fg-3">
           <AiBadge /> Debriefed {relativeTime(debrief.generatedAt, now)} · from {debrief.source === "transcript" ? "the transcript" : "your notes"}
         </p>
         {talk && (
           <div className="mt-2.5 max-w-[520px]">
-            <p className="text-[11px] font-medium text-fg-3">Talk share, counted from the transcript</p>
+            <p className="text-[12px] font-medium text-fg-3">Talk share, counted from the transcript</p>
             <TalkShare p={talk} className="mt-1" />
           </div>
         )}
@@ -350,7 +350,7 @@ export function DebriefReview({ deal, meeting, debrief, today }: { deal: Deal; m
             <ul className="mt-2 space-y-2">
               {debrief.quotes.map((q) => (
                 <li key={q.id} className="border-l-2 border-border-strong pl-3">
-                  {q.speaker && <span className="block text-[11.5px] text-fg-3">{q.speaker}</span>}
+                  {q.speaker && <span className="block text-[12px] text-fg-3">{q.speaker}</span>}
                   <span className={cn("font-serif text-[15px] leading-[22px] text-fg-2", q.kind === "note" && "italic")}>{q.kind === "note" ? q.text : `“${q.text}”`}</span>
                 </li>
               ))}
@@ -379,7 +379,7 @@ function RecapEditor({ meeting, debrief, to, authUser }: { meeting: Meeting; deb
     <Section
       label="Recap · send it today"
       right={
-        <span className={cn("font-mono text-[11.5px] tnum", words > 180 ? "text-warning" : "text-fg-3")}>
+        <span className={cn("font-mono text-[12px] tnum", words > 180 ? "text-warning" : "text-fg-3")}>
           {words}/180 words
         </span>
       }

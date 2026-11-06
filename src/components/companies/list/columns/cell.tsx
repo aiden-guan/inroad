@@ -183,7 +183,7 @@ export function AnswerDetail({ column, cell, company, onAsk }: { column: Researc
   const cost = cell.unpriced ? "cost unknown" : costLabel(cell.costUsd ?? 0);
   return (
     <div className="text-left">
-      <p className="line-clamp-2 text-[11.5px] leading-[16px] text-fg-3">
+      <p className="line-clamp-2 text-[12px] leading-[16px] text-fg-3">
         {company} · {column.question}
       </p>
       <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -208,7 +208,7 @@ export function AnswerDetail({ column, cell, company, onAsk }: { column: Researc
             const host = hostOf(s.url);
             return (
               <li key={`${s.url}-${i}`} className="min-w-0">
-                <a href={s.url} target="_blank" rel="noreferrer" className="group flex min-w-0 items-center gap-1.5 text-[11.5px] text-fg-3 hover:text-fg-2">
+                <a href={s.url} target="_blank" rel="noreferrer" className="group flex min-w-0 items-center gap-1.5 text-[12px] text-fg-3 hover:text-fg-2">
                   <Favicon domain={host} size={13} className="ring-0" />
                   <span className="min-w-0 truncate font-mono text-fg-2 group-hover:underline">{host}</span>
                   <span className="shrink-0">· {KIND_LABEL[s.kind]}</span>
@@ -216,11 +216,11 @@ export function AnswerDetail({ column, cell, company, onAsk }: { column: Researc
                   <ExternalLink className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
                 </a>
                 {codeRead(s) ? (
-                  <p className="mt-1 break-words rounded-xs bg-bg-subtle px-2 py-1 font-mono text-[11.5px] leading-[16px] text-fg-2">{s.quote}</p>
+                  <p className="mt-1 break-words rounded-xs bg-bg-subtle px-2 py-1 font-mono text-[12px] leading-[16px] text-fg-2">{s.quote}</p>
                 ) : (
                   <blockquote className="mt-1 break-words border-l-2 border-accent/50 pl-2.5 font-serif text-[13.5px] leading-[20px] text-fg-2">“{s.quote}”</blockquote>
                 )}
-                {!s.checked && <p className="mt-1 text-[11px] text-fg-3">From a search result. I couldn&rsquo;t check the quote against the page, so this counts as low confidence.</p>}
+                {!s.checked && <p className="mt-1 text-[12px] text-fg-3">From a search result. I couldn&rsquo;t check the quote against the page, so this counts as low confidence.</p>}
               </li>
             );
           })}
@@ -228,7 +228,7 @@ export function AnswerDetail({ column, cell, company, onAsk }: { column: Researc
       )}
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2.5">
-        <span className="min-w-0 truncate font-mono text-[11px] text-fg-3" title={new Date(cell.at).toLocaleString()}>
+        <span className="min-w-0 truncate font-mono text-[12px] text-fg-3" title={new Date(cell.at).toLocaleString()}>
           {how} · {cost} · {relativeTime(cell.at)}
         </span>
         {onAsk && (

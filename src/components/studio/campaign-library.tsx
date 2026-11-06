@@ -4,6 +4,7 @@ import { ArrowRight, ArrowUpRight, Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/misc";
@@ -22,8 +23,6 @@ import type { StudyStep } from "@/lib/studio/campaign-types";
 import { AUDIENCES } from "@/lib/studio/formats";
 import { CampaignMediaGallery, CampaignPreview } from "./campaign-media";
 
-const selectClass =
-  "h-10 w-full rounded-md bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
 
 export function CampaignLibrary({
   onUse,
@@ -96,13 +95,13 @@ export function CampaignLibrary({
         </div>
         <div>
           <Label htmlFor="campaign-playbook">What do you want to do?</Label>
-          <select
+          <Select
             id="campaign-playbook"
             value={playbook}
             onChange={(event) =>
               setPlaybook(event.target.value as CampaignPlaybook | "")
             }
-            className={selectClass}
+            className="h-10 w-full"
           >
             <option value="">Explore every approach</option>
             {Object.entries(PLAYBOOKS).map(([id, label]) => (
@@ -110,17 +109,17 @@ export function CampaignLibrary({
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <Label htmlFor="campaign-audience">Audience</Label>
-          <select
+          <Select
             id="campaign-audience"
             value={audience}
             onChange={(event) =>
               setAudience(event.target.value as StudioAudience | "")
             }
-            className={selectClass}
+            className="h-10 w-full"
           >
             <option value="">All audiences</option>
             {Object.entries(AUDIENCES).map(([id, value]) => (
@@ -128,7 +127,7 @@ export function CampaignLibrary({
                 {value.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div className="mb-5 mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4 text-[12px] text-fg-3">

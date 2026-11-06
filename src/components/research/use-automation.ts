@@ -50,5 +50,3 @@ export function useAutomation() {
   return { data, error, reload, run };
 }
 export type AutomationController = ReturnType<typeof useAutomation>;
-export const controlClass =
-  "w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";

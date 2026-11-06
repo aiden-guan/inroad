@@ -1,6 +1,8 @@
 "use client";
 
 import { LoadingSignal } from "@/components/ui/loading";
+import { PageContainer } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { NotebookPen } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -8,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAsk } from "@/components/providers/ask-provider";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { todayISO } from "@/lib/domain/ids";
 import { buyerVoice } from "@/lib/voice";
@@ -87,21 +88,16 @@ export function PlaybookView() {
   if (!ws) {
     if (loading) return <PlaybookSkeleton />;
     return (
-      <EmptyState
-        title="Couldn't open your playbook"
-        body={error ?? "Something went wrong loading your workspace."}
-        action={
-          <Button variant="primary" onClick={() => void refresh()}>
-            Try again
-          </Button>
-        }
-      />
+      <PageContainer>
+        <PageState kind="error" title="Couldn't open your playbook" body="Your data is still on this machine." detail={error ?? "Something went wrong loading your workspace."} onRetry={refresh} />
+      </PageContainer>
     );
   }
 
   if (!ws.foundation || !voice) {
     return (
-      <div className="mx-auto max-w-[720px] px-6 pt-16 md:px-10">
+      <PageContainer>
+        <div className="max-w-[720px] pt-8">
         <EmptyState
           icon={<NotebookPen className="size-6" />}
           title="Your playbook starts with your website"
@@ -115,7 +111,8 @@ export function PlaybookView() {
             </Link>
           }
         />
-      </div>
+        </div>
+      </PageContainer>
     );
   }
 
@@ -146,18 +143,18 @@ export function PlaybookView() {
 /** Matches the document's layout; fades in after 150ms so fast loads never flash it. */
 export function PlaybookSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[1240px] px-6 pt-8 [animation:fade-in_200ms_var(--ease-out)_150ms_both] md:px-10 md:pt-12" aria-busy="true" aria-label="Loading your playbook">
-      <div className="lg:grid lg:grid-cols-[156px_minmax(0,720px)] lg:justify-center lg:gap-x-12">
+    <PageContainer wide className="[animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading your playbook">
+      <LoadingSignal label="Opening your playbook" className="mb-7" />
+      <Skeleton className="h-9 w-40" />
+      <Skeleton className="mt-3 h-4 w-[420px] max-w-[70%]" />
+      <div className="mt-10 lg:grid lg:grid-cols-[156px_minmax(0,720px)] lg:gap-x-12">
         <div className="hidden space-y-2 lg:block">
           {[0, 1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-6 w-28" />
           ))}
         </div>
-        <div className="mx-auto w-full max-w-[720px]">
-      <LoadingSignal label="Opening your playbook" className="mb-7" />
-          <Skeleton className="h-9 w-40" />
-          <Skeleton className="mt-3 h-4 w-[70%]" />
-          <Skeleton className="mt-12 h-20 w-full rounded-lg" />
+        <div className="w-full max-w-[720px]">
+          <Skeleton className="h-20 w-full rounded-lg" />
           <Skeleton className="mt-14 h-8 w-24" />
           <div className="mt-6 space-y-2.5">
             <Skeleton className="h-6 w-full" />
@@ -171,6 +168,6 @@ export function PlaybookSkeleton() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

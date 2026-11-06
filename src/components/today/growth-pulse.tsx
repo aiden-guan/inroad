@@ -41,7 +41,7 @@ export function GrowthPulse({ ws, now }: { ws: Workspace; now: number }) {
       <section aria-labelledby="momentum-title" className="rounded-xl bg-bg/65 p-5 ring-1 ring-inset ring-border xl:bg-transparent xl:p-0 xl:ring-0">
         <div className="flex items-center justify-between gap-2">
           <h2 id="momentum-title" className="text-[14px] font-medium">Your momentum</h2>
-          <span className="text-[11px] text-fg-3">Past 7 days</span>
+          <span className="text-[12px] text-fg-3">Past 7 days</span>
         </div>
         <div className="mt-4 inline-flex rounded-md bg-bg-subtle p-0.5" aria-label="Activity metric">
           {(["conversations", "replies"] as const).map((key) => (
@@ -57,7 +57,7 @@ export function GrowthPulse({ ws, now }: { ws: Workspace; now: number }) {
         <div className="relative mt-4 h-[128px] pl-5" role="group" aria-label={`${metric === "conversations" ? "Conversations held" : "Replies received"} each day`}>
           {[ceiling, ceiling / 2, 0].map((tick, i) => (
             <div key={tick} aria-hidden className="pointer-events-none absolute inset-x-0 flex items-center gap-2" style={{ top: `${i * 50}%` }}>
-              <span className="w-3 -translate-y-1/2 text-right font-mono text-[11px] leading-none text-fg-3">{tick}</span>
+              <span className="w-4 -translate-y-1/2 text-right font-mono text-[12px] leading-none text-fg-3">{tick}</span>
               <span className="h-px flex-1 bg-border/70" />
             </div>
           ))}
@@ -69,7 +69,7 @@ export function GrowthPulse({ ws, now }: { ws: Workspace; now: number }) {
             ))}
           </div>
         </div>
-        <div aria-hidden className="mt-2 grid grid-cols-7 gap-2 pl-5 text-center text-[11px] text-fg-3">{days.map((day) => <span key={day.day}>{day.label}</span>)}</div>
+        <div aria-hidden className="mt-2 grid grid-cols-7 gap-2 pl-5 text-center text-[12px] text-fg-3">{days.map((day) => <span key={day.day}>{day.label}</span>)}</div>
         <p className="mt-4 min-h-5 text-[12px] text-fg-3" aria-live="polite"><span className="font-medium text-fg-2">{active.day === today ? "Today" : active.label}</span> · {active[metric]} {metric === "conversations" ? active[metric] === 1 ? "conversation held" : "conversations held" : active[metric] === 1 ? "reply received" : "replies received"}</p>
         <Link href="/revenue" className="mt-4 flex items-center justify-between border-t border-border pt-3 text-[12px] font-medium text-fg-2 hover:text-fg">Open revenue overview <ArrowUpRight aria-hidden className="size-3.5" /></Link>
       </section>

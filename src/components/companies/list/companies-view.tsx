@@ -1,7 +1,8 @@
 "use client";
 
 import { LoadingSignal } from "@/components/ui/loading";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
@@ -9,8 +10,7 @@ import { CompanySheet } from "@/components/companies/sheet/company-sheet";
 import { unlessSheetOpen } from "@/components/companies/sheet/open-sheet";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { Button } from "@/components/ui/button";
-import { EmptyState, Segmented, Skeleton } from "@/components/ui/misc";
+import { Segmented, Skeleton } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { plural } from "@/lib/client/format";
 import { nowISO } from "@/lib/domain/ids";
@@ -251,7 +251,7 @@ export function CompaniesView() {
   );
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <PageHeader
         title="Companies"
         eyebrow="Your pipeline"
@@ -291,7 +291,7 @@ export function CompaniesView() {
 
         {!ws ? (
           error ? (
-            <EmptyState title="Couldn't load your workspace." body={error} action={<Button onClick={() => void refresh()}>Try again</Button>} />
+            <PageState kind="error" title="Couldn't load your workspace" body="Your data is still on this machine." detail={error} onRetry={refresh} />
           ) : (
             <ListSkeleton />
           )
@@ -334,7 +334,7 @@ export function CompaniesView() {
       </div>
 
       <CompanySheet domain={sheetDomain} onClose={closeSheet} />
-    </div>
+    </PageContainer>
   );
 }
 

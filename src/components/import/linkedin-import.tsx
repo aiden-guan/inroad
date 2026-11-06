@@ -218,7 +218,7 @@ export function LinkedInImport({ initial, onList, onDone }: { initial?: FileIn |
           "Unzip it and drop Connections.csv below.",
         ].map((s, i) => (
           <li key={i} className="flex gap-3 text-[13px] leading-[20px] text-fg-2">
-            <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">{i + 1}</span>
+            <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">{i + 1}</span>
             <span className="min-w-0 text-pretty">{s}</span>
           </li>
         ))}

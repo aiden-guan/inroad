@@ -9,10 +9,9 @@ import { ReviewBody } from "@/components/today/review-panel";
 import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
-import { LoadingSignal } from "@/components/ui/loading";
-import { EmptyState } from "@/components/ui/misc";
 import { useSwitchMarket } from "@/components/shell/market-switch";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { goalPace, hasLoggedLastWeek, readGrowth } from "@/lib/consumer/growth";
 import { isConsumer } from "@/lib/consumer/market";
 import { consumerChannelPlan } from "@/lib/consumer/plan";
@@ -56,27 +55,21 @@ export function GrowthPage() {
   }, [logging, ready]);
 
   if (!ws || !data) {
-    return error ? (
-      <div className="page-shell">
-        <EmptyState
-          title="Couldn't load your workspace"
-          body={`${error} Your data is still on this machine.`}
-          action={
-            <Button variant="primary" onClick={() => void refresh()}>
-              Try again
-            </Button>
-          }
-        />
-      </div>
-    ) : (
-      <LoadingSignal label="Reading your numbers" className="min-h-[60dvh]" />
+    return (
+      <PageContainer>
+        {error ? (
+          <PageState kind="error" title="Couldn't load your workspace" body="Your data is still on this machine." detail={error} onRetry={refresh} />
+        ) : (
+          <PageState kind="loading" label="Reading your numbers" onRetry={refresh} />
+        )}
+      </PageContainer>
     );
   }
 
   // A business's number is on Revenue. Growth says so, says how to switch, and shows nothing else.
   if (!isConsumer(ws)) {
     return (
-      <div className="page-shell">
+      <PageContainer>
         <PageHeader title="Growth" eyebrow="The number" description="Growth reads a consumer company's weekly numbers: active users, retention and the pace to its goal." />
         <section aria-labelledby="growth-business-title" className="mt-8 max-w-[720px] rounded-xl bg-surface px-5 py-6 shadow-sm ring-1 ring-inset ring-border sm:px-7">
           <h2 id="growth-business-title" className="text-balance font-serif text-[21px] leading-[30px] text-fg">
@@ -101,7 +94,7 @@ export function GrowthPage() {
             . Switching keeps everything; it only changes what Inroad shows and writes.
           </p>
         </section>
-      </div>
+      </PageContainer>
     );
   }
   const { g, pace, funnel, talks, weekStart } = data;
@@ -132,7 +125,7 @@ export function GrowthPage() {
   }
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <PageHeader
         title="Growth"
         eyebrow="The number"
@@ -146,6 +139,6 @@ export function GrowthPage() {
 
       <GrowthDashboard now={now} logging={logging} renderSection={renderSection} />
 
-    </div>
+    </PageContainer>
   );
 }

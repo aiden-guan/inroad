@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingSignal } from "@/components/ui/loading";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ArrowLeftRight, Handshake, NotebookPen, Plus, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
@@ -81,7 +81,7 @@ export function IntrosPage() {
   const closedShown = showClosed ?? (!!focus && groups.closed.some((x) => x.intro.id === focus));
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <PageHeader
         title="Intros"
         eyebrow="Better through people"
@@ -202,7 +202,7 @@ export function IntrosPage() {
       <MakeIntroDialog open={dialog === "give"} onOpenChange={(o) => (o ? setDialog("give") : closeDialog())} />
       <LogAskDialog open={dialog === "ask"} onOpenChange={(o) => (o ? setDialog("ask") : closeDialog())} onAddConnector={() => setDialog("connector")} />
       <ConnectorDialog open={dialog === "connector"} onOpenChange={(o) => (o ? setDialog("connector") : closeDialog())} connector={editing} />
-    </div>
+    </PageContainer>
   );
 }
 
@@ -228,7 +228,7 @@ function Row({ i, intro, ws, today, open, highlight }: { i: number; intro: Intro
 
 function PageSkeleton() {
   return (
-    <div className="page-shell" aria-busy="true">
+    <PageContainer aria-busy="true">
       <LoadingSignal label="Loading introductions" className="mb-7" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="mt-3 h-4 w-full max-w-[480px]" />
@@ -240,6 +240,6 @@ function PageSkeleton() {
           ))}
         </div>
       ))}
-    </div>
+    </PageContainer>
   );
 }

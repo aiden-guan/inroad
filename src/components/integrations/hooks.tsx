@@ -238,7 +238,7 @@ function EventLine({ e }: { e: InboundLogEntry }) {
       className="px-3 py-2"
     >
       <div className="flex items-baseline gap-3 text-[13px]">
-        <span className="w-14 shrink-0 font-mono text-[11px] text-fg-3">
+        <span className="w-14 shrink-0 font-mono text-[12px] text-fg-3">
           <Ago iso={e.at} />
         </span>
         <span className="shrink-0 font-medium text-fg-2">{inboundSourceName(e.source)}</span>

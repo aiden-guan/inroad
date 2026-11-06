@@ -101,7 +101,7 @@ export function DeveloperRadar({ ws, view, githubToken, canScan, reason }: { ws:
           ))}
         </div>
       )}
-      {suggestions && offered.length > 0 && <p className="mt-1.5 text-[11.5px] text-fg-3">Suggested from the competitors in your playbook. Verified means the GitHub org lists the competitor&apos;s website.</p>}
+      {suggestions && offered.length > 0 && <p className="mt-1.5 text-[12px] text-fg-3">Suggested from the competitors in your playbook. Verified means the GitHub org lists the competitor&apos;s website.</p>}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button size="sm" variant="primary" icon={<GitFork className="size-3.5" />} disabled={!repos.length || running || !canScan} loading={running} onClick={() => void read()}>
           Read activity
@@ -152,7 +152,7 @@ export function DeveloperRadar({ ws, view, githubToken, canScan, reason }: { ws:
                 </li>
               ))}
             </ul>
-            <p className="text-[11.5px] leading-[17px] text-fg-3">
+            <p className="text-[12px] leading-[17px] text-fg-3">
               Read {relativeTime(radar.at, now)} · {radar.requests} GitHub requests · {radar.totals.profilesRead} profiles · no AI. GitHub shows who starred a repository only to its
               maintainers now, so stars are counts.
               {radar.warnings.map((w) => ` ${w}`).join("")}
@@ -181,14 +181,14 @@ export function DeveloperRadar({ ws, view, githubToken, canScan, reason }: { ws:
                       <div className="flex flex-wrap items-center gap-2">
                         <Favicon domain={c.domain} name={acc?.name ?? c.name} size={20} />
                         <span className="min-w-0 truncate text-[15px] font-medium text-fg">{acc?.name ?? c.name}</span>
-                        <span className="font-mono text-[11.5px] text-fg-3">{c.domain}</span>
+                        <span className="font-mono text-[12px] text-fg-3">{c.domain}</span>
                         {acc ? <Badge tone="neutral">In Companies</Badge> : <Badge tone="agent">New</Badge>}
                       </div>
                       <p className="mt-2 text-[13px] leading-[20px] text-fg-2">{c.line}</p>
                       {c.quote && (
                         <a href={c.quote.url} target="_blank" rel="noreferrer" className="group mt-2.5 block border-l-2 border-accent/50 pl-3">
                           <span className="font-serif text-[14.5px] leading-[22px] text-fg-2 [overflow-wrap:anywhere] group-hover:text-fg">“{c.quote.text}”</span>
-                          <span className="mt-0.5 block text-[11.5px] text-fg-3">
+                          <span className="mt-0.5 block text-[12px] text-fg-3">
                             {c.quote.login} · {ACTIVITY_LABEL[c.quote.kind].one} on {c.quote.repo} · {relativeTime(c.quote.at, now)}
                           </span>
                         </a>

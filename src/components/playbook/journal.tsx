@@ -35,7 +35,7 @@ export function JournalSection() {
       id="journal"
       title="Journal"
       kicker={
-        <p className="font-mono text-[11.5px] text-fg-3">
+        <p className="font-mono text-[12px] text-fg-3">
           Playbook v{f.version} · first written {shortDate(f.generatedAt)}
           {f.revisedAt && ` · revised ${shortDate(f.revisedAt)}`} · confidence {f.confidence}
         </p>
@@ -71,7 +71,7 @@ function Questions() {
               <dt className="text-[13.5px] font-medium text-fg-2">{q.question}</dt>
               <dd className="mt-0.5 text-[14px] leading-[22px] text-fg">
                 {q.answer}
-                {q.answeredAt && <span className="ml-2 font-mono text-[11px] text-fg-3">{shortDate(q.answeredAt)}</span>}
+                {q.answeredAt && <span className="ml-2 font-mono text-[12px] text-fg-3">{shortDate(q.answeredAt)}</span>}
               </dd>
             </div>
           ))}
@@ -201,7 +201,7 @@ function Bets() {
           {bets.map((b, i) => (
             <li key={`${b.startedAt}-${i}`} className="relative">
               <span aria-hidden className={cn("absolute -left-[23.5px] top-1.5 size-2 rounded-full ring-2 ring-bg", b.endedAt ? "bg-fg-4" : "bg-fg")} />
-              <FieldLabel className="font-mono text-[11.5px] font-normal">
+              <FieldLabel className="font-mono text-[12px] font-normal">
                 {shortDate(b.startedAt)} – {b.endedAt ? shortDate(b.endedAt) : "now"}
                 {b.verdict && ` · ${VERDICTS[b.verdict]}`}
               </FieldLabel>
@@ -238,7 +238,7 @@ function MessageBets() {
             return (
               <li key={b.id} className="relative">
                 <span aria-hidden className={cn("absolute -left-[23.5px] top-1.5 size-2 rounded-full ring-2 ring-bg", running ? "bg-fg" : "bg-fg-4")} />
-                <FieldLabel className="font-mono text-[11.5px] font-normal">
+                <FieldLabel className="font-mono text-[12px] font-normal">
                   {shortDate(b.startedOn)} – {running ? `runs to ${shortDate(b.endsOn)}` : shortDate(b.endsOn)}
                   {b.dimension && ` · ${DIMENSION_LABELS[b.dimension]}`}
                 </FieldLabel>
@@ -285,7 +285,7 @@ function Versions() {
           {history.map((v) => (
             <li key={`${v.version}-${v.at}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="font-mono text-[11.5px] text-fg-3">
+                <p className="font-mono text-[12px] text-fg-3">
                   v{v.version} · replaced {shortDate(v.at)} · {VERSION_SOURCES[v.source]}
                 </p>
                 {v.changes.length > 0 && (

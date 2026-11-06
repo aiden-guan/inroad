@@ -177,9 +177,9 @@ export function SaveForm({ initial, onSave }: { initial: string; onSave: (name: 
     <form onSubmit={submit}>
       <Label htmlFor="view-name">Name this view</Label>
       <Input id="view-name" autoFocus value={name} maxLength={LIMITS.viewName} onChange={(e) => setName(e.target.value)} onFocus={(e) => e.currentTarget.select()} />
-      <p className="mt-1.5 text-[11.5px] leading-[16px] text-fg-3">Saves these filters, the sort and which columns show.</p>
+      <p className="mt-1.5 text-[12px] leading-[16px] text-fg-3">Saves these filters, the sort and which columns show.</p>
       <div className="mt-3 flex items-center justify-end gap-2">
-        <span className="mr-auto hidden items-center gap-1 text-[11.5px] text-fg-3 md:pointer-fine:flex">
+        <span className="mr-auto hidden items-center gap-1 text-[12px] text-fg-3 md:pointer-fine:flex">
           <Kbd>↵</Kbd> save
         </span>
         <Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>

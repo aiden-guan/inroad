@@ -295,7 +295,7 @@ function Criteria() {
               onClick={() => patch(c.id, { mustHave: !c.mustHave })}
               title={c.mustHave ? "Must-have. Click to make it nice-to-have." : "Nice-to-have. Click to make it a must-have."}
               className={cn(
-                "mt-0.5 inline-flex h-5 w-11 shrink-0 items-center justify-center rounded-xs text-[10.5px] font-medium uppercase tracking-[0.06em] ring-1 ring-inset transition-colors duration-150",
+                "mt-0.5 inline-flex h-5 min-w-11 shrink-0 px-1 items-center justify-center rounded-xs text-[12px] font-medium uppercase tracking-[0.06em] ring-1 ring-inset transition-colors duration-150",
                 c.mustHave ? "bg-bg-subtle text-fg ring-border-strong" : "text-fg-3 ring-border hover:text-fg-2",
               )}
             >
@@ -340,7 +340,7 @@ function Criteria() {
               <li key={`${t.type}-${i}`} className="group/row flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
                 <div className="shrink-0 pt-px text-[13px] font-medium text-fg-2 sm:w-44">
                   {SIGNAL_LABELS[t.type] ?? t.type}
-                  <span className="block font-mono text-[11px] font-normal text-fg-3">within {t.windowDays} days</span>
+                  <span className="block font-mono text-[12px] font-normal text-fg-3">within {t.windowDays} days</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <Editable
