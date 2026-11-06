@@ -88,11 +88,11 @@ export function GrowthDashboard({ now, logging, renderSection }: { now: number; 
         </div>
       </SortableContext>
     </DndContext>}
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-[11px] leading-5 text-fg-3"><span aria-live="polite">{draft ? "Saving layout…" : "Connected figures refresh every 15 minutes. Weekly numbers keep their own history."}</span><Link href="/integrations#business-metrics" className="font-medium text-fg-2 underline underline-offset-4">Manage sources ↗</Link></div>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-[12px] leading-5 text-fg-3"><span aria-live="polite">{draft ? "Saving layout…" : "Connected figures refresh every 15 minutes. Weekly numbers keep their own history."}</span><Link href="/integrations#business-metrics" className="font-medium text-fg-2 underline underline-offset-4">Manage sources</Link></div>
 
     <Dialog open={adding} onOpenChange={setAdding} title="Make Growth yours" description="Choose the numbers and tools you want to see. Hiding a card keeps its data and connection." className="max-w-[600px]">
       <div className="p-5"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-3.5 text-fg-3" /><Input aria-label="Find a Growth card" placeholder="Find a card…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" /></div>
-        <div className="mt-5 space-y-5">{groups.map((group) => <div key={group}><p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-3">{group}</p><div className="space-y-1">{matching.filter((o) => o.group === group).map((option) => {
+        <div className="mt-5 space-y-5">{groups.map((group) => <div key={group}><p className="mb-2 text-[12px] font-medium text-fg-3">{group}</p><div className="space-y-1">{matching.filter((o) => o.group === group).map((option) => {
           const selected = layout.cards.some((c) => c.id === option.id);
           return <label key={option.id} className={cn("flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-bg-subtle", selected && "bg-bg-subtle/60")}><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={selected} onChange={(e) => save(e.target.checked ? [...layout.cards, { id: option.id, wide: option.wide }] : layout.cards.filter((c) => c.id !== option.id))} /><span className="min-w-0"><span className="block text-[13px] font-medium">{option.title}</span><span className="block text-[12px] leading-5 text-fg-3">{option.description}</span></span></label>;
         })}</div></div>)}{!matching.length && <p className="py-4 text-[13px] text-fg-3">No cards match. Try “users”, “waitlist” or “revenue”.</p>}</div>
