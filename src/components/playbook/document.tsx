@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { PlaybookMismatch } from "@/components/shell/market-switch";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -288,10 +289,10 @@ export function PlaybookDocument() {
             <MobileNav section={section} />
             <div className="mb-6 @min-[1000px]/page:hidden">
               <label htmlFor="playbook-jump" className="mb-1.5 block text-[12px] font-medium text-fg-2">Jump to a topic</label>
-              <select id="playbook-jump" value={selected.children.some((child) => child.id === hash) ? hash : section} onChange={(event) => scrollToAnchor(event.target.value)} className="h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+              <Select id="playbook-jump" value={selected.children.some((child) => child.id === hash) ? hash : section} onChange={(event) => scrollToAnchor(event.target.value)} className="h-10 w-full">
                 <option value={section}>Overview</option>
                 {selected.children.map((child) => <option key={child.id} value={child.id}>{child.label}</option>)}
-              </select>
+              </Select>
             </div>
             <NextActionCard />
 

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { DropZone } from "@/components/import/drop-zone";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Num } from "@/components/ui/misc";
 import { cn } from "@/lib/client/cn";
 import { nowISO } from "@/lib/domain/ids";

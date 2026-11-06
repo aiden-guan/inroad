@@ -8,6 +8,7 @@ import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useSettingsStatus } from "@/components/settings/use-settings";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { Button, IconButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { CopyButton, Segmented } from "@/components/ui/misc";
@@ -219,11 +220,11 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
         <label className="sr-only" htmlFor={`layout-${option.id}`}>
           Layout
         </label>
-        <select
+        <Select
           id={`layout-${option.id}`}
           value={layoutValue}
           onChange={(e) => setLayout(e.target.value as VisualLayout | "auto")}
-          className="h-8 rounded-md bg-surface px-2 text-[12.5px] text-fg ring-1 ring-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="h-8 pl-2.5 text-[12.5px]"
         >
           <option value="auto">Layout: Claude picks</option>
           {layouts.map((l) => (
@@ -231,19 +232,19 @@ export function VisualPanel({ ws, piece, option }: { ws: Workspace; piece: Studi
               {LAYOUTS[l].label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
         <label htmlFor={`art-direction-${option.id}`} className="block text-[12px] font-medium text-fg">Art direction</label>
-        <select
+        <Select
           id={`art-direction-${option.id}`}
           value={artDirection}
           onChange={(e) => setArtDirection(e.target.value as ArtDirectionId)}
-          className="mt-1.5 h-9 w-full rounded-md bg-surface px-2 text-[12.5px] text-fg ring-1 ring-border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="mt-1.5 w-full text-[12.5px]"
         >
           {ART_DIRECTIONS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-        </select>
+        </Select>
         <p className="mt-1.5 text-[12px] leading-4 text-fg-3">{ART_DIRECTIONS.find((d) => d.id === artDirection)?.detail}</p>
         <fieldset className="mt-3">
           <legend className="mb-1.5 text-[12px] font-medium text-fg">Creative range</legend>

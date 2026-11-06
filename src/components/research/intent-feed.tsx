@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Kbd } from "@/components/ui/kbd";
 import { EmptyState, Segmented } from "@/components/ui/misc";
 import { questionBrief } from "@/components/playbook/model";

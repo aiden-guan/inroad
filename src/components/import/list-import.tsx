@@ -1,6 +1,6 @@
 "use client";
 
-import { Select } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 
 import { motion } from "motion/react";
 import { ArrowLeft, Check } from "lucide-react";

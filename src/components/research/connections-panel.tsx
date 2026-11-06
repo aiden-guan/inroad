@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { FieldError, Input, Textarea } from "@/components/ui/field";
 import type { Binding, Capability, ToolConnection } from "@/lib/automation/types";
 import { ImportMapper } from "./import-mapper";
-import { controlClass, localPost, type AutomationController } from "./use-automation";
+import { localPost, type AutomationController } from "./use-automation";
 
 const freshBinding = (): Binding => ({
   capability: "search",
@@ -253,16 +254,16 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
           </label>
           <label className="text-[12px] text-fg-2">
             Connection type
-            <select
+            <Select
               aria-label="Connection type"
-              className={controlClass}
+              className="w-full"
               value={kind}
               disabled={!!discovered}
               onChange={(e) => setKind(e.target.value as "mcp" | "openapi")}
             >
               <option value="mcp">MCP over HTTP</option>
               <option value="openapi">OpenAPI 3 document</option>
-            </select>
+            </Select>
           </label>
           <label className="text-[12px] text-fg-2 sm:col-span-2">
             {kind === "mcp" ? "MCP endpoint" : "API base URL"}
@@ -274,9 +275,9 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
           </label>
           <label className="text-[12px] text-fg-2">
             Authentication
-            <select
+            <Select
               aria-label="Tool authentication"
-              className={controlClass}
+              className="w-full"
               value={authScheme}
               onChange={(e) => {
                 setAuthScheme(e.target.value as "bearer" | "raw");
@@ -285,7 +286,7 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
             >
               <option value="bearer">Bearer token</option>
               <option value="raw">API key header</option>
-            </select>
+            </Select>
           </label>
           {authScheme === "raw" && (
             <label className="text-[12px] text-fg-2">
@@ -328,9 +329,9 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-[12px] text-fg-2">
                 Capability
-                <select
+                <Select
                   aria-label="Capability"
-                  className={controlClass}
+                  className="w-full"
                   value={binding.capability}
                   onChange={(e) => {
                     const capability = e.target.value as Capability;
@@ -350,13 +351,13 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
                   <option value="fetch">Fetch a page</option>
                   <option value="records">Read records</option>
                   <option value="enrich">Enrich records</option>
-                </select>
+                </Select>
               </label>
               <label className="text-[12px] text-fg-2">
                 Read-only operation
-                <select
+                <Select
                   aria-label="Read-only operation"
-                  className={controlClass}
+                  className="w-full"
                   value={binding.tool}
                   onChange={(e) => setBinding({ ...binding, tool: e.target.value })}
                 >
@@ -368,7 +369,7 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
                         {tool.name}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
               <label className="text-[12px] text-fg-2">
                 Query argument

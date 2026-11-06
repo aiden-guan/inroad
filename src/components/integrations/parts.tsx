@@ -1,6 +1,6 @@
 "use client";
 
-import { Select as NativeSelect } from "@/components/ui/field";
+import { Select as FieldSelect } from "@/components/ui/select";
 
 import { ArrowUpRight, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -254,18 +254,15 @@ export function Select({
 }) {
   return (
     <div className={cn("relative min-w-0", className)}>
-      <NativeSelect
+      <FieldSelect
         aria-label={label}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "h-8 w-full min-w-0 appearance-none truncate rounded-sm bg-surface pl-2.5 pr-8 text-[13px] text-fg ring-1 ring-border-strong/70",
-          "transition-[box-shadow] duration-150 hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-60",
-        )}
+        className="h-8 w-full truncate rounded-sm pl-2.5"
       >
         {children}
-      </NativeSelect>
+      </FieldSelect>
     </div>
   );
 }

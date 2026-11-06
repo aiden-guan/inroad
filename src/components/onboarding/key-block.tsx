@@ -3,6 +3,7 @@
 import { ArrowUpRight, Check, KeyRound } from "lucide-react";
 import { forwardRef, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { FieldError, Input } from "@/components/ui/field";
 import type { SettingsStatus } from "@/components/settings/types";
 import { cleanBaseUrl, detectProvider, providerById, PROVIDERS, type ProviderId } from "@/lib/ai/providers";
@@ -84,8 +85,6 @@ export function useKeyForm() {
 
 export type KeyForm = ReturnType<typeof useKeyForm>;
 
-const selectClass =
-  "h-9 w-full rounded-sm bg-surface px-2 text-[13px] text-fg ring-1 ring-border-strong/70 transition-shadow hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:w-auto";
 
 /**
  * The calm inline block that appears only when no AI provider is set up. Never a separate wizard: it sits
@@ -128,13 +127,13 @@ export const KeyBlock = forwardRef<
         )}
       </div>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <select id={`${id}-provider`} aria-label="AI provider" value={form.provider} onChange={(e) => form.setProvider(e.target.value as ProviderId)} className={selectClass}>
+        <Select id={`${id}-provider`} aria-label="AI provider" value={form.provider} onChange={(e) => form.setProvider(e.target.value as ProviderId)} className="w-full sm:w-auto">
           {PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
-        </select>
+        </Select>
         {preset.needsKey && (
           <Input
             ref={ref}
