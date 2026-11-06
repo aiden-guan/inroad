@@ -61,7 +61,7 @@ export function DealCalls({ f, focus, onImport }: { f: Forecast; focus?: string 
         <span id="calls-label">Deals in the forecast</span>
       </SectionLabel>
       <div className="overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border">
-        <div className="hidden grid-cols-[minmax(0,1fr)_88px_92px_minmax(0,180px)_120px] gap-4 border-b border-border px-4 py-2 text-[11.5px] font-medium text-fg-3 md:grid">
+        <div className="hidden grid-cols-[minmax(0,1fr)_88px_92px_minmax(0,180px)_120px] gap-4 border-b border-border px-4 py-2 text-[12px] font-medium text-fg-3 md:grid">
           <span>Deal</span>
           <span className="text-right">Amount</span>
           <span>Close</span>
@@ -113,7 +113,7 @@ function CallRow({ c, open, onToggle }: { c: DealCall; open: boolean; onToggle: 
           {money(c.amount.usd)}
           {c.amount.source !== "deal" && (
             <Tooltip content={c.amount.source === "quote" ? "From the last price you quoted." : "No amount yet: your typical deal, until one is set."}>
-              <span tabIndex={0} className="ml-1 cursor-help text-[11px] text-fg-4 outline-none">
+              <span tabIndex={0} className="ml-1 cursor-help text-[12px] text-fg-4 outline-none">
                 {c.amount.source === "quote" ? "quote" : "est."}
               </span>
             </Tooltip>
@@ -121,7 +121,7 @@ function CallRow({ c, open, onToggle }: { c: DealCall; open: boolean; onToggle: 
         </span>
         <span className={cn("hidden font-mono text-[12.5px] tnum md:col-start-3 md:row-start-1 md:block", passed ? "text-danger" : "text-fg-2")}>
           {shortDay(c.closeDate)}
-          {c.closeEstimated && <span className="ml-1 text-[11px] text-fg-4">est.</span>}
+          {c.closeEstimated && <span className="ml-1 text-[12px] text-fg-4">est.</span>}
         </span>
         <span className="col-start-1 row-start-2 flex min-w-0 items-center gap-2 pl-[50px] text-[12.5px] md:col-start-4 md:row-start-1 md:pl-0">
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", top ? SEVERITY_DOT[top.severity] : "bg-success")} />
@@ -192,7 +192,7 @@ export function CallMenu({ c }: { c: DealCall }) {
           className="inline-flex h-7 items-center gap-1 rounded-sm px-2 text-[12.5px] font-medium text-fg ring-1 ring-inset ring-border transition-[background-color,transform] duration-150 hover:bg-bg-subtle active:scale-[0.97]"
         >
           {CATEGORY_LABELS[c.category]}
-          {c.called && <span className="rounded-[3px] bg-bg-subtle px-1 font-mono text-[10px] text-fg-3 ring-1 ring-inset ring-border">you</span>}
+          {c.called && <span className="rounded-[3px] bg-bg-subtle px-1 font-mono text-[12px] text-fg-3 ring-1 ring-inset ring-border">you</span>}
           <ChevronDown className="size-3 text-fg-3" aria-hidden />
         </button>
       }

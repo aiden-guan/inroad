@@ -50,7 +50,7 @@ export function ReferralAsk({ ws, domain, onClose, inline = false }: { ws: Works
     <div className="rounded-md bg-surface ring-1 ring-border">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5 text-[12px] text-fg-3">
         <span>Email</span>
-        {ask.to && <span className="truncate font-mono text-[11.5px]">{ask.to}</span>}
+        {ask.to && <span className="truncate font-mono text-[12px]">{ask.to}</span>}
         <span className="truncate">“{ask.subject}”</span>
       </div>
       <Textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="Referral note" className="min-h-32 rounded-none bg-transparent px-3 py-2.5 text-[13.5px] leading-[21px] ring-0 hover:ring-0" />

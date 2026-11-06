@@ -31,7 +31,7 @@ function RowFace({ name, blurb, domain, icon, status, badge, trailing }: { name:
         <span className="mt-1 block text-pretty text-[13px] leading-5 text-fg-3">{blurb}</span>
         <span className={cn("mt-1 block text-[12px] sm:hidden", status.tone === "error" ? "text-danger" : "text-fg-3")}>{status.label}</span>
       </span>
-      <span className={cn("hidden max-w-[30%] shrink-0 items-center gap-1.5 text-[11px] md:flex", status.tone === "error" ? "text-danger" : status.tone === "off" ? "text-fg-3" : "text-fg-2")}>
+      <span className={cn("hidden max-w-[30%] shrink-0 items-center gap-1.5 text-[12px] md:flex", status.tone === "error" ? "text-danger" : status.tone === "off" ? "text-fg-3" : "text-fg-2")}>
         <StatusDot tone={status.tone} />
         <span className="truncate">{status.label}</span>
       </span>

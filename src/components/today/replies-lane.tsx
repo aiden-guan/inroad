@@ -69,7 +69,7 @@ function IntentChip({ read, name, onChange }: { read: IntentRead; name: string; 
           title={why}
           aria-label={`${name}'s reply reads as ${label}. ${why} Change it`}
           className={cn(
-            "relative z-10 inline-flex h-5 max-w-full items-center gap-0.5 rounded-xs px-1.5 text-[11px] font-medium ring-1 ring-inset transition-[filter] duration-150 hover:brightness-95 focus-visible:outline-2 focus-visible:outline-[var(--ring)]",
+            "relative z-10 inline-flex h-5 max-w-full items-center gap-0.5 rounded-xs px-1.5 text-[12px] font-medium ring-1 ring-inset transition-[filter] duration-150 hover:brightness-95 focus-visible:outline-2 focus-visible:outline-[var(--ring)]",
             TONE[read.intent ?? "unread"],
           )}
         >
@@ -207,7 +207,7 @@ export function RepliesLane(p: LaneProps) {
           )}
           {!p.open && <span className="hidden truncate font-normal text-fg-3 sm:inline">· {lead.name}</span>}
         </button>
-        {p.cleared > 0 && <span className="shrink-0 font-mono text-[11.5px] tnum text-fg-3">{p.cleared} cleared today</span>}
+        {p.cleared > 0 && <span className="shrink-0 font-mono text-[12px] tnum text-fg-3">{p.cleared} cleared today</span>}
       </div>
       {p.open && <LaneList {...p} />}
     </section>
@@ -275,7 +275,7 @@ function LaneItem({ row, index, ...p }: LaneProps & { row: LaneRow; index: numbe
                 </span>
               </button>
             </h3>
-            <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-[11px] tnum text-fg-3" title={`Received ${new Date(row.reply.at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}>
+            <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-[12px] tnum text-fg-3" title={`Received ${new Date(row.reply.at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}>
               {ago(row.reply.at, new Date(p.now))}
               {due && <span className={cn("font-sans", late ? "font-medium text-danger" : row.dueIn === 0 ? "text-fg-2" : "")}> · {due}</span>}
             </span>
@@ -304,7 +304,7 @@ function LaneItem({ row, index, ...p }: LaneProps & { row: LaneRow; index: numbe
                         : "text-fg-2 ring-1 ring-inset ring-border hover:bg-bg-subtle hover:text-fg",
                     )}
                   >
-                    <kbd className={cn("hidden min-w-3 font-mono text-[10.5px] md:pointer-fine:inline", i === 0 ? "opacity-70" : "text-fg-3")}>{i + 1}</kbd>
+                    <kbd className={cn("hidden min-w-3 font-mono text-[12px] md:pointer-fine:inline", i === 0 ? "opacity-70" : "text-fg-3")}>{i + 1}</kbd>
                     {a.label}
                   </button>
                 ))}

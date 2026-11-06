@@ -95,7 +95,7 @@ export function GrowthHero({ goal, g, pace, signupsPerWeek, today }: { goal: Goa
               <div className={cn("h-full w-0.5 -translate-x-1/2 rounded-full bg-fg", play && "fx-drop")} style={play ? fx(0, 1250) : undefined} />
             </div>
           </div>
-          <div className="relative mt-2 h-4 text-[11.5px]">
+          <div className="relative mt-2 h-[18px] text-[12px]">
             {/* The label sits on whichever side of the marker has room. */}
             <span
               className={cn("absolute whitespace-nowrap font-mono tnum text-fg-2", goal.target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5", play && "fx-rise")}

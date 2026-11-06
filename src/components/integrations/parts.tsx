@@ -111,7 +111,7 @@ export function Steps({ steps }: { steps: ReactNode[] }) {
     <ol className="space-y-2.5">
       {steps.map((s, i) => (
         <li key={i} className="flex gap-3 text-[13px] leading-[20px] text-fg-2">
-          <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">
+          <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">
             {i + 1}
           </span>
           <span className="min-w-0 text-pretty">{s}</span>
@@ -125,7 +125,7 @@ export function Steps({ steps }: { steps: ReactNode[] }) {
 export function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
     <div className="flex gap-3">
-      <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">{n}</span>
+      <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">{n}</span>
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-medium text-fg">{title}</p>
         <div className="mt-1.5">{children}</div>

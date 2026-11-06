@@ -76,7 +76,7 @@ function WaitlistTrend({ state }: { state: WaitlistTracking }) {
   const date = (at: string) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return <div>
     <svg viewBox="0 0 600 92" preserveAspectRatio="none" className="h-24 w-full text-fg-2" role="img" aria-label={`Waitlist history: ${points[0].total.toLocaleString("en-US")} on ${date(points[0].at)} to ${points.at(-1)!.total.toLocaleString("en-US")} on ${date(points.at(-1)!.at)}`}><path d={path} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" /></svg>
-    <div className="flex justify-between text-[11px] text-fg-3"><span>{date(points[0].at)}</span><span>{date(points.at(-1)!.at)}</span></div>
+    <div className="flex justify-between text-[12px] text-fg-3"><span>{date(points[0].at)}</span><span>{date(points.at(-1)!.at)}</span></div>
   </div>;
 }
 

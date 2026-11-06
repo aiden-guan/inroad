@@ -96,7 +96,7 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
           onHover={setHovered}
           onSelect={setSelected}
         />
-        <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11.5px] text-fg-3" role="group" aria-label="Show on the map">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-fg-3" role="group" aria-label="Show on the map">
           {GROUPS.map((g) => {
             const on = !hidden.has(g.value);
             return (
@@ -138,7 +138,7 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
 
         {focus && (
           <section>
-            <p className="px-1 text-[11.5px] font-medium text-fg-3">
+            <p className="px-1 text-[12px] font-medium text-fg-3">
               Within {miles ? "40 mi" : `${Math.round(40 * KM_PER_MI)} km`} of {focus.label.split(",")[0]} <span className="font-mono tnum">{near.length}</span>
             </p>
             {near.length ? (
@@ -154,7 +154,7 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
         )}
 
         <section>
-          <p className="px-1 text-[11.5px] font-medium text-fg-3">Where your leads are</p>
+          <p className="px-1 text-[12px] font-medium text-fg-3">Where your leads are</p>
           {!points ? (
             <div className="mt-2 space-y-1.5">
               {[0, 1, 2, 3].map((i) => (
@@ -174,7 +174,7 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
                       <MapPin className="size-3.5 shrink-0 text-fg-3" aria-hidden />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-medium text-fg">{m.place}</span>
-                        <span className="block truncate text-[11.5px] text-fg-3">
+                        <span className="block truncate text-[12px] text-fg-3">
                           {m.companies} compan{m.companies === 1 ? "y" : "ies"}
                           {m.aTier ? ` · ${m.aTier} A-tier` : ""}
                           {m.warm ? ` · ${m.warm} warm` : ""}
@@ -184,7 +184,7 @@ export function MapView({ onOpen, focusDomain }: { onOpen: (domain: string) => v
                     {m.companies >= 3 && (
                       <Link
                         href={`/events?new=1&city=${encodeURIComponent(m.place.split(",")[0])}`}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-1 text-[11.5px] font-medium text-fg-3 opacity-0 transition-opacity hover:text-fg focus-visible:opacity-100 group-hover:opacity-100"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-1 text-[12px] font-medium text-fg-3 opacity-0 transition-opacity hover:text-fg focus-visible:opacity-100 group-hover:opacity-100"
                         title={`Plan a dinner in ${m.place}`}
                       >
                         <CalendarHeart className="size-3.5" aria-hidden /> Dinner
@@ -224,9 +224,9 @@ function Row({ i, p, meta, active, onHover, onClick }: { i: number; p: LeadPoint
             <span className="truncate">{p.name}</span>
             {p.warm && <Handshake className="size-3 shrink-0 text-accent" aria-label="Warm" />}
           </span>
-          <span className="block truncate text-[11.5px] text-fg-3">{p.kind === "person" ? [p.title, p.company].filter(Boolean).join(" · ") : "Nobody named yet"}</span>
+          <span className="block truncate text-[12px] text-fg-3">{p.kind === "person" ? [p.title, p.company].filter(Boolean).join(" · ") : "Nobody named yet"}</span>
         </span>
-        <span className="shrink-0 font-mono text-[11px] tnum text-fg-3">{meta}</span>
+        <span className="shrink-0 font-mono text-[12px] tnum text-fg-3">{meta}</span>
       </button>
     </motion.li>
   );
@@ -240,7 +240,7 @@ function Selected({ p, onOpen, onClose }: { p: LeadPoint; onOpen: () => void; on
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium text-fg">{p.name}</p>
           <p className="truncate text-[12.5px] text-fg-2">{p.kind === "person" ? [p.title, p.company].filter(Boolean).join(" · ") : `${p.company} · nobody named yet`}</p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] text-fg-3">
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px] text-fg-3">
             <span>{p.place}</span>
             {p.byHq && p.kind === "person" && <span>· placed by HQ</span>}
             {p.stage && <span>· {STAGE_LABELS[p.stage]}</span>}

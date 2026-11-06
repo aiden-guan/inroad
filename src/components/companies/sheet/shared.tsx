@@ -95,7 +95,7 @@ export function Cited({ evidence, children, className, chips = "inline" }: { evi
               <MarginNote url={e.url} publishedAt={e.publishedAt} quote={e.quote} />
               <button
                 onClick={() => flag(e.id)}
-                className="mt-0.5 pl-2.5 text-[11px] text-fg-3 opacity-0 transition-opacity duration-150 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+                className="mt-0.5 pl-2.5 text-[12px] text-fg-3 opacity-0 transition-opacity duration-150 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               >
                 Wrong?
               </button>
@@ -164,7 +164,7 @@ export const ROLE_LABEL: Record<PersonaRole, string> = {
 export function DraftBlock({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn("draft-rule rounded-r-md bg-surface py-2.5 pl-3.5 pr-3", className)}>
-      <span className="mb-1 block font-mono text-[10.5px] uppercase tracking-wide text-fg-3">Draft</span>
+      <span className="mb-1 block font-mono text-[11px] uppercase tracking-wide text-fg-3">Draft</span>
       {children}
     </div>
   );

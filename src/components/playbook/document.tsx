@@ -79,7 +79,7 @@ function useCounts(): Record<SectionId, number> {
 
 function CountPill({ n }: { n: number }) {
   if (!n) return null;
-  return <span className="min-w-[18px] rounded-full bg-accent px-1.5 text-center font-mono text-[10.5px] font-medium leading-[18px] text-accent-fg">{n}</span>;
+  return <span className="min-w-[18px] rounded-full bg-accent px-1.5 text-center font-mono text-[12px] font-medium leading-[18px] text-accent-fg">{n}</span>;
 }
 
 function SubNav({ activeId, section }: { activeId: string | null; section: SectionId }) {

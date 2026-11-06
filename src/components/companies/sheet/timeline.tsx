@@ -123,7 +123,7 @@ export function Timeline({ account, deal }: { account: Account; deal?: Deal }) {
                     </span>
                     {it.body && <span className={cn("mt-0.5 whitespace-pre-wrap text-[12.5px] leading-[18px] text-fg-2", expanded ? "block" : "line-clamp-2")}>{it.body}</span>}
                   </span>
-                  <span className="shrink-0 pt-[4px] font-mono text-[11.5px] text-fg-3">{relativeTime(it.at, now)}</span>
+                  <span className="shrink-0 pt-[4px] font-mono text-[12px] text-fg-3">{relativeTime(it.at, now)}</span>
                 </button>
               </li>
             );

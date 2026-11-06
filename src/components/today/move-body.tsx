@@ -1180,7 +1180,7 @@ function NetworkBody({ move, ws, onChanged }: BodyProps) {
   const withImport = ruleOf(move) === "network";
   const listed = ws.connectors.filter((c) => c.relationship !== "connection");
   const step = (n: number) => (
-    <span aria-hidden className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">
+    <span aria-hidden className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">
       {n}
     </span>
   );

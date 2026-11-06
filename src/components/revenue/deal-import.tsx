@@ -214,7 +214,7 @@ export function DealImport({ period, onDone, className }: { period: { start: ISO
                       <span className="w-8 shrink-0 text-right font-mono tnum text-fg-2">{lines.length}</span>
                       <span className="min-w-0 text-fg-2">
                         {SKIP_LABELS[reason]}
-                        <span className="ml-1.5 font-mono text-[11px] text-fg-3">
+                        <span className="ml-1.5 font-mono text-[12px] text-fg-3">
                           {lines.length === 1 ? "row" : "rows"} {lines.slice(0, 6).join(", ")}
                           {lines.length > 6 ? "…" : ""}
                         </span>
@@ -246,8 +246,8 @@ export function DealImport({ period, onDone, className }: { period: { start: ISO
               return (
                 <div key={k} className="grid grid-cols-[minmax(0,1fr)_150px] items-center gap-3">
                   <span className="min-w-0 truncate text-[13px] text-fg">
-                    {v.label} <span className="font-mono text-[11.5px] text-fg-3">{v.count}</span>
-                    {!guess.sure && stages[k] === guess.stage && <span className="ml-1.5 text-[11.5px] text-warning">guess</span>}
+                    {v.label} <span className="font-mono text-[12px] text-fg-3">{v.count}</span>
+                    {!guess.sure && stages[k] === guess.stage && <span className="ml-1.5 text-[12px] text-warning">guess</span>}
                   </span>
                   <Select aria-label={`Inroad stage for ${v.label}`} value={stages[k] ?? guess.stage} onChange={(e) => setStages((s) => ({ ...s, [k]: e.target.value as StageChoice }))} className="h-8 w-full text-[13px]">
                     {STAGE_CHOICES.map((c) => (

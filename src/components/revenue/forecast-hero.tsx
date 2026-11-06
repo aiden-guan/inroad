@@ -33,7 +33,7 @@ function Pin({ at, children, className, style }: { at: number; children: ReactNo
   const right = at > 0.6;
   return (
     <span
-      className={cn("absolute top-0 whitespace-nowrap font-mono text-[11.5px] tnum", right ? "-translate-x-full pr-1.5 text-right" : "pl-1.5", className)}
+      className={cn("absolute top-0 whitespace-nowrap font-mono text-[12px] tnum", right ? "-translate-x-full pr-1.5 text-right" : "pl-1.5", className)}
       style={{ left: `${Math.min(100, Math.max(0, at * 100))}%`, ...style }}
     >
       {children}
@@ -112,7 +112,7 @@ function BulletChart({ f, play }: { f: Forecast; play: boolean }) {
           {gap > 0 && <span className="text-fg-3"> · {money(gap)} short</span>}
         </Pin>
       </div>
-      <div aria-hidden className={cn("mt-2.5 flex flex-wrap justify-between gap-x-4 gap-y-1 font-mono text-[11.5px] tnum sm:hidden", play && "fx-rise")} style={late(1300)}>
+      <div aria-hidden className={cn("mt-2.5 flex flex-wrap justify-between gap-x-4 gap-y-1 font-mono text-[12px] tnum sm:hidden", play && "fx-rise")} style={late(1300)}>
         <span className="text-fg">
           The call {money(f.call)}
           {gap > 0 && <span className="text-fg-3"> · {money(gap)} short</span>}

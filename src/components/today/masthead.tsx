@@ -193,7 +193,7 @@ function MatterLine({ text, target, onOpen }: { text: string; target: Target; on
     <>
       <span className="line-clamp-2 font-serif text-[15px] leading-[22px] text-fg-2 transition-colors group-hover:text-fg">{text}</span>
       {(target.moveId || target.replyIds) && (
-        <span className="ml-auto mt-0.5 hidden shrink-0 items-center gap-1 text-[11.5px] text-fg-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 md:inline-flex">
+        <span className="ml-auto mt-0.5 hidden shrink-0 items-center gap-1 text-[12px] text-fg-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 md:inline-flex">
           Open <CornerDownLeft aria-hidden className="size-3" />
         </span>
       )}
@@ -302,9 +302,9 @@ function RefChip({ ws, entity, date, quote, margin, className }: { ws: Workspace
     </>
   );
   const cls = margin
-    ? cn("group block border-l border-accent/40 pl-2.5 text-[11.5px] leading-[16px] text-fg-3 transition-colors hover:border-accent hover:text-fg-2", className)
+    ? cn("group block border-l border-accent/40 pl-2.5 text-[12px] leading-[16px] text-fg-3 transition-colors hover:border-accent hover:text-fg-2", className)
     : cn(
-        "inline-flex h-5 max-w-56 items-center gap-1 rounded-xs bg-surface px-1 align-[1px] font-mono text-[11px] text-fg-2 ring-1 ring-border",
+        "inline-flex h-5 max-w-56 items-center gap-1 rounded-xs bg-surface px-1 align-[1px] font-mono text-[12px] text-fg-2 ring-1 ring-border",
         src.href && "transition-[background-color,box-shadow] duration-150 ease-out-quad hover:bg-accent-subtle hover:ring-accent/30",
         className,
       );

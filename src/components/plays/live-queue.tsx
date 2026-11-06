@@ -69,7 +69,7 @@ export function LiveQueue({ items, ws, today, onOpenPlay }: { items: QueueItem[]
               >
                 <span className="truncate">{play.name}</span>
                 {play.custom && <Badge tone="agent">Custom</Badge>}
-                {also.length > 0 && <span className="font-mono text-[11px] text-fg-3">+{also.length}</span>}
+                {also.length > 0 && <span className="font-mono text-[12px] text-fg-3">+{also.length}</span>}
               </button>
               <MatchAction m={m} play={play} ws={ws} />
             </li>

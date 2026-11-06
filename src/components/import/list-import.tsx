@@ -306,7 +306,7 @@ export function ListImport({ initial, onLinkedIn, onDone }: { initial?: FileIn |
                   <span className="w-8 shrink-0 text-right font-mono tnum text-fg-2">{s.count}</span>
                   <span className="min-w-0 text-fg-2">
                     {s.label}
-                    <span className="ml-1.5 font-mono text-[11px] text-fg-3">
+                    <span className="ml-1.5 font-mono text-[12px] text-fg-3">
                       {s.lines.length === 1 ? "row" : "rows"} {s.lines.slice(0, 6).join(", ")}
                       {s.lines.length > 6 ? "…" : ""}
                     </span>
@@ -351,7 +351,7 @@ export function ListImport({ initial, onLinkedIn, onDone }: { initial?: FileIn |
                   <div key={k} className="min-w-0">
                     <div className="mb-1 flex items-baseline justify-between gap-2">
                       <span className="shrink-0 text-[12.5px] text-fg-2">{f.label}</span>
-                      {sample && <span className="min-w-0 truncate font-mono text-[11px] text-fg-3">{sample}</span>}
+                      {sample && <span className="min-w-0 truncate font-mono text-[12px] text-fg-3">{sample}</span>}
                     </div>
                     <ColumnSelect value={mapping[k]} headers={parsed.headers} label={f.label} onChange={(v) => setMapping({ ...mapping, [k]: v })} />
                   </div>

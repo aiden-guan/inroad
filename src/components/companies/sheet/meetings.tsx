@@ -204,7 +204,7 @@ function MeetingRow({
           <ChevronDown className={cn("size-3.5 shrink-0 text-fg-3 transition-transform duration-200", !expanded && "-rotate-90")} aria-hidden />
           <span className="min-w-0">
             <span className="block truncate text-[14px] font-medium text-fg">{meeting.title}</span>
-            <span className="block truncate font-mono text-[11.5px] text-fg-3">
+            <span className="block truncate font-mono text-[12px] text-fg-3">
               {when(meeting.startsAt)} · {relativeTime(meeting.startsAt, now)}
               {meeting.attendees.length > 0 && <span className="font-sans"> · {meeting.attendees.map((a) => a.name).join(", ")}</span>}
               {meeting.source === "calendar" && (

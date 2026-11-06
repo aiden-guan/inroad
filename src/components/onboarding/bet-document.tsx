@@ -191,7 +191,7 @@ function Icp({ f }: { f: Foundation }) {
             {icp.criteria.map((c) => (
               <li key={c.id} className="text-pretty text-[13.5px] leading-5">
                 <span className="text-fg">{c.text}</span>
-                <span className="ml-2 whitespace-nowrap font-mono text-[11.5px] text-fg-3">{DETECT[c.detection]}</span>
+                <span className="ml-2 whitespace-nowrap font-mono text-[12px] text-fg-3">{DETECT[c.detection]}</span>
                 {c.mustHave && (
                   <Badge tone="neutral" className="ml-2 align-[1px]">
                     must have
@@ -227,7 +227,7 @@ function Icp({ f }: { f: Foundation }) {
             {icp.triggers.map((t, i) => (
               <li key={i} className="text-pretty text-[13.5px] leading-5">
                 <span className="font-medium text-fg">{SIGNAL[t.type] ?? t.type}</span>
-                <span className="ml-1.5 font-mono text-[11.5px] text-fg-3">{t.windowDays}d</span>
+                <span className="ml-1.5 font-mono text-[12px] text-fg-3">{t.windowDays}d</span>
                 <span className="text-fg-2"> · {t.implication}</span>
               </li>
             ))}
@@ -299,7 +299,7 @@ function Growth({ f }: { f: Foundation }) {
       <div>
         <Sub>First win</Sub>
         <p className="text-pretty text-[13.5px] leading-5 text-fg">
-          {g.activation.event} <span className="font-mono text-[11.5px] text-fg-3">within {g.activation.withinDays} days</span>
+          {g.activation.event} <span className="font-mono text-[12px] text-fg-3">within {g.activation.withinDays} days</span>
         </p>
       </div>
       <div>
@@ -462,7 +462,7 @@ export function BetDocument({ ws, live }: { ws: Workspace; live: boolean }) {
                 {title}
                 {isWriting && <span className="font-normal"> · writing</span>}
               </h3>
-              {isDone && f.provenance?.[key] && <span className="ml-auto font-mono text-[11px] text-fg-3">{f.provenance[key]!.label}</span>}
+              {isDone && f.provenance?.[key] && <span className="ml-auto font-mono text-[12px] text-fg-3">{f.provenance[key]!.label}</span>}
             </header>
             <AnimatePresence initial={false}>
               {isDone && (

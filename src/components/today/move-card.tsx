@@ -105,7 +105,7 @@ export function MoveCard({ bindHeader, repliesHandle, ...p }: MoveCardProps) {
           </p>
         </div>
         <span className="mt-1 flex shrink-0 items-center gap-2 text-fg-3">
-          <span className="font-mono text-[10.5px] tnum">{move.minutes} min</span>
+          <span className="font-mono text-[12px] tnum">{move.minutes} min</span>
           <ChevronRight aria-hidden className={cn("hidden size-3.5 transition-transform duration-200 sm:block", p.expanded && "rotate-90")} />
         </span>
       </div>

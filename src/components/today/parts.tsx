@@ -107,7 +107,7 @@ export function SkipReasons({ onPick, onCancel }: { onPick: (reason: SkipReason)
           onClick={() => onPick(r.id)}
           className="inline-flex h-7 items-center gap-1.5 rounded-sm bg-surface px-2 text-[12.5px] text-fg ring-1 ring-border transition-[background-color,transform] duration-150 hover:bg-bg-subtle active:scale-[0.97]"
         >
-          <Kbd className="h-4 min-w-4 text-[10px]">{i + 1}</Kbd>
+          <Kbd>{i + 1}</Kbd>
           {r.label}
         </button>
       ))}

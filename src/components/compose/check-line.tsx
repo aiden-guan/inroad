@@ -62,7 +62,7 @@ export function CheckLine({
         {extra > 0 && <span className="ml-1.5 text-fg-3">+{extra}</span>}
       </span>
       {count && (
-        <span className={cn("shrink-0 font-mono text-[11.5px] tnum transition-colors duration-150", countTone)}>
+        <span className={cn("shrink-0 font-mono text-[12px] tnum transition-colors duration-150", countTone)}>
           {count.value}
           {count.unit === "characters" ? `/${count.max}` : ""} {count.unit === "words" ? (count.value === 1 ? "word" : "words") : "chars"}
         </span>
@@ -93,7 +93,7 @@ export function CheckDetails({ lint, blockers, warnings }: { lint: LintResult; b
       ) : (
         <p className="text-[12.5px] text-fg-2">Passes every check: length, one question, sources for every specific, no template phrases.</p>
       )}
-      <p className="mt-2 font-mono text-[11px] tnum text-fg-3">
+      <p className="mt-2 font-mono text-[12px] tnum text-fg-3">
         grade {Math.round(s.fkGrade)} · you {s.you} / I-we {s.iWe} · {s.questionMarks} {s.questionMarks === 1 ? "question" : "questions"} · {s.links}{" "}
         {s.links === 1 ? "link" : "links"}
       </p>

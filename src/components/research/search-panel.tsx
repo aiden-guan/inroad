@@ -276,7 +276,7 @@ export function SearchPanel({ automation, consumer, onMonitor }: { automation: A
               const asPartner = consumer || !!partnerFromUrl(hit.url);
               return (
                 <article key={hit.url} className="rounded-lg bg-surface p-4 ring-1 ring-inset ring-border">
-                  <p className="break-all text-[11px] text-fg-3">
+                  <p className="break-all text-[12px] text-fg-3">
                     {domain} · {hit.publishedAt ? new Date(hit.publishedAt).toLocaleDateString() : "Publication date unknown"}
                   </p>
                   <a href={hit.url} target="_blank" rel="noreferrer" className="mt-1 block text-[15px] font-medium text-fg [overflow-wrap:anywhere] hover:underline">
@@ -362,7 +362,7 @@ export function SearchPanel({ automation, consumer, onMonitor }: { automation: A
               }}
             >
               <span className="[overflow-wrap:anywhere]">{session.query}</span>
-              <span className="mt-1 block text-[11.5px] text-fg-3">
+              <span className="mt-1 block text-[12px] text-fg-3">
                 {session.results.length} sources · {session.provider} · {relativeTime(session.at)}
               </span>
             </button>

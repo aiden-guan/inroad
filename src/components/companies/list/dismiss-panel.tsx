@@ -70,7 +70,7 @@ function Reasons({ title, onChoose }: { title: string; onChoose: (reason: Dismis
           }}
         >
           <Input autoFocus value={note} maxLength={160} onChange={(e) => setNote(e.target.value)} placeholder="What's off about them? (optional)" />
-          <p className="mt-1.5 px-0.5 text-[11.5px] text-fg-3">Enter to dismiss. I use reasons to tighten the anti-ICP.</p>
+          <p className="mt-1.5 px-0.5 text-[12px] text-fg-3">Enter to dismiss. I use reasons to tighten the anti-ICP.</p>
         </form>
       ) : (
         <div role="group" aria-label="Reasons">

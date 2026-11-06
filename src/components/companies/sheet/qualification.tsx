@@ -151,7 +151,7 @@ function FieldRow({
             align="end"
             className="w-80"
             trigger={
-              <button className="inline-flex h-6 items-center gap-1 rounded-xs px-1.5 font-mono text-[11px] text-fg-3 hover:bg-bg-subtle hover:text-fg-2" aria-label={`${f.quotes.length} quote${f.quotes.length === 1 ? "" : "s"}`}>
+              <button className="inline-flex h-6 items-center gap-1 rounded-xs px-1.5 font-mono text-[12px] text-fg-3 hover:bg-bg-subtle hover:text-fg-2" aria-label={`${f.quotes.length} quote${f.quotes.length === 1 ? "" : "s"}`}>
                 <Quote className="size-3" aria-hidden />
                 {f.quotes.length}
               </button>
@@ -176,7 +176,7 @@ function FieldRow({
                   aria-label={`${s}: ${meta.rubric![s]}`}
                   onClick={() => onScore(s)}
                   className={cn(
-                    "h-5 w-6 rounded-[4px] font-mono text-[11px] tnum transition-[background-color,color] duration-150",
+                    "h-5 w-6 rounded-[4px] font-mono text-[12px] tnum transition-[background-color,color] duration-150",
                     score === s ? "bg-surface text-fg shadow-xs ring-1 ring-border" : "text-fg-3 hover:text-fg-2",
                   )}
                 >

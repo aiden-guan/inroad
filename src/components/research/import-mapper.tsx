@@ -170,7 +170,7 @@ export function ImportMapper({ data, name, automation }: { data: unknown; name: 
           <p role="status">
             {preview.newAccounts} new companies · {preview.existingAccounts} already saved · {preview.newPeople} new people · {preview.skipped.length} skipped
           </p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[11px]">{JSON.stringify(preview.sample, null, 2)}</pre>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[12px]">{JSON.stringify(preview.sample, null, 2)}</pre>
           {preview.skipped.length > 0 && (
             <details>
               <summary>Skipped rows and reasons</summary>

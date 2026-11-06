@@ -59,11 +59,11 @@ function Feed({ calls, keyName }: { calls: AgentCall[]; keyName: string }) {
       <AnimatePresence initial={false}>
         {calls.slice(0, 12).map((c) => (
           <motion.li key={c.id} layout="position" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: ease.out }} className="flex items-baseline gap-3 px-3 py-2 text-[13px]">
-            <span className="w-14 shrink-0 font-mono text-[11px] text-fg-3">
+            <span className="w-14 shrink-0 font-mono text-[12px] text-fg-3">
               <Ago iso={c.at} />
             </span>
             <span className={cn("min-w-0 flex-1 text-pretty", c.ok ? "text-fg-2" : "text-danger")}>{callLine(c, keyName)}</span>
-            <span className="hidden shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-fg-4 sm:inline">{c.via}</span>
+            <span className="hidden shrink-0 font-mono text-[11px] uppercase tracking-wide text-fg-4 sm:inline">{c.via}</span>
           </motion.li>
         ))}
       </AnimatePresence>
@@ -300,7 +300,7 @@ function KeyRow({
             )}
             <span className="hidden sm:inline">
               {" · "}
-              <span className="font-mono text-[11.5px]">{k.preview}</span>
+              <span className="font-mono text-[12px]">{k.preview}</span>
             </span>
           </span>
         </span>

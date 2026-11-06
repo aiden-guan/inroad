@@ -74,7 +74,7 @@ function Row({ verb, label, detail, mono, icon, ms, delay, title }: { verb: stri
       <span title={title ?? detail} className={cn("min-w-0 flex-1 truncate text-fg-3", mono && "font-mono text-[12px]")}>
         {detail}
       </span>
-      {ms !== undefined && <span className="shrink-0 pl-2 font-mono text-[11px] tnum text-fg-3">{(ms / 1000).toFixed(1)}s</span>}
+      {ms !== undefined && <span className="shrink-0 pl-2 font-mono text-[12px] tnum text-fg-3">{(ms / 1000).toFixed(1)}s</span>}
     </motion.li>
   );
 }

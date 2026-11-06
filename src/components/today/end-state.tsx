@@ -66,7 +66,7 @@ export function DeskEnd({
           <ul className="mt-1.5 space-y-1.5">
             {next.map((n) => (
               <li key={n.key} className="flex items-baseline gap-3 text-[13.5px] leading-5">
-                <span className="w-[112px] shrink-0 font-mono text-[11.5px] tnum text-fg-3">{n.when}</span>
+                <span className="w-[112px] shrink-0 font-mono text-[12px] tnum text-fg-3">{n.when}</span>
                 {n.href ? (
                   <Link href={n.href} className="min-w-0 truncate text-fg underline-offset-4 hover:underline">
                     {n.text}

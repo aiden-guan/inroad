@@ -629,7 +629,7 @@ export function Today({ ws }: { ws: Workspace }) {
                 <div className={cn(dayOne && "mt-6")}>
                   <SectionLabel
                     right={
-                      <span className="flex items-center gap-3 font-mono text-[11.5px] tnum text-fg-3">
+                      <span className="flex items-center gap-3 font-mono text-[12px] tnum text-fg-3">
                         {progress.done > 0 && (
                           <span className="hidden items-center gap-2 sm:flex" title={progressLine(progress)}>
                             <span
@@ -656,7 +656,7 @@ export function Today({ ws }: { ws: Workspace }) {
                   {overdue.length > 0 && (
                     <div className="mt-6">
                       <SectionLabel>
-                        <span className="text-danger">Overdue</span> <span className="font-mono text-[11.5px] tnum text-fg-3">({overdue.length})</span>
+                        <span className="text-danger">Overdue</span> <span className="font-mono text-[12px] tnum text-fg-3">({overdue.length})</span>
                       </SectionLabel>
                       {list(overdue, top.length)}
                     </div>

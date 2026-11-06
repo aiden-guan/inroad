@@ -74,7 +74,7 @@ export function TagMenu({
                   {TAG_LABEL[t]}
                 </Badge>
               ))}
-              {[...shown, ...auto].length > 2 && <span className="font-mono text-[11px]">+{[...shown, ...auto].length - 2}</span>}
+              {[...shown, ...auto].length > 2 && <span className="font-mono text-[12px]">+{[...shown, ...auto].length - 2}</span>}
             </>
           ) : (
             <>
@@ -91,7 +91,7 @@ export function TagMenu({
           {TAG_LABEL[t]}
         </MenuCheckItem>
       ))}
-      {auto.length > 0 && <p className="px-2 pb-1 pt-1.5 text-[11.5px] leading-4 text-fg-3">{auto.map((t) => TAG_LABEL[t]).join(" · ")}: from your imports.</p>}
+      {auto.length > 0 && <p className="px-2 pb-1 pt-1.5 text-[12px] leading-4 text-fg-3">{auto.map((t) => TAG_LABEL[t]).join(" · ")}: from your imports.</p>}
     </Menu>
   );
 }

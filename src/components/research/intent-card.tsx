@@ -71,8 +71,8 @@ export function IntentCard({
         selected ? "ring-2 ring-accent/45" : "ring-border hover:ring-border-strong",
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-4 text-fg-3">
-        <span aria-hidden className="inline-flex h-4 min-w-5 items-center justify-center rounded-[4px] bg-bg-subtle px-1 font-mono text-[10px] font-medium text-fg-2 ring-1 ring-border">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 text-fg-3">
+        <span aria-hidden className="inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] bg-bg-subtle px-1 font-mono text-[12px] font-medium text-fg-2 ring-1 ring-border">
           {MARK[item.source]}
         </span>
         <span className="min-w-0 truncate">{whereLabel(item)}</span>
@@ -105,7 +105,7 @@ export function IntentCard({
       </a>
 
       <blockquote className="mt-2.5 border-l-2 border-accent/50 pl-3 font-serif text-[15px] leading-[23px] text-fg-2 [overflow-wrap:anywhere]">“{item.quote}”</blockquote>
-      {item.source === "reddit" && <p className="mt-1.5 text-[11.5px] text-fg-3">From your search provider&apos;s snippet. Open the thread to read it in full.</p>}
+      {item.source === "reddit" && <p className="mt-1.5 text-[12px] text-fg-3">From your search provider&apos;s snippet. Open the thread to read it in full.</p>}
 
       <p className="mt-2.5 flex items-start gap-1.5 text-[12.5px] leading-[18px] text-fg-2">
         {!item.byCode && <AiBadge className="mt-px shrink-0" />}
@@ -115,7 +115,7 @@ export function IntentCard({
       {item.matched.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="What it matched">
           {item.matched.map((m) => (
-            <li key={`${m.kind}:${m.label}`} className="inline-flex max-w-full items-center gap-1 rounded-xs bg-bg-subtle px-1.5 py-0.5 text-[11.5px] text-fg-2 ring-1 ring-inset ring-border">
+            <li key={`${m.kind}:${m.label}`} className="inline-flex max-w-full items-center gap-1 rounded-xs bg-bg-subtle px-1.5 py-0.5 text-[12px] text-fg-2 ring-1 ring-inset ring-border">
               <span className="text-fg-3">{m.kind === "competitor" ? "Competitor" : m.kind === "category" ? "Category" : "Pain"}</span>
               <span className="truncate">{m.label}</span>
             </li>
@@ -140,7 +140,7 @@ export function IntentCard({
                 )}
                 <span className="text-fg-3"> · {BASIS[item.company.basis]}</span>
               </span>
-              <span className="w-full text-[11.5px] text-fg-3 sm:w-auto" title={item.company.evidence}>
+              <span className="w-full text-[12px] text-fg-3 sm:w-auto" title={item.company.evidence}>
                 {item.company.evidence}
               </span>
             </>

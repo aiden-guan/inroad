@@ -461,7 +461,7 @@ export function ConnectionsPanel({ automation }: { automation: AutomationControl
         <section className="space-y-3 rounded-xl p-5 ring-1 ring-inset ring-border">
           <details className="text-[12px] text-fg-3">
             <summary className="cursor-pointer">Raw response</summary>
-            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[11px]">{JSON.stringify(output, null, 2)}</pre>
+            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[12px]">{JSON.stringify(output, null, 2)}</pre>
           </details>
           <ImportMapper key={JSON.stringify(output).slice(0, 500)} data={output} name={name} automation={automation} />
         </section>

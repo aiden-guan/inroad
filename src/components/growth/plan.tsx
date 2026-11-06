@@ -51,7 +51,7 @@ export function WhatItTakes({ ws, g, pace, funnel, talks }: { ws: Workspace; g: 
           {goal.target.toLocaleString("en-US")} {goal.targetLabel} by {shortDate(goal.byDate)} takes about {funnel.signupsNeeded.toLocaleString("en-US")} signups at a {funnel.retentionTarget}%
           retention bar: {funnel.signupsPerWeek.toLocaleString("en-US")} a week.
         </p>
-        <div className="grid grid-cols-[minmax(0,1fr)_72px_72px] gap-x-3 border-y border-border bg-bg-subtle/60 px-4 py-1.5 text-[11.5px] text-fg-3 sm:grid-cols-[minmax(0,1fr)_96px_96px] sm:px-5">
+        <div className="grid grid-cols-[minmax(0,1fr)_72px_72px] gap-x-3 border-y border-border bg-bg-subtle/60 px-4 py-1.5 text-[12px] text-fg-3 sm:grid-cols-[minmax(0,1fr)_96px_96px] sm:px-5">
           <span />
           <span className="text-right">Plan</span>
           <span className="text-right">Now</span>

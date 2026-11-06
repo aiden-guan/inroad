@@ -90,7 +90,7 @@ export function ExportPanel({ className }: { className?: string }) {
           return n ? (
             <a key={kind} className={link} href={`/api/import/export?kind=${kind}`} download>
               <Download className="size-3.5 text-fg-3" aria-hidden /> {label}
-              <span className="font-mono text-[11px] text-fg-3">{n.toLocaleString("en-US")}</span>
+              <span className="font-mono text-[12px] text-fg-3">{n.toLocaleString("en-US")}</span>
             </a>
           ) : (
             <span key={kind} className={cn(link, "pointer-events-none opacity-50")} aria-disabled="true" title={`No ${label.toLowerCase()} to export yet`}>
@@ -147,7 +147,7 @@ export function ExportPanel({ className }: { className?: string }) {
                         <span className="text-fg-3"> · {d.company}</span>
                       </span>
                       <span className="hidden shrink-0 truncate text-[12px] text-fg-3 sm:block sm:max-w-[40%]">{d.subject ?? ""}</span>
-                      {d.steps > 1 && <span className="shrink-0 font-mono text-[11px] text-fg-3">{d.steps} steps</span>}
+                      {d.steps > 1 && <span className="shrink-0 font-mono text-[12px] text-fg-3">{d.steps} steps</span>}
                     </label>
                   </li>
                 ))}
@@ -163,8 +163,8 @@ export function ExportPanel({ className }: { className?: string }) {
                   </span>
                 )}
                 <p className="min-w-0 basis-full text-[12px] leading-[17px] text-fg-3">
-                  Exporting counts as approving them. Use <code className="font-mono text-[11.5px]">{"{{subject}}"}</code> and{" "}
-                  <code className="font-mono text-[11.5px]">{"{{body}}"}</code> in the campaign&apos;s first step and write the follow-ups as its later steps. Your sequencer
+                  Exporting counts as approving them. Use <code className="font-mono text-[12px]">{"{{subject}}"}</code> and{" "}
+                  <code className="font-mono text-[12px]">{"{{body}}"}</code> in the campaign&apos;s first step and write the follow-ups as its later steps. Your sequencer
                   sends them, so I don&apos;t draft follow-ups for exported leads.
                 </p>
               </div>

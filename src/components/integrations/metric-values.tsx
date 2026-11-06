@@ -22,9 +22,9 @@ export function MetricValues({ snapshot, trends }: { snapshot: MetricSnapshot; t
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
         {snapshot.metrics.map((metric) => (
           <div key={metric.key} className="min-w-0">
-            <dt className="text-[12px] leading-5 text-fg-3">{metric.label} <span className="block text-[11px]">{metric.period}{metric.currency && ` · ${metric.currency}`}</span></dt>
+            <dt className="text-[12px] leading-5 text-fg-3">{metric.label} <span className="block text-[12px]">{metric.period}{metric.currency && ` · ${metric.currency}`}</span></dt>
             <dd className="mt-1 break-words font-mono text-[24px] leading-8 tracking-tight text-fg tnum">{formatMetric(metric.value, metric.currency)}</dd>
-            {trends && <div className="mt-1 text-[11px] leading-4 text-fg-3">{trends[metric.key]?.change ? <span>{trends[metric.key].change!.delta > 0 ? "+" : ""}{formatMetric(trends[metric.key].change!.delta, metric.currency)}{trends[metric.key].change!.percent !== null && ` (${trends[metric.key].change!.percent! > 0 ? "+" : ""}${trends[metric.key].change!.percent!.toFixed(1)}%)`} since {shortDate(trends[metric.key].change!.since)}</span> : <span>{trends[metric.key]?.points.length ? "First observation saved" : "History starts with your next sync"}</span>}<TrendLine points={trends[metric.key]?.points ?? []} label={metric.label} /></div>}
+            {trends && <div className="mt-1 text-[12px] leading-4 text-fg-3">{trends[metric.key]?.change ? <span>{trends[metric.key].change!.delta > 0 ? "+" : ""}{formatMetric(trends[metric.key].change!.delta, metric.currency)}{trends[metric.key].change!.percent !== null && ` (${trends[metric.key].change!.percent! > 0 ? "+" : ""}${trends[metric.key].change!.percent!.toFixed(1)}%)`} since {shortDate(trends[metric.key].change!.since)}</span> : <span>{trends[metric.key]?.points.length ? "First observation saved" : "History starts with your next sync"}</span>}<TrendLine points={trends[metric.key]?.points ?? []} label={metric.label} /></div>}
           </div>
         ))}
       </dl>

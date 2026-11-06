@@ -90,7 +90,7 @@ export function GrowthLogForm({ ws, today, onSaved, compact }: { ws: Workspace; 
       <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-3">
         {shown.map((f) => (
           <div key={f.key} className="min-w-0">
-            <Label htmlFor={`gl-${f.key}`} className="mb-1 text-[11.5px]">
+            <Label htmlFor={`gl-${f.key}`} className="mb-1 text-[12px]">
               {(dtc && f.dtcLabel) || f.label}
             </Label>
             <Input
@@ -104,7 +104,7 @@ export function GrowthLogForm({ ws, today, onSaved, compact }: { ws: Workspace; 
           </div>
         ))}
         <div className="col-span-2 min-w-0 sm:col-span-3">
-          <Label htmlFor="gl-channel" className="mb-1 text-[11.5px]">
+          <Label htmlFor="gl-channel" className="mb-1 text-[12px]">
             Where most came from
           </Label>
           <Input id="gl-channel" value={topChannel} onChange={(e) => setTopChannel(e.target.value)} placeholder="TikTok, r/running, a newsletter" maxLength={60} className="text-[16px] sm:text-[13px]" />
@@ -129,7 +129,7 @@ export function VerdictList({ verdicts, className }: { verdicts: Verdict[]; clas
           <div className="min-w-0">
             <p className={cn("text-pretty text-[13.5px] font-medium leading-5", v.severity === "block" ? "text-danger" : "text-fg")}>{v.title}</p>
             <p className="text-pretty text-[13px] leading-5 text-fg-2">{v.detail}</p>
-            {v.source && <p className="mt-0.5 text-pretty text-[11.5px] leading-4 text-fg-3">{v.source}</p>}
+            {v.source && <p className="mt-0.5 text-pretty text-[12px] leading-4 text-fg-3">{v.source}</p>}
           </div>
         </li>
       ))}
@@ -166,19 +166,19 @@ export function PmfSurveyForm({ onSaved }: { onSaved?: () => void }) {
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div>
-          <Label htmlFor="pmf-a" className="mb-1 text-[11.5px]">
+          <Label htmlFor="pmf-a" className="mb-1 text-[12px]">
             Answers
           </Label>
           <Input id="pmf-a" inputMode="numeric" value={answers} onChange={(e) => setAnswers(e.target.value)} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
         <div>
-          <Label htmlFor="pmf-v" className="mb-1 text-[11.5px]">
+          <Label htmlFor="pmf-v" className="mb-1 text-[12px]">
             Very disappointed
           </Label>
           <Input id="pmf-v" inputMode="numeric" value={very} onChange={(e) => setVery(e.target.value)} className="font-mono text-[16px] sm:text-[13px]" />
         </div>
         <div className="col-span-2 sm:col-span-1">
-          <Label htmlFor="pmf-s" className="mb-1 text-[11.5px]">
+          <Label htmlFor="pmf-s" className="mb-1 text-[12px]">
             Segment (optional)
           </Label>
           <Input id="pmf-s" value={segment} onChange={(e) => setSegment(e.target.value)} maxLength={60} placeholder="weekly runners" className="text-[16px] sm:text-[13px]" />

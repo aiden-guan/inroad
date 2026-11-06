@@ -735,14 +735,14 @@ export function Prospects({
           </button>
         )}
         <span className="flex-1" />
-        <span className="shrink-0 font-mono text-[11.5px] tnum text-fg-3">{rows.length}</span>
+        <span className="shrink-0 font-mono text-[12px] tnum text-fg-3">{rows.length}</span>
         {columnsAll.length > 0 && (
           <Menu
             trigger={
               <button className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-[12.5px] font-medium text-fg-2 transition-colors hover:bg-bg-subtle hover:text-fg">
                 <Columns3 className="size-3.5" />
                 <span className="hidden sm:inline">Columns</span>
-                <span className="font-mono text-[11px] tnum text-fg-3">
+                <span className="font-mono text-[12px] tnum text-fg-3">
                   {n}/{columnsAll.length}
                 </span>
               </button>
@@ -804,7 +804,7 @@ export function Prospects({
         >
           <div style={gridVars(n)} className={cn(n > 0 && "md:min-w-[var(--minw-md)] lg:min-w-[var(--minw-lg)]")}>
             {/* Column labels */}
-            <div className={cn("hidden h-10 items-center gap-3 rounded-t-lg border-b border-border bg-bg-subtle px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
+            <div className={cn("hidden h-10 items-center gap-3 rounded-t-lg border-b border-border bg-bg-subtle px-3 text-[12px] font-medium text-fg-3 md:grid", GRID)}>
               <div className={cn("flex min-w-0 items-center gap-3 md:bg-bg-subtle", PIN)}>
                 <button
                   role="checkbox"
@@ -914,7 +914,7 @@ export function Prospects({
       </div>
 
       {rows.length > 0 && (
-        <p className="mt-4 hidden flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-fg-3 md:pointer-fine:flex">
+        <p className="mt-4 hidden flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-3 md:pointer-fine:flex">
           <span className="flex items-center gap-1">
             <Kbd>J</Kbd>
             <Kbd>K</Kbd> move
@@ -1118,14 +1118,14 @@ function ProspectRow({
               <>
                 {Icon && <Icon className="size-3.5 shrink-0 text-fg-3" />}
                 <span className="min-w-0 truncate text-fg-2">{top.headline}</span>
-                <span className="shrink-0 font-mono text-[11px] text-fg-3">{ageLabel(top.date, today)}</span>
+                <span className="shrink-0 font-mono text-[12px] text-fg-3">{ageLabel(top.date, today)}</span>
               </>
             ) : (
               why
             )}
           </div>
           {answered.length > 0 && (
-            <p className="mt-0.5 flex min-w-0 gap-2.5 text-[11.5px] text-fg-3 md:hidden">
+            <p className="mt-0.5 flex min-w-0 gap-2.5 text-[12px] text-fg-3 md:hidden">
               {answered.map(({ c, cell }) => (
                 <span key={c.id} className="min-w-0 truncate">
                   {shortQuestion(c.question, 22)}: <span className="text-fg-2">{cellLabel(cell)}</span>
@@ -1140,7 +1140,7 @@ function ProspectRow({
       <Tooltip content={scored ? TIER_HINT[a.tier] : "Not scored against your ICP yet"}>
         <span
           className={cn(
-            "relative z-[1] hidden size-5 cursor-default items-center justify-center rounded-xs font-mono text-[11px] ring-1 ring-inset md:inline-flex",
+            "relative z-[1] hidden size-5 cursor-default items-center justify-center rounded-xs font-mono text-[12px] ring-1 ring-inset md:inline-flex",
             !scored ? "text-fg-4 ring-border" : a.tier === "A" ? "text-fg ring-border-strong" : a.tier === "B" ? "text-fg-2 ring-border" : "text-fg-3 ring-border",
           )}
         >

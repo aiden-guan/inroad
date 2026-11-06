@@ -348,7 +348,7 @@ export function TranscriptIntake({ meetingIds, initial, onStarted, onCancel, cal
 
       {named && (
         <div className="space-y-2">
-          <p className="px-0.5 text-[11px] font-medium text-fg-3">{match?.best && !pick ? "This looks like" : "Which call is it?"}</p>
+          <p className="px-0.5 text-[12px] font-medium text-fg-3">{match?.best && !pick ? "This looks like" : "Which call is it?"}</p>
           {chosen ? (
             <div className="flex items-start gap-2.5 rounded-md bg-surface px-3 py-2.5 ring-1 ring-border-strong">
               <Favicon domain={chosen.domain} name={chosen.company} size={18} className="mt-0.5" />

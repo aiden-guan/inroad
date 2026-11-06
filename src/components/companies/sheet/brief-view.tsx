@@ -23,7 +23,7 @@ export function BriefView({ meeting, brief }: { meeting: Meeting; brief: Meeting
   return (
     <div className="space-y-7">
       <div>
-        <p className="mb-2 flex flex-wrap items-center gap-2 font-mono text-[11.5px] text-fg-3">
+        <p className="mb-2 flex flex-wrap items-center gap-2 font-mono text-[12px] text-fg-3">
           <AiBadge />
           <Badge tone="outline">{CALL_TYPE_LABEL[brief.callType]}</Badge>
           prepared {shortDate(brief.generatedAt)}
@@ -66,7 +66,7 @@ export function BriefView({ meeting, brief }: { meeting: Meeting; brief: Meeting
       )}
 
       {brief.questions.length > 0 && (
-        <Section label={`Questions · ${brief.questions.length}`} right={<span className="text-[11.5px] text-fg-3">Star the ones to check off in the debrief</span>}>
+        <Section label={`Questions · ${brief.questions.length}`} right={<span className="text-[12px] text-fg-3">Star the ones to check off in the debrief</span>}>
           <ol className="space-y-1">
             {brief.questions.map((q, i) => (
               <QuestionRow key={i} index={i} q={q} starred={starred.has(i)} onStar={() => toggleStar(i)} />
@@ -172,12 +172,12 @@ function QuestionRow({ index, q, starred, onStar }: { index: number; q: MeetingB
         <button onClick={onStar} aria-pressed={starred} aria-label={starred ? "Unstar question" : "Star question"} className="mt-0.5 shrink-0 text-fg-3 hover:text-fg">
           <Star className={cn("size-3.5", starred && "fill-fg text-fg")} />
         </button>
-        <span className="w-5 shrink-0 pt-px font-mono text-[11.5px] tnum text-fg-3">{index + 1}</span>
+        <span className="w-5 shrink-0 pt-px font-mono text-[12px] tnum text-fg-3">{index + 1}</span>
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="min-w-0 flex-1 text-left">
           <span className="text-[14px] leading-[21px] text-fg">{q.q}</span>
           <span className="ml-2 inline-flex items-center gap-1.5 align-middle">
             {q.mandatory && <Badge tone="neutral">Must ask</Badge>}
-            <span className="text-[11.5px] text-fg-3">{q.category.replace("_", " ")}</span>
+            <span className="text-[12px] text-fg-3">{q.category.replace("_", " ")}</span>
           </span>
         </button>
         <ChevronDown className={cn("mt-1 size-3.5 shrink-0 text-fg-3 transition-transform duration-200", open && "rotate-180")} aria-hidden />

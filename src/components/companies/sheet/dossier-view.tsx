@@ -142,7 +142,7 @@ export function EnrichmentView({ account, onResearch, researching, lastRun }: { 
               <ul className="space-y-2">
                 {e.news.slice(0, 5).map((n) => (
                   <li key={n.url} className="flex items-baseline gap-2 text-[13px]">
-                    <span className="w-14 shrink-0 font-mono text-[11.5px] text-fg-3">{n.publishedAt ? age(n.publishedAt) : "—"}</span>
+                    <span className="w-14 shrink-0 font-mono text-[12px] text-fg-3">{n.publishedAt ? age(n.publishedAt) : "—"}</span>
                     <a href={n.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 text-fg hover:underline">
                       {n.title}
                     </a>
@@ -193,7 +193,7 @@ export function DossierView({ account, lastRun, onRefresh, refreshing }: { accou
     <div className="space-y-9">
       {/* Lede */}
       <div>
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11.5px] text-fg-3">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] text-fg-3">
           <span className="inline-flex items-center gap-1.5">
             <AiBadge /> Researched {shortDate(d.generatedAt)}
           </span>
@@ -387,7 +387,7 @@ function Meta({ label, value, sub, evidenceId }: { label: string; value: string;
   const e = ev([evidenceId])[0];
   return (
     <div className="min-w-0">
-      <dt className="text-[11.5px] text-fg-3">{label}</dt>
+      <dt className="text-[12px] text-fg-3">{label}</dt>
       <dd className={cn("mt-0.5 truncate font-medium", value === "Unknown" ? "text-fg-3" : "text-fg")}>{value}</dd>
       {(sub || e) && (
         <dd className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-fg-3">
@@ -499,7 +499,7 @@ function SourceList({ ids }: { ids: string[] }) {
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <SourceChip url={e.url} publishedAt={e.publishedAt} quote={e.quote} claim={e.claim} confidence={e.confidence} />
-            <button onClick={() => flag(e.id)} className="text-[11.5px] text-fg-3 hover:text-danger">
+            <button onClick={() => flag(e.id)} className="text-[12px] text-fg-3 hover:text-danger">
               Wrong?
             </button>
           </div>

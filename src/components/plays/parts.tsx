@@ -20,7 +20,7 @@ import { money } from "@/lib/revenue/forecast";
 
 /** The mono micro-label the app uses for section names inside a card. */
 export function Micro({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cn("font-mono text-[10px] font-medium uppercase leading-4 tracking-[0.12em] text-fg-3", className)}>{children}</span>;
+  return <span className={cn("font-mono text-[11px] font-medium uppercase leading-4 tracking-[0.12em] text-fg-3", className)}>{children}</span>;
 }
 
 export function companyHref(domain: string): string {
@@ -138,7 +138,7 @@ export function Trigger({ m, today, className }: { m: PlayMatch; today: string; 
   return (
     <p className={cn("min-w-0 truncate text-[12.5px] text-fg-2", className)}>
       {m.headline}
-      {m.date && <span className="ml-1.5 font-mono text-[11.5px] text-fg-3">{matchAge(m.date, today)}</span>}
+      {m.date && <span className="ml-1.5 font-mono text-[12px] text-fg-3">{matchAge(m.date, today)}</span>}
       {m.url && (
         <a href={m.url} target="_blank" rel="noreferrer" aria-label={`Source for ${m.company}`} className="ml-1.5 inline-flex translate-y-[1px] text-fg-3 hover:text-fg">
           <ArrowUpRight className="size-3.5" />

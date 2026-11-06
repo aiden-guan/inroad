@@ -283,7 +283,7 @@ export function MonitorsPanel({ automation, initialQuery, onIntent }: { automati
                 </Button>
               </div>
             </div>
-            <p className="mt-3 text-[11px] text-fg-3">
+            <p className="mt-3 text-[12px] text-fg-3">
               {monitor.lastRunAt ? `Last checked ${relativeTime(monitor.lastRunAt)}` : "Waiting for the first check"} ·{" "}
               {monitor.enabled ? `Next ${new Date(monitor.nextRunAt).toLocaleString()}` : "Schedule paused"}
               {monitor.leaseUntil && now !== null && Date.parse(monitor.leaseUntil) > now ? " · Checking…" : ""}
@@ -304,7 +304,7 @@ export function MonitorsPanel({ automation, initialQuery, onIntent }: { automati
           return (
             <article key={observation.id} className={`rounded-lg p-4 ring-1 ring-inset ring-border ${observation.read ? "bg-bg-subtle" : "bg-surface"}`}>
               <h3 className="text-[14px] font-medium">{observation.title}</h3>
-              <p className="mt-1 text-[11px] text-fg-3">{new Date(observation.at).toLocaleString()}</p>
+              <p className="mt-1 text-[12px] text-fg-3">{new Date(observation.at).toLocaleString()}</p>
               <p className="mt-2 text-[13px] leading-6 text-fg-2 [overflow-wrap:anywhere]">{observation.summary}</p>
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 {observation.urls.map((url) => (

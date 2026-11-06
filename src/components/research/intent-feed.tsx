@@ -216,7 +216,7 @@ export function IntentFeed({ ws, consumer, onScan, canScan }: { ws: Workspace; c
         />
       </div>
 
-      <p className="mt-3 hidden items-center gap-1.5 text-[11.5px] text-fg-3 md:pointer-fine:flex">
+      <p className="mt-3 hidden items-center gap-1.5 text-[12px] text-fg-3 md:pointer-fine:flex">
         <Kbd>J</Kbd>
         <Kbd>K</Kbd> move · <Kbd>R</Kbd> draft a reply · <Kbd>T</Kbd> track · <Kbd>X</Kbd> not relevant · <Kbd>O</Kbd> open the thread
       </p>

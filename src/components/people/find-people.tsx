@@ -143,7 +143,7 @@ export function FindPeople({ account }: { account: Account }) {
           ))}
         </ul>
       )}
-      <p className="border-t border-border px-3 py-2 text-[11.5px] text-fg-3">
+      <p className="border-t border-border px-3 py-2 text-[12px] text-fg-3">
         Adding someone costs up to {credits(PEOPLE_DATA_PRICE.add)}. <span className="font-mono tnum">{pd.used.toLocaleString("en-US")}</span> of{" "}
         <span className="font-mono tnum">{pd.limit.toLocaleString("en-US")}</span> used this month.
       </p>
