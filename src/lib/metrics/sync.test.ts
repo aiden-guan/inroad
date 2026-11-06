@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyWorkspace, getSecret, readWorkspace, replaceWorkspace } from "@/lib/store/workspace";
-import { connectMetrics, disconnectMetrics, pollMetrics, syncMetrics } from "./sync";
-import { POST as connectRoute, DELETE as disconnectRoute } from "@/app/api/metrics/[id]/route";
+import { connectMetrics, disconnectMetrics, pollMetrics, syncMetrics, updateMetricSettings } from "./sync";
+import { POST as connectRoute, DELETE as disconnectRoute, PATCH as preferencesRoute } from "@/app/api/metrics/[id]/route";
 import { POST as syncRoute } from "@/app/api/metrics/[id]/sync/route";
 import { currentMetrics, historyFor } from "@/lib/gtm/metrics";
 
@@ -19,6 +19,38 @@ beforeEach(async () => {
 });
 
 describe("metric connection lifecycle", () => {
+  it("switches to an accessible project with the saved key and starts a separate history", async () => {
+    fetcher.mockResolvedValueOnce(counts());
+    await connectMetrics("posthog", KEY, config);
+    const old = currentMetrics(readWorkspace())[0];
+    fetcher.mockResolvedValueOnce(Response.json({ results: [{ id: 99, name: "Product" }], next: null }));
+    fetcher.mockResolvedValueOnce(Response.json({}, { status: 401 }));
+    fetcher.mockResolvedValueOnce(counts(4));
+    const result = await preferencesRoute(request({ projectId: "99", region: "us", projectName: "untrusted name" }), context());
+    expect(result.status).toBe(200);
+    expect(getSecret("posthog", "apiKey")).toBe(KEY);
+    expect(readWorkspace().integrations.posthog?.config).toMatchObject({ projectId: "99", projectName: "Product" });
+    const next = currentMetrics(readWorkspace())[0];
+    expect(next.id).not.toBe(old.id);
+    expect(historyFor(readWorkspace(), next).points.map((p) => p.value)).toEqual([4]);
+    expect(readWorkspace().metricHistory?.[old.id]).toBeDefined();
+    expect(JSON.stringify(await result.json())).not.toContain(KEY);
+  });
+  it("keeps the working project and figures if a project is inaccessible or its query fails", async () => {
+    fetcher.mockResolvedValueOnce(counts()); await connectMetrics("posthog", KEY, config);
+    const before = structuredClone(readWorkspace());
+    for (const inaccessible of [true, false]) {
+      fetcher.mockResolvedValueOnce(Response.json({ results: [{ id: 99, name: "Product" }], next: null }));
+      fetcher.mockResolvedValueOnce(Response.json({}, { status: 401 }));
+      if (!inaccessible) fetcher.mockResolvedValueOnce(Response.json({ results: [] }));
+      const result = await updateMetricSettings("posthog", { projectId: inaccessible ? "100" : "99", region: "us" });
+      expect(result.ok).toBe(false); expect(readWorkspace()).toEqual(before);
+    }
+  });
+  it("requires a project and region together on the preferences route", async () => {
+    expect((await preferencesRoute(request({ projectId: "99" }), context())).status).toBe(400);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("records history on successful sync and isolates a replacement account", async () => {
     fetcher.mockResolvedValueOnce(counts());
     await connectMetrics("posthog", KEY, config);

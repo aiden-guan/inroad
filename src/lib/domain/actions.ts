@@ -42,6 +42,7 @@ import type {
   Workspace,
 } from "./types";
 import { consumerGoal } from "@/lib/consumer/plan";
+import { GrowthDashboardSchema, type GrowthDashboardLayout } from "@/lib/consumer/dashboard";
 import { addBusinessDays, addDays, todayISO } from "./ids";
 import { OPEN_STAGES } from "./types";
 import { debriefReferrals } from "@/lib/deals/referrals";
@@ -232,6 +233,7 @@ export type Action =
   /** One week of consumer numbers; replaces the row for the same week. */
   | { type: "growth.log"; week: GrowthWeek }
   | { type: "growth.remove"; weekOf: string }
+  | { type: "growth.dashboard"; layout: GrowthDashboardLayout }
   | { type: "partner.upsert"; partner: Partner }
   | { type: "partner.update"; id: ID; patch: Partial<Omit<Partner, "id" | "stageHistory" | "createdAt">>; at: string }
   | { type: "partner.setStage"; id: ID; stage: PartnerStage; at: string }
@@ -1212,6 +1214,9 @@ export function applyAction(ws: Workspace, action: Action): void {
     }
     case "growth.remove":
       ws.growthLog = (ws.growthLog ?? []).filter((w) => w.weekOf !== action.weekOf);
+      return;
+    case "growth.dashboard":
+      ws.growthDashboard = GrowthDashboardSchema.parse(action.layout);
       return;
     case "partner.upsert": {
       ws.partners ??= {};

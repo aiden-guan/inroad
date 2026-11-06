@@ -2183,6 +2183,8 @@ export interface Workspace {
   usage: Record<string /* YYYY-MM */, UsageMonth>;
   /** Consumer: one row per week, oldest first. */
   growthLog?: GrowthWeek[];
+  /** Founder-selected Growth cards, in display order. Data and connections are independent of visibility. */
+  growthDashboard?: import("@/lib/consumer/dashboard").GrowthDashboardLayout;
   /** Consumer waitlist aggregates; database credentials live only in the secrets store. */
   waitlist?: WaitlistTracking;
   /** Creators, communities, newsletters, podcasts, press and partner brands or companies, by id. */

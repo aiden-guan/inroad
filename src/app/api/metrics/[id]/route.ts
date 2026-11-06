@@ -38,7 +38,7 @@ export async function PATCH(request: Request, ctx: Context) {
     const { id } = await ctx.params;
     if (!isMetricProvider(id)) return Response.json({ error: "Unknown metric provider." }, { status: 404 });
     const raw = await readJSON(request);
-    const patch = id === "posthog" ? z.object({ activityEvent: z.string().trim().max(200), identifiedOnly: z.boolean() }).parse(raw) : id === "stripe" ? z.object({ currency: z.string().trim().regex(/^[a-zA-Z]{3}$/).nullable().optional().transform((s) => s?.toLowerCase()) }).parse(raw) : {};
+    const patch = id === "posthog" ? z.object({ activityEvent: z.string().trim().max(200).optional(), identifiedOnly: z.boolean().optional(), projectId: z.string().regex(/^\d+$/).max(20).optional(), region: z.enum(["us", "eu"]).optional() }).refine((p) => (p.projectId === undefined) === (p.region === undefined), "Choose a project and region together.").parse(raw) : id === "stripe" ? z.object({ currency: z.string().trim().regex(/^[a-zA-Z]{3}$/).nullable().optional().transform((s) => s?.toLowerCase()) }).parse(raw) : {};
     const result = await updateMetricSettings(id, patch);
     return result.ok ? Response.json({ ok: true, workspace: publicWorkspace(readWorkspace()) }) : Response.json({ error: result.error.message }, { status: 400 });
   } catch (error) { return errorResponse(error); }
