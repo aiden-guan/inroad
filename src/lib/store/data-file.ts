@@ -6,7 +6,7 @@ import path from "node:path";
  * Owner-only on disk: the workspace holds prospects' names, work emails, call notes and deals (personal
  * data), and settings.json and secrets.json hold keys, so other accounts on this computer can't read the
  * files. It doesn't reach the running app: the server answers any process on this computer over loopback
- * (src/lib/server/local-request.ts), so the computer is the trust boundary (README, "Only this computer").
+ * (src/lib/server/local-request.ts), so the computer is the trust boundary (docs/OPERATIONS.md, "Only this computer").
  * Windows ignores these modes; its per-user profile folders do the same job.
  */
 export const FILE_MODE = 0o600;
