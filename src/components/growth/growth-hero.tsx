@@ -48,6 +48,8 @@ export function GrowthHero({ goal, g, pace, signupsPerWeek, today }: { goal: Goa
   const ahead = projected !== null && projected > current ? projected - current : 0;
   const weeksLeft = Math.max(0, Math.ceil(daysBetween(today, goal.byDate) / 7));
   const repeat = g.model.retention.metric === "m3_repeat";
+  const previous = g.weeks.at(-2)?.[goal.metric === "paying" ? "paying" : "active"];
+  const change = previous && g.goal.current !== null ? (g.goal.current - previous) / previous : undefined;
   const behind = !!pace && !pace.onPace && current < goal.target;
 
   return (
@@ -59,6 +61,7 @@ export function GrowthHero({ goal, g, pace, signupsPerWeek, today }: { goal: Goa
             <p className="text-[12px] text-fg-3">Current {goal.targetLabel}</p>
             <p className="mt-1 text-[40px] font-medium leading-[48px] tracking-[-0.045em] tnum">{g.goal.current === null ? <span className="text-fg-3">—</span> : <Num value={g.goal.current} />}</p>
             <p className="mt-1 text-[12px] text-fg-3">{g.goal.current === null ? "Log your weekly numbers to begin" : `${goal.target > 0 ? Math.round((current / goal.target) * 100) : 0}% of ${goal.target.toLocaleString("en-US")} goal`}</p>
+            {change !== undefined && <p className="mt-1 text-[12px] text-fg-3">{change >= 0 ? "+" : "−"}{Math.abs(Math.round(change * 100))}% vs the previous logged week</p>}
           </div>
           <div className="max-w-[48ch] border-l-2 border-accent/30 pl-4">
             <div className="mb-2 flex items-center gap-2 text-[12px] text-fg-3"><Orb size={14} state={behind || g.verdicts.some((v) => v.severity === "block") ? "needs" : "idle"} /><span className="font-medium text-fg-2">Where to focus</span><AiBadge /></div>

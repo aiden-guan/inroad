@@ -158,10 +158,10 @@ export function Masthead({
             const t = targetOf({ ref: m.ref, loose: true });
             return (
               <li key={m.text} className={cn("relative", i > 0 && !showAllMatters && "hidden sm:block")}>
-                <div className="flex items-start gap-2">
+                <div className="grid gap-1">
                   <MatterLine text={m.text} target={t} onOpen={onOpen} />
                   {(m.url || m.ref) && (
-                    <span className="mt-[3px] shrink-0">{m.url ? <SourceChip url={m.url} publishedAt={m.date} quote={m.quote} /> : m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} />}</span>
+                    <span className="w-fit">{m.url ? <SourceChip url={m.url} publishedAt={m.date} quote={m.quote} /> : m.ref && <RefChip ws={ws} entity={m.ref} date={m.date} quote={m.quote} />}</span>
                   )}
                 </div>
 
