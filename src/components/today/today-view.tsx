@@ -7,10 +7,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { LoadingSignal } from "@/components/ui/loading";
+import { PageContainer } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { cn } from "@/lib/client/cn";
 import { isConsumer } from "@/lib/consumer/market";
 import type { Action } from "@/lib/domain/actions";
@@ -43,15 +44,7 @@ export function TodayView() {
   if (!ws) {
     return error ? (
       <Column>
-        <EmptyState
-          title="Couldn't load your workspace"
-          body={`${error} Your data is still on this machine.`}
-          action={
-            <Button variant="primary" onClick={() => void refresh()}>
-              Try again
-            </Button>
-          }
-        />
+        <PageState kind="error" title="Couldn't load your workspace" body="Your data is still on this machine." detail={error} onRetry={refresh} />
       </Column>
     ) : (
       <TodaySkeleton />
@@ -61,7 +54,12 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("page-shell max-w-[900px] xl:max-w-[1120px] xl:pr-[280px]", className)}>{children}</div>;
+  // The right padding at xl is the margin the masthead's source notes hang in; the feed column keeps its width inside.
+  return (
+    <PageContainer className={cn("xl:pr-[280px]", className)}>
+      <div className="max-w-[820px]">{children}</div>
+    </PageContainer>
+  );
 }
 
 function isTyping(target: EventTarget | null) {

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/misc";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { marketOf } from "@/lib/consumer/market";
 import { PLATFORM_LABELS, normalizeHandle, partnerCopy, partnerKey, partnerNext, type PartnerCopy } from "@/lib/consumer/partners";
 import { newId, nowISO } from "@/lib/domain/ids";
@@ -79,7 +79,7 @@ export function PartnersPage() {
   const closedShown = showClosed ?? (!!focus && groups.closed.some((p) => p.id === focus));
 
   return (
-    <div className="page-shell max-w-[1000px]">
+    <PageContainer>
       <PageHeader
         title={copy.title}
         eyebrow={copy.eyebrow}
@@ -142,7 +142,7 @@ export function PartnersPage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -331,7 +331,7 @@ function AddPartner({ copy, onDone }: { copy: PartnerCopy; onDone: () => void })
 
 function PageSkeleton() {
   return (
-    <div className="page-shell max-w-[1000px]" aria-busy="true">
+    <PageContainer aria-busy="true">
       <Skeleton className="h-9 w-72" />
       <Skeleton className="mt-3 h-4 w-[70%]" />
       <div className="mt-10 space-y-2.5">
@@ -339,6 +339,6 @@ function PageSkeleton() {
           <Skeleton key={i} className="h-20 w-full rounded-lg" />
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }

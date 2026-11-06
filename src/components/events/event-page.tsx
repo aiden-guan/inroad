@@ -11,6 +11,7 @@ import { Button, IconButton } from "@/components/ui/button";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
 import { EmptyState, Segmented, Skeleton } from "@/components/ui/misc";
 import { WorkLog } from "@/components/ui/work-log";
+import { PageContainer } from "@/components/ui/page-header";
 import { cn } from "@/lib/client/cn";
 import { todayISO } from "@/lib/domain/ids";
 import type { GtmEvent } from "@/lib/domain/types";
@@ -195,12 +196,12 @@ export function EventPage({ id }: { id: string }) {
 
   if (loading && !ws) {
     return (
-      <div className="page-shell">
+      <PageContainer>
         <Skeleton className="h-3 w-16" />
         <Skeleton className="mt-6 h-3 w-48" />
         <Skeleton className="mt-3 h-8 w-2/3" />
         <PlanSkeleton />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -210,7 +211,7 @@ export function EventPage({ id }: { id: string }) {
 
   if (!ev) {
     return (
-      <div className="page-shell">
+      <PageContainer>
         <Link href="/events" className="-ml-1 inline-flex items-center gap-1 px-1 text-[13px] text-fg-3 hover:text-fg">
           <ChevronLeft className="size-3.5" />
           Events
@@ -232,14 +233,14 @@ export function EventPage({ id }: { id: string }) {
             }
           />
         )}
-      </div>
+      </PageContainer>
     );
   }
 
   const planFailed = !ev.plan && !runs.planning && runs.planSummary?.status === "error";
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <Header ev={ev} planning={runs.planning} onReplan={replan} />
 
       {runs.planRun && (runs.planning || !ev.plan || runs.planRun.error) ? (
@@ -314,6 +315,6 @@ export function EventPage({ id }: { id: string }) {
           </AnimatePresence>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

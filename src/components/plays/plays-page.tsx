@@ -9,9 +9,8 @@ import { useToday } from "@/components/companies/list/lib";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
-import { LoadingSignal } from "@/components/ui/loading";
-import { EmptyState } from "@/components/ui/misc";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { cn } from "@/lib/client/cn";
 import { newId, nowISO } from "@/lib/domain/ids";
 import type { Workspace } from "@/lib/domain/types";
@@ -42,20 +41,14 @@ function isTyping(target: EventTarget | null): boolean {
 export function PlaysPage() {
   const { ws, error, refresh } = useWorkspace();
   if (!ws) {
-    return error ? (
-      <div className="page-shell max-w-[1000px]">
-        <EmptyState
-          title="Couldn't load your workspace"
-          body={`${error} Your data is still on this machine.`}
-          action={
-            <Button variant="primary" onClick={() => void refresh()}>
-              Try again
-            </Button>
-          }
-        />
-      </div>
-    ) : (
-      <LoadingSignal label="Matching your plays" className="min-h-[60dvh]" />
+    return (
+      <PageContainer>
+        {error ? (
+          <PageState kind="error" title="Couldn't load your workspace" body="Your data is still on this machine." detail={error} onRetry={refresh} />
+        ) : (
+          <PageState kind="loading" label="Matching your plays" onRetry={refresh} />
+        )}
+      </PageContainer>
     );
   }
   return <Plays ws={ws} />;
@@ -118,7 +111,12 @@ function Plays({ ws }: { ws: Workspace }) {
     };
   }, [ws, today]);
 
-  if (!today || !model) return <LoadingSignal label="Matching your plays" className="min-h-[60dvh]" />;
+  if (!today || !model)
+    return (
+      <PageContainer>
+        <PageState kind="loading" label="Matching your plays" />
+      </PageContainer>
+    );
   const running = model.rows.filter((r) => r.on).length;
   const live = model.queue.length;
   const pipeline = model.rows.reduce((n, r) => n + r.results.pipelineUsd + r.results.wonUsd, 0);
@@ -137,7 +135,7 @@ function Plays({ ws }: { ws: Workspace }) {
   };
 
   return (
-    <div className="page-shell max-w-[1000px]">
+    <PageContainer>
       <PageHeader
         title="Plays"
         eyebrow="Always on"
@@ -201,7 +199,7 @@ function Plays({ ws }: { ws: Workspace }) {
         </div>
         <ArchivedPlays ws={ws} />
       </section>
-    </div>
+    </PageContainer>
   );
 }
 

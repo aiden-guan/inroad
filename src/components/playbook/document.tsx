@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { PlaybookMismatch } from "@/components/shell/market-switch";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Orb } from "@/components/ui/orb";
@@ -143,7 +143,7 @@ function MobileNav({ section }: { section: SectionId }) {
   const counts = useCounts();
   const sections = sectionsFor(ws);
   return (
-    <nav aria-label="Playbook sections" className="sticky top-12 z-30 -mx-6 mb-8 border-b border-border bg-bg/90 px-6 backdrop-blur md:top-0 md:-mx-10 md:px-10 @min-[1000px]/page:hidden">
+    <nav aria-label="Playbook sections" className="sticky top-12 z-30 -mx-[var(--page-px)] mb-8 border-b border-border bg-bg/90 px-[var(--page-px)] backdrop-blur md:top-0 @min-[1000px]/page:hidden">
       <ol className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto px-1 py-2">
         {sections.map((s) => {
           const active = s.id === section;
@@ -261,50 +261,51 @@ export function PlaybookDocument() {
   const company = ws.company?.name ?? "you";
   return (
     <div className="@container/page">
-      <div
-        className={cn(
-          "mx-auto w-full max-w-[1240px] px-6 pb-32 pt-8 md:px-10 md:pt-12",
-          "@min-[1000px]/page:grid @min-[1000px]/page:grid-cols-[156px_minmax(0,720px)] @min-[1000px]/page:justify-center @min-[1000px]/page:gap-x-12",
-          "@min-[1272px]/page:grid-cols-[156px_minmax(0,720px)_200px]",
-        )}
-      >
-        <aside className="hidden @min-[1000px]/page:block">
-          <SubNav activeId={activeId} section={section} />
-        </aside>
+      <PageContainer wide>
+        <PageHeader
+          title="Playbook"
+          eyebrow="A point of view, in progress"
+          description={<>What I believe about how {company} wins, and how sure I am. Edit anything; your version is the one I use.</>}
+          className="mb-8"
+          actions={<>
+            <Button size="sm" variant="ghost" icon={<MessageCircle className="size-3.5" />} onClick={() => openAsk(section)}>Ask</Button>
+            <ExportMenu />
+          </>}
+        />
 
-        <div className="mx-auto w-full min-w-0 max-w-[720px] @min-[1000px]/page:mx-0">
-          <PageHeader
-            title="Playbook"
-            eyebrow="A point of view, in progress"
-            description={<>What I believe about how {company} wins, and how sure I am. Edit anything; your version is the one I use.</>}
-            className="mb-8"
-            actions={<>
-              <Button size="sm" variant="ghost" icon={<MessageCircle className="size-3.5" />} onClick={() => openAsk(section)}>Ask</Button>
-              <ExportMenu />
-            </>}
-          />
+        <div
+          className={cn(
+            "@min-[1000px]/page:grid @min-[1000px]/page:grid-cols-[156px_minmax(0,720px)] @min-[1000px]/page:gap-x-12",
+            "@min-[1272px]/page:grid-cols-[156px_minmax(0,720px)_200px]",
+          )}
+        >
+          <aside className="hidden @min-[1000px]/page:block">
+            <SubNav activeId={activeId} section={section} />
+          </aside>
 
-          <PlaybookMismatch className="mb-6" />
-          <MobileNav section={section} />
-          <div className="mb-6 @min-[1000px]/page:hidden">
-            <label htmlFor="playbook-jump" className="mb-1.5 block text-[12px] font-medium text-fg-2">Jump to a topic</label>
-            <select id="playbook-jump" value={selected.children.some((child) => child.id === hash) ? hash : section} onChange={(event) => scrollToAnchor(event.target.value)} className="h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
-              <option value={section}>Overview</option>
-              {selected.children.map((child) => <option key={child.id} value={child.id}>{child.label}</option>)}
-            </select>
-          </div>
-          <NextActionCard />
+          <div className="w-full min-w-0 max-w-[720px]">
+            <PlaybookMismatch className="mb-6" />
+            <MobileNav section={section} />
+            <div className="mb-6 @min-[1000px]/page:hidden">
+              <label htmlFor="playbook-jump" className="mb-1.5 block text-[12px] font-medium text-fg-2">Jump to a topic</label>
+              <select id="playbook-jump" value={selected.children.some((child) => child.id === hash) ? hash : section} onChange={(event) => scrollToAnchor(event.target.value)} className="h-10 w-full rounded-sm bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+                <option value={section}>Overview</option>
+                {selected.children.map((child) => <option key={child.id} value={child.id}>{child.label}</option>)}
+              </select>
+            </div>
+            <NextActionCard />
 
-          <div>
-            <div hidden={section !== "who"}><WhoSection /></div>
-            <div hidden={section !== "why"}><WhySection /></div>
-            <div hidden={section !== "how"}>{consumer ? <GrowSection /> : <HowSection />}</div>
-            <div hidden={section !== "buyers"}><BuyersSection /></div>
-            <div hidden={section !== "voice"}><VoiceSection /></div>
-            <div hidden={section !== "journal"}><JournalSection /></div>
+            <div>
+              <div hidden={section !== "who"}><WhoSection /></div>
+              <div hidden={section !== "why"}><WhySection /></div>
+              <div hidden={section !== "how"}>{consumer ? <GrowSection /> : <HowSection />}</div>
+              <div hidden={section !== "buyers"}><BuyersSection /></div>
+              <div hidden={section !== "voice"}><VoiceSection /></div>
+              <div hidden={section !== "journal"}><JournalSection /></div>
+            </div>
           </div>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

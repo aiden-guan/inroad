@@ -3,7 +3,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { FieldError } from "@/components/ui/field";
 import { Segmented, Skeleton } from "@/components/ui/misc";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { isConsumer } from "@/lib/consumer/market";
 import type { Workspace } from "@/lib/domain/types";
@@ -45,7 +45,7 @@ export function ResearchWorkbench() {
   const go = (next: Tab) => setParams({ tab: ws && next === landing(ws) ? null : next, query: null, intent: null, radar: null, when: null, source: null, match: null, sort: null });
 
   return (
-    <div className="page-shell max-w-[1100px]">
+    <PageContainer>
       <PageHeader
         title="Research"
         eyebrow="Evidence from the web"
@@ -98,6 +98,6 @@ export function ResearchWorkbench() {
           {tab === "outcomes" && <OutcomesPanel automation={automation} />}
         </section>
       )}
-    </div>
+    </PageContainer>
   );
 }

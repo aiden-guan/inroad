@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { LoadingSignal } from "@/components/ui/loading";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/client/cn";
 import { focusAnchor, navigateToHash, useLocationHash } from "@/lib/client/location-hash";
@@ -50,7 +51,11 @@ export function SettingsView() {
 
   if (!ws) {
     if (loading) return <SettingsSkeleton />;
-    return <EmptyState title="Couldn't open settings" body={error ?? "Something went wrong loading your workspace."} action={<Button variant="primary" onClick={() => void refresh()}>Try again</Button>} />;
+    return (
+      <PageContainer>
+        <PageState kind="error" title="Couldn't open settings" body="Your data is still on this machine." detail={error ?? "Something went wrong loading your workspace."} onRetry={refresh} />
+      </PageContainer>
+    );
   }
 
   const panels = {
@@ -68,7 +73,7 @@ export function SettingsView() {
 
   return (
     <div className="@container/page">
-      <div className="page-shell">
+      <PageContainer>
         <PageHeader title="Settings" eyebrow="Make it yours" description="Your workspace, preferences and connected services." className="mb-8" />
 
         <div className="@min-[880px]/page:grid @min-[880px]/page:grid-cols-[200px_minmax(0,720px)] @min-[880px]/page:gap-10">
@@ -125,20 +130,20 @@ export function SettingsView() {
             {SETTINGS_PAGES.map((page) => <div key={page.id} hidden={searching || current !== page.id}>{panels[page.id]}</div>)}
           </div>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }
 
 export function SettingsSkeleton() {
   return (
-    <div className="page-shell [animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
+    <PageContainer className="[animation:fade-in_200ms_var(--ease-out)_150ms_both]" aria-busy="true" aria-label="Loading settings">
       <LoadingSignal label="Opening settings" className="mb-7" />
       <Skeleton className="h-9 w-36" /><Skeleton className="mt-3 h-4 w-72 max-w-full" />
       <div className="mt-8 grid gap-8 md:grid-cols-[200px_1fr]">
         <div className="space-y-3"><Skeleton className="h-9 w-full" />{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-6 w-32" />)}</div>
         <div><Skeleton className="h-8 w-32" /><Skeleton className="mt-6 h-24 w-full rounded-lg" /><Skeleton className="mt-8 h-32 w-full rounded-lg" /></div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
