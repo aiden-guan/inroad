@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [v0.2.25] — 2026-11-06
+
+- Preserve configurable Growth dashboards, individual metric cards, card order and widths, and saved PostHog project switching in the refreshed workspace.
+- Give connected metric cards blue trends with labeled count scales, clearer progress and more readable source details.
+
+---
+
 ## [v0.2.24] — 2026-11-06
 
 ### Changed

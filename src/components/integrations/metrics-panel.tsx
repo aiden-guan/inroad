@@ -15,6 +15,7 @@ import { Ago, ConfirmButton } from "./parts";
 import { PostHogConnect } from "./posthog-connect";
 import { ProviderKeyConnect } from "./provider-key-connect";
 import { MetricPreferences } from "./metric-preferences";
+import { PostHogProjectPicker } from "./posthog-project";
 import { Group, IntegrationRow } from "./row";
 
 export function MetricSources({ current, onToggle }: { current: string | null; onToggle: (id: string) => void }) {
@@ -74,7 +75,8 @@ function MetricsPanel({ id }: { id: MetricProviderId }) {
       </div>
       {(error || state.lastError) && <p role="alert" className="mb-4 rounded-md bg-danger-subtle p-3 text-[13px] text-danger">{error ?? state.lastError?.message} {snapshot && "Showing the last successful sync."}</p>}
       {snapshot ? <MetricValues snapshot={snapshot} /> : <p className="text-[13px] text-fg-3">No figures yet. Sync now to import your metrics.</p>}
-      <MetricPreferences id={id} state={state} />
+      {id === "posthog" && <PostHogProjectPicker state={state} />}
+      <MetricPreferences key={`${id}:${state.config.projectId ?? ""}`} id={id} state={state} />
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-3 text-[12px] text-fg-3">
         <span>Last synced <Ago iso={state.lastSyncAt} /></span>
         <Link href={`${ws && isConsumer(ws) ? "/growth" : "/revenue"}#business-metrics`} className="py-1 font-medium text-fg-2 underline decoration-border-strong underline-offset-4">View in {ws && isConsumer(ws) ? "Growth" : "Revenue"}</Link>

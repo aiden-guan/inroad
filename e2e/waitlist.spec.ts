@@ -30,13 +30,15 @@ test("a Convex waitlist connects on one paste and takes priority over post-launc
     return route.fulfill({ json: { status: "done" } });
   });
   await page.goto("/growth");
+  await page.getByRole("button", { name: "Set up waitlist", exact: true }).click();
   await page.getByRole("button", { name: "Connect Convex", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Connect Convex waitlist" });
   await expect(dialog.locator("input:visible")).toHaveCount(1);
   await dialog.getByLabel("Deploy key").evaluate((input) => { const clipboardData = new DataTransfer(); clipboardData.setData("text/plain", "prod:my-waitlist|fixture"); input.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, clipboardData })); });
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByLabel("1,234 waitlist signups", { exact: true })).toBeVisible();
-  await expect(page.getByText("Product growth, after launch", { exact: true })).toBeVisible();
+  await page.getByRole("dialog", { name: "Your waitlist", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByTestId("growth-grid").getByLabel("1,234 waitlist signups", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit dashboard", exact: true })).toBeVisible();
   await expect(page.getByLabel("Signups", { exact: true })).not.toBeVisible();
   expect(requests).toBe(1);
 });
@@ -53,13 +55,16 @@ test("Postgres asks for just the connection string and a named choice when neede
     return route.fulfill({ json: { status: "done" } });
   });
   await page.goto("/growth");
+  await page.getByRole("button", { name: "Set up waitlist", exact: true }).click();
   await page.getByRole("button", { name: "Neon", exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: "Connect Neon waitlist", exact: true });
   await expect(dialog.locator("input:visible")).toHaveCount(1);
   await dialog.getByLabel("Connection string").fill(credential);
   await dialog.getByRole("button", { name: "Connect waitlist", exact: true }).click();
   await dialog.getByRole("button", { name: "public.launch_signups", exact: true }).click();
-  await expect(page.getByLabel("0 waitlist signups", { exact: true })).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole("dialog", { name: "Your waitlist", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByTestId("growth-grid").getByLabel("0 waitlist signups", { exact: true })).toBeVisible();
 });
 
 for (const width of [390, 1280]) {
@@ -70,7 +75,7 @@ for (const width of [390, 1280]) {
     const panel = page.getByRole("region", { name: "Waitlist", exact: true });
     await expect(panel.getByLabel("1,234 waitlist signups", { exact: true })).toBeVisible();
     await expect(panel.getByRole("progressbar", { name: "Waitlist goal progress" })).toHaveAttribute("aria-valuenow", "1234");
-    await expect(panel.getByRole("img", { name: /Waitlist history/ })).toBeVisible();
+    await expect(panel.getByRole("img", { name: /Waitlist:/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await panel.screenshot({ path: testInfo.outputPath(`waitlist-${width}.png`), animations: "disabled" });
   });
@@ -84,7 +89,8 @@ test("target edits and disconnect preserve the saved count and history", async (
     return route.fulfill({ json: { ok: true } });
   });
   await page.goto("/growth");
-  const panel = page.getByRole("region", { name: "Waitlist", exact: true });
+  await page.getByRole("button", { name: "Manage waitlist", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "Your waitlist", exact: true }).getByRole("region", { name: "Waitlist", exact: true });
   await panel.getByText("Manage waitlist", { exact: true }).click();
   await panel.getByLabel("Waitlist target (optional)").fill("3,000");
   await panel.getByRole("button", { name: "Save target", exact: true }).click();
