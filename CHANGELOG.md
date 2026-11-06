@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.24] — 2026-11-06
+
 ### Changed
 - Refreshed the workspace with a warm frame, an inset working sheet, quieter controls and clearer typography. Phone and tablet navigation gives content more room while retaining company switching, agent status and update notices.
 - Revenue and Growth lead with the current number, goal progress and where to focus. Revenue retains its cumulative forecast bands and call/target markers; Growth keeps projected values distinct from recorded weekly numbers.
