@@ -16,7 +16,7 @@ import { useHubApi } from "./use-hub";
  */
 export function KeyConnect({ id, onConnected, onCancel }: { id: NativeConnectorId; onConnected?: () => void; onCancel?: () => void }) {
   const meta = CONNECTORS[id];
-  const { refresh } = useWorkspace();
+  const { ws, refresh } = useWorkspace();
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +73,7 @@ export function KeyConnect({ id, onConnected, onCancel }: { id: NativeConnectorI
         <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
           <Input
             type="password"
+            disabled={Boolean(ws?.sample && id === "monid")}
             value={key}
             onChange={(e) => {
               setKey(e.target.value);
@@ -87,7 +88,7 @@ export function KeyConnect({ id, onConnected, onCancel }: { id: NativeConnectorI
             className="font-mono text-[12px]"
           />
           <div className="flex shrink-0 gap-2">
-            <Button type="submit" variant="primary" loading={busy}>
+            <Button type="submit" variant="primary" loading={busy} disabled={Boolean(ws?.sample && id === "monid")}>
               {id === "slack" ? "Connect and send a test" : "Connect"}
             </Button>
             {onCancel && (
@@ -97,6 +98,7 @@ export function KeyConnect({ id, onConnected, onCancel }: { id: NativeConnectorI
             )}
           </div>
         </form>
+        {ws?.sample && id === "monid" && <p className="mt-2 text-[12px] text-fg-3">Leave the sample workspace before connecting Monid.</p>}
         {busy ? (
           <p className="mt-2 text-[12px]" aria-live="polite">
             <span className="shimmer-text">Checking with {meta.name}…</span>

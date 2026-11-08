@@ -6,8 +6,8 @@ const hrefs = (market: "b2b" | "consumer") => navFor(market).map((p) => p.href);
 
 describe("navFor", () => {
   it("gives businesses the deal desk and consumer companies the number, creators and research", () => {
-    expect(hrefs("b2b")).toEqual(["/today", "/revenue", "/companies", "/plays", "/research", "/intros", "/partners", "/events", "/playbook", "/studio"]);
-    expect(hrefs("consumer")).toEqual(["/today", "/growth", "/partners", "/research", "/playbook", "/studio"]);
+    expect(hrefs("b2b")).toEqual(["/today", "/revenue", "/visibility", "/companies", "/plays", "/research", "/intros", "/partners", "/events", "/playbook", "/studio"]);
+    expect(hrefs("consumer")).toEqual(["/today", "/growth", "/visibility", "/partners", "/research", "/playbook", "/studio"]);
     // The same list under each market's name for it.
     expect(navFor("b2b").find((p) => p.href === "/partners")?.label).toBe("Partners");
     expect(navFor("consumer").find((p) => p.href === "/partners")?.label).toBe("Creators");
@@ -29,9 +29,9 @@ describe("navFor", () => {
 
 describe("goKeys", () => {
   it("only goes to pages the market shows", () => {
-    expect(goKeys("b2b")).toMatchObject({ t: "/today", v: "/revenue", c: "/companies", r: "/partners", s: "/settings" });
+    expect(goKeys("b2b")).toMatchObject({ t: "/today", v: "/revenue", a: "/visibility", c: "/companies", r: "/partners", s: "/settings" });
     expect(goKeys("b2b").w).toBeUndefined();
-    expect(goKeys("consumer")).toMatchObject({ t: "/today", w: "/growth", r: "/partners", f: "/research", i: "/integrations" });
+    expect(goKeys("consumer")).toMatchObject({ t: "/today", w: "/growth", a: "/visibility", r: "/partners", f: "/research", i: "/integrations" });
     for (const k of ["v", "c", "y", "n", "e"]) expect(goKeys("consumer")[k]).toBeUndefined();
   });
 });
@@ -45,7 +45,7 @@ describe("landingAfterSwitch", () => {
   });
 
   it("stays on pages both markets use, and anywhere outside the shell", () => {
-    for (const path of ["/today", "/partners", "/research", "/playbook", "/studio", "/settings", "/integrations"]) {
+    for (const path of ["/today", "/visibility", "/partners", "/research", "/playbook", "/studio", "/settings", "/integrations"]) {
       expect(landingAfterSwitch(path, "consumer")).toBeNull();
       expect(landingAfterSwitch(path, "b2b")).toBeNull();
     }

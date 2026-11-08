@@ -1,4 +1,5 @@
 import "server-only";
+import { monid } from "./monid";
 import type { Workspace } from "@/lib/domain/types";
 import { getSecret, readWorkspace } from "@/lib/store/workspace";
 import { attio } from "./attio";
@@ -13,7 +14,7 @@ import { smartlead } from "./smartlead";
 import { slack } from "./slack";
 import type { Connector, ConnectorConfig, ConnectorFactory } from "./types";
 
-const FACTORIES: Record<NativeConnectorId, ConnectorFactory> = { hubspot, attio, instantly, smartlead, lemlist, slack, firecrawl, calendly, calcom };
+const FACTORIES: Record<NativeConnectorId, ConnectorFactory> = { monid, hubspot, attio, instantly, smartlead, lemlist, slack, firecrawl, calendly, calcom };
 
 /** The secret for a native connector lives under this key in secrets.json. */
 export const SECRET_KEY = "key";

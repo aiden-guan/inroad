@@ -10,6 +10,7 @@ import { FieldError, Input } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/misc";
 import { Select } from "@/components/ui/select";
 import type { ModelTier } from "@/lib/ai/models";
+import { REASONING_LABELS, sharedReasoningEfforts, type ReasoningEffort } from "@/lib/ai/reasoning";
 import { providerById, PROVIDERS, type ProviderId } from "@/lib/ai/providers";
 import { forgetActiveProvider } from "@/lib/client/ai-provider";
 import { Advanced, Group, Row } from "./parts";
@@ -299,6 +300,7 @@ function ModelRows({ ai, run, busy }: { ai: AiStatus; run: (label: string, body:
   const [perTask, setPerTask] = useState(Object.values(ai.models).some(Boolean));
   const main = ai.model ?? active.models.operator;
   const options = ai.available.includes(main) ? ai.available : [main, ...ai.available];
+  const effortChoices = active.id === "openai" ? sharedReasoningEfforts([main, ...Object.values(ai.models)]) : [];
   const price = ai.prices[main];
   const [input, setInput] = useState(price ? String(price.input) : "");
   const [output, setOutput] = useState(price ? String(price.output) : "");
@@ -330,6 +332,15 @@ function ModelRows({ ai, run, busy }: { ai: AiStatus; run: (label: string, body:
           </Button>
         </div>
       </Row>
+      {effortChoices.length > 0 && (
+        <Row label="Reasoning effort" htmlFor={`${id}-effort`} hint="More reasoning gives difficult tasks more time and can use more tokens. Auto follows each task's preset." align="start">
+          <Select id={`${id}-effort`} value={ai.reasoningEffort ?? "auto"} disabled={busy !== null} className={selectClass}
+            onChange={(e) => void run("effort", { ai: { provider: active.id, reasoningEffort: e.target.value === "auto" ? null : e.target.value as ReasoningEffort } }, "Reasoning effort updated.")}>
+            <option value="auto">Auto · by task</option>
+            {effortChoices.map((effort) => <option key={effort} value={effort}>{REASONING_LABELS[effort]}</option>)}
+          </Select>
+        </Row>
+      )}
       <Row label="Different models per task" hint="A bigger model for strategy, a quicker one for sorting. Optional." align="start">
         {perTask ? (
           <div className="flex flex-col gap-2">

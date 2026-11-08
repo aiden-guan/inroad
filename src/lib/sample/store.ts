@@ -28,7 +28,7 @@ export { holdsRealWork };
  * and keys.json belong to the machine and are never touched; the signal cache holds public web data and
  * is kept. Each replacement saves a backup first when there's real work to lose (src/lib/store/backup.ts).
  */
-const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json", "automation.json", "columns.json"] as const;
+const WORKSPACE_FILES = ["connections.json", "threads.json", "network.json", "desk.json", "automation.json", "columns.json", "monid-research.json"] as const;
 
 const stepsDB = () =>
   singletonDB<Record<string, RunStep[]>>("runs.json", () => new FileDB<Record<string, RunStep[]>>("runs.json", () => ({})));
