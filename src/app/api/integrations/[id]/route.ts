@@ -28,6 +28,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/integration
   try {
     const { id } = await ctx.params;
     if (!isNative(id)) return Response.json({ error: `Unknown integration: ${id}` }, { status: 404 });
+    if (id === "monid" && readWorkspace().sample) return Response.json({ error: "Leave the sample workspace before connecting Monid." }, { status: 400 });
     const { key } = ConnectBody.parse(await readJSON(request));
     const current = readWorkspace().integrations[id]?.config ?? {};
 
