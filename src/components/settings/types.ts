@@ -1,6 +1,7 @@
 /** Shapes shared by the settings routes and the settings page. Types only, safe on both sides. */
 
 import type { ModelTier } from "@/lib/ai/models";
+import type { ReasoningEffort } from "@/lib/ai/reasoning";
 import type { ProviderId } from "@/lib/ai/providers";
 import type { SearchProviderId, SearchStatus } from "@/lib/search/providers";
 
@@ -23,6 +24,7 @@ export interface AiStatus {
   baseUrl: string | null;
   /** The model that runs everything (not Anthropic), and any per-task overrides. */
   model: string | null;
+  reasoningEffort?: ReasoningEffort | null;
   models: Partial<Record<ModelTier, string>>;
   /** The chosen provider's chat models, best first, from when its key was checked. */
   available: string[];

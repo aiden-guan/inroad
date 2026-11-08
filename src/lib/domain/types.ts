@@ -7,6 +7,7 @@
  */
 
 import type { MetricProviderId, MetricSnapshot } from "@/lib/metrics/types";
+import type { SearchProviderId, SearchSnapshot } from "@/lib/metrics/search-types";
 import type { WaitlistTracking } from "@/lib/waitlist/types";
 import type { GtmInitiative, MetricSeries } from "@/lib/gtm/types";
 import type { CustomPlay } from "@/lib/plays/recipe-types";
@@ -1639,6 +1640,8 @@ export interface GtmEvent {
 
 export type IntegrationId =
   | MetricProviderId
+  | SearchProviderId
+  | "monid"
   | "waitlist"
   | "hubspot"
   | "attio"
@@ -2167,6 +2170,7 @@ export interface Workspace {
   integrations: Partial<Record<IntegrationId, IntegrationState>>;
   /** Read-only provider aggregates; independent of manually tracked deals and growth weeks. */
   businessMetrics?: Partial<Record<MetricProviderId, MetricSnapshot>>;
+  searchMetrics?: Partial<Record<SearchProviderId, SearchSnapshot>>;
   /** Observed provider trends; source/account/filter definitions are kept separate. */
   metricHistory?: Record<string, MetricSeries>;
   /** The execution plan for each market, with captured baselines and frozen readouts. */

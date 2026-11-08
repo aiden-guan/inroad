@@ -6,7 +6,7 @@ import { getAnthropicClient } from "./client";
 import { routeProvider } from "./routing";
 import type { AiTask, ModelTarget } from "./routing-types";
 import type { AgentEvent, Source } from "./events";
-import { anthropicSafe, chatTool, runOpenAITurn, type TurnHooks } from "./openai-compat";
+import { anthropicSafe, chatTool, runOpenAITurn, type TurnHooks, type ResponsesHistory } from "./openai-compat";
 import { apiErrorParts, droppableFeatures, toAgentError, type CompatFeature } from "./api-errors";
 import { AgentError } from "./errors";
 import { MODEL_IDS, addUsage, emptyUsage, requestCost, webToolTypes, type ModelTier, type Usage } from "./models";
@@ -236,6 +236,7 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
   const chatTools = oa ? appTools.map((t) => chatTool(t.name, t.description, t.schema)) : [];
   // Web uses left in this run on the OpenAI-compatible path (Anthropic counts its own with max_uses).
   const webBudget = { search: opts.webSearch ?? 0, fetch: opts.webFetch ?? 0 };
+  const responses: ResponsesHistory = new Map();
   let unpriced = false;
   if ((opts.webSearch ?? 0) > 0) {
     tools.push({ type: web.search, name: "web_search", max_uses: opts.webSearch });
@@ -337,7 +338,8 @@ export async function runAgent<T = unknown>(opts: RunOptions): Promise<RunResult
           messages,
           tools: chatTools,
           web: webBudget,
-          effort: opts.effort,
+          effort: provider.reasoningEffort ?? opts.effort,
+          responses,
           maxTokens: opts.maxTokens || roomRetried ? maxTokens : undefined,
           seenSources,
           hooks,

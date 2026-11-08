@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/settings/route";
 import { readAiKey, resetAiKeyCache } from "@/lib/store/ai-keys";
 import { DATA_DIR, readSettings, writeSettings } from "@/lib/store/settings";
@@ -31,6 +31,26 @@ const post = async (body: unknown) => {
 };
 
 describe("connecting a provider", () => {
+  it("persists reasoning effort, restores Auto, and clears an incompatible effort when changing models", async () => {
+    vi.stubEnv("OPENAI_BASE_URL", `${mock.url}/v1`);
+    const key = "sk-proj-test-0123456789abcdef";
+    await post({ ai: { provider: "openai", key, model: "gpt-6-luna" } });
+    const chosen = await post({ ai: { provider: "openai", reasoningEffort: "max" } });
+    expect(chosen.status).toBe(200);
+    expect(chosen.json.ai.reasoningEffort).toBe("max");
+    expect(activeProvider()?.reasoningEffort).toBe("max");
+    expect(chosen.text).not.toContain(key);
+    expect((await post({ ai: { provider: "openai", reasoningEffort: "invalid" } })).status).toBe(400);
+    const auto = await post({ ai: { provider: "openai", reasoningEffort: null } });
+    expect(auto.json.ai.reasoningEffort).toBeNull();
+    expect(activeProvider()?.reasoningEffort).toBeUndefined();
+    await post({ ai: { provider: "openai", reasoningEffort: "none" } });
+    const changed = await post({ ai: { provider: "openai", model: "gpt-6-astra" } });
+    expect(changed.status).toBe(200);
+    expect(changed.json.ai.reasoningEffort).toBeNull();
+    expect((await post({ ai: { provider: "openai", reasoningEffort: "none" } })).status).toBe(400);
+  });
+
   it("checks the key, lists the chat models, picks one, and keeps the key out of every response and settings.json", async () => {
     const out = await post({ ai: { provider: "custom", baseUrl: `${mock.url}/v1`, key: KEY } });
     expect(out.status).toBe(200);

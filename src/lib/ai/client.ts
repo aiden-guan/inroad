@@ -6,6 +6,7 @@ import { AgentError } from "./errors";
 import { MODEL_IDS, type ModelTier } from "./models";
 import { cleanBaseUrl, isProviderId, providerById, PROVIDERS, tierModels, type ProviderId, type ProviderPreset } from "./providers";
 import type { AiConnection } from "./routing-types";
+import type { ReasoningEffort } from "./reasoning";
 
 /**
  * Which provider runs the work, with its key and models. Resolved in this order:
@@ -26,6 +27,7 @@ export interface ActiveProvider {
   baseUrl: string;
   models: Record<ModelTier, string>;
   prices: Record<string, ModelPrice>;
+  reasoningEffort?: ReasoningEffort;
 }
 
 /** Moves a key saved in settings.json by an earlier version into the key store, once. */
@@ -90,6 +92,7 @@ function build(preset: ProviderPreset, ai: AiSettings | undefined, fromEnv: bool
     baseUrl,
     models: tierModels(main, chosen?.available ?? [], chosen?.models ?? {}),
     prices: chosen?.prices ?? {},
+    reasoningEffort: chosen?.reasoningEffort,
   };
 }
 
@@ -128,7 +131,7 @@ export function connectionProvider(connection: AiConnection): ActiveProvider | n
     preset, id: preset.id, connectionId: connection.id, kind: preset.kind, name: connection.name,
     apiKey, keySource: saved ? "saved" : apiKey ? "env" : "none", baseUrl: connection.baseUrl,
     models: { strategist: connection.model, operator: connection.model, fast: connection.model, ...connection.models },
-    prices: connection.prices, headers,
+    prices: connection.prices, headers, reasoningEffort: connection.reasoningEffort,
   };
 }
 

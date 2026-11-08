@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ModelTier } from "@/lib/ai/models";
+import type { ReasoningEffort } from "@/lib/ai/reasoning";
 import type { ProviderId } from "@/lib/ai/providers";
 import type { SearchChoice } from "@/lib/search/providers";
 import type { CompanyIcons, Geocoder, ModelPrice, NewsSource, SettingsStatus } from "./types";
@@ -16,6 +17,7 @@ export interface SettingsUpdate {
     key?: string;
     baseUrl?: string;
     model?: string;
+    reasoningEffort?: ReasoningEffort | null;
     models?: Partial<Record<ModelTier, string | null>>;
     prices?: Record<string, ModelPrice | null>;
     refresh?: boolean;

@@ -67,6 +67,8 @@ async function realWork(name = "Acme") {
 // Snapshots older than 14 days are pruned against the clock: pin it near the dates these tests use.
 const FROZEN = new Date("2026-10-22T12:00:00.000Z");
 
+
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now: FROZEN });
   fs.rmSync(BACKUP_DIR(), { recursive: true, force: true });
@@ -502,4 +504,17 @@ describe("a restore keeps the suppression list", () => {
       expect((await restoreWorkspace(readSnapshot(daily.name))).forgotten).toBe(1);
     });
   }
+});
+
+it("backs up and restores Monid research with its workspace, clearing it from the sample", async () => {
+  await realWork();
+  const file = path.join(DATA_DIR, "monid-research.json");
+  const reports = { reports: [{ id: "saved-research", workspaceId: "fixture", status: "COMPLETED", citations: [{ platform: "chatgpt", citations: 3, pages: 1 }] }] };
+  fs.writeFileSync(file, JSON.stringify(reports));
+  const bundle = buildBundle("export");
+  expect(bundle.files["monid-research.json"]).toEqual(reports);
+  await loadSampleWorkspace();
+  expect(fs.existsSync(file)).toBe(false);
+  await restoreWorkspace(bundle);
+  expect(JSON.parse(fs.readFileSync(file, "utf8"))).toEqual(reports);
 });
