@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+---
+
+## [v0.2.26] — 2026-11-08
+
 ### Added
 - Search & AI dashboard for Google Search Console, Bing Webmaster Tools, and PostHog organic/AI referral sessions and conversions, with separate source definitions and matched 28-day comparisons.
 - Monid creator research from public TikTok posts and saved Ahrefs AI citation snapshots by platform and country. Runs require a current price preview and explicit submission; duplicate attempts, unknown outcomes, provider failures and budget blocks retain their own statuses.
