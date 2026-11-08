@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { AI_TASKS, type AiConnection, type AiRouting, type AiTask, type ModelTarget, type RoutingStatus } from "@/lib/ai/routing-types";
 import { PROVIDERS, providerById, type ProviderId } from "@/lib/ai/providers";
+import { REASONING_LABELS, sharedReasoningEfforts, type ReasoningEffort } from "@/lib/ai/reasoning";
 import { forgetActiveProvider } from "@/lib/client/ai-provider";
 import { Group, Row } from "./parts";
 
@@ -109,6 +110,7 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
   const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? "");
   const [model, setModel] = useState(connection?.model ?? "");
   const [models, setModels] = useState(connection?.models ?? {});
+  const [effort, setEffort] = useState<ReasoningEffort | "auto">(connection?.reasoningEffort ?? "auto");
   const [accountId, setAccountId] = useState(connection?.cloudflare?.accountId ?? "");
   const [gatewayId, setGatewayId] = useState(connection?.cloudflare?.gatewayId ?? "default");
   const [dynamicRoute, setDynamicRoute] = useState(connection?.cloudflare?.dynamicRoute ?? "");
@@ -120,6 +122,7 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
   const [inputPrice, setInputPrice] = useState(String(connection?.prices[model]?.input ?? ""));
   const [outputPrice, setOutputPrice] = useState(String(connection?.prices[model]?.output ?? ""));
   const preset = providerById(provider)!;
+  const effortChoices = provider === "openai" ? sharedReasoningEfforts([model, ...Object.values(models)]) : [];
   const field = (label: string, value: string, change: (value: string) => void, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => <label className="block space-y-1 text-[12px] text-fg-2">
     <span>{label}</span><Input value={value} onChange={(e) => change(e.target.value)} {...props} />
   </label>;
@@ -129,6 +132,7 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
     if (model && inputPrice !== "" && outputPrice !== "") prices[model] = { input: Number(inputPrice), output: Number(outputPrice) };
     void save({ id: connection?.id, name: name.trim() || preset.name, provider, key: key.trim() || undefined,
       baseUrl: baseUrl.trim() || undefined, model: model.trim() || undefined, models, prices, enabled, auto, strengths,
+      reasoningEffort: effort !== "auto" && effortChoices.includes(effort) ? effort : null,
       contextWindow: contextWindow ? Number(contextWindow) : undefined,
       cloudflare: provider === "cloudflare" ? { accountId: accountId.trim(), gatewayId: gatewayId.trim(), dynamicRoute: dynamicRoute.trim() || undefined, collectLogs } : undefined });
   }}>
@@ -158,6 +162,14 @@ function ConnectionEditor({ connection, busy, cancel, save }: { connection?: AiC
       setOutputPrice(String(connection?.prices[value]?.output ?? ""));
     }, { list: `${id}-models`, placeholder: provider === "vercel" || provider === "cloudflare" ? "provider/model" : "Enter a tool-capable chat model ID", disabled: Boolean(dynamicRoute) && provider === "cloudflare" })}
     <datalist id={`${id}-models`}>{connection?.available.map((m) => <option key={m} value={m} />)}</datalist>
+    {effortChoices.length > 0 && <label className="block space-y-1 text-[12px] text-fg-2">
+      <span>Reasoning effort</span>
+      <Select aria-label="Connection reasoning effort" className={selectClass} disabled={busy} value={effort !== "auto" && effortChoices.includes(effort) ? effort : "auto"} onChange={(e) => setEffort(e.target.value as ReasoningEffort | "auto")}>
+        <option value="auto">Auto · by task</option>
+        {effortChoices.map((value) => <option key={value} value={value}>{REASONING_LABELS[value]}</option>)}
+      </Select>
+      <span className="block text-fg-3">Higher effort can take longer and use more tokens.</span>
+    </label>}
     <details><summary className="cursor-pointer text-[12px]">Models per kind of task, prices and context limit</summary>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         {(["strategist", "operator", "fast"] as const).map((tier) => <div key={tier}>{field(`${tier === "strategist" ? "Reasoning" : tier === "operator" ? "Research and writing" : "Fast tasks"} model`, models[tier] ?? "", (value) => setModels((prev) => {

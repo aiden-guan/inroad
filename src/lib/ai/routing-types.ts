@@ -1,6 +1,7 @@
 import type { ModelTier } from "./models";
 import type { ProviderId } from "./providers";
 import type { ModelPrice } from "@/components/settings/types";
+import type { ReasoningEffort } from "./reasoning";
 
 export const AI_TASKS = {
   foundation: "Company playbook", brief: "Daily brief", discovery: "Find companies",
@@ -23,6 +24,7 @@ export interface AiConnection {
   provider: ProviderId;
   baseUrl: string;
   model: string;
+  reasoningEffort?: ReasoningEffort;
   models: Partial<Record<ModelTier, string>>;
   available: string[];
   prices: Record<string, ModelPrice>;
