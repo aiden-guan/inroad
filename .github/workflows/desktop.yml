@@ -80,7 +80,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      # Without them: signed ad hoc, which a Mac runs after the first-open steps in the README.
+      # Without them: signed ad hoc, which a Mac runs after the first-open steps in docs/MAC-APP.md.
       - name: Package (ad hoc signature)
         if: env.HAS_SIGNING != 'true'
         run: npm run desktop:dist -- --${{ matrix.arch }} -c.mac.identity=-
