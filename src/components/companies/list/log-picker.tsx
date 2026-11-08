@@ -85,7 +85,7 @@ export function LogPicker({ ws, onPick, onClose }: { ws: Workspace; onPick: (dom
         )}
         {items.map((it, i) => (
           <li key={it.domain} role="option" aria-selected={i === current}>
-            {(i === 0 || items[i - 1].group !== it.group) && <p className="px-2 pb-1 pt-2 text-[11px] font-medium text-fg-3">{it.group}</p>}
+            {(i === 0 || items[i - 1].group !== it.group) && <p className="px-2 pb-1 pt-2 text-[12px] font-medium text-fg-3">{it.group}</p>}
             <button
               onMouseMove={() => i !== current && setActive(i)}
               onClick={() => onPick(it.domain)}

@@ -20,7 +20,8 @@ import { Button, IconButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { Sheet } from "@/components/ui/sheet";
 import { WorkLog } from "@/components/ui/work-log";
 import { cn } from "@/lib/client/cn";
@@ -64,7 +65,7 @@ export function StudioPage() {
 
 function StudioContent() {
   const studioAI = useStudioAI();
-  const { ws, loading, error } = useWorkspace();
+  const { ws, loading, error, refresh } = useWorkspace();
   const { runs, start } = useRuns();
   const params = useSearchParams();
   const router = useRouter();
@@ -162,7 +163,7 @@ function StudioContent() {
 
   if (!ws) {
     return (
-      <div className="page-shell max-w-[1180px]" aria-busy={loading || undefined}>
+      <PageContainer wide aria-busy={loading || undefined}>
         {loading ? (
           <>
             <Skeleton className="h-3 w-40" />
@@ -171,13 +172,9 @@ function StudioContent() {
             <Skeleton className="mt-10 h-10 w-80 max-w-full rounded-lg" />
           </>
         ) : (
-          <EmptyState
-            title="Couldn't open Studio"
-            body={`${error ?? "Your workspace didn't load."} Reload the page to try again.`}
-            action={<Button onClick={() => window.location.reload()}>Reload</Button>}
-          />
+          <PageState kind="error" title="Couldn't open Studio" body="Your data is still on this machine." detail={error ?? "Your workspace didn't load."} onRetry={refresh} />
         )}
-      </div>
+      </PageContainer>
     );
   }
   const format = formatPick ?? formatsFor(audienceFor(ws))[0].id;
@@ -185,7 +182,7 @@ function StudioContent() {
   const creator = <StudioAIChoice />;
 
   return (
-    <div className="page-shell max-w-[1180px]">
+    <PageContainer wide>
       <PageHeader
         title="Studio"
         eyebrow="Words and pictures"
@@ -338,7 +335,7 @@ function StudioContent() {
           <ImagesCard ws={ws} />
         </div>
       </Sheet>
-    </div>
+    </PageContainer>
   );
 }
 

@@ -75,7 +75,7 @@ export function CompanyRow({
             {c.name}
           </label>
           {domain ? (
-            <span className="truncate font-mono text-[11.5px] text-fg-3">{domain}</span>
+            <span className="truncate font-mono text-[12px] text-fg-3">{domain}</span>
           ) : editing ? (
             <form
               className="flex items-center gap-1.5"
@@ -98,7 +98,7 @@ export function CompanyRow({
                 placeholder="acme.com"
                 aria-label={`Website for ${c.name}`}
                 aria-invalid={bad}
-                className={cn("h-6 w-36 rounded-xs bg-surface px-1.5 font-mono text-[11.5px] text-fg ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]", bad ? "ring-danger" : "ring-border-strong/70")}
+                className={cn("h-6 w-36 rounded-xs bg-surface px-1.5 font-mono text-[12px] text-fg ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]", bad ? "ring-danger" : "ring-border-strong/70")}
               />
               <button type="submit" className="text-[12px] font-medium text-fg-2 hover:text-fg">
                 Add

@@ -52,7 +52,7 @@ export function WeeklyUpdate({ ws, today }: { ws: Workspace; today: string }) {
             <header className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border pb-3">
               <AiBadge />
               <h3 className="min-w-0 flex-1 text-[14px] font-medium text-fg">{latest.subject}</h3>
-              <span className="font-mono text-[11.5px] text-fg-3">Week of {shortDay(latest.weekOf)}</span>
+              <span className="font-mono text-[12px] text-fg-3">Week of {shortDay(latest.weekOf)}</span>
             </header>
             {/* Tables scroll inside the card on a phone instead of pushing the page wide. */}
             <Markdown className="[&_table]:my-2 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:font-mono [&_table]:text-[12.5px] [&_td]:whitespace-nowrap [&_td]:pr-4 sm:[&_table]:max-w-[560px]">{latest.body}</Markdown>

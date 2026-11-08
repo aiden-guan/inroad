@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { forwardRef, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/client/cn";
 
 /** The look every text field and select shares (select.tsx too). */
@@ -18,11 +18,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   ref,
 ) {
   return <textarea ref={ref} className={cn(fieldClass, "min-h-24 resize-none py-2.5 leading-[22px]", className)} {...props} />;
-});
-
-/** Native semantics with a consistent arrow and room for the complete selected label. */
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select({ className, children, ...props }, ref) {
-  return <select ref={ref} className={cn(fieldClass, "h-9 w-auto", className, "field-select pr-9")} {...props}>{children}</select>;
 });
 
 export function Label({ children, hint, htmlFor, className }: { children: ReactNode; hint?: ReactNode; htmlFor?: string; className?: string }) {

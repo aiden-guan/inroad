@@ -67,7 +67,7 @@ export function DataQuality({ ws, f }: { ws: Workspace; f: Forecast }) {
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 pl-[26px] sm:pl-0">
                   {gaps.map((g) => (
-                    <span key={g} className={cn("rounded-xs px-1.5 py-0.5 text-[11.5px] ring-1 ring-inset", g === "close_passed" || g === "next_step_overdue" ? "bg-warning-subtle text-warning ring-transparent" : "bg-bg-subtle text-fg-2 ring-border")}>
+                    <span key={g} className={cn("rounded-xs px-1.5 py-0.5 text-[12px] ring-1 ring-inset", g === "close_passed" || g === "next_step_overdue" ? "bg-warning-subtle text-warning ring-transparent" : "bg-bg-subtle text-fg-2 ring-border")}>
                       {GAP_LABELS[g]}
                     </span>
                   ))}

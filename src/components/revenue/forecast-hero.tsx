@@ -32,7 +32,7 @@ function Pin({ at, children, className, style }: { at: number; children: ReactNo
   const right = at > 0.6;
   return (
     <span
-      className={cn("absolute top-0 whitespace-nowrap font-mono text-[11.5px] tnum", right ? "-translate-x-full pr-1.5 text-right" : "pl-1.5", className)}
+      className={cn("absolute top-0 whitespace-nowrap font-mono text-[12px] tnum", right ? "-translate-x-full pr-1.5 text-right" : "pl-1.5", className)}
       style={{ left: `${Math.min(100, Math.max(0, at * 100))}%`, ...style }}
     >
       {children}
@@ -111,7 +111,7 @@ function BulletChart({ f, play }: { f: Forecast; play: boolean }) {
           {gap > 0 && <span className="text-fg-3"> · {money(gap)} short</span>}
         </Pin>
       </div>
-      <div aria-hidden className={cn("mt-2.5 flex flex-wrap justify-between gap-x-4 gap-y-1 font-mono text-[11.5px] tnum sm:hidden", play && "fx-rise")} style={late(1300)}>
+      <div aria-hidden className={cn("mt-2.5 flex flex-wrap justify-between gap-x-4 gap-y-1 font-mono text-[12px] tnum sm:hidden", play && "fx-rise")} style={late(1300)}>
         <span className="text-fg">
           The call {money(f.call)}
           {gap > 0 && <span className="text-fg-3"> · {money(gap)} short</span>}
@@ -148,7 +148,7 @@ export function ForecastHero({ f, plan, onSetTarget, onDataQuality }: { f: Forec
           <div className="max-w-[48ch] border-l-2 border-accent/30 pl-4">
             <div className="mb-2 flex items-center gap-2 text-[12px] text-fg-3"><Orb size={14} state={plan.verdict === "behind" || plan.verdict === "too_late" ? "needs" : "idle"} /><span className="font-medium text-fg-2">Where to focus</span><AiBadge /></div>
             <p className="text-pretty font-serif text-[19px] leading-[27px] text-fg"><TextReveal text={plan.headline} play={false} /></p>
-            {f.hasTarget && plan.gap > 0 && <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Plan based on {money(f.weighted)} in stage-weighted revenue.</p>}
+            {f.hasTarget && plan.gap > 0 && <p className="mt-2 text-[12px] leading-4 text-fg-3">Plan based on {money(f.weighted)} in stage-weighted revenue.</p>}
           </div>
         </div>
         {!f.hasTarget && (

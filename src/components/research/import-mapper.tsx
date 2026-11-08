@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { FieldError, Input } from "@/components/ui/field";
 import { FIELDS, PRESETS } from "@/lib/network/presets";
 import type { previewMappedImport } from "@/lib/automation/imports";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { controlClass, type AutomationController } from "./use-automation";
+import { type AutomationController } from "./use-automation";
 
 export function ImportMapper({ data, name, automation }: { data: unknown; name: string; automation: AutomationController }) {
   const { refresh } = useWorkspace();
@@ -74,9 +75,9 @@ export function ImportMapper({ data, name, automation }: { data: unknown; name: 
         </label>
         <label className="text-[12px] text-fg-2">
           List type
-          <select
+          <Select
             aria-label="List type"
-            className={controlClass}
+            className="w-full"
             value={preset}
             onChange={(e) => {
               setPreset(e.target.value);
@@ -88,13 +89,13 @@ export function ImportMapper({ data, name, automation }: { data: unknown; name: 
                 {p.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="text-[12px] text-fg-2">
           Saved mapping
-          <select
+          <Select
             aria-label="Saved mapping"
-            className={controlClass}
+            className="w-full"
             defaultValue=""
             onChange={(e) => {
               const saved = automation.data?.imports.find((p) => p.id === e.target.value);
@@ -112,7 +113,7 @@ export function ImportMapper({ data, name, automation }: { data: unknown; name: 
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
       <Button size="sm" variant="secondary" loading={busy} onClick={() => void suggest()}>
@@ -170,7 +171,7 @@ export function ImportMapper({ data, name, automation }: { data: unknown; name: 
           <p role="status">
             {preview.newAccounts} new companies · {preview.existingAccounts} already saved · {preview.newPeople} new people · {preview.skipped.length} skipped
           </p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[11px]">{JSON.stringify(preview.sample, null, 2)}</pre>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-bg-subtle p-3 text-[12px]">{JSON.stringify(preview.sample, null, 2)}</pre>
           {preview.skipped.length > 0 && (
             <details>
               <summary>Skipped rows and reasons</summary>

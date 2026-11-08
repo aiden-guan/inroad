@@ -10,9 +10,8 @@ import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { LoadingSignal } from "@/components/ui/loading";
-import { EmptyState } from "@/components/ui/misc";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { isConsumer } from "@/lib/consumer/market";
 import { METRIC_PROVIDER_IDS } from "@/lib/metrics/types";
 import { todayISO } from "@/lib/domain/ids";
@@ -91,20 +90,14 @@ export function RevenuePage() {
   }, [ready]);
 
   if (!ws || !data || !period) {
-    return error ? (
-      <div className="page-shell">
-        <EmptyState
-          title="Couldn't load your workspace"
-          body={`${error} Your data is still on this machine.`}
-          action={
-            <Button variant="primary" onClick={() => void refresh()}>
-              Try again
-            </Button>
-          }
-        />
-      </div>
-    ) : (
-      <LoadingSignal label="Calling the forecast" className="min-h-[60dvh]" />
+    return (
+      <PageContainer>
+        {error ? (
+          <PageState kind="error" title="Couldn't load your workspace" body="Your data is still on this machine." detail={error} onRetry={refresh} />
+        ) : (
+          <PageState kind="loading" label="Calling the forecast" onRetry={refresh} />
+        )}
+      </PageContainer>
     );
   }
 
@@ -130,7 +123,7 @@ export function RevenuePage() {
   ];
 
   return (
-    <div className="page-shell">
+    <PageContainer>
       <PageHeader
         title="Revenue"
         eyebrow="Growth overview"
@@ -223,6 +216,6 @@ export function RevenuePage() {
           <DealImport period={period} />
         </div>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

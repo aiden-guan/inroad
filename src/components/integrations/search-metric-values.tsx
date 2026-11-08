@@ -7,7 +7,7 @@ export function SearchMetricValues({ snapshot }: { snapshot: SearchSnapshot }) {
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
         {snapshot.metrics.map((metric) => (
           <div key={metric.key} className="min-w-0">
-            <dt className="text-[12px] leading-5 text-fg-3">{metric.label} <span className="block text-[11px]">{metric.period}{metric.currency && ` · ${metric.currency}`}</span></dt>
+            <dt className="text-[12px] leading-5 text-fg-3">{metric.label} <span className="block text-[12px]">{metric.period}{metric.currency && ` · ${metric.currency}`}</span></dt>
             <dd className="mt-1 break-words font-mono text-[24px] leading-8 tracking-tight text-fg tnum">{formatSearchMetric(metric.value, metric.currency, metric.format)}</dd>
             {metric.previousValue !== undefined && <dd className="mt-1 text-[12px] text-fg-3">Previously {formatSearchMetric(metric.previousValue, metric.currency, metric.format)}{metric.value !== null && metric.previousValue !== null && metric.previousValue !== 0 && <> · {metric.value >= metric.previousValue ? "+" : ""}{new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 }).format((metric.value - metric.previousValue) / metric.previousValue)}</>}</dd>}
           </div>

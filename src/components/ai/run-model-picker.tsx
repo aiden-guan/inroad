@@ -4,6 +4,7 @@ import { Cpu } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ModelTarget, RoutingStatus } from "@/lib/ai/routing-types";
 import { cn } from "@/lib/client/cn";
+import { Select } from "@/components/ui/select";
 
 /**
  * A model for one message, as a compact control beside Send: it reads "Default model" until the founder picks one,
@@ -26,13 +27,13 @@ export function RunModelPicker({ value, onChange, disabled, className }: { value
   return (
     <span className={cn("relative inline-flex min-w-0 items-center", className)}>
       <Cpu aria-hidden className="pointer-events-none absolute left-2 size-3.5 text-fg-3" />
-      <select
+      <Select
         aria-label="Model for this message"
         title={`Model for this message: ${shown}`}
         disabled={disabled}
         value={value ? `${value.connectionId}|${value.model ?? ""}` : ""}
         className={cn(
-          "field-select h-7 min-w-0 max-w-[9.5rem] rounded-md bg-transparent pl-7 text-[12px] font-medium transition-colors duration-150 hover:bg-bg-subtle hover:text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] disabled:opacity-50 sm:max-w-[14rem]",
+          "h-7 max-w-[9.5rem] bg-transparent pl-7 text-[12px] font-medium shadow-none ring-0 hover:bg-bg-subtle hover:text-fg-2 disabled:opacity-50 sm:max-w-[14rem]",
           picked ? "text-fg-2" : "text-fg-3",
         )}
         onChange={(e) => {
@@ -45,7 +46,7 @@ export function RunModelPicker({ value, onChange, disabled, className }: { value
           <option value={`${c.id}|`}>{c.name}&apos;s usual models</option>
           {[...new Set([c.model, ...Object.values(c.models), ...c.available])].map((model) => <option key={model} value={`${c.id}|${model}`}>{model}</option>)}
         </optgroup>)}
-      </select>
+      </Select>
     </span>
   );
 }

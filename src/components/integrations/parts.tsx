@@ -1,6 +1,6 @@
 "use client";
 
-import { Select as NativeSelect } from "@/components/ui/field";
+import { Select as FieldSelect } from "@/components/ui/select";
 
 import { ArrowUpRight, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -111,7 +111,7 @@ export function Steps({ steps }: { steps: ReactNode[] }) {
     <ol className="space-y-2.5">
       {steps.map((s, i) => (
         <li key={i} className="flex gap-3 text-[13px] leading-[20px] text-fg-2">
-          <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">
+          <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">
             {i + 1}
           </span>
           <span className="min-w-0 text-pretty">{s}</span>
@@ -125,7 +125,7 @@ export function Steps({ steps }: { steps: ReactNode[] }) {
 export function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
     <div className="flex gap-3">
-      <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[11px] text-fg-3 ring-1 ring-border">{n}</span>
+      <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">{n}</span>
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-medium text-fg">{title}</p>
         <div className="mt-1.5">{children}</div>
@@ -254,18 +254,15 @@ export function Select({
 }) {
   return (
     <div className={cn("relative min-w-0", className)}>
-      <NativeSelect
+      <FieldSelect
         aria-label={label}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "h-8 w-full min-w-0 appearance-none truncate rounded-sm bg-surface pl-2.5 pr-8 text-[13px] text-fg ring-1 ring-border-strong/70",
-          "transition-[box-shadow] duration-150 hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-60",
-        )}
+        className="h-8 w-full truncate rounded-sm pl-2.5"
       >
         {children}
-      </NativeSelect>
+      </FieldSelect>
     </div>
   );
 }

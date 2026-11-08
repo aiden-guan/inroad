@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ExternalLink, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/field";
 import { cn } from "@/lib/client/cn";
 import type { ClaudePlanStatus } from "@/lib/studio/claude-plan";
@@ -69,10 +70,10 @@ export function StudioAIChoice({ className }: { className?: string }) {
         <Label htmlFor="studio-ai-provider" className="mb-0 font-normal text-fg-3">
           Create with
         </Label>
-        <select id="studio-ai-provider" value={provider} onChange={(event) => setProvider(event.target.value as Provider)} className="h-9 max-w-full rounded-md bg-bg-subtle px-3 text-[13px] text-fg ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+        <Select id="studio-ai-provider" value={provider} onChange={(event) => setProvider(event.target.value as Provider)} className="max-w-full">
           <option value="api">Configured AI provider</option>
           <option value="claude_plan">Claude plan</option>
-        </select>
+        </Select>
         {claudePlan && (
           <>
             <span role="status" className="text-[12px] text-fg-2">

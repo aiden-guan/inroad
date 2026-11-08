@@ -133,7 +133,7 @@ export function PlanView({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
                       <th scope="row" className="py-1.5 pr-3 font-normal text-fg-2">{r.label}</th>
                       <td className="py-1.5 text-right font-mono tnum text-fg">
                         {r.topOfFunnel.toLocaleString("en-US")}
-                        <span className="block font-sans text-[11px] text-fg-3">
+                        <span className="block font-sans text-[12px] text-fg-3">
                           {r.unit}
                           {r.perWeek !== null ? `, ${r.perWeek.toLocaleString("en-US")}/wk` : ""}
                         </span>
@@ -142,7 +142,7 @@ export function PlanView({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
                   ))}
                 </tbody>
               </table>
-              <p className="mt-1.5 text-[11.5px] leading-4 text-fg-4">Starting conversion rates per channel; they become yours as deals close.</p>
+              <p className="mt-1.5 text-[12px] leading-4 text-fg-4">Starting conversion rates per channel; they become yours as deals close.</p>
             </div>
           )}
           {plan.gap > 0 && perWeek !== null && pace < perWeek && (

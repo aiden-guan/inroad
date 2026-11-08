@@ -327,7 +327,7 @@ export function IntroBookBody({ intro, next, today, onComplete }: { intro: Intro
       <div className="rounded-md bg-surface ring-1 ring-border">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5 text-[12px] text-fg-3">
           <span>{msg.where}</span>
-          {msg.to && <span className="truncate font-mono text-[11.5px]">{msg.to}</span>}
+          {msg.to && <span className="truncate font-mono text-[12px]">{msg.to}</span>}
         </div>
         <Textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="Message" className="min-h-24 rounded-none bg-transparent px-3 py-2.5 text-[13.5px] leading-[21px] ring-0 hover:ring-0" />
         <div className="flex flex-wrap items-center gap-2 border-t border-border px-2 py-1.5">

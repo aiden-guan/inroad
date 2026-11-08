@@ -62,7 +62,7 @@ export function Numbers({ ws, today, g, logging, onLogging }: { ws: Workspace; t
             {STAGE_ORDER.map((s) => (
               <span key={s} className={cn("rounded-full px-2.5 py-0.5 text-[12px] ring-1", s === g.focus ? "bg-bg-subtle font-medium text-fg ring-border-strong" : "text-fg-3 ring-border")}>
                 {STAGE_LABELS[s]}
-                {s === g.focus && <span className="ml-1 font-mono text-[10.5px] text-fg-3">focus</span>}
+                {s === g.focus && <span className="ml-1 font-mono text-[12px] text-fg-3">focus</span>}
               </span>
             ))}
           </div>
@@ -71,7 +71,7 @@ export function Numbers({ ws, today, g, logging, onLogging }: { ws: Workspace; t
             <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {stats.map((s) => (
                 <div key={s.label} className="rounded-md bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-inset ring-border">
-                  <dt className="text-[11.5px] text-fg-3">{s.label}</dt>
+                  <dt className="text-[12px] text-fg-3">{s.label}</dt>
                   <dd className="mt-0.5 font-mono text-[15px] font-medium tnum text-fg">{s.value}</dd>
                 </div>
               ))}

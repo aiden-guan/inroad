@@ -291,7 +291,7 @@ export function Channels({ hint, active }: { hint?: string; active?: number } = 
                   <span className="text-[14.5px] font-semibold">
                     {MOTION_LABELS[m.motion] ?? m.motion}
                     {active !== undefined && (
-                      <span className={cn("ml-2 align-[1px] font-mono text-[11px] font-normal", k < active ? "text-fg-2" : "text-fg-4")}>{k < active ? "now" : "later"}</span>
+                      <span className={cn("ml-2 align-[1px] font-mono text-[12px] font-normal", k < active ? "text-fg-2" : "text-fg-4")}>{k < active ? "now" : "later"}</span>
                     )}
                   </span>
                   <Editable inline value={m.weeklyTarget} label="weekly target" onSave={(v) => set(["channelPlan", "motions", i, "weeklyTarget"], v)} className="font-mono text-[12.5px] text-fg-2" />

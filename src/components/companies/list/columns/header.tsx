@@ -72,14 +72,14 @@ export function ColumnHeader({
         <button
           title={column.question}
           className={cn(
-            "group/h -mx-1 flex h-7 min-w-0 items-center gap-1 rounded-sm px-1 text-left text-[11px] font-medium outline-none transition-colors hover:bg-bg hover:text-fg-2 focus-visible:ring-2 focus-visible:ring-[var(--ring)] data-[state=open]:bg-bg data-[state=open]:text-fg-2",
+            "group/h -mx-1 flex h-7 min-w-0 items-center gap-1 rounded-sm px-1 text-left text-[12px] font-medium outline-none transition-colors hover:bg-bg hover:text-fg-2 focus-visible:ring-2 focus-visible:ring-[var(--ring)] data-[state=open]:bg-bg data-[state=open]:text-fg-2",
             filtered || sorted ? "text-fg-2" : "text-fg-3",
           )}
         >
           <Sparkles className="size-3 shrink-0 text-accent-text/80" aria-hidden />
           <span className="min-w-0 flex-1 truncate">{shortQuestion(column.question, 40)}</span>
           {running ? (
-            <span className="flex shrink-0 items-center gap-1 font-mono text-[10.5px] tnum text-fg-3">
+            <span className="flex shrink-0 items-center gap-1 font-mono text-[12px] tnum text-fg-3">
               <Spinner className="size-2.5" />
               {done}/{total}
             </span>
@@ -98,7 +98,7 @@ export function ColumnHeader({
         >
           <div className="px-2.5 pb-2 pt-1.5">
             <p className="text-pretty text-[13px] font-medium leading-[18px] text-fg">{column.question}</p>
-            <p className="mt-0.5 font-mono text-[11px] text-fg-3">
+            <p className="mt-0.5 font-mono text-[12px] text-fg-3">
               {COLUMN_TYPE_LABEL[column.type]}
               {column.options?.length ? ` · ${column.options.join(", ")}` : ""}
             </p>
@@ -110,7 +110,7 @@ export function ColumnHeader({
               <DM.Item onSelect={onStop} className={item}>
                 <Square className="size-3.5 text-fg-3" />
                 <span className="flex-1">Stop</span>
-                <span className="font-mono text-[11.5px] tnum text-fg-3">
+                <span className="font-mono text-[12px] tnum text-fg-3">
                   {done} of {total}
                 </span>
               </DM.Item>
@@ -118,7 +118,7 @@ export function ColumnHeader({
             </>
           )}
 
-          <DM.Label className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-fg-3">Sort</DM.Label>
+          <DM.Label className="px-2.5 pb-1 pt-1.5 text-[12px] font-medium text-fg-3">Sort</DM.Label>
           {sortChoices(column.type).map((c) => (
             <DM.Item key={c.dir} onSelect={() => onSort(c.dir)} className={item}>
               <span className="flex size-4 items-center justify-center text-fg-3">{sorted && sort.dir === c.dir ? <Check className="size-3.5" /> : null}</span>
@@ -127,7 +127,7 @@ export function ColumnHeader({
           ))}
 
           <DM.Separator className="my-1 h-px bg-border" />
-          <DM.Label className="flex items-center justify-between px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-fg-3">
+          <DM.Label className="flex items-center justify-between px-2.5 pb-1 pt-1.5 text-[12px] font-medium text-fg-3">
             <span>Show</span>
             {filtered && (
               <button onClick={() => onFilter([])} className="font-normal text-fg-3 hover:text-fg">
@@ -143,7 +143,7 @@ export function ColumnHeader({
                 </DM.ItemIndicator>
               </span>
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
-              <span className="font-mono text-[11px] tnum text-fg-3">{o.count}</span>
+              <span className="font-mono text-[12px] tnum text-fg-3">{o.count}</span>
             </DM.CheckboxItem>
           ))}
 
@@ -151,12 +151,12 @@ export function ColumnHeader({
           <DM.Item onSelect={onFill} disabled={running || empty === 0} className={item}>
             <Sparkles className="size-3.5 text-fg-3" />
             <span className="flex-1">{empty ? `Ask ${empty} without an answer` : "Every visible company has an answer"}</span>
-            {empty > 0 && fillUsd !== null && <span className="font-mono text-[11.5px] tnum text-fg-3">≈{costLabel(fillUsd)}</span>}
+            {empty > 0 && fillUsd !== null && <span className="font-mono text-[12px] tnum text-fg-3">≈{costLabel(fillUsd)}</span>}
           </DM.Item>
           <DM.Item onSelect={onAskAll} disabled={running || visible === 0} className={item}>
             <RotateCw className="size-3.5 text-fg-3" />
             <span className="flex-1">Ask all {visible} again</span>
-            {againUsd !== null && <span className="font-mono text-[11.5px] tnum text-fg-3">≈{costLabel(againUsd)}</span>}
+            {againUsd !== null && <span className="font-mono text-[12px] tnum text-fg-3">≈{costLabel(againUsd)}</span>}
           </DM.Item>
           <DM.Item onSelect={onEdit} className={item}>
             <Pencil className="size-3.5 text-fg-3" />

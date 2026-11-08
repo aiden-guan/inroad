@@ -7,10 +7,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActiveRuns, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { LoadingSignal } from "@/components/ui/loading";
+import { PageContainer } from "@/components/ui/page-header";
+import { PageState } from "@/components/ui/page-state";
 import { cn } from "@/lib/client/cn";
 import { isConsumer } from "@/lib/consumer/market";
 import type { Action } from "@/lib/domain/actions";
@@ -44,15 +45,7 @@ export function TodayView() {
   if (!ws) {
     return error ? (
       <Column>
-        <EmptyState
-          title="Couldn't load your workspace"
-          body={`${error} Your data is still on this machine.`}
-          action={
-            <Button variant="primary" onClick={() => void refresh()}>
-              Try again
-            </Button>
-          }
-        />
+        <PageState kind="error" title="Couldn't load your workspace" body="Your data is still on this machine." detail={error} onRetry={refresh} />
       </Column>
     ) : (
       <TodaySkeleton />
@@ -62,7 +55,7 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("page-shell", className)}>{children}</div>;
+  return <PageContainer className={className}>{children}</PageContainer>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -633,7 +626,7 @@ export function Today({ ws }: { ws: Workspace }) {
                 <div className={cn(dayOne && "mt-6")}>
                   <SectionLabel
                     right={
-                      <span className="flex items-center gap-3 font-mono text-[11.5px] tnum text-fg-3">
+                      <span className="flex items-center gap-3 font-mono text-[12px] tnum text-fg-3">
                         {progress.done > 0 && (
                           <span className="hidden items-center gap-2 sm:flex" title={progressLine(progress)}>
                             <span
@@ -660,7 +653,7 @@ export function Today({ ws }: { ws: Workspace }) {
                   {overdue.length > 0 && (
                     <div className="mt-6">
                       <SectionLabel>
-                        <span className="text-danger">Overdue</span> <span className="font-mono text-[11.5px] tnum text-fg-3">({overdue.length})</span>
+                        <span className="text-danger">Overdue</span> <span className="font-mono text-[12px] tnum text-fg-3">({overdue.length})</span>
                       </SectionLabel>
                       {list(overdue, top.length)}
                     </div>

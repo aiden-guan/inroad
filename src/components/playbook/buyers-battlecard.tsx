@@ -77,7 +77,7 @@ function BattlecardDraft({ card }: { card: VoiceBattlecard }) {
         <AiBadge />
         <span className="text-[13px] font-medium text-fg">Battlecard: {card.subject}</span>
         {!saved && <DraftLabel />}
-        <span className="ml-auto font-mono text-[11px] tnum text-fg-3">
+        <span className="ml-auto font-mono text-[12px] tnum text-fg-3">
           {plural(quotes.length, "quote")} · {plural(claims.length, "claim")} · {shortDate(card.at)}
           {card.costUsd !== undefined && ` · ${usd(card.costUsd)}`}
         </span>

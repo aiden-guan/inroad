@@ -89,7 +89,7 @@ export function PlacePicker({ value, onPick, placeholder = "City or venue addres
           }}
           className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-3"
         />
-        {searching && <span className="shimmer-text shrink-0 text-[11px]">Searching</span>}
+        {searching && <span className="shimmer-text shrink-0 text-[12px]">Searching</span>}
       </div>
       {open && q.trim().length >= 2 && (results.length > 0 || !searching) && (
         <ul
@@ -107,7 +107,7 @@ export function PlacePicker({ value, onPick, placeholder = "City or venue addres
               >
                 {r.precision === "address" ? <Building2 className="size-3.5 shrink-0 text-fg-3" aria-hidden /> : <MapPin className="size-3.5 shrink-0 text-fg-3" aria-hidden />}
                 <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                <span className="shrink-0 text-[11px] text-fg-4">{r.precision === "address" ? "Venue" : "City"}</span>
+                <span className="shrink-0 text-[12px] text-fg-4">{r.precision === "address" ? "Venue" : "City"}</span>
               </button>
             </li>
           ))}

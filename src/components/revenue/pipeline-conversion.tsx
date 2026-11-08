@@ -109,7 +109,7 @@ export function PipelineConversion() {
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[700px] text-left text-[13px]">
             <caption className="sr-only">What happened to deals first recorded in each stage over the last 90 calendar days</caption>
-            <thead className="border-b border-border text-[11px] text-fg-3">
+            <thead className="border-b border-border text-[12px] text-fg-3">
               <tr>
                 {["Entered stage", "Entered", "Moved forward", "Lost first", "To nurture", "Unresolved", "Forward / decided", "Median to move"].map((label, i) => (
                   <th key={label} scope="col" className={`px-4 py-3 font-medium ${i ? "text-right" : ""}`}>
@@ -130,13 +130,13 @@ export function PipelineConversion() {
                   <td className="px-4 py-3 text-right font-mono">{r.nurtured}</td>
                   <td className="px-4 py-3 text-right font-mono">
                     {r.waiting}
-                    {r.unknown > 0 && <span className="block font-sans text-[11px] text-fg-3">+ {r.unknown} undated</span>}
+                    {r.unknown > 0 && <span className="block font-sans text-[12px] text-fg-3">+ {r.unknown} undated</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="font-mono">
                       {r.advanced}/{r.decided}
                     </span>
-                    {r.conversion !== null && <span className="block text-[11px] text-fg-3">{pct(r)}</span>}
+                    {r.conversion !== null && <span className="block text-[12px] text-fg-3">{pct(r)}</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{median(r)}</td>
                 </tr>

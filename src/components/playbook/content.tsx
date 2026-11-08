@@ -39,7 +39,7 @@ export function QuestionFinder({ onPick }: { onPick: (brief: string) => void }) 
         <Button size="sm" variant="ghost" icon={<Search className="size-3.5" />} loading={found.status === "loading"} onClick={() => void find()}>
           Find questions on Hacker News
         </Button>
-        <span className="font-mono text-[11.5px] text-fg-3">{found.status === "error" ? "Hacker News didn't answer. Try again in a minute." : "free · no AI"}</span>
+        <span className="font-mono text-[12px] text-fg-3">{found.status === "error" ? "Hacker News didn't answer. Try again in a minute." : "free · no AI"}</span>
       </div>
     );
   }
@@ -68,7 +68,7 @@ export function QuestionFinder({ onPick }: { onPick: (brief: string) => void }) 
                 <ExternalLink className="size-3 shrink-0 self-center text-fg-3 group-hover:text-fg" aria-hidden />
               </a>
               {q.text && <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-[18px] text-fg-2 [overflow-wrap:anywhere]">{q.text}</p>}
-              <p className="mt-0.5 font-mono text-[11px] text-fg-3">
+              <p className="mt-0.5 font-mono text-[12px] text-fg-3">
                 {q.kind === "ask_hn" ? "Ask HN" : "Comment"} · {shortDate(q.createdAt)}
                 {q.author && ` · ${q.author}`}
               </p>

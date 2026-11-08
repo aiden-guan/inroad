@@ -57,7 +57,7 @@ export function Customers({ ws, today, onOpen, onTalking }: { ws: Workspace; tod
   return (
     <div className="pb-16">
       <AnimatePresence initial={false}>{asking && ws.accounts[asking] && <ReferralAsk key={asking} ws={ws} domain={asking} onClose={closeAsk} />}</AnimatePresence>
-      <div className={cn("hidden h-8 items-center gap-3 border-b border-border px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
+      <div className={cn("hidden h-8 items-center gap-3 border-b border-border px-3 text-[12px] font-medium text-fg-3 md:grid", GRID)}>
         <span>Company</span>
         <span>Customer since</span>
         <span>Champion</span>
@@ -88,7 +88,7 @@ export function Customers({ ws, today, onOpen, onTalking }: { ws: Workspace; tod
               <span className="text-[12.5px] text-fg-2">
                 <span className="font-mono text-[12px]">{shortDate(wonAt)}</span>
                 <span className="text-fg-3"> · {days < 1 ? "today" : plural(days, "day")}</span>
-                {live && <span className="block text-[11.5px] text-fg-3 md:inline"> · live {shortDate(live)}</span>}
+                {live && <span className="block text-[12px] text-fg-3 md:inline"> · live {shortDate(live)}</span>}
               </span>
               <span className={cn("hidden truncate text-[12.5px] md:block", champ.status === "none" ? "text-fg-4" : "text-fg-2")}>
                 {champ.status === "none" ? "No champion named" : champ.name ?? "Named"}

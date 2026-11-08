@@ -3,12 +3,13 @@ import { useNow } from "@/components/integrations/use-hub";
 import { BellRing, CalendarClock, Radar, RotateCcw, UserRoundCog } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/field";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { relativeTime } from "@/lib/client/format";
 import type { Monitor } from "@/lib/automation/types";
-import { controlClass, type AutomationController } from "./use-automation";
+import { type AutomationController } from "./use-automation";
 
 type Kind = Monitor["kind"];
 const KIND_LABEL: Record<Kind, string> = { topic: "Web search topic", page: "One public page", intent: "People asking for it" };
@@ -130,13 +131,13 @@ export function MonitorsPanel({ automation, initialQuery, onIntent }: { automati
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-[12px] text-fg-2">
             Recipe
-            <select aria-label="Monitor recipe" className={controlClass} value={kind === "intent" ? "intent" : recipe} onChange={(e) => chooseRecipe(e.target.value as Monitor["recipe"] | "intent")}>
+            <Select aria-label="Monitor recipe" className="w-full" value={kind === "intent" ? "intent" : recipe} onChange={(e) => chooseRecipe(e.target.value as Monitor["recipe"] | "intent")}>
               <option value="custom">Custom monitor</option>
               {(!hasIntent || kind === "intent") && <option value="intent">People asking for it</option>}
               <option value="leadership">Leadership changes</option>
               <option value="revival">Dormant-deal revival</option>
               <option value="meeting">Meeting preparation</option>
-            </select>
+            </Select>
           </label>
           <label className="text-[12px] text-fg-2">
             Monitor name
@@ -144,20 +145,20 @@ export function MonitorsPanel({ automation, initialQuery, onIntent }: { automati
           </label>
           <label className="text-[12px] text-fg-2">
             Watch
-            <select aria-label="Monitor type" className={controlClass} value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+            <Select aria-label="Monitor type" className="w-full" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
               <option value="topic">{KIND_LABEL.topic}</option>
               <option value="page">{KIND_LABEL.page}</option>
               {(!hasIntent || kind === "intent") && <option value="intent">{KIND_LABEL.intent}</option>}
-            </select>
+            </Select>
           </label>
           <label className="text-[12px] text-fg-2">
             Check every
-            <select aria-label="Monitor schedule" className={controlClass} value={interval} onChange={(e) => setInterval(e.target.value)}>
+            <Select aria-label="Monitor schedule" className="w-full" value={interval} onChange={(e) => setInterval(e.target.value)}>
               <option value="60">Hour</option>
               <option value="360">6 hours</option>
               <option value="1440">Day</option>
               <option value="10080">Week</option>
-            </select>
+            </Select>
           </label>
           {kind === "intent" ? (
             <p className="text-[12.5px] leading-[19px] text-fg-2 sm:col-span-2">
@@ -283,7 +284,7 @@ export function MonitorsPanel({ automation, initialQuery, onIntent }: { automati
                 </Button>
               </div>
             </div>
-            <p className="mt-3 text-[11px] text-fg-3">
+            <p className="mt-3 text-[12px] text-fg-3">
               {monitor.lastRunAt ? `Last checked ${relativeTime(monitor.lastRunAt)}` : "Waiting for the first check"} ·{" "}
               {monitor.enabled ? `Next ${new Date(monitor.nextRunAt).toLocaleString()}` : "Schedule paused"}
               {monitor.leaseUntil && now !== null && Date.parse(monitor.leaseUntil) > now ? " · Checking…" : ""}
@@ -304,7 +305,7 @@ export function MonitorsPanel({ automation, initialQuery, onIntent }: { automati
           return (
             <article key={observation.id} className={`rounded-lg p-4 ring-1 ring-inset ring-border ${observation.read ? "bg-bg-subtle" : "bg-surface"}`}>
               <h3 className="text-[14px] font-medium">{observation.title}</h3>
-              <p className="mt-1 text-[11px] text-fg-3">{new Date(observation.at).toLocaleString()}</p>
+              <p className="mt-1 text-[12px] text-fg-3">{new Date(observation.at).toLocaleString()}</p>
               <p className="mt-2 text-[13px] leading-6 text-fg-2 [overflow-wrap:anywhere]">{observation.summary}</p>
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 {observation.urls.map((url) => (

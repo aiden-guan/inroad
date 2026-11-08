@@ -60,7 +60,7 @@ export function KeyConnect({ id, onConnected, onCancel }: { id: NativeConnectorI
             <p className="mb-1.5 text-[12px] text-fg-3">Scopes it needs</p>
             <div className="flex flex-wrap gap-1.5">
               {meta.scopes.map((s) => (
-                <code key={s} className="rounded-xs bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-fg-2 ring-1 ring-border">
+                <code key={s} className="rounded-xs bg-bg-subtle px-1.5 py-0.5 font-mono text-[12px] text-fg-2 ring-1 ring-border">
                   {s}
                 </code>
               ))}

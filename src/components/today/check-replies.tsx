@@ -223,7 +223,7 @@ export function CheckReplies({
                   <p className={cn("truncate text-[13.5px] font-medium", m ? "text-fg-2" : "text-fg")}>
                     {row.name} <span className="font-normal text-fg-3">· {row.company}</span>
                   </p>
-                  <p className="truncate font-mono text-[11.5px] text-fg-3">
+                  <p className="truncate font-mono text-[12px] text-fg-3">
                     {row.lastLabel} {ago(row.lastAt, new Date(now))}
                     {row.awaitingTime && <span className="font-sans text-fg-2"> · said yes, no time yet</span>}
                     {row.email ? ` · ${row.email}` : " · no email"}
@@ -324,7 +324,7 @@ function RowButton({ k, label, onClick }: { k: string; label: string; onClick: (
       }}
       className="inline-flex h-7 items-center gap-1.5 rounded-sm px-1.5 text-[12px] text-fg-2 transition-[background-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.97]"
     >
-      <Kbd className="hidden h-4 min-w-4 text-[10px] md:pointer-fine:inline-flex">{k}</Kbd>
+      <Kbd className="hidden md:pointer-fine:inline-flex">{k}</Kbd>
       <span>{label}</span>
     </button>
   );

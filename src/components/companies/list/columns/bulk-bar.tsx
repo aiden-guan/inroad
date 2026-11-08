@@ -92,7 +92,7 @@ export function BulkBar({
             <Button size="sm" variant="ghost" icon={<Download className="size-3.5" />} onClick={onExport}>
               <span className="hidden sm:inline">Export </span>CSV
             </Button>
-            <span className="hidden items-center gap-1 px-1 text-[11px] text-fg-3 md:pointer-fine:flex">
+            <span className="hidden items-center gap-1 px-1 text-[12px] text-fg-3 md:pointer-fine:flex">
               <Kbd>Esc</Kbd>
             </span>
             <IconButton label="Clear selection (Esc)" onClick={onClear}>

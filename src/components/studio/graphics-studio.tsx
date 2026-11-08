@@ -3,6 +3,7 @@
 import { ArrowLeft, ImageIcon, PenLine } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/misc";
 import type { StudioOption, StudioPiece, Workspace } from "@/lib/domain/types";
@@ -17,8 +18,6 @@ function message(piece: StudioPiece, option: StudioOption) {
   return part ? option.parts[part.key].trim() : "";
 }
 
-const selectClass =
-  "h-10 w-full min-w-0 rounded-md bg-surface px-3 text-[13px] text-fg ring-1 ring-border-strong/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]";
 
 /** The existing design harness, with a visible entry point and the message it designs around. */
 export function GraphicsStudio({
@@ -72,35 +71,35 @@ export function GraphicsStudio({
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
           <aside aria-label="Message for the graphic" className="min-w-0 rounded-lg bg-surface p-5 ring-1 ring-border">
             <Label htmlFor="graphics-piece">Saved piece</Label>
-            <select
+            <Select
               id="graphics-piece"
               value={piece.id}
               onChange={(event) => {
                 const next = pieces.find((piece) => piece.id === event.target.value)!;
                 onSelect(next.id, next.options.find((option) => message(next, option))!.id);
               }}
-              className={selectClass}
+              className="h-10 w-full"
             >
               {pieces.map((piece) => (
                 <option key={piece.id} value={piece.id}>
                   {piece.title || FORMATS[piece.format].label}
                 </option>
               ))}
-            </select>
+            </Select>
             <div className="mt-4">
               <Label htmlFor="graphics-message">Message</Label>
-              <select
+              <Select
                 id="graphics-message"
                 value={option.id}
                 onChange={(event) => onSelect(piece.id, event.target.value)}
-                className={selectClass}
+                className="h-10 w-full"
               >
                 {options.map((option, index) => (
                   <option key={option.id} value={option.id}>
                     {index + 1}. {message(piece, option).slice(0, 120)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <p className="mt-5 font-serif text-[23px] leading-8 text-fg">
               {message(piece, option)}

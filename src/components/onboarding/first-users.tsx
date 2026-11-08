@@ -35,7 +35,7 @@ function PartnerRow({ p, i }: { p: Partner; i: number }) {
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <span className="truncate text-[14px] font-medium text-fg">{p.name}</span>
-          <span className="truncate font-mono text-[11.5px] text-fg-3">
+          <span className="truncate font-mono text-[12px] text-fg-3">
             {[PARTNER_KIND_LABELS[p.kind], p.platform ? PLATFORM_LABELS[p.platform] : null, p.handle].filter(Boolean).join(" · ")}
           </span>
         </p>
@@ -135,7 +135,7 @@ export function FirstUsers({ ws, onLeave }: { ws: Workspace; onLeave: () => void
               <span className="text-fg-3">Your starting plan: </span>
               {f.icp.hypothesis.sentence}
             </p>
-            <p className="mt-2 font-mono text-[11px] leading-4 text-fg-3">
+            <p className="mt-2 font-mono text-[12px] leading-4 text-fg-3">
               {provenance}
             </p>
           </div>

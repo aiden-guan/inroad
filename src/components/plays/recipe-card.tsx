@@ -104,7 +104,7 @@ function MultiPick<T extends string>({ values, options, label, onToggle, add, ti
       {options.map((o) => (
         <MenuCheckItem key={o} checked={values.includes(o)} onCheckedChange={(on) => onToggle(o, on)}>
           <span className="block">{label(o)}</span>
-          {hint?.(o) && <span className="block text-[11.5px] leading-4 text-fg-3">{hint(o)}</span>}
+          {hint?.(o) && <span className="block text-[12px] leading-4 text-fg-3">{hint(o)}</span>}
         </MenuCheckItem>
       ))}
     </Menu>
@@ -150,7 +150,7 @@ function Words({ words, onChange, add, title }: { words: string[]; onChange: (ne
               {title}
               <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="billing, revops" className="mt-1.5 h-8" />
             </label>
-            <p className="text-[11.5px] leading-4 text-fg-3">Matched from the start of a word, so “reconcil” also finds “reconciliation”.</p>
+            <p className="text-[12px] leading-4 text-fg-3">Matched from the start of a word, so “reconcil” also finds “reconciliation”.</p>
           </form>
         </Popover>
       )}

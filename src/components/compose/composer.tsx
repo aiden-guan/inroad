@@ -454,7 +454,7 @@ function DraftBody({
                 </span>
               </>
             )}
-            {pf.to && pkg.mode !== "linkedin" && pkg.mode !== "warm_intro" && <span className="max-w-full truncate font-mono text-[11.5px] text-fg-3">{pf.to}</span>}
+            {pf.to && pkg.mode !== "linkedin" && pkg.mode !== "warm_intro" && <span className="max-w-full truncate font-mono text-[12px] text-fg-3">{pf.to}</span>}
             {step.sendOn && editable && step.step > 1 && <Badge tone="outline">due {shortDate(step.sendOn)}</Badge>}
             {pushed && <Badge tone="neutral">In {sequencer?.label}</Badge>}
           </div>
@@ -474,19 +474,19 @@ function DraftBody({
           {/* Warm intro: the note to the connector first */}
           {pkg.mode === "warm_intro" && pkg.intro && (
             <div className="mt-3">
-              <p className="mb-1 text-[11.5px] font-medium text-fg-3">To {pkg.intro.connectorName || "your connector"}</p>
+              <p className="mb-1 text-[12px] font-medium text-fg-3">To {pkg.intro.connectorName || "your connector"}</p>
               {editable && <ConnectorAdvice ws={ws} connectorId={pkg.connectorId} />}
               <div className={cn(ink ? "text-fg" : "text-fg-2")}>
                 <SpanEditor value={wrapper} onChange={(v) => edit({ wrapper: v })} onBlur={() => void flush()} spans={[]} readOnly={locked} ariaLabel="Note to the connector" />
               </div>
-              <p className="mt-3 mb-1 text-[11.5px] font-medium text-fg-3">The note they can forward</p>
+              <p className="mt-3 mb-1 text-[12px] font-medium text-fg-3">The note they can forward</p>
             </div>
           )}
 
           {/* LinkedIn: invite note, or the recommendation to send none */}
           {pkg.mode === "linkedin" && pkg.linkedin && (
             <div className="mt-3">
-              <p className="mb-1 text-[11.5px] font-medium text-fg-3">
+              <p className="mb-1 text-[12px] font-medium text-fg-3">
                 Connection request
                 {invite && <span className="font-normal text-fg-4"> · Invite sent {shortDate(invite.at)}</span>}
               </p>
@@ -494,7 +494,7 @@ function DraftBody({
                 <div className={cn(ink ? "text-fg" : "text-fg-2")}>
                   <SpanEditor value={note ?? ""} onChange={(v) => edit({ note: v })} onBlur={() => void flush()} spans={[]} readOnly={locked || Boolean(invite)} ariaLabel="Connection note" placeholder="A short note, no pitch." />
                   {!invite && (
-                    <div className="mt-1 flex items-center justify-between text-[11.5px]">
+                    <div className="mt-1 flex items-center justify-between text-[12px]">
                       <button
                         type="button"
                         onClick={() => {
@@ -524,7 +524,7 @@ function DraftBody({
                   )}
                 </div>
               ) : null}
-              <p className="mt-4 mb-1 text-[11.5px] font-medium text-fg-3">After they accept (wait a day)</p>
+              <p className="mt-4 mb-1 text-[12px] font-medium text-fg-3">After they accept (wait a day)</p>
             </div>
           )}
 
@@ -587,7 +587,7 @@ function DraftBody({
               {so && <p className={cn("text-[15px] leading-6", ink ? "text-fg" : "text-fg-2")}>{so}</p>}
               {pf.footer && <p className="mt-2 text-[12.5px] leading-[19px] whitespace-pre-line text-fg-3">{pf.footer}</p>}
               {pf.footer && (
-                <p className="mt-1.5 text-[11px] text-fg-4">
+                <p className="mt-1.5 text-[12px] text-fg-4">
                   Footer added on send
                   {pf.jurisdiction.value === "US" ? " · CAN-SPAM" : pf.jurisdiction.value === "EU" || pf.jurisdiction.value === "UK" ? " · GDPR Art. 14" : pf.jurisdiction.value === "unknown" ? " · strictest wording, location unknown" : ""}
                 </p>

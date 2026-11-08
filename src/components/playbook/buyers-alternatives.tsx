@@ -82,7 +82,7 @@ function AltRow({ a, open, onToggle }: { a: VoiceAlternative; open: boolean; onT
     <li id={themeDomId(a.key)} className={cn("scroll-mt-28 rounded-lg bg-surface ring-1 ring-border transition-shadow duration-150", open && "shadow-sm ring-border-strong")}>
       <button type="button" data-row aria-expanded={open} onClick={onToggle} className="flex w-full items-start gap-3 rounded-lg px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
         <ChevronRight aria-hidden className={cn("mt-1 size-3.5 shrink-0 text-fg-4 transition-transform duration-150", open && "rotate-90")} />
-        {a.domain ? <Favicon domain={a.domain} name={a.name} size={18} className="mt-px" /> : <span aria-hidden className="mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] bg-bg-subtle font-mono text-[10px] text-fg-3 ring-1 ring-border">{a.name.charAt(0)}</span>}
+        {a.domain ? <Favicon domain={a.domain} name={a.name} size={18} className="mt-px" /> : <span aria-hidden className="mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] bg-bg-subtle font-mono text-[12px] text-fg-3 ring-1 ring-border">{a.name.charAt(0)}</span>}
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-[14.5px] font-medium leading-[21px] text-fg [overflow-wrap:anywhere]">{a.name}</span>

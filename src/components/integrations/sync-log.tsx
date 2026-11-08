@@ -15,7 +15,7 @@ export function SyncLog({ id, status, max = 4 }: { id: string; status: HubStatus
           <li key={e.id} className="flex items-baseline gap-2.5 text-[13px] leading-[19px]">
             <StatusDot tone={e.ok ? "on" : "error"} className="relative -top-px" />
             <span className={e.ok ? "min-w-0 flex-1 text-fg-2" : "min-w-0 flex-1 text-danger"}>{e.message}</span>
-            <span className="shrink-0 font-mono text-[11px] text-fg-3">
+            <span className="shrink-0 font-mono text-[12px] text-fg-3">
               <Ago iso={e.at} />
             </span>
           </li>

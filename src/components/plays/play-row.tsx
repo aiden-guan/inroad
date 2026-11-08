@@ -38,7 +38,7 @@ const BULK = 3;
 /** The column heads, on screens wide enough for columns. */
 export function RowHeads() {
   return (
-    <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_132px_56px_118px] gap-x-4 px-5 pb-2 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-fg-3 sm:grid lg:grid-cols-[minmax(0,1fr)_132px_56px_minmax(0,190px)_118px]">
+    <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_132px_56px_118px] gap-x-4 px-5 pb-2 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fg-3 sm:grid lg:grid-cols-[minmax(0,1fr)_132px_56px_minmax(0,190px)_118px]">
       <span>Play</span>
       <span>Family</span>
       <span className="text-right">Live</span>

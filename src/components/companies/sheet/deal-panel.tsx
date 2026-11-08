@@ -7,7 +7,8 @@ import { useRunFor, useRuns } from "@/components/providers/runs-provider";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select } from "@/components/ui/field";
+import { Input, Label } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { CopyButton, Markdown, Segmented } from "@/components/ui/misc";
 import { WorkLog } from "@/components/ui/work-log";
@@ -506,7 +507,7 @@ function Tasks({ deal, today }: { deal: Deal; today: string }) {
               <input type="checkbox" checked={t.done} onChange={() => void write(tasks.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)))} aria-label={t.what} className="mt-[3px] accent-[var(--fg)]" />
               <span className={cn("min-w-0 flex-1", t.done ? "text-fg-3 line-through" : "text-fg")}>{t.what}</span>
               <span className="shrink-0 text-[12px] text-fg-3">{t.owner === "buyer" ? "Them" : "You"}</span>
-              {t.due && <span className={cn("shrink-0 font-mono text-[11.5px]", overdue ? "text-danger" : "text-fg-3")}>{shortDate(t.due)}</span>}
+              {t.due && <span className={cn("shrink-0 font-mono text-[12px]", overdue ? "text-danger" : "text-fg-3")}>{shortDate(t.due)}</span>}
             </li>
           );
         })}
@@ -740,7 +741,7 @@ function Pricing({ deal, today }: { deal: Deal; today: string }) {
             {quotes.map((q, i) => (
               <li key={i} className="flex items-center gap-3">
                 <span className="font-mono tnum text-fg">{money(q.amountUsd)}</span>
-                <span className="font-mono text-[11.5px] text-fg-3">{shortDate(q.at)}</span>
+                <span className="font-mono text-[12px] text-fg-3">{shortDate(q.at)}</span>
                 {q.outcome && <Badge tone={q.outcome === "accepted" ? "success" : q.outcome === "lost" ? "danger" : "warning"}>{q.outcome}</Badge>}
               </li>
             ))}

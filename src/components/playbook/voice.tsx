@@ -73,7 +73,7 @@ function VoiceCardBlock() {
       <div className="mt-7">
         <div className="mb-2 flex items-baseline justify-between">
           <FieldLabel className="mb-0">Samples</FieldLabel>
-          <span className="font-mono text-[11.5px] tnum text-fg-3">{samples.length} of 5</span>
+          <span className="font-mono text-[12px] tnum text-fg-3">{samples.length} of 5</span>
         </div>
         {samples.length > 0 && (
           <ul className="mb-3 space-y-2">
@@ -249,7 +249,7 @@ function LearnedTraits() {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-mono text-[11.5px] tnum text-fg-3">
+        <p className="font-mono text-[12px] tnum text-fg-3">
           {traits.avgSentenceWords ? `~${traits.avgSentenceWords} words a sentence · ` : ""}
           {plural(edits, "edit")} kept · re-read every {EXTRACT_EVERY_EDITS} edits and every 3rd sample
         </p>
@@ -320,7 +320,7 @@ function PovBank() {
                 <div className="min-w-0 flex-1">
                   <Editable value={pov.text} label="point of view" multiline maxWords={POV_MAX} onSave={(v) => void dispatch({ type: "pov.upsert", pov: { ...pov, text: v } })} className="text-[15px] font-medium leading-[23px] text-fg" />
                   <Editable value={pov.evidence} label="evidence" maxWords={EVIDENCE_MAX} onSave={(v) => void dispatch({ type: "pov.upsert", pov: { ...pov, evidence: v } })} className="mt-0.5 text-[13px] leading-5 text-fg-3" />
-                  <p className="mt-1 font-mono text-[11px] tnum text-fg-3">{pov.uses ? `used in ${plural(pov.uses, "draft")}` : "not used yet"}</p>
+                  <p className="mt-1 font-mono text-[12px] tnum text-fg-3">{pov.uses ? `used in ${plural(pov.uses, "draft")}` : "not used yet"}</p>
                 </div>
                 <RemoveButton
                   label="Remove point of view"

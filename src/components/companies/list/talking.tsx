@@ -154,7 +154,7 @@ export function Talking({
             )}
           >
             {c ? STAGE_LABELS[c] : "Open"}
-            {c && <span className="ml-1 font-mono text-[11px] tnum text-fg-3">{counts[c]}</span>}
+            {c && <span className="ml-1 font-mono text-[12px] tnum text-fg-3">{counts[c]}</span>}
           </button>
         ))}
       </div>
@@ -260,7 +260,7 @@ export function Talking({
               >
                 <header className="flex h-8 items-center justify-between px-2">
                   <span className="text-[12px] font-medium text-fg-2">{STAGE_LABELS[stage]}</span>
-                  <span className="font-mono text-[11px] tnum text-fg-3">
+                  <span className="font-mono text-[12px] tnum text-fg-3">
                     {cards.length}
                     {value > 0 && ` · ${money(value)}`}
                   </span>
@@ -388,7 +388,7 @@ function NextStep({ deal, today, compact }: { deal: Deal; today: string; compact
     <span className={cn("flex min-w-0 items-center gap-1.5 text-[12px]", state === "overdue" ? "text-danger" : "text-fg-2")}>
       {state === "overdue" && <span className="size-1.5 shrink-0 rounded-full bg-current" />}
       <span className={cn("min-w-0", compact ? "truncate" : "line-clamp-2")}>{deal.nextStep!.what}</span>
-      <span className={cn("shrink-0 font-mono text-[11px]", state === "overdue" ? "text-danger" : "text-fg-3")}>
+      <span className={cn("shrink-0 font-mono text-[12px]", state === "overdue" ? "text-danger" : "text-fg-3")}>
         {state === "overdue" ? "was " : ""}
         {shortDate(deal.nextStep!.date)}
       </span>
@@ -456,7 +456,7 @@ function DealCard({
       <div className="mt-1.5">
         <NextStep deal={deal} today={today} />
       </div>
-      <div className="mt-2 flex items-center gap-2.5 text-[11.5px] text-fg-3">
+      <div className="mt-2 flex items-center gap-2.5 text-[12px] text-fg-3">
         <ChampionDot deal={deal} ws={ws} />
         <span>{plural(deal.contacts.length, "contact")}</span>
         <Tooltip content={`In ${STAGE_LABELS[deal.stage]} since ${shortDate(stageEnteredAt(deal))}`}>
@@ -517,7 +517,7 @@ function DealTable({
   const grid = "md:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_88px_76px_64px_28px] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_88px_76px_64px_84px_28px]";
   return (
     <div>
-      <div className={cn("hidden h-8 items-center gap-3 border-b border-border px-3 text-[11px] font-medium text-fg-3 md:grid", grid)}>
+      <div className={cn("hidden h-8 items-center gap-3 border-b border-border px-3 text-[12px] font-medium text-fg-3 md:grid", grid)}>
         <span>Company</span>
         <span>Next step</span>
         {columns.map((c) => (

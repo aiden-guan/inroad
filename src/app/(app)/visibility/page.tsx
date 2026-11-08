@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { SearchPerformance } from "@/components/visibility/search-performance";
 import { PageTransition } from "@/components/shell/page-transition";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { CitationMonitor } from "@/components/integrations/citation-monitor";
 
 export const metadata: Metadata = { title: "Search & AI" };
 
 export default function Page() {
-  return <PageTransition><div className="page-shell">
+  return <PageTransition><PageContainer>
     <PageHeader title="Search & AI" eyebrow="SEO & AEO" description="Track search visibility, the visits it brings, and the sessions that convert. Compare each source with its own previous period." />
     <div className="mt-8"><SearchPerformance /></div>
     <section className="rounded-xl bg-surface p-5 ring-1 ring-border">
@@ -20,5 +20,5 @@ export default function Page() {
       <p className="mt-4 text-[12px] leading-5 text-fg-3">Monid’s Ahrefs snapshots track its sampled citation index by platform and keep matching domain/country baselines. They are paid, on-demand reports. Review Google and Bing’s own AI reports using the links above.</p>
       <CitationMonitor />
     </section>
-  </div></PageTransition>;
+  </PageContainer></PageTransition>;
 }

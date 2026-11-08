@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select } from "@/components/ui/field";
+import { Input, Label } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { formatSearchMetric as formatMetric } from "@/lib/metrics/search-catalog";
 import { isResearchPending, PLATFORM_NAMES, type MonidPrice, type MonidReport, type ResearchInput } from "@/lib/monid/types";
 import { ExternalLink } from "./parts";
@@ -110,7 +111,7 @@ function ResearchResult({ report, previous }: { report: MonidReport; previous?: 
     {isResearchPending(report.status) && <p role="status" className="mt-3 text-[12px] text-fg-3">Checking this existing run every 5 seconds while this panel is open. Leaving the page does not stop the run.</p>}
     {report.error && <p role="alert" className="mt-3 text-[12px] leading-5 text-danger">{report.error}</p>}
     {report.status === "SUBMITTING" && <p className="mt-3 text-[12px] text-fg-3">Submission is recorded. If this persists after reloading, check Monid’s run history before submitting again.</p>}
-    {report.runId && <p className="mt-3 break-all font-mono text-[11px] text-fg-3">Monid run {report.runId}</p>}
+    {report.runId && <p className="mt-3 break-all font-mono text-[12px] text-fg-3">Monid run {report.runId}</p>}
     {report.creators && <div className="mt-4 space-y-3">{report.creators.length === 0 && <p className="text-[13px] text-fg-3">No public creator posts were returned for this query.</p>}{report.creators.map((creator) => <article key={creator.handle} className="border-t border-border pt-3"><a href={creator.profileUrl} target="_blank" rel="noreferrer" className="text-[13px] font-medium underline underline-offset-4">{creator.name ?? creator.handle} · @{creator.handle} ↗</a><p className="mt-1 text-[12px] text-fg-3">{creator.followers !== undefined && `${formatMetric(creator.followers)} followers · `}{creator.views !== undefined && `${formatMetric(creator.views)} post views`}{creator.likes !== undefined && ` · ${formatMetric(creator.likes)} likes`}</p>{creator.caption && <p className="mt-1 break-words text-[12px] leading-5 text-fg-2">{creator.caption}</p>}{creator.postUrl && <a href={creator.postUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[12px] underline">View source post ↗</a>}</article>)}</div>}
     {report.citations && <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[400px] text-left text-[12px] [&_th]:px-2 [&_td]:px-2"><caption className="pb-3 text-left text-fg-3">Ahrefs citation links and distinct cited pages. {previous ? `Previous matched snapshot: ${previous.reportDate}.` : "Save another snapshot with the same domain and country to compare."}</caption><thead><tr className="border-b border-border"><th scope="col" className="py-2">Platform</th><th scope="col" className="py-2 text-right">Citations</th><th scope="col" className="py-2 text-right">Pages</th>{previous && <th scope="col" className="py-2 text-right">Previous citations</th>}</tr></thead><tbody>{report.citations.map((row) => <tr key={row.platform} className="border-b border-border/50"><th scope="row" className="py-2 font-normal">{PLATFORM_NAMES[row.platform]}</th><td className="py-2 text-right font-mono">{formatMetric(row.citations)}</td><td className="py-2 text-right font-mono">{formatMetric(row.pages)}</td>{previous && <td className="py-2 text-right font-mono">{formatMetric(previous.citations?.find((r) => r.platform === row.platform)?.citations ?? null)}</td>}</tr>)}</tbody></table></div>}
   </details>;

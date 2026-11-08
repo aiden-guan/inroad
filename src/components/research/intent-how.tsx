@@ -170,7 +170,7 @@ export function IntentHow({ status, state, consumer }: { status: IntentStatus | 
             </p>
           )}
         </section>
-        <p className="text-[11.5px] text-fg-3">
+        <p className="text-[12px] text-fg-3">
           Inroad never posts or replies for you. It drafts; you post, as yourself, in the thread.
         </p>
       </div>

@@ -182,7 +182,7 @@ function Themes({ who, consumer }: { who: string; consumer: boolean }) {
       id="buyer-themes"
       title={consumer ? "What users say" : "What buyers say"}
       right={
-        <span className="hidden items-center gap-1 text-[11.5px] text-fg-3 md:inline-flex">
+        <span className="hidden items-center gap-1 text-[12px] text-fg-3 md:inline-flex">
           <Kbd>J</Kbd>
           <Kbd>K</Kbd> to move · <Kbd>↵</Kbd> to open
         </span>
@@ -348,7 +348,7 @@ function ThemeDetail({ t, consumer }: { t: VoiceTheme; consumer: boolean }) {
                 >
                   <Favicon domain={d.domain} name={d.name} size={14} />
                   <span className="truncate">{d.name}</span>
-                  <span className="shrink-0 font-mono text-[11px] text-fg-3">
+                  <span className="shrink-0 font-mono text-[12px] text-fg-3">
                     {STAGE_LABELS[d.stage]}
                     {d.amountUsd ? ` · ${money(d.amountUsd)}` : ""}
                   </span>

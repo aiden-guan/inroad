@@ -74,7 +74,7 @@ function EndpointRow({ w, onRefresh }: { w: OutboundWebhook; onRefresh: () => vo
             <span className="truncate text-[13px] font-medium text-fg">{w.label || hostOf(w.url)}</span>
             {w.paused && <Badge tone="danger">Paused</Badge>}
           </div>
-          <p className="mt-0.5 truncate font-mono text-[11px] text-fg-3" title={w.url}>
+          <p className="mt-0.5 truncate font-mono text-[12px] text-fg-3" title={w.url}>
             {w.url.replace(/^https?:\/\//, "")}
           </p>
           <p className="mt-0.5 text-[12px] text-fg-3">
@@ -302,7 +302,7 @@ export function OutboundPanel({ status, onRefresh }: { status: HubStatus | null;
                     {d.test ? " · test" : ""}
                     {!okd && d.error ? ` · ${d.error}` : ""}
                   </span>
-                  <span className="shrink-0 font-mono text-[11px] text-fg-3">
+                  <span className="shrink-0 font-mono text-[12px] text-fg-3">
                     <Ago iso={d.at} />
                   </span>
                 </li>
