@@ -1,6 +1,7 @@
 import path from "node:path";
 import { connection } from "next/server";
 import { z } from "zod";
+import { REASONING_EFFORTS } from "@/lib/ai/reasoning";
 import type { SettingsStatus } from "@/components/settings/types";
 import { activeProvider } from "@/lib/ai/client";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/providers";
@@ -59,6 +60,7 @@ const Body = z.object({
       key: z.string().max(500).optional(),
       baseUrl: z.string().max(300).optional(),
       model: Model.optional(),
+      reasoningEffort: z.enum(REASONING_EFFORTS).nullable().optional(),
       models: z.object({ strategist: Model.nullable(), operator: Model.nullable(), fast: Model.nullable() }).partial().optional(),
       prices: z.record(Model, Price.nullable()).optional(),
       refresh: z.boolean().optional(),

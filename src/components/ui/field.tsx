@@ -5,7 +5,7 @@ import { cn } from "@/lib/client/cn";
 
 /** The look every text field and select shares (select.tsx too). */
 export const fieldClass =
-  "min-w-0 w-full rounded-md bg-surface px-3 text-[13px] text-fg shadow-xs ring-1 ring-inset ring-border-strong/70 placeholder:text-fg-3 " +
+  "min-w-0 w-full rounded-md bg-surface px-3 text-[13px] text-fg ring-1 ring-inset ring-border-strong/70 placeholder:text-fg-3 " +
   "transition-[box-shadow,background-color] duration-150 ease-out-quad hover:ring-border-strong " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] aria-invalid:ring-danger/60 disabled:cursor-not-allowed disabled:opacity-60";
 

@@ -9,6 +9,7 @@ import type { ActiveProvider } from "./client";
 import { AgentError, type AgentErrorCode } from "./errors";
 import type { Source } from "./events";
 import { addUsage, emptyUsage, type Usage } from "./models";
+import { usesResponses, type ReasoningEffort } from "./reasoning";
 
 /**
  * One assistant turn on an OpenAI-compatible Chat Completions API (OpenAI, Gemini, Grok, Groq, OpenRouter,
@@ -343,11 +344,11 @@ function parseBody(raw: string): Json {
 const isQuota = (status: number, body: Json, raw: string) => status === 429 && /insufficient_quota|quota|credit|billing/i.test(`${errorCode(body)} ${raw}`);
 
 /** Opens the stream, retrying connection drops, rate limits and server errors (with Retry-After) before anything streamed. */
-async function openStream(provider: ActiveProvider, body: Json, signal?: AbortSignal): Promise<Response> {
+async function openStream(provider: ActiveProvider, body: Json, signal?: AbortSignal, endpoint = "chat/completions"): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     let res: Response;
     try {
-      res = await fetch(`${provider.baseUrl}/chat/completions`, {
+      res = await fetch(`${provider.baseUrl}/${endpoint}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -425,6 +426,79 @@ interface CallResult {
   finish: string | null;
   usage: Usage;
   model: string;
+  /** Native output, including encrypted reasoning, for continuation within this run. */
+  responseOutput?: Json[];
+}
+
+/** Per-run native replies, keyed by the content arrays the engine appends to its conversation. */
+export type ResponsesHistory = Map<unknown, Json[]>;
+
+function responseInput(messages: Msg[], saved: ResponsesHistory): Json[] {
+  const items: Json[] = [];
+  let pending: Msg[] = [];
+  const flush = () => {
+    for (const m of toChatMessages([], pending)) {
+      if (m.role === "tool") items.push({ type: "function_call_output", call_id: m.tool_call_id, output: m.content ?? "" });
+      else {
+        if (m.content) items.push({ role: m.role, content: m.content });
+        for (const call of m.tool_calls ?? []) items.push({ type: "function_call", call_id: call.id, name: call.function.name, arguments: call.function.arguments });
+      }
+    }
+    pending = [];
+  };
+  for (const m of messages) {
+    const native = m.role === "assistant" ? saved.get(m.content) : undefined;
+    if (native) { flush(); items.push(...native); }
+    else pending.push(m);
+  }
+  flush();
+  return items;
+}
+
+async function callResponsesOnce(provider: ActiveProvider, body: Json, hooks: TurnHooks, signal?: AbortSignal): Promise<CallResult> {
+  const res = await openStream(provider, body, signal, "responses");
+  let completed: Json | undefined;
+  let streamedText = "";
+  const calls = new Map<string, { name: string; chars: number }>();
+  for await (const event of events(res)) {
+    if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
+      streamedText += event.delta;
+      hooks.text(event.delta);
+    } else if (event.type === "response.reasoning_summary_text.delta" && typeof event.delta === "string") hooks.thinking(event.delta);
+    else if (event.type === "response.output_item.added") {
+      const item = event.item as Json | undefined;
+      if (item?.type === "function_call" && typeof item.name === "string") {
+        calls.set(String(item.id), { name: item.name, chars: 0 });
+        hooks.toolStart(item.name);
+      }
+    } else if (event.type === "response.function_call_arguments.delta") {
+      const call = calls.get(String(event.item_id));
+      if (call && typeof event.delta === "string") { call.chars += event.delta.length; hooks.toolInput(call.name, call.chars); }
+    } else if (event.type === "response.completed" || event.type === "response.incomplete") completed = event.response as Json;
+    else if (event.type === "response.failed" || event.type === "error") {
+      const error = ((event.response as Json | undefined)?.error ?? event.error ?? event) as Json;
+      const status = /rate_limit/.test(String(error.code)) ? 429 : /server_error/.test(String(error.code)) ? 500 : 400;
+      throw new ProviderHttpError(status, { error }, String(error.message ?? "The response failed."), res.headers.get("x-request-id") ?? undefined);
+    }
+  }
+  if (!completed) throw new AgentError(`${provider.name}'s response was interrupted. Try again.`, "network");
+  // Replay the native output instead of translating reasoning into text or dropping it between tools.
+  const output = (Array.isArray(completed.output) ? completed.output : []) as Json[];
+  const text = output.filter((item) => item.type === "message").flatMap((item) => (item.content ?? []) as Json[])
+    .filter((part) => part.type === "output_text").map((part) => String(part.text ?? "")).join("");
+  if (text && !streamedText) hooks.text(text);
+  const u = completed.usage as Json | undefined;
+  const cached = Number((u?.input_tokens_details as Json | undefined)?.cached_tokens ?? 0);
+  const refusal = output.some((item) => item.type === "message" && ((item.content ?? []) as Json[]).some((part) => part.type === "refusal"));
+  return {
+    text,
+    calls: output.filter((item) => item.type === "function_call").map((item) => ({ id: String(item.call_id), name: String(item.name), args: String(item.arguments ?? "{}") })),
+    finish: completed.status === "incomplete" ? "length" : refusal ? "content_filter" : "stop",
+    model: String(completed.model ?? body.model),
+    usage: u ? { ...emptyUsage(), inputTokens: Math.max(0, Number(u.input_tokens ?? 0) - cached), cacheReadTokens: cached, outputTokens: Number(u.output_tokens ?? 0) }
+      : { ...emptyUsage(), inputTokens: approx(JSON.stringify(body.input)), outputTokens: approx(JSON.stringify(output)) },
+    responseOutput: output,
+  };
 }
 
 /** Rough tokens for a provider that streams no usage: about four characters a token. */
@@ -548,7 +622,8 @@ export interface TurnInput {
   tools: ChatTool[];
   /** Web tool uses left in this run (shared across turns); the tool is offered while any remain. */
   web: { search: number; fetch: number };
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  effort?: ReasoningEffort;
+  responses?: ResponsesHistory;
   /** Sent only when the caller set an output cap; otherwise the model's own limit applies. */
   maxTokens?: number;
   seenSources: Set<string>;
@@ -579,6 +654,13 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
   let servedBy = model;
   let unpriced = false;
   const ck = compatKey(provider, model);
+  const responses = usesResponses(provider.id, model);
+  const savedResponses = input.responses ?? new Map();
+  const nativeOutput: Json[] = [];
+  const done = (stopReason: TurnOutput["stopReason"]): TurnOutput => {
+    if (responses) savedResponses.set(content, nativeOutput);
+    return { content: content as unknown as Anthropic.Beta.BetaContentBlock[], stopReason, usage, costUsd, unpriced, model: servedBy };
+  };
 
   for (let round = 0; round <= MAX_WEB_ROUNDS; round++) {
     const offerSearch = !!searchProvider && input.web.search > 0 && round < MAX_WEB_ROUNDS;
@@ -590,27 +672,30 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
     for (let attempt = 0; !result; attempt++) {
       const drop = dropped(ck);
       const sent = new Set<Optional>();
-      const body: Json = { model, messages: toChatMessages(input.system, history, idOf), stream: true };
-      if (tools.length) body.tools = tools;
-      if (provider.preset.caps.streamUsage && !drop.has("stream_options")) {
+      const body: Json = responses
+        ? { model, instructions: input.system.join("\n\n"), input: [...responseInput(input.messages, savedResponses), ...nativeOutput], stream: true, store: false }
+        : { model, messages: toChatMessages(input.system, history, idOf), stream: true };
+      if (tools.length) body.tools = responses ? tools.map((tool) => ({ type: "function", ...tool.function, strict: false })) : tools;
+      if (!responses && provider.preset.caps.streamUsage && !drop.has("stream_options")) {
         body.stream_options = { include_usage: true };
         sent.add("stream_options");
       }
       if (input.maxTokens && !drop.has("max_tokens")) {
         const param = drop.has("token_param") ? (provider.preset.caps.tokenParam === "max_tokens" ? "max_completion_tokens" : "max_tokens") : provider.preset.caps.tokenParam;
-        body[param] = input.maxTokens;
+        body[responses ? "max_output_tokens" : param] = input.maxTokens;
         sent.add("max_tokens");
       }
-      if (provider.preset.caps.reasoningEffort && input.effort && !drop.has("reasoning_effort")) {
-        body.reasoning_effort = input.effort === "low" ? "low" : input.effort === "medium" ? "medium" : "high";
+      if (provider.preset.caps.reasoningEffort && input.effort && (!drop.has("reasoning_effort") || provider.reasoningEffort)) {
+        if (responses) body.reasoning = { effort: input.effort, ...(input.effort !== "none" ? { summary: "auto" } : {}) };
+        else body.reasoning_effort = input.effort;
         sent.add("reasoning_effort");
       }
       try {
-        result = await callOnce(provider, body, hooks, signal);
+        result = responses ? await callResponsesOnce(provider, body, hooks, signal) : await callOnce(provider, body, hooks, signal);
       } catch (err) {
         if (signal?.aborted) throw new AgentError("Stopped.", "stopped");
-        if (err instanceof ProviderHttpError && (err.status === 400 || err.status === 422) && attempt < 3) {
-          const fix = droppable(err.message, sent).filter((f) => !drop.has(f));
+        if (!responses && err instanceof ProviderHttpError && (err.status === 400 || err.status === 422) && attempt < 3) {
+          const fix = droppable(err.message, sent).filter((f) => !drop.has(f) && !(f === "reasoning_effort" && provider.reasoningEffort));
           // A renamed cap that's rejected too goes away entirely.
           if (fix.includes("token_param") && drop.has("token_param")) fix.splice(fix.indexOf("token_param"), 1, "max_tokens");
           if (fix.length) {
@@ -631,6 +716,10 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
     if (!price) unpriced = true;
     if (price) costUsd += (result.usage.inputTokens * price.input + result.usage.cacheReadTokens * (price.cacheRead ?? price.input) + result.usage.outputTokens * price.output) / 1_000_000;
     if (result.text) content.push({ type: "text", text: result.text, citations: null });
+    if (result.responseOutput) nativeOutput.push(...result.responseOutput);
+    // Never run a tool whose arguments may have been cut off, even if its JSON happens to parse.
+    if (result.finish === "length") return done("max_tokens");
+    if (result.finish === "content_filter") return done("refusal");
 
     const web = result.calls.filter((c) => WEB_TOOLS.has(c.name) && (c.name === "web_search" ? offerSearch : offerFetch));
     const app = result.calls.filter((c) => !web.includes(c));
@@ -653,6 +742,7 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
         usage.webFetches++;
         content.push({ type: "web_fetch_tool_result", tool_use_id: id, content: await runFetch(String(args.url ?? "").trim(), hooks, signal) });
       }
+      if (responses) nativeOutput.push({ type: "function_call_output", call_id: c.id, output: webResultText(content[content.length - 1]) });
     }
     for (const c of app) {
       let parsed: unknown = {};
@@ -663,17 +753,9 @@ export async function runOpenAITurn(input: TurnInput): Promise<TurnOutput> {
       }
       content.push({ type: "tool_use", id: c.id, name: c.name, input: parsed });
     }
-    const done = (stopReason: TurnOutput["stopReason"]): TurnOutput => ({
-      content: content as unknown as Anthropic.Beta.BetaContentBlock[],
-      stopReason,
-      usage,
-      costUsd,
-      unpriced,
-      model: servedBy,
-    });
     if (app.length) return done("tool_use");
     if (web.length) continue;
-    return done(result.finish === "length" ? "max_tokens" : result.finish === "content_filter" ? "refusal" : "end_turn");
+    return done("end_turn");
   }
   return { content: content as unknown as Anthropic.Beta.BetaContentBlock[], stopReason: "end_turn", usage, costUsd, unpriced, model: servedBy };
 }

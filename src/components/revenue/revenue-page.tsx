@@ -92,7 +92,7 @@ export function RevenuePage() {
 
   if (!ws || !data || !period) {
     return error ? (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <EmptyState
           title="Couldn't load your workspace"
           body={`${error} Your data is still on this machine.`}
@@ -130,10 +130,10 @@ export function RevenuePage() {
   ];
 
   return (
-    <div className="page-shell max-w-[1080px]">
+    <div className="page-shell">
       <PageHeader
         title="Revenue"
-        eyebrow="The number"
+        eyebrow="Growth overview"
         description={
           f.hasTarget ? (
             <>

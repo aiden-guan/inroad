@@ -69,7 +69,7 @@ function EventRow({ ev, ws, index, animate, planningTitle }: { ev: GtmEvent; ws:
     <motion.li variants={listItem} initial={animate ? "hidden" : false} animate="show" custom={index}>
       <Link
         href={`/events/${ev.id}`}
-        className="group flex gap-6 rounded-xl bg-surface p-5 shadow-sm ring-1 ring-inset ring-border transition-[box-shadow,transform] duration-200 ease-out hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] active:scale-[0.995] md:p-6"
+        className="group flex gap-6 rounded-xl bg-surface p-5 ring-1 ring-inset ring-border transition-[background-color,box-shadow] duration-150 hover:bg-bg/60 hover:ring-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)] active:scale-[0.995] md:p-6"
       >
         <DateLeaf day={eventDay(ev)} />
         <div className="min-w-0 flex-1">

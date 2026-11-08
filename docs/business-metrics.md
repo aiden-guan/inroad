@@ -12,6 +12,14 @@ Consumer companies can also [track a waitlist from Convex, Supabase, Neon or ano
 
 PostHog's optional **Use an API key instead** accepts a personal key with `project:read` and `query:read`; it also discovers the region and projects. Existing personal-key connections keep working. New connections count all recorded activity from identified users by default. Existing activity filters are preserved.
 
+## Your Growth dashboard
+
+**Add cards** chooses individual figures: waitlist, each active-user window, revenue per currency, customers, and planning or review tools. **Edit dashboard** exposes drag handles and a card menu for moving earlier/later, compact/full width, or hiding a card. Mouse, touch and keyboard dragging are supported; on a handle, press Space, use arrow keys, and press Space to drop or Escape to cancel. Changes save to the workspace, including a deliberately empty dashboard, and survive reloads and backups. Hiding cards keeps their data and connections. The weekly log remains accessible from **Log last week**, even if its card was hidden.
+
+Each metric card identifies its source, period, freshness and counting definition. Charts show observed sync history, without inventing daily values between syncs. Waitlist source and target settings open from its card. **Sync all** refreshes connected waitlist and metric sources independently and reports failures while keeping successful figures.
+
+PostHog shows the numeric project ID and region beside **Change project** in Integrations. It lists accessible projects using the saved connection and imports the selected project before replacing settings. A project change starts a separate history; failed imports preserve the previous project and figures. If PostHog shows activity but Inroad shows zero, check that project first, then the event and identified-user preferences. Dashboard-specific PostHog filters (for example founder exclusions) are separate from Inroad's configured activity filter.
+
 ## How sync works
 
 - A full first import validates every permission the integration needs.
@@ -46,6 +54,7 @@ Non-secret settings live under `workspace.integrations`; aggregate snapshots liv
 - `POST /api/metrics/{posthog|stripe|polar}` — validate, import and save `{ key, config }`.
 - `POST /api/metrics/posthog/oauth` — start browser sign-in; `GET ?flowId=…` checks progress and `DELETE ?flowId=…` cancels it.
 - `POST /api/metrics/posthog/connect` — discover projects with a personal key or choose a named project after authorization.
+- `GET /api/metrics/posthog/projects` — list projects available to the saved connection, without exposing credentials.
 - `PATCH /api/metrics/{id}` — change optional preferences using saved credentials.
 - `DELETE /api/metrics/{id}` — forget credentials and disable the connection.
 - `POST /api/metrics/{id}/sync` — refresh one connected provider.

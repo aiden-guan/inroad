@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { BusinessMetrics } from "@/components/revenue/business-metrics";
 import { ReviewBody } from "@/components/today/review-panel";
 import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ import { LoadingSignal } from "@/components/ui/loading";
 import { EmptyState } from "@/components/ui/misc";
 import { useSwitchMarket } from "@/components/shell/market-switch";
 import { PageHeader } from "@/components/ui/page-header";
-import { shortDate } from "@/lib/client/format";
 import { goalPace, hasLoggedLastWeek, readGrowth } from "@/lib/consumer/growth";
 import { isConsumer } from "@/lib/consumer/market";
 import { consumerChannelPlan } from "@/lib/consumer/plan";
@@ -23,7 +21,7 @@ import { localDate } from "@/lib/moves/util";
 import { GrowthHero } from "./growth-hero";
 import { Numbers } from "./numbers";
 import { WhatItTakes, Working } from "./plan";
-import { WaitlistCard } from "./waitlist";
+import { GrowthDashboard } from "./dashboard";
 import { GtmInitiatives } from "@/components/gtm/initiatives";
 
 /**
@@ -49,8 +47,6 @@ export function GrowthPage() {
     return { g, pace: goalPace(ws, today), funnel, talks, weekStart };
   }, [ws, today]);
 
-  // Nothing logged yet: the form is the page's first job.
-  const empty = !!data && !data.g.latest && !ws?.waitlist;
   // Opening the form (the header button, `?log=1`) brings it into view once, not on every workspace refresh after.
   const ready = !!data;
   useEffect(() => {
@@ -61,7 +57,7 @@ export function GrowthPage() {
 
   if (!ws || !data) {
     return error ? (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <EmptyState
           title="Couldn't load your workspace"
           body={`${error} Your data is still on this machine.`}
@@ -80,7 +76,7 @@ export function GrowthPage() {
   // A business's number is on Revenue. Growth says so, says how to switch, and shows nothing else.
   if (!isConsumer(ws)) {
     return (
-      <div className="page-shell max-w-[1080px]">
+      <div className="page-shell">
         <PageHeader title="Growth" eyebrow="The number" description="Growth reads a consumer company's weekly numbers: active users, retention and the pace to its goal." />
         <section aria-labelledby="growth-business-title" className="mt-8 max-w-[720px] rounded-xl bg-surface px-5 py-6 shadow-sm ring-1 ring-inset ring-border sm:px-7">
           <h2 id="growth-business-title" className="text-balance font-serif text-[21px] leading-[30px] text-fg">
@@ -110,50 +106,45 @@ export function GrowthPage() {
   }
   const { g, pace, funnel, talks, weekStart } = data;
   const logged = hasLoggedLastWeek(ws, today);
-  const waitlistFirst = !!ws.waitlist && !g.latest && !logging;
+  function startLogging() {
+    setLogging(true);
+    // Also brings an already open form back into view on a subsequent header click.
+    requestAnimationFrame(() => document.getElementById("numbers")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }
 
-  const productGrowth = <>
-      <BusinessMetrics mode="growth" />
-      <GrowthHero goal={ws.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />
-      <Numbers ws={ws} today={today} g={g} logging={logging || empty} onLogging={setLogging} />
-      <WhatItTakes ws={ws} g={g} pace={pace} funnel={funnel} talks={talks} />
-      <Working ws={ws} g={g} />
-
-      <section className="mt-12" aria-labelledby="review-label">
+  function renderSection(id: string) {
+    switch (id) {
+      case "goal": return <GrowthHero goal={ws!.goal} g={g} pace={pace} signupsPerWeek={funnel.signupsPerWeek} today={today} />;
+      case "weekly": return <Numbers ws={ws!} today={today} g={g} logging={logging} onLogging={setLogging} />;
+      case "priorities": return <GtmInitiatives />;
+      case "plan": return <WhatItTakes ws={ws!} g={g} pace={pace} funnel={funnel} talks={talks} />;
+      case "channels": return <Working ws={ws!} g={g} />;
+      case "review": return <section aria-labelledby="review-label">
         <SectionLabel>
           <span id="review-label">Monday growth review</span>
         </SectionLabel>
         <div className="rounded-xl bg-surface px-5 py-5 shadow-sm ring-1 ring-inset ring-border sm:px-7">
-          <ReviewBody ws={ws} kind="growth" weekStart={weekStart} />
+          <ReviewBody ws={ws!} kind="growth" weekStart={weekStart} />
         </div>
-      </section>
-  </>;
+      </section>;
+      default: return null;
+    }
+  }
 
   return (
-    <div className="page-shell max-w-[1080px]">
+    <div className="page-shell">
       <PageHeader
         title="Growth"
         eyebrow="The number"
-        description={
-          waitlistFirst ? "Your waitlist total, progress and history, kept in sync with your signup database. Product growth is ready below for when you launch." : g.goal.current !== null ? (
-            <>
-              {ws.goal.target.toLocaleString("en-US")} {ws.goal.targetLabel} by {shortDate(ws.goal.byDate)}; <span className="font-mono tnum text-fg">{g.goal.current.toLocaleString("en-US")}</span> last week. Every
-              weekly number is counted from the weeks you log. Connected sources keep your active users and revenue up to date.
-            </>
-          ) : (
-            "Your waitlist, active users and revenue from connected sources, alongside your weekly growth goal, pace and retention readings."
-          )
-        }
+        description="Waitlist to active users to paying customers. Choose what matters, and keep it in view."
         actions={
-          <Button variant={logged ? "secondary" : "primary"} icon={<FileUp className="size-4" />} onClick={() => setLogging(true)}>
-            {waitlistFirst ? "Track product growth" : logged ? "Edit last week" : "Log last week"}
+          <Button variant={logged ? "secondary" : "primary"} icon={<FileUp className="size-4" />} onClick={startLogging}>
+            {logged ? "Edit last week" : "Log last week"}
           </Button>
         }
       />
 
-      <WaitlistCard />
-      <GtmInitiatives />
-      {waitlistFirst ? <details className="mt-8"><summary className="w-fit cursor-pointer py-2 text-[13px] font-medium text-fg-2">Product growth, after launch</summary><div className="mt-5">{productGrowth}</div></details> : productGrowth}
+      <GrowthDashboard now={now} logging={logging} renderSection={renderSection} />
 
     </div>
   );

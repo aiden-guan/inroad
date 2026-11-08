@@ -18,7 +18,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variants: Record<Variant, string> = {
   // Ink button: the default commit action.
   primary: "bg-primary text-primary-fg shadow-btn hover:bg-primary-hover",
-  secondary: "bg-surface text-fg shadow-xs ring-1 ring-inset ring-border-strong/80 hover:bg-surface-raised hover:ring-border-strong",
+  secondary: "bg-surface text-fg ring-1 ring-inset ring-border-strong/80 hover:bg-bg-subtle hover:ring-border-strong",
   ghost: "text-fg-2 hover:bg-bg-subtle hover:text-fg",
   // Blue pencil: actions that put the agent to work. They catch the light once on hover (fx-sheen).
   agent: "fx-sheen bg-accent text-accent-fg shadow-btn hover:bg-accent-hover",

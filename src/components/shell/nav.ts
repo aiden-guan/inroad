@@ -21,6 +21,7 @@ export interface NavPage {
 
 const TODAY: NavPage = { href: "/today", label: "Today", icon: Sunrise, key: "T", keywords: "today daily brief moves" };
 const REVENUE: NavPage = { href: "/revenue", label: "Revenue", icon: Target, key: "V", keywords: "revenue forecast pipeline commit coverage quota number", long: "Revenue: the forecast and the plan" };
+const VISIBILITY: NavPage = { href: "/visibility", label: "Search & AI", icon: Search, key: "A", keywords: "seo aeo ai search visibility google bing monid citations", long: "Search & AI: search visibility and conversions" };
 const GROWTH: NavPage = { href: "/growth", label: "Growth", icon: TrendingUp, key: "W", keywords: "growth number weekly active users signups retention log numbers", long: "Growth: the goal and your weekly numbers" };
 const COMPANIES: NavPage = { href: "/companies", label: "Companies", icon: Building2, key: "C", keywords: "companies accounts pipeline prospects deals" };
 const PLAYS: NavPage = { href: "/plays", label: "Plays", icon: Zap, key: "Y", keywords: "plays signals triggers programs automation" };
@@ -44,8 +45,8 @@ const STUDIO: NavPage = { href: "/studio", label: "Studio", icon: PenTool, key: 
  * the people their users already follow, so they get the number, creators and research, and none of the deal desk.
  */
 const NAV: Record<Market, readonly NavPage[]> = {
-  b2b: [TODAY, REVENUE, COMPANIES, PLAYS, RESEARCH, INTROS, PARTNERS, EVENTS, PLAYBOOK, STUDIO],
-  consumer: [TODAY, GROWTH, CREATORS, RESEARCH, PLAYBOOK, STUDIO],
+  b2b: [TODAY, REVENUE, VISIBILITY, COMPANIES, PLAYS, RESEARCH, INTROS, PARTNERS, EVENTS, PLAYBOOK, STUDIO],
+  consumer: [TODAY, GROWTH, VISIBILITY, CREATORS, RESEARCH, PLAYBOOK, STUDIO],
 };
 
 export const SECONDARY: readonly NavPage[] = [

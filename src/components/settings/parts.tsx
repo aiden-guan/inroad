@@ -35,7 +35,7 @@ export function Group({ id, title, hint, right, children, className }: { id?: st
         </div>
       )}
       {hint && <p className="-mt-1 mb-3 max-w-[62ch] text-[13px] leading-5 text-fg-3 text-pretty">{hint}</p>}
-      <div className="divide-y divide-border rounded-xl bg-surface shadow-xs ring-1 ring-inset ring-border">{children}</div>
+      <div className="divide-y divide-border rounded-xl bg-bg/50 ring-1 ring-inset ring-border">{children}</div>
     </div>
   );
 }

@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Search & AI dashboard for Google Search Console, Bing Webmaster Tools, and PostHog organic/AI referral sessions and conversions, with separate source definitions and matched 28-day comparisons.
+- Monid creator research from public TikTok posts and saved Ahrefs AI citation snapshots by platform and country. Runs require a current price preview and explicit submission; duplicate attempts, unknown outcomes, provider failures and budget blocks retain their own statuses.
+- Monid research in workspace backups, exports, sample transitions and restores. Existing configurable Growth dashboards, connected business metrics and saved project choices keep their own settings and histories.
+- Selectable reasoning effort for supported OpenAI models, with Responses API tool support for GPT-6 and per-task reasoning choices.
+
 ### Documentation
 - The README is rebuilt as an overview: a four-paragraph summary, capability grids grouped by Sell, Run the number, Capture & learn and Market & research, an architecture diagram that includes the launcher, request proxy, provider adapters, connector hub and metric syncs, and a documentation index.
 - Fixed the architecture diagram. The previous version did not parse in Mermaid 11 (parentheses inside an edge label), so GitHub could not draw it.
@@ -21,6 +27,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Validation
 - 1,481 unit tests pass across 143 files, with three skipped (`npx vitest run` on v0.2.22). The README diagram parses with Mermaid 11.4.1. Every relative link and image in the README resolves, and every `npm run` script it names exists in `package.json`.
+
+---
+
+## [v0.2.25] — 2026-11-06
+
+- Preserve configurable Growth dashboards, individual metric cards, card order and widths, and saved PostHog project switching in the refreshed workspace.
+- Give connected metric cards blue trends with labeled count scales, clearer progress and more readable source details.
+
+---
+
+## [v0.2.24] — 2026-11-06
+
+### Changed
+- Refreshed the workspace with a warm frame, an inset working sheet, quieter controls and clearer typography. Phone and tablet navigation gives content more room while retaining company switching, agent status and update notices.
+- Revenue and Growth lead with the current number, goal progress and where to focus. Revenue retains its cumulative forecast bands and call/target markers; Growth keeps projected values distinct from recorded weekly numbers.
+- Today adds an interactive seven-day view of recorded conversations and replies, pipeline counts and the next meeting, alongside the reply lane and work queue. Additional daily updates collapse on phones.
+- Improved company identity rows, numeric alignment, field contrast and shared cards without changing existing research columns, weekly priorities or calendar workflows.
 
 ---
 

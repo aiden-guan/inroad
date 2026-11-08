@@ -3,23 +3,12 @@
 /*
  * Paper, Ink & Blue Pencil.
  * Warm paper and black ink for everything the founder owns. One color — an editor's blue
- * pencil — belongs to the agent: its marks, its margin notes, its orb. When blue is on screen,
- * the agent is working, citing, or needs you. Stages and charts never use it.
+ * pencil — marks the agent and the main growth data. Depth comes from tone and edges.
  */
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
-/*
- * Text contrast (WCAG 2, `node scripts/contrast.mjs`). --fg-2 and --fg-3 carry real words and numbers: 4.5:1 or
- * more on every paper. --fg-4 is for decoration, dividers and disabled text only: 3:1 or more.
- *             bg     bg-subtle  surface  surface-raised
- *   light --fg-2  7.13   6.64       7.64     7.64      (was #5c5852: 6.59 · 6.14 · 7.06)
- *         --fg-3  5.10   4.75       5.47     5.47      (was #77736a: 4.41 · 4.10 · 4.72)
- *         --fg-4  3.38   3.14       3.62     3.62      (was #a39e95: 2.49 · 2.31 · 2.66)
- *   dark  --fg-2  9.66   9.18       8.77     7.83
- *         --fg-3  6.70   6.37       6.09     5.44
- *         --fg-4  3.90   3.70       3.54     3.16
- */
+/* Foreground tokens retain readable contrast on every paper. Check with scripts/contrast.mjs. */
 :root {
   color-scheme: light;
   --bg: #f8f7f3;
@@ -32,7 +21,7 @@
   --fg: #1a1917;
   --fg-2: #57534c;
   --fg-3: #6d6960;
-  --fg-4: #8b867d;
+  --fg-4: #706c64;
   --primary: #1a1917;
   --primary-hover: #33312d;
   --primary-fg: #faf9f6;
@@ -72,7 +61,7 @@
     --fg: #efeee8;
     --fg-2: #c1bfb5;
     --fg-3: #a19f94;
-    --fg-4: #74776b;
+    --fg-4: #94978b;
     --primary: #efeee8;
     --primary-hover: #ffffff;
     --primary-fg: #171816;
@@ -112,7 +101,7 @@
   --fg: #efeee8;
   --fg-2: #c1bfb5;
   --fg-3: #a19f94;
-  --fg-4: #74776b;
+  --fg-4: #94978b;
   --primary: #efeee8;
   --primary-hover: #ffffff;
   --primary-fg: #171816;
@@ -268,8 +257,8 @@
  * left edge, so titles never jump between pages, and gives the width up on the right.
  */
 :root {
-  --page-max: 1120px;
-  --page-px: 16px;
+  --page-max: 1240px;
+  --page-px: 20px;
   --page-pt: 24px;
   --page-pb: 96px;
 }
@@ -280,8 +269,8 @@
 }
 @media (min-width: 768px) {
   :root {
-    --page-px: 40px;
-    --page-pt: 40px;
+    --page-px: 32px;
+    --page-pt: 32px;
     --page-pb: 112px;
   }
 }
@@ -307,7 +296,7 @@
   .page-heading {
     min-width: 0;
     font-family: var(--font-serif);
-    font-size: clamp(30px, 3vw, 38px);
+    font-size: clamp(28px, 2.8vw, 32px);
     line-height: 1.1;
     letter-spacing: -0.03em;
     font-weight: 400;
@@ -320,12 +309,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-family: var(--font-sans);
+    font-size: 12px;
     font-weight: 500;
     line-height: 16px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
+    letter-spacing: 0;
     color: var(--fg-3);
   }
   .page-summary {
@@ -336,14 +324,57 @@
     text-wrap: pretty;
     color: var(--fg-2);
   }
-  .page-eyebrow::before {
-    content: "";
-    width: 18px;
-    height: 1px;
-    background: var(--border-strong);
-  }
   .workspace-main {
-    background-image: radial-gradient(ellipse 80% 450px at 50% -180px, color-mix(in oklab, var(--fg) 3%, transparent), transparent);
+    min-height: calc(100dvh - 48px);
+    background: var(--surface);
+  }
+  .dashboard-grid {
+    display: grid;
+    gap: 32px;
+    margin-top: 30px;
+  }
+  .dashboard-rail {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .activity-bar {
+    transform-origin: bottom;
+    transition: transform 240ms var(--ease-out), background-color 150ms ease;
+  }
+  .activity-column:focus-visible {
+    outline-offset: 3px;
+  }
+  .activity-column[data-selected="true"] .activity-bar {
+    background: var(--accent);
+  }
+  .forecast-progress {
+    background: color-mix(in oklab, var(--accent) 5%, var(--surface));
+  }
+  .dashboard-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+    padding-block: 14px;
+    color: var(--fg-2);
+    transition: color 150ms ease;
+  }
+  .dashboard-link:hover {
+    color: var(--fg);
+  }
+  @media (min-width: 1024px) {
+    .workspace-main { min-height: calc(100dvh - 56px); border: 1px solid var(--border); border-radius: 16px; }
+  }
+  @media (min-width: 1280px) {
+    /* Main column + 280px activity rail + 32px gutter share the masthead's edges. */
+    .dashboard-grid { grid-template-columns: minmax(0, 1fr) 280px; }
+    .dashboard-rail { border-left: 1px solid var(--border); padding-left: 24px; }
+  }
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]), textarea, select { font-size: 16px; }
   }
   .field-select {
     appearance: none;

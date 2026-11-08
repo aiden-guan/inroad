@@ -5,6 +5,7 @@ import { aiKeyStore, deleteAiKey, keyHint, readAiKey, saveAiKey } from "@/lib/st
 import { readSettings, writeSettings, type AiSettings, type ModelPrice } from "@/lib/store/settings";
 import { activeProvider } from "./client";
 import type { ModelTier } from "./models";
+import { sharedReasoningEfforts, type ReasoningEffort } from "./reasoning";
 import { listModels } from "./openai-compat";
 import { activeSearch } from "@/lib/search/search";
 import { cleanBaseUrl, cleanModelId, detectProvider, PROVIDERS, providerById, rankModels, type ProviderId, type ProviderPreset } from "./providers";
@@ -27,6 +28,7 @@ export function aiStatus(): AiStatus {
     chosen: ai?.provider ?? null,
     baseUrl: ai?.baseUrl ?? null,
     model: ai?.model ?? null,
+    reasoningEffort: ai?.reasoningEffort ?? null,
     models: ai?.models ?? {},
     available: ai?.available ?? [],
     prices: ai?.prices ?? {},
@@ -46,6 +48,7 @@ export interface AiSetupInput {
   /** Custom endpoints and Ollama. */
   baseUrl?: string;
   model?: string;
+  reasoningEffort?: ReasoningEffort | null;
   models?: Partial<Record<ModelTier, string | null>>;
   prices?: Record<string, ModelPrice | null>;
   /** Read the model list again. */
@@ -106,7 +109,7 @@ export async function saveAiSetup(input: AiSetupInput): Promise<SetupResult> {
       return fail("Paste your Anthropic API key. It starts with sk-ant-.");
     }
     if (key) next.keys = { ...next.keys, anthropic: { hint: keyHint(key), store: saveAiKey("anthropic", key), savedAt: new Date().toISOString() } };
-    for (const field of ["model", "models", "available", "prices"] as const) delete next[field];
+    for (const field of ["model", "models", "available", "prices", "reasoningEffort"] as const) delete next[field];
     writeSettings({ ai: { ...next, connections: readSettings().ai?.connections, routing: readSettings().ai?.routing ? { ...readSettings().ai!.routing!, defaultConnectionId: undefined } : undefined }, anthropicApiKey: undefined });
     return { ok: true };
   }
@@ -162,6 +165,13 @@ export async function saveAiSetup(input: AiSetupInput): Promise<SetupResult> {
     }
     next.models = models;
   }
+  const effortChoices = preset.id === "openai" ? sharedReasoningEfforts([next.model, ...Object.values(next.models ?? {})]) : [];
+  if (input.reasoningEffort != null && !effortChoices.includes(input.reasoningEffort)) {
+    return fail("Choose a reasoning effort supported by all your selected OpenAI models, or use Auto.");
+  }
+  if (input.reasoningEffort === null) delete next.reasoningEffort;
+  else if (input.reasoningEffort !== undefined) next.reasoningEffort = input.reasoningEffort;
+  else if (next.reasoningEffort && !effortChoices.includes(next.reasoningEffort)) delete next.reasoningEffort;
   if (input.prices) {
     const prices = { ...next.prices };
     for (const [id, p] of Object.entries(input.prices)) {

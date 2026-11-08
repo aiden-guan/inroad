@@ -6,7 +6,7 @@ import { METRIC_PROVIDERS } from "./catalog";
 import { metricConfig } from "./config";
 import { fetchMetrics } from "./providers";
 import { METRIC_PROVIDER_IDS, type MetricProviderId, type MetricSnapshot } from "./types";
-import { posthogToken, revokePosthog, type PostHogOAuth } from "./posthog-auth";
+import { discoverPosthogProjects, posthogToken, revokePosthog, type PostHogOAuth, type PostHogProject } from "./posthog-auth";
 import { recordProviderHistory } from "@/lib/gtm/metrics";
 
 export const METRIC_SYNC_MS = 15 * 60_000;
@@ -90,6 +90,14 @@ async function metricKey(id: MetricProviderId, forceRefresh = false): Promise<Re
 }
 
 /** Change optional preferences without asking the founder to paste credentials again. */
+export function connectedPosthogProjects(): Promise<Result<PostHogProject[]>> {
+  return serialized("posthog", async () => {
+    if (readWorkspace().sample || !readWorkspace().integrations.posthog?.enabled) return fail("validation", "Connect PostHog first.");
+    const key = await metricKey("posthog");
+    return key.ok ? discoverPosthogProjects(key.value) : key;
+  });
+}
+
 export function updateMetricSettings(id: MetricProviderId, patch: Record<string, unknown>): Promise<Result<MetricSnapshot>> {
   return serialized(id, async () => {
     const ws = readWorkspace();
@@ -97,9 +105,18 @@ export function updateMetricSettings(id: MetricProviderId, patch: Record<string,
     if (ws.sample || !state?.enabled) return fail("validation", "Connect the provider first.");
     const key = await metricKey(id);
     if (!key.ok) return key;
+    let changedProject = false;
+    if (id === "posthog" && (patch.projectId !== undefined || patch.region !== undefined)) {
+      const projects = await discoverPosthogProjects(key.value);
+      if (!projects.ok) return projects;
+      const selected = projects.value.find((p) => p.id === patch.projectId && p.region === patch.region);
+      if (!selected) return fail("validation", "Choose a project available to this PostHog connection.");
+      patch = { ...patch, projectName: selected.name };
+      changedProject = selected.id !== state.config.projectId || selected.region !== state.config.region;
+    }
     const config = metricConfig(id, { ...state.config, ...patch });
     const result = await fetchMetrics(id, key.value, config);
-    if (result.ok) await saveSnapshot(id, result.value, config);
+    if (result.ok) await saveSnapshot(id, result.value, config, changedProject);
     return result;
   });
 }

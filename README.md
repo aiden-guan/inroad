@@ -352,6 +352,7 @@ inroad/
 | [AI connections and routing](docs/AI-ROUTING.md) | Multiple accounts, per-task models, AI gateways |
 | [Research guide](docs/RESEARCH.md) | Search providers, monitors, MCP and OpenAPI connections |
 | [Business metrics](docs/business-metrics.md) · [GTM execution](docs/gtm-execution.md) · [Waitlists](docs/waitlists.md) | Metric definitions, initiatives, pipeline diagnostics |
+| [Search, AI discovery and Monid](docs/search-ai-and-monid.md) | Search Console, Bing and PostHog search and AI traffic; Monid creator research and AI citation snapshots |
 | [Product spec](docs/SPEC.md) · [Security policy](SECURITY.md) | Scope, non-goals, reporting a vulnerability |
 | [Changelog](CHANGELOG.md) | Every release with its validation |
 

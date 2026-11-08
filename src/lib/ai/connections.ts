@@ -8,6 +8,7 @@ import { connectionProvider, legacyProvider } from "./client";
 import { cleanBaseUrl, providerById, rankModels, isProviderId, tierModels } from "./providers";
 import { listModels } from "./openai-compat";
 import { MODEL_IDS } from "./models";
+import { REASONING_EFFORTS, sharedReasoningEfforts } from "./reasoning";
 import { AI_TASKS, type AiConnection, type AiRouting, type RoutingStatus } from "./routing-types";
 
 const modelId = z.string().trim().min(1).max(240).regex(/^[a-zA-Z0-9@][a-zA-Z0-9_./:@+-]*$/, "Use the provider's model ID.");
@@ -18,6 +19,7 @@ export const ConnectionInput = z.object({
   provider: z.string().refine(isProviderId, "Choose a provider."),
   key: z.string().trim().min(8).max(4096).regex(/^\S+$/).optional(),
   baseUrl: z.string().max(2000).optional(), model: modelId.optional(),
+  reasoningEffort: z.enum(REASONING_EFFORTS).nullable().optional(),
   models: z.object({ strategist: modelId.optional(), operator: modelId.optional(), fast: modelId.optional() }).strict().default({}),
   prices: z.record(z.string().max(240), price).default({}),
   enabled: z.boolean().default(true), auto: z.boolean().default(true),
@@ -45,6 +47,7 @@ export function routingStatus(): RoutingStatus {
     id: "legacy", name: `${legacy.preset.name} (original setup)`, provider: legacy.id,
     baseUrl: legacy.baseUrl, model: legacy.models.operator, models: legacy.models,
     available: ai?.available ?? Object.values(legacy.models), prices: legacy.prices,
+    reasoningEffort: legacy.reasoningEffort,
     enabled: true, auto: ai?.routing?.includeOriginal ?? true, strengths: [], key: ai?.keys?.[legacy.id],
   });
   return {
@@ -96,6 +99,9 @@ export async function saveConnection(raw: unknown) {
   }
   const model = input.cloudflare?.dynamicRoute ? `dynamic/${input.cloudflare.dynamicRoute}` : input.model ?? old?.model ?? available[0] ?? (preset.kind === "anthropic" ? MODEL_IDS.operator : undefined);
   if (!model) throw new Error("Choose or enter a tool-capable chat model ID.");
+  const effortChoices = preset.id === "openai" ? sharedReasoningEfforts([model, ...Object.values(input.models)]) : [];
+  const reasoningEffort = input.reasoningEffort === undefined ? old?.reasoningEffort : input.reasoningEffort ?? undefined;
+  if (reasoningEffort && !effortChoices.includes(reasoningEffort)) throw new Error("Choose a reasoning effort supported by all this connection's models, or use Auto.");
   if ((preset.id === "vercel" || preset.id === "cloudflare") && !model.includes("/")) throw new Error("Gateway model IDs include a provider, for example provider/model. Copy one from the gateway catalog.");
   if (preset.id === "vercel" || preset.id === "cloudflare") for (const tierModel of Object.values(input.models)) {
     if (!tierModel.includes("/")) throw new Error("Every gateway tier model must include its provider prefix.");
@@ -104,6 +110,7 @@ export async function saveConnection(raw: unknown) {
   const latest = readSettings().ai;
   if (old && !latest?.connections?.some((c) => c.id === id)) throw new Error("That connection was removed while checking its models.");
   const connection: AiConnection = { id, name: input.name, provider: preset.id, baseUrl, model,
+    reasoningEffort,
     models: input.cloudflare?.dynamicRoute ? {} : tierModels(model, available, input.models), available: [...new Set([model, ...Object.values(input.models), ...available])], prices,
     enabled: input.enabled, auto: input.auto, strengths: [...new Set(input.strengths)], contextWindow: input.contextWindow,
     key: input.key ? { hint: keyHint(input.key), store: saveAiKey(`connection:${id}`, input.key), savedAt: new Date().toISOString() } : old?.key,

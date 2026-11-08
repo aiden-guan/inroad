@@ -81,7 +81,7 @@ export function IntrosPage() {
   const closedShown = showClosed ?? (!!focus && groups.closed.some((x) => x.intro.id === focus));
 
   return (
-    <div className="page-shell max-w-[1000px]">
+    <div className="page-shell">
       <PageHeader
         title="Intros"
         eyebrow="Better through people"
@@ -228,7 +228,7 @@ function Row({ i, intro, ws, today, open, highlight }: { i: number; intro: Intro
 
 function PageSkeleton() {
   return (
-    <div className="page-shell max-w-[1000px]" aria-busy="true">
+    <div className="page-shell" aria-busy="true">
       <LoadingSignal label="Loading introductions" className="mb-7" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="mt-3 h-4 w-full max-w-[480px]" />

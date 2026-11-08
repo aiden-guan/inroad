@@ -1,6 +1,7 @@
 import "server-only";
 import path from "node:path";
 import type { ModelTier } from "@/lib/ai/models";
+import type { ReasoningEffort } from "@/lib/ai/reasoning";
 import type { ProviderId } from "@/lib/ai/providers";
 import type { KeyStore } from "./ai-keys";
 import type { SearchSettings } from "@/lib/search/providers";
@@ -25,6 +26,8 @@ export interface AiSettings {
   baseUrl?: string;
   /** The model that runs everything (providers other than Anthropic). */
   model?: string;
+  /** Overrides workflow reasoning presets for this OpenAI setup. Unset follows the task. */
+  reasoningEffort?: ReasoningEffort;
   /** Per-task overrides of `model`. */
   models?: Partial<Record<ModelTier, string>>;
   /** The provider's chat models when the key was checked, for the picker and the quick-tier sibling. */

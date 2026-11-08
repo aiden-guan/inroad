@@ -11,6 +11,29 @@ import type { AddressInfo } from "node:net";
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 const KEY = "sk-proj-e2etestkey0000000000000000";
 
+test("choose reasoning effort, keep it after reload, and return to task defaults", async ({ page, request }, testInfo) => {
+  expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
+  expect((await request.post("/api/settings", { data: { ai: { provider: "openai", key: KEY, model: "gpt-6-luna" } } })).ok()).toBe(true);
+  try {
+    await page.goto("/settings#api-key");
+    const effort = page.getByRole("combobox", { name: "Reasoning effort", exact: true });
+    await expect(effort).toHaveValue("auto");
+    await effort.selectOption("xhigh");
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).ai.reasoningEffort).toBe("xhigh");
+    await page.reload();
+    await expect(effort).toHaveValue("xhigh");
+    await page.locator("#api-key").screenshot({ path: testInfo.outputPath("reasoning-effort.png") });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await effort.selectOption("max");
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).ai.reasoningEffort).toBe("max");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await effort.selectOption("auto");
+    await expect.poll(async () => (await (await request.get("/api/settings")).json()).ai.reasoningEffort).toBeNull();
+  } finally {
+    await request.post("/api/settings", { data: { ai: { provider: "anthropic" } } });
+  }
+});
+
 test("save multiple AI accounts, select a task model, and override it for one Ask message", async ({ page, request }) => {
   expect((await request.post("/api/workspace/sample", { data: { replace: true } })).ok()).toBe(true);
   const mockBase = `http://127.0.0.1:${process.env.E2E_MOCK_PORT ?? 4301}/v1`;

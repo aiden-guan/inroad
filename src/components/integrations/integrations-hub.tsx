@@ -28,6 +28,9 @@ import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
 import { ConnectedFooter, KeyConnect } from "./key-connect";
 import { MetricSources } from "./metrics-panel";
+import { SearchSources } from "./search-metrics-panel";
+import { MonidPanel } from "./monid-panel";
+import { SEARCH_PROVIDER_IDS } from "@/lib/metrics/search-types";
 import { OutboundPanel } from "./outbound-panel";
 import { Ago } from "./parts";
 import { Group, IntegrationRow, LinkRow, type RowStatus } from "./row";
@@ -96,7 +99,7 @@ export function IntegrationsHub() {
   const events = useMemo(() => status?.inbound.events ?? [], [status]);
   const summary = useMemo(() => {
     if (!ws) return null;
-    const native = [...NATIVE_IDS, ...METRIC_PROVIDER_IDS].filter((id) => ws.integrations[id]?.enabled).length;
+    const native = [...NATIVE_IDS, ...METRIC_PROVIDER_IDS, ...SEARCH_PROVIDER_IDS].filter((id) => ws.integrations[id]?.enabled).length;
     const hooks = new Set(events.filter((e) => e.status !== "duplicate").map((e) => e.source)).size;
     const week = now ? events.filter((e) => e.status !== "duplicate" && now - Date.parse(e.at) < 7 * 86_400_000).length : 0;
     return { connected: native + hooks + (ws.webhooks.length ? 1 : 0) + (ws.company?.market === "consumer" && ws.waitlist?.enabled ? 1 : 0) + (ws.integrations.calendar?.enabled ? 1 : 0), week };
@@ -136,6 +139,8 @@ export function IntegrationsHub() {
             <SequencerPanel id={id} state={st} status={status} onRefresh={refresh} />
           ) : id === "firecrawl" ? (
             <FirecrawlPanel />
+          ) : id === "monid" ? (
+            <MonidPanel />
           ) : (
             <SlackPanel state={st} status={status} onRefresh={refresh} />
           )}
@@ -151,8 +156,8 @@ export function IntegrationsHub() {
   };
 
   return (
-    <div className="page-shell max-w-[920px]">
-      <PageHeader title="Integrations" eyebrow="Connected, considered" description="Connect the tools you already use. Every connection here is optional.">
+    <div className="page-shell">
+      <PageHeader title="Integrations" eyebrow="Your connected stack" description="Connect the tools you already use. Every connection here is optional.">
         {summary && (
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
             <span>
@@ -179,6 +184,10 @@ export function IntegrationsHub() {
       </PageHeader>
 
       <MetricSources current={current} onToggle={toggle} />
+      <SearchSources current={current} onToggle={toggle} />
+      <Group id="creator-research" question="Where do you research creators and AI visibility?" note="Monid research runs are paid and on demand. Preview the current price before starting a run.">
+        {native("monid")}
+      </Group>
       <WaitlistCard />
 
       {(!isConsumer(ws) || ws.integrations.calendar?.enabled) && (
@@ -376,7 +385,7 @@ function outboundStatus(ws: Workspace): RowStatus {
 
 function HubSkeleton() {
   return (
-    <div className="page-shell max-w-[920px]" aria-busy="true">
+    <div className="page-shell" aria-busy="true">
       <LoadingSignal label="Loading your connections" className="mb-7" />
       <Skeleton className="h-9 w-64" />
       <Skeleton className="mt-4 h-4 w-full max-w-[520px]" />
