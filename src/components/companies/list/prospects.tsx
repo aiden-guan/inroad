@@ -413,7 +413,7 @@ export function Prospects({
   return (
     <div className="pb-24">
       {/* Toolbar */}
-      <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 py-1 scrollbar-none">
+      <div className="-mx-1 flex flex-wrap items-center gap-2 px-1 py-1">
         <FilterMenu label="Tier" options={tierOptions} value={tiers} onChange={setTiers} />
         <FilterMenu label="Signal" options={signalOptions} value={signalTypes} onChange={setSignalTypes} />
         <FilterMenu label="Status" options={statusOptions} value={statuses} onChange={setStatuses} />
@@ -443,7 +443,7 @@ export function Prospects({
       </div>
 
       {/* Column labels */}
-      <div className={cn("mt-2 hidden h-8 items-center gap-3 border-b border-border px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
+      <div className={cn("mt-4 hidden h-10 items-center gap-3 border-b border-border px-3 text-[11px] font-medium text-fg-3 md:grid", GRID)}>
         <button
           role="checkbox"
           aria-checked={allSelected}
@@ -458,14 +458,14 @@ export function Prospects({
           <span className="cursor-default">Tier</span>
         </Tooltip>
         <Tooltip content="How well they match your ICP criteria, 0–100. Unknown counts as half.">
-          <span className="cursor-default">Fit</span>
+          <span className="cursor-default text-right">Fit</span>
         </Tooltip>
         <span>Why now</span>
         <Tooltip content="People you know there, from your network import">
-          <span className="hidden cursor-default lg:block">Warm</span>
+          <span className="hidden cursor-default text-right lg:block">Warm</span>
         </Tooltip>
         <Tooltip content="Open roles on their job board">
-          <span className="hidden cursor-default lg:block">Roles</span>
+          <span className="hidden cursor-default text-right lg:block">Roles</span>
         </Tooltip>
         <span>Status</span>
       </div>
@@ -473,7 +473,7 @@ export function Prospects({
       {rows.length === 0 ? (
         <EmptyState title="Nothing matches these filters." action={<Button onClick={clearFilters}>Clear filters</Button>} />
       ) : (
-        <ul onMouseMove={() => kbd && setKbd(false)} aria-label="Prospects" className="divide-y divide-border">
+        <ul onMouseMove={() => kbd && setKbd(false)} aria-label="Prospects" className="divide-y divide-border rounded-b-xl bg-surface/40">
           {rows.map((r, i) => (
             <ProspectRow
               key={r.a.domain}
@@ -599,10 +599,12 @@ function ProspectRow({
   const teams = a.enrichment?.rolesByTeam.slice(0, 3).map((t) => `${t.team} ${t.count}`).join(" · ");
 
   const why = top ? (
-    <span className="flex min-w-0 items-center gap-1.5">
+    <span className="grid min-w-0 gap-1">
+      <span className="flex min-w-0 items-center gap-1.5">
       {Icon && <Icon className="size-3.5 shrink-0 text-fg-3" aria-label={SIGNAL_LABEL[top.type]} />}
       <span className="min-w-0 truncate text-fg-2" title={top.headline}>
         {top.headline}
+      </span>
       </span>
       <SourceChip
         url={ev?.url ?? top.url}
@@ -610,7 +612,7 @@ function ProspectRow({
         quote={ev?.quote}
         claim={ev?.claim}
         confidence={ev?.confidence}
-        className="relative z-[1] shrink-0"
+        className="relative z-[1] w-fit max-w-full"
       />
     </span>
   ) : (
@@ -630,7 +632,7 @@ function ProspectRow({
       onAnimationComplete={onEntered}
       aria-selected={focused || undefined}
       className={cn(
-        "group relative flex items-center gap-3 px-3 py-2.5 text-[13px] md:grid md:h-11 md:py-0",
+        "group relative flex items-center gap-3 px-3 py-3 text-[13px] md:grid md:min-h-16 md:py-3",
         GRID,
         "transition-colors duration-100 hover:bg-bg-subtle",
         focused && "bg-bg-subtle shadow-[inset_2px_0_0_var(--fg-3)]",
@@ -660,15 +662,14 @@ function ProspectRow({
           </span>
         </Tooltip>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-2">
+          <div className="min-w-0">
             <button
               onClick={onOpen}
-              className="min-w-0 max-w-full shrink-0 truncate text-left font-medium text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline"
+              className="block min-w-0 max-w-full truncate text-left font-medium text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline"
             >
               {a.name}
             </button>
-            {/* The name wins the space; the domain truncates first and hides when there's no room. */}
-            <span className="hidden min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg-3 xl:inline">{a.domain}</span>
+            <span className="mt-0.5 hidden truncate text-[11.5px] leading-4 text-fg-3 md:block">{a.domain}</span>
           </div>
           {/* Phone: why-now under the name, with the age instead of the full source chip */}
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] md:hidden">
@@ -722,7 +723,7 @@ function ProspectRow({
           )
         }
       >
-        <span className="relative z-[1] hidden cursor-default font-mono text-[12px] tnum text-fg-2 md:block">{scored ? a.fitScore : "–"}</span>
+        <span className="relative z-[1] hidden cursor-default text-right font-mono text-[12px] tnum text-fg-2 md:block">{scored ? a.fitScore : "–"}</span>
       </Tooltip>
 
       {/* Why now */}
@@ -730,7 +731,7 @@ function ProspectRow({
 
       {/* Warm paths */}
       <Tooltip content={a.warmPathCount ? `${plural(a.warmPathCount, "person", "people")} you know here` : "Nobody you know here yet"}>
-        <span className={cn("relative z-[1] hidden cursor-default items-center gap-1 font-mono text-[12px] tnum lg:flex", a.warmPathCount ? "text-fg-2" : "text-fg-4")}>
+        <span className={cn("relative z-[1] hidden cursor-default items-center justify-end gap-1 font-mono text-[12px] tnum lg:flex", a.warmPathCount ? "text-fg-2" : "text-fg-4")}>
           <Users className="size-3.5" />
           {a.warmPathCount || "–"}
         </span>
@@ -738,7 +739,7 @@ function ProspectRow({
 
       {/* Open roles */}
       <Tooltip content={a.enrichment ? (a.enrichment.openRoles ? teams : "No public job board found") : "Not checked yet"}>
-        <span className={cn("relative z-[1] hidden cursor-default items-center gap-1 font-mono text-[12px] tnum lg:flex", a.enrichment?.openRoles ? "text-fg-2" : "text-fg-4")}>
+        <span className={cn("relative z-[1] hidden cursor-default items-center justify-end gap-1 font-mono text-[12px] tnum lg:flex", a.enrichment?.openRoles ? "text-fg-2" : "text-fg-4")}>
           <Briefcase className="size-3.5" />
           {a.enrichment ? a.enrichment.openRoles : "–"}
         </span>

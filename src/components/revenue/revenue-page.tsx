@@ -6,7 +6,9 @@ import { useMemo, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useClock } from "@/components/today/use-today";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/misc";
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/misc";
 import { todayISO } from "@/lib/domain/ids";
 import { baseline, computeForecast, computePlan, forecastChanges, money } from "@/lib/revenue/forecast";
 import { DealCalls } from "./deal-calls";
@@ -15,6 +17,7 @@ import { Changes, PlanView } from "./plan-view";
 import { TargetDialog } from "./target-dialog";
 import { WeeklyUpdate } from "./weekly-update";
 import { Working } from "./working";
+import { BusinessMetrics } from "./business-metrics";
 
 /**
  * Revenue: the number a Head of GTM is measured on, called the way a forecast meeting calls it.
@@ -23,7 +26,7 @@ import { Working } from "./working";
  * call is the weekly update, and only when asked.
  */
 export function RevenuePage() {
-  const { ws } = useWorkspace();
+  const { ws, error, refresh } = useWorkspace();
   const now = useClock(60_000);
   const params = useSearchParams();
   const [targetOpen, setTargetOpen] = useState(params.get("target") === "1");
@@ -37,49 +40,40 @@ export function RevenuePage() {
     return { f, plan, base, changes: forecastChanges(ws, base, f) };
   }, [ws, today, now]);
 
-  if (!ws || !data) return <RevenueSkeleton />;
+  if (!ws || !data) return error ? <div className="page-shell"><EmptyState title="Couldn't load revenue" body={error} action={<Button variant="primary" onClick={() => void refresh()}>Try again</Button>} /></div> : <LoadingSignal label="Calling the forecast" className="min-h-[60dvh]" />;
   const { f, plan, base, changes } = data;
   const target = ws.revenue?.target;
 
   return (
-    <div className="mx-auto w-full px-6 pb-28 pt-8 md:px-10 md:pt-12 max-w-[1080px]">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 flex-1 basis-64">
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em]">Revenue</h1>
-          <p className="mt-1.5 max-w-[60ch] text-[14px] leading-[21px] text-fg-2">
-            {target ? (
-              <>
-                {target.label}: <span className="font-mono tnum text-fg">{money(target.amountUsd)}</span>. Commit <span className="font-mono tnum text-fg">{money(f.commit)}</span>, best case{" "}
-                <span className="font-mono tnum text-fg">{money(f.bestCase)}</span>. Every number here is counted from your deals, not estimated by a model.
-              </>
-            ) : (
-              "The forecast called from your deals: commit, best case and pipeline, what changed, what's at risk and what it takes. All computed from your deals."
-            )}
-          </p>
-        </div>
-        <Button variant={target ? "secondary" : "primary"} icon={<Target className="size-4" />} onClick={() => setTargetOpen(true)}>
-          {target ? `${target.label} · ${money(target.amountUsd)}` : "Set a revenue target"}
-        </Button>
-      </header>
+    <div className="page-shell">
+      <PageHeader
+        title="Revenue"
+        eyebrow="Growth overview"
+        description={
+          target ? (
+            <>
+              A clear view of {target.label}, the deals behind your forecast, and where to focus next.
+            </>
+          ) : (
+            "Your business metrics, the deals behind your forecast, and where to focus next."
+          )
+        }
+        actions={
+          <Button variant={target ? "secondary" : "primary"} icon={<Target className="size-4" />} onClick={() => setTargetOpen(true)}>
+            {target ? `${target.label} · ${money(target.amountUsd)}` : "Set a revenue target"}
+          </Button>
+        }
+      />
 
       <ForecastHero f={f} plan={plan} />
       <Changes changes={changes} since={base?.weekOf} />
+      <div className="mt-8"><BusinessMetrics /></div>
       <DealCalls f={f} focus={params.get("d")} />
       <PlanView f={f} plan={plan} onSetTarget={() => setTargetOpen(true)} />
       <Working ws={ws} f={f} />
       <WeeklyUpdate ws={ws} today={today} />
 
       {targetOpen && <TargetDialog open={targetOpen} onOpenChange={setTargetOpen} today={today} stats={f.stats} />}
-    </div>
-  );
-}
-
-function RevenueSkeleton() {
-  return (
-    <div aria-busy className="mx-auto w-full px-6 pb-28 pt-8 md:px-10 md:pt-12 max-w-[1080px]">
-      <Skeleton className="h-9 w-40" />
-      <Skeleton className="mt-3 h-4 w-full max-w-md" />
-      <Skeleton className="mt-8 h-72 w-full rounded-xl" />
     </div>
   );
 }

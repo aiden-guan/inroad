@@ -1,7 +1,9 @@
 "use client";
 
+import { Select } from "@/components/ui/field";
+
 import { motion } from "motion/react";
-import { ArrowLeft, Check, ChevronDown } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -30,7 +32,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString
 function ColumnSelect({ value, headers, onChange, label }: { value: number | null; headers: string[]; onChange: (v: number | null) => void; label: string }) {
   return (
     <div className="relative min-w-0">
-      <select
+      <Select
         aria-label={label}
         value={value === null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
@@ -46,8 +48,7 @@ function ColumnSelect({ value, headers, onChange, label }: { value: number | nul
             {h}
           </option>
         ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-fg-3" aria-hidden />
+      </Select>
     </div>
   );
 }
@@ -257,7 +258,7 @@ export function ListImport({ initial, onLinkedIn, onDone }: { initial?: FileIn |
               : "Prospects to research and work."}
         </p>
         <div className="relative">
-          <select
+          <Select
             aria-label="What kind of list is this"
             value={presetId}
             onChange={(e) => {
@@ -271,8 +272,7 @@ export function ListImport({ initial, onLinkedIn, onDone }: { initial?: FileIn |
                 {p.label}
               </option>
             ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-fg-3" aria-hidden />
+          </Select>
         </div>
       </div>
 

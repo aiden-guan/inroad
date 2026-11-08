@@ -32,6 +32,8 @@ it discovers high-intent accounts and verifiable buying signals (starting with w
 
 For a Head of GTM it is also a **revenue operating system**: the number called deal by deal from evidence, the plan behind the gap, deal risk with the fix, signal-based plays with backtests, and the weekly update, all computed in code from your deals.
 
+Connect **PostHog, Stripe or Polar** to bring active users, collected revenue, paying customers, MRR or subscription counts into Revenue without manual logging. Read-only metric syncs refresh every 15 minutes while the app is open, with source definitions, reporting windows and last-sync status. See [connected business metrics](docs/business-metrics.md) for setup and exact counting rules.
+
 Inroad also operates as an **agentic coordination hub**: connect external systems (HubSpot, Attio, Instantly, Smartlead, Lemlist, Slack, Clay, Zapier, n8n, Firecrawl) and allow peer agents—Claude Code, Cursor, ChatGPT, Meta Muse—to query your playbook, inspect warm network paths, and inject qualified leads through Inroad's native MCP server and REST endpoints.
 
 ---

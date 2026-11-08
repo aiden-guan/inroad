@@ -1,22 +1,20 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
 import { AiBadge } from "@/components/ui/badge";
 import { Num } from "@/components/ui/misc";
 import { Orb } from "@/components/ui/orb";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/client/cn";
-import { ease } from "@/lib/motion";
 import { money, shortDay, type Forecast, type RevenuePlan } from "@/lib/revenue/forecast";
 
 const USD = { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 } as const;
 
-/** Ink shades only: the accent belongs to the agent, and color in charts is reserved for risk. */
+/** One blue-pencil hue, with decreasing certainty from closed revenue to open pipeline. */
 const SEGMENTS = [
-  { key: "won", label: "Closed won", className: "bg-fg" },
-  { key: "commit", label: "Commit", className: "bg-fg/65" },
-  { key: "best", label: "Best case", className: "bg-fg/35" },
-  { key: "pipeline", label: "Pipeline", className: "bg-fg/12 bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgb(127_127_127/0.12)_4px_5px)]" },
+  { key: "won", label: "Closed won", className: "bg-accent" },
+  { key: "commit", label: "Commit", className: "bg-accent/65" },
+  { key: "best", label: "Best case", className: "bg-accent/30" },
+  { key: "pipeline", label: "Pipeline", className: "bg-accent/10" },
 ] as const;
 
 /**
@@ -24,7 +22,6 @@ const SEGMENTS = [
  * possible, against the target. The sentence above the bar is the plan's headline: what it takes.
  */
 export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
-  const reduce = useReducedMotion();
   const commitOpen = f.commit - f.closedWon.usd;
   const bestOpen = f.bestCase - f.commit;
   const pipeOpen = f.pipeline - f.bestCase;
@@ -39,32 +36,43 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
   const short = f.hasTarget && f.coverage !== null && f.coverage < f.coverageNeeded;
 
   return (
-    <section aria-label="Forecast" className="mt-8 overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-inset ring-border">
+    <section id="forecast" aria-label="Forecast" className="forecast-progress scroll-mt-6 overflow-hidden rounded-xl ring-1 ring-inset ring-border">
       <div className="px-5 pb-6 pt-5 sm:px-7 sm:pt-6">
-        <div className="mb-3 flex items-center gap-2 text-[12px] text-fg-3">
+        <div className="mb-5 flex items-center justify-between gap-3 text-[12px] text-fg-3">
+          <span className="font-medium text-fg-2">Revenue outlook</span>
+          <span>{f.period.label}</span>
+        </div>
+        <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+          <div>
+            <p className="text-[12px] text-fg-3">Expected revenue <Tooltip content="Closed won, plus open deals at their category odds: commit 90%, best case 50%, pipeline 15%. These are estimates, not guaranteed revenue."><span tabIndex={0} className="ml-1 cursor-help underline decoration-dotted underline-offset-4">The call</span></Tooltip></p>
+            <p className="mt-1 text-[40px] font-medium leading-[48px] tracking-[-0.045em] tnum"><Num value={f.call} format={USD} /></p>
+            <p className="mt-1 text-[12px] text-fg-3">{f.hasTarget ? `${Math.round((f.call / f.target) * 100)}% of ${money(f.target)} target` : "Weighted from the deals on file"}</p>
+          </div>
+          <div className="max-w-[48ch] border-l-2 border-accent/30 pl-4">
+        <div className="mb-2 flex items-center gap-2 text-[12px] text-fg-3">
           <Orb size={14} state={plan.verdict === "behind" || plan.verdict === "too_late" ? "needs" : "idle"} />
-          <span className="font-medium text-fg-2">The call</span>
+          <span className="font-medium text-fg-2">Where to focus</span>
           <AiBadge />
         </div>
-        <p className="max-w-[62ch] text-pretty font-serif text-[21px] leading-[30px] tracking-[-0.005em] text-fg sm:text-[24px] sm:leading-[33px]">{plan.headline}</p>
+        <p className="text-pretty font-serif text-[19px] leading-[27px] text-fg">
+          {plan.headline}
+        </p>
+        {f.hasTarget && plan.gap > 0 && <p className="mt-2 text-[11.5px] leading-4 text-fg-3">Plan based on {money(f.weighted)} in stage-weighted revenue.</p>}
+          </div>
+        </div>
 
         <div className="mt-7">
-          <div className="relative h-11">
+          <div className="relative h-6">
             <div className="absolute inset-0 overflow-hidden rounded-md bg-bg-subtle ring-1 ring-inset ring-border">
-              <motion.div
-                className="flex h-full origin-left"
-                initial={reduce ? false : { scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 0.6, ease: ease.out }}
-              >
+              <div className="flex h-full">
                 {parts.map((p) =>
                   p.value > 0 ? (
                     <Tooltip key={p.key} content={`${p.label}: ${money(p.value)}`}>
-                      <div tabIndex={-1} className={cn("h-full border-r border-bg/70 last:border-r-0", p.className)} style={{ width: pct(p.value) }} />
+                      <div tabIndex={0} aria-label={`${p.label}: ${money(p.value)}`} className={cn("h-full border-r border-surface/70 last:border-r-0 focus-visible:outline-offset-[-2px]", p.className)} style={{ width: pct(p.value) }} />
                     </Tooltip>
                   ) : null,
                 )}
-              </motion.div>
+              </div>
             </div>
             {f.hasTarget && (
               <div className="pointer-events-none absolute -bottom-1.5 -top-1.5" style={{ left: pct(f.target) }}>
@@ -75,24 +83,21 @@ export function ForecastHero({ f, plan }: { f: Forecast; plan: RevenuePlan }) {
           {f.hasTarget && (
             <div className="relative mt-2 h-4 text-[11.5px]">
               {/* The label sits on whichever side of the marker has room. */}
-              <span className={cn("absolute whitespace-nowrap font-mono tnum text-fg-2", f.target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5")} style={{ left: pct(f.target) }}>
+              <span
+                className={cn("absolute whitespace-nowrap font-mono tnum text-fg-2", f.target / scale > 0.3 ? "-translate-x-full pr-1.5" : "pl-1.5")}
+                style={{ left: pct(f.target) }}
+              >
                 Target {money(f.target)}
               </span>
             </div>
           )}
         </div>
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
-          <Stat label="Closed won" swatch="bg-fg" value={f.closedWon.usd} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} />
-          <Stat label="Commit · floor" swatch="bg-fg/65" value={f.commit} note={f.hasTarget ? `${Math.round((f.commit / f.target) * 100)}% of target` : "Won + commit"} />
-          <Stat
-            label="The call"
-            value={f.call}
-            note={f.hasTarget ? `${Math.round((f.call / f.target) * 100)}% of target` : "Category-weighted"}
-            tip="Closed won, plus each deal at its category's odds: commit 90%, best case 50%, pipeline 15%. The odds calibrate once two quarters of snapshots exist."
-          />
-          <Stat label="Best case · ceiling" swatch="bg-fg/35" value={f.bestCase} note={f.hasTarget ? `${Math.round((f.bestCase / f.target) * 100)}% of target` : "Commit + best case"} />
-          <Stat label="Pipeline" swatch="bg-fg/12" value={f.pipeline} note={`Stage-weighted ${money(f.weighted)}`} />
+        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-border pt-5 sm:grid-cols-4">
+          <Stat label="Closed won" swatch="bg-accent" value={f.closedWon.usd} note={`${f.closedWon.deals.length} ${f.closedWon.deals.length === 1 ? "deal" : "deals"}`} />
+          <Stat label="Commit · floor" swatch="bg-accent/65" value={f.commit} note={f.hasTarget ? `${Math.round((f.commit / f.target) * 100)}% of target` : "Won + commit"} />
+          <Stat label="Best case · ceiling" swatch="bg-accent/30" value={f.bestCase} note={f.hasTarget ? `${Math.round((f.bestCase / f.target) * 100)}% of target` : "Commit + best case"} />
+          <Stat label="Pipeline" swatch="bg-accent/10" value={f.pipeline} note={`Stage-weighted ${money(f.weighted)}`} />
         </dl>
         {f.hitChance !== null && f.remaining > 0 && (
           <p className="mt-5 flex flex-wrap items-baseline gap-x-2 border-t border-border pt-4 text-[13px] text-fg-2">

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { pollConnectors } from "@/lib/hub/poll";
+import { pollMetrics } from "@/lib/metrics/sync";
 import { errorResponse, readJSON } from "@/lib/server/http";
 
 const Body = z.object({ force: z.boolean().optional() });
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
   try {
     const raw = await readJSON(request).catch(() => ({}));
     const body = Body.parse(raw ?? {});
-    const results = await pollConnectors({ force: body.force });
+    const [connectors, metrics] = await Promise.all([pollConnectors({ force: body.force }), pollMetrics()]);
+    const results = [...connectors, ...metrics];
     return Response.json({ results, changed: results.some((r) => r.changed) }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return errorResponse(err);

@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
 import { FileSpreadsheet, Users, Webhook } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
@@ -14,10 +16,13 @@ import { Skeleton } from "@/components/ui/misc";
 import { BOOKING_SOURCES, CONNECTORS, LEAD_SOURCES, NATIVE_IDS, isCrm, isSequencer, type NativeConnectorId } from "@/lib/connectors/catalog";
 import type { Workspace } from "@/lib/domain/types";
 import type { InboundLogEntry } from "@/lib/hub/types";
+import { METRIC_PROVIDER_IDS } from "@/lib/metrics/types";
 import { CrmPanel } from "./crm-panel";
 import { FirecrawlPanel } from "./firecrawl-panel";
 import { HookPanel } from "./hooks";
 import { ConnectedFooter, KeyConnect } from "./key-connect";
+import { MetricSources } from "./metrics-panel";
+import { MonidPanel } from "./monid-panel";
 import { OutboundPanel } from "./outbound-panel";
 import { Ago } from "./parts";
 import { Group, IntegrationRow, LinkRow, type RowStatus } from "./row";
@@ -74,7 +79,7 @@ export function IntegrationsHub() {
   const events = useMemo(() => status?.inbound.events ?? [], [status]);
   const summary = useMemo(() => {
     if (!ws) return null;
-    const native = NATIVE_IDS.filter((id) => ws.integrations[id]?.enabled).length;
+    const native = [...NATIVE_IDS, ...METRIC_PROVIDER_IDS].filter((id) => ws.integrations[id]?.enabled).length;
     const hooks = new Set(events.filter((e) => e.status !== "duplicate").map((e) => e.source)).size;
     const week = now ? events.filter((e) => e.status !== "duplicate" && now - Date.parse(e.at) < 7 * 86_400_000).length : 0;
     return { connected: native + hooks + (ws.webhooks.length ? 1 : 0), week };
@@ -111,6 +116,8 @@ export function IntegrationsHub() {
             <SequencerPanel id={id} state={st} status={status} onRefresh={refresh} />
           ) : id === "firecrawl" ? (
             <FirecrawlPanel />
+          ) : id === "monid" ? (
+            <MonidPanel />
           ) : (
             <SlackPanel state={st} status={status} onRefresh={refresh} />
           )}
@@ -126,13 +133,8 @@ export function IntegrationsHub() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[760px] px-6 pb-28 pt-8 md:px-10 md:pt-12">
-      <header className="mb-2">
-        <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.015em] text-fg">What&apos;s in your stack?</h1>
-        <p className="mt-3 max-w-[60ch] text-[14px] leading-[21px] text-fg-2 text-pretty">
-          Plug in the tools your team already uses. Leads come in, approved drafts go out through your sequencer, and deals stay in step with your CRM. Syncing is plain code, so it never
-          spends AI tokens.
-        </p>
+    <div className="page-shell">
+      <PageHeader title="Integrations" eyebrow="Your connected stack" description="Keep your business metrics, leads and deals in step with the tools you already use. Syncing uses no AI tokens.">
         {summary && (
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-fg-3">
             <span>
@@ -156,7 +158,13 @@ export function IntegrationsHub() {
             </Button>
           </p>
         )}
-      </header>
+      </PageHeader>
+
+      <MetricSources current={current} onToggle={toggle} />
+
+      <Group id="research" question="Where do you research creators and AI visibility?" note="Monid research runs are paid and on demand. Preview the current price before starting a run.">
+        {native("monid")}
+      </Group>
 
       <Group id="leads" question="Where do leads come from?" note="Imports and webhooks are matched and deduplicated in code. Existing records only get empty fields filled.">
         <LinkRow
@@ -271,7 +279,8 @@ function outboundStatus(ws: Workspace): RowStatus {
 
 function HubSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[760px] px-6 pb-28 pt-8 md:px-10 md:pt-12" aria-busy="true">
+    <div className="page-shell" aria-busy="true">
+      <LoadingSignal label="Loading your connections" className="mb-7" />
       <Skeleton className="h-9 w-64" />
       <Skeleton className="mt-4 h-4 w-full max-w-[520px]" />
       <Skeleton className="mt-2 h-4 w-80" />

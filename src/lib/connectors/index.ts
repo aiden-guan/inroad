@@ -9,9 +9,10 @@ import { instantly } from "./instantly";
 import { lemlist } from "./lemlist";
 import { smartlead } from "./smartlead";
 import { slack } from "./slack";
+import { monid } from "./monid";
 import type { Connector, ConnectorConfig, ConnectorFactory } from "./types";
 
-const FACTORIES: Record<NativeConnectorId, ConnectorFactory> = { hubspot, attio, instantly, smartlead, lemlist, slack, firecrawl };
+const FACTORIES: Record<NativeConnectorId, ConnectorFactory> = { hubspot, attio, instantly, smartlead, lemlist, slack, firecrawl, monid };
 
 /** The secret for a native connector lives under this key in secrets.json. */
 export const SECRET_KEY = "key";

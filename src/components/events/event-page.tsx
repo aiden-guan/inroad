@@ -90,7 +90,7 @@ function Header({ ev, planning, onReplan }: { ev: GtmEvent; planning: boolean; o
 
       <div className="mt-3 flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em] text-balance">{theme && theme.title !== "Write the question" ? theme.title : ev.title}</h1>
+          <h1 className="page-heading">{theme && theme.title !== "Write the question" ? theme.title : ev.title}</h1>
           {theme && <p className="mt-2 max-w-[60ch] font-serif text-[19px] italic leading-[27px] text-fg-2 text-pretty">{theme.question}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -195,7 +195,7 @@ export function EventPage({ id }: { id: string }) {
 
   if (loading && !ws) {
     return (
-      <div className="mx-auto w-full max-w-[1080px] px-6 pb-24 pt-8 md:px-10 md:pt-12">
+      <div className="page-shell">
         <Skeleton className="h-3 w-16" />
         <Skeleton className="mt-6 h-3 w-48" />
         <Skeleton className="mt-3 h-8 w-2/3" />
@@ -210,14 +210,14 @@ export function EventPage({ id }: { id: string }) {
 
   if (!ev) {
     return (
-      <div className="mx-auto w-full max-w-[1080px] px-6 pb-24 pt-8 md:px-10 md:pt-12">
+      <div className="page-shell">
         <Link href="/events" className="-ml-1 inline-flex items-center gap-1 px-1 text-[13px] text-fg-3 hover:text-fg">
           <ChevronLeft className="size-3.5" />
           Events
         </Link>
         {runs.planRun && runs.planning ? (
           <>
-            <h1 className="mt-8 font-serif text-[32px] leading-[36px] tracking-[-0.02em]">{runs.planRun.title}</h1>
+            <h1 className="page-heading mt-8">{runs.planRun.title}</h1>
             <WorkLog run={runs.planRun} className="mt-6 max-w-[720px]" />
             <PlanSkeleton />
           </>
@@ -239,7 +239,7 @@ export function EventPage({ id }: { id: string }) {
   const planFailed = !ev.plan && !runs.planning && runs.planSummary?.status === "error";
 
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-6 pb-24 pt-8 md:px-10 md:pt-12">
+    <div className="page-shell">
       <Header ev={ev} planning={runs.planning} onReplan={replan} />
 
       {runs.planRun && (runs.planning || !ev.plan || runs.planRun.error) ? (

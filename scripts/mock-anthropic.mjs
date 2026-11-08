@@ -193,10 +193,22 @@ async function handle(req, res) {
     message: { id: id("msg"), type: "message", role: "assistant", model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 100, output_tokens: 1 } },
   });
 
-  // thinking (summarized)
-  const thoughts = ["Reviewing what the founder asked for.", "Checking public sources before drafting.", "Making sure every claim has a source."];
+  // thinking (summarized), paced like a real summary so the UI's reasoning stream has something to stream
+  const thoughts = [
+    "Reviewing what was asked and what's already on file.",
+    "Starting from the workspace: the account, its open deal, and the last few touches.",
+    "Two of the signals are dated, so the fresher one should carry more weight.",
+    "Checking public sources before drafting anything about the company itself.",
+    "The recent hire is the stronger angle; the funding news is older and widely known.",
+    "Keeping it short: one claim per line, each with its source.",
+    "Making sure every claim has a source.",
+    "Writing it up.",
+  ];
   await send({ type: "content_block_start", index, content_block: { type: "thinking", thinking: "", signature: "" } });
-  for (const t of thoughts) await send({ type: "content_block_delta", index, delta: { type: "thinking_delta", thinking: t + " " } });
+  for (const t of thoughts) {
+    await send({ type: "content_block_delta", index, delta: { type: "thinking_delta", thinking: t + " " } });
+    await sleep(DELAY * 3);
+  }
   await send({ type: "content_block_delta", index, delta: { type: "signature_delta", signature: "mock-signature" } });
   await send({ type: "content_block_stop", index });
   index++;

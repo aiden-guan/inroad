@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       () => ({ title: body.message.slice(0, 64), context: body.context, contextLabel: label, createdAt: at, updatedAt: at }),
       (t) => {
         putTurn(t, { id: body.founderTurnId, role: "founder", text: body.message, at });
-        putTurn(t, { id: body.turnId, role: "agent", text: "", at, instant: { title: answer.title, rows: answer.rows } });
+        putTurn(t, { id: body.turnId, role: "agent", text: "", at, instant: { title: answer.title, rows: answer.rows, view: answer.view } });
         t.messages.push({ role: "user", content: [{ type: "text", text: body.message }] }, { role: "assistant", content: [{ type: "text", text: answer.text }] });
         t.approxTokens += Math.round((body.message.length + answer.text.length) / 4);
         t.updatedAt = at;

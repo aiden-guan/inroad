@@ -4,13 +4,13 @@
  */
 import type { HubEventType, IntegrationId, Stage } from "@/lib/domain/types";
 
-export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack" | "firecrawl";
+export type NativeConnectorId = "hubspot" | "attio" | "instantly" | "smartlead" | "lemlist" | "slack" | "firecrawl" | "monid";
 export type CrmId = "hubspot" | "attio";
 export type SequencerId = "instantly" | "smartlead" | "lemlist";
 
 export const CRM_IDS: CrmId[] = ["hubspot", "attio"];
 export const SEQUENCER_IDS: SequencerId[] = ["instantly", "smartlead", "lemlist"];
-export const NATIVE_IDS: NativeConnectorId[] = ["hubspot", "attio", "instantly", "smartlead", "lemlist", "slack", "firecrawl"];
+export const NATIVE_IDS: NativeConnectorId[] = ["hubspot", "attio", "instantly", "smartlead", "lemlist", "slack", "firecrawl", "monid"];
 
 export function isNative(id: string): id is NativeConnectorId {
   return (NATIVE_IDS as string[]).includes(id);
@@ -38,6 +38,14 @@ export interface ConnectorMeta {
 }
 
 export const CONNECTORS: Record<NativeConnectorId, ConnectorMeta> = {
+  monid: {
+    id: "monid", name: "Monid", domain: "monid.ai", kind: "data",
+    blurb: "Research TikTok creators and measure AI citations through one Monid account.",
+    secretLabel: "API key", placeholder: "monid_live_…",
+    where: { href: "https://app.monid.ai/access/api-keys", linkLabel: "Open Monid API keys", path: "Monid → Access → API keys → create a workspace key" },
+    scopes: ["runs:create", "runs:get"],
+    note: "Key validation and price previews do not start paid runs. Research runs spend your Monid balance only when you choose to run them. Set a workspace budget and run cap in Monid for additional spending controls.",
+  },
   hubspot: {
     id: "hubspot",
     name: "HubSpot",

@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingSignal } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -147,10 +149,7 @@ export function SettingsView() {
         </aside>
 
         <div className="mx-auto w-full min-w-0 max-w-[720px] @min-[960px]/page:mx-0">
-          <header className="mb-8">
-            <h1 className="font-serif text-[32px] leading-[36px] tracking-[-0.02em] text-fg [font-variation-settings:'opsz'_72]">Settings</h1>
-            <p className="mt-2 max-w-[58ch] text-[14px] leading-[21px] text-fg-2">Everything here saves as you go and stays on this computer.</p>
-          </header>
+          <PageHeader title="Settings" eyebrow="Make it yours" description="Everything here saves as you go and stays on this computer." className="mb-8" />
 
           <nav
             aria-label="Settings sections"
@@ -210,6 +209,7 @@ export function SettingsSkeleton() {
           ))}
         </div>
         <div className="w-full max-w-[720px]">
+      <LoadingSignal label="Opening settings" className="mb-7" />
           <Skeleton className="h-9 w-36" />
           <Skeleton className="mt-3 h-4 w-[60%]" />
           <Skeleton className="mt-12 h-8 w-28" />

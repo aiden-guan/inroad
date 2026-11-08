@@ -10,6 +10,7 @@ import { useWorkspace } from "@/components/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
+import { LoadingSignal } from "@/components/ui/loading";
 import { cn } from "@/lib/client/cn";
 import type { Action } from "@/lib/domain/actions";
 import { addDays, todayISO, weekOf } from "@/lib/domain/ids";
@@ -22,7 +23,8 @@ import { daysSince, plural } from "@/lib/moves/util";
 import { ease, spring } from "@/lib/motion";
 import type { CheckRepliesHandle } from "./check-replies";
 import { Masthead } from "./masthead";
-import { MoveCard } from "./move-card";
+import { GrowthPulse } from "./growth-pulse";
+import { MoveCard, MoveExits } from "./move-card";
 import { cardDraft } from "./move-body";
 import { KIND_LABELS, Keys, RunInline, SKIP_REASONS } from "./parts";
 import { ReviewDoc } from "./review-panel";
@@ -52,7 +54,7 @@ export function TodayView() {
 }
 
 function Column({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("mx-auto w-full max-w-[800px] px-6 pb-24 pt-8 md:px-10 md:pt-12 xl:max-w-[1040px] xl:pr-[280px]", className)}>{children}</div>;
+  return <div className={cn("page-shell", className)}>{children}</div>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -225,10 +227,23 @@ export function Today({ ws }: { ws: Workspace }) {
       layout="position"
       custom={exits}
       variants={{
+        // Skipped folds away at once. Done holds while its stamp lands and its title is crossed off, then folds;
+        // the cards below close the gap as it goes (the fold is a height collapse, so they ride the reflow).
         exit: (all: Record<string, Exit>) =>
           all[m.id] === "skip"
-            ? { opacity: 0, scale: 0.98, transition: { duration: 0.15, ease: ease.inQuad } }
-            : { opacity: 0, x: 24, transition: { duration: 0.2, ease: ease.inQuad } },
+            ? {
+                opacity: 0,
+                scale: 0.98,
+                height: 0,
+                marginBottom: 0,
+                transition: { opacity: { duration: 0.14, ease: ease.out }, scale: { duration: 0.2, ease: ease.out }, default: { duration: 0.24, ease: ease.inOut } },
+              }
+            : {
+                opacity: 0,
+                height: 0,
+                marginBottom: 0,
+                transition: { opacity: { delay: 0.42, duration: 0.16, ease: ease.out }, default: { delay: 0.46, duration: 0.3, ease: ease.inOut } },
+              },
       }}
       initial={reveal ? { opacity: 0, y: 6 } : { opacity: 0 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1, transition: reveal ? { duration: 0.28, ease: ease.out, delay: 0.15 + Math.min(i, 8) * 0.04 } : { duration: 0.15 } }}
@@ -267,11 +282,13 @@ export function Today({ ws }: { ws: Workspace }) {
   );
 
   const list = (moves: Move[], offset = 0) => (
-    <ul className="relative space-y-2">
-      <AnimatePresence mode="popLayout" initial={reveal} custom={exits}>
-        {moves.map((m, i) => card(m, offset + i))}
-      </AnimatePresence>
-    </ul>
+    <MoveExits.Provider value={exits}>
+      <ul className="relative space-y-3">
+        <AnimatePresence initial={reveal} custom={exits}>
+          {moves.map((m, i) => card(m, offset + i))}
+        </AnimatePresence>
+      </ul>
+    </MoveExits.Provider>
   );
 
   const dayOne = Object.keys(ws.accounts).length === 0;
@@ -300,13 +317,15 @@ export function Today({ ws }: { ws: Workspace }) {
           }}
         />
 
-        <section className="mt-10" aria-label="Your moves">
+        <div className="dashboard-grid">
+        <div className="min-w-0">
+        <section aria-label="Your moves">
           {dayOne && <DayOne />}
           {visible.length === 0 ? (
             !dayOne && <CaughtUp worth={worth} />
           ) : (
             <div className={cn(dayOne && "mt-6")}>
-              <SectionLabel right={<span className="font-mono text-[11.5px] tnum text-fg-3">about {minutes} min</span>}>{dayOne ? "While that runs" : "Your moves"}</SectionLabel>
+              <SectionLabel right={<span className="text-[12px] tnum text-fg-3">{top.length} moves · about {minutes} min</span>}>{dayOne ? "While that runs" : "Your next moves"}</SectionLabel>
               {list(top)}
             </div>
           )}
@@ -352,6 +371,9 @@ export function Today({ ws }: { ws: Workspace }) {
             ]}
           />
         )}
+        </div>
+        <GrowthPulse ws={ws} now={now} scoreboard={scoreboard} />
+        </div>
       </div>
     </Column>
   );
@@ -422,6 +444,7 @@ function CaughtUp({ worth }: { worth: number }) {
 function TodaySkeleton() {
   return (
     <Column className="opacity-0 animate-[fade-in_150ms_var(--ease-out)_150ms_forwards]">
+      <LoadingSignal label="Preparing your daily brief" className="mb-7" />
       <Skeleton className="h-11 w-72 max-w-full md:h-[52px]" />
       <Skeleton className="mt-4 h-6 w-96 max-w-full" />
       <Skeleton className="mt-7 h-4 w-80 max-w-full" />

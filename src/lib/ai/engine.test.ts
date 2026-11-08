@@ -94,7 +94,16 @@ describe("runAgent with a terminal tool", () => {
     });
     expect(r.result).toEqual({ headline: "Mock headline", score: 78, steps: ["Mock steps1", "Mock steps2", "Mock steps3"], url: "https://example.com" });
     expect(r.stopReason).toBe("tool_use");
-    expect(r.of("thinking").map((e) => e.text)).toEqual(["Reviewing what the founder asked for.", "Checking public sources before drafting."]);
+    // Each complete sentence of the summary surfaces once; the last one waits for a sentence after it.
+    expect(r.of("thinking").map((e) => e.text)).toEqual([
+      "Reviewing what was asked and what's already on file.",
+      "Starting from the workspace: the account, its open deal, and the last few touches.",
+      "Two of the signals are dated, so the fresher one should carry more weight.",
+      "Checking public sources before drafting anything about the company itself.",
+      "The recent hire is the stronger angle; the funding news is older and widely known.",
+      "Keeping it short: one claim per line, each with its source.",
+      "Making sure every claim has a source.",
+    ]);
     expect(r.of("search")).toEqual([{ type: "search", query: "Plan outreach for Acme funding news 2026" }]);
     expect(r.of("sources")[0].sources.map((s) => s.host)).toEqual(["techcrunch.com", "jobs.ashbyhq.com", "forbes.com"]);
     expect(r.of("read")).toEqual([{ type: "read", url: "https://example.com", host: "example.com" }]);

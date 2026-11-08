@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local agent checkouts and workspace state are not application source.
+    ".claude/**",
+    ".data*/**",
   ]),
 ]);
 

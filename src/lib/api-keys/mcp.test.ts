@@ -208,16 +208,24 @@ describe("tools", () => {
   });
 
   it("reads the forecast and the plays with any key, computed in code", async () => {
-    const f = (await call("get_forecast", {})).result?.structuredContent as { commit_usd: number; best_case_usd: number; deals: { id: string; category: string; risks: unknown[] }[]; plan: { verdict: string } };
-    expect(f.commit_usd).toBeLessThanOrEqual(f.best_case_usd);
-    expect(f.deals.map((d) => d.category)).toEqual(expect.arrayContaining(["best_case"]));
-    expect(f.plan.verdict).toBe("behind");
-    const one = (await call("get_forecast", { deal_id: f.deals[0].id })).result?.structuredContent as { deals: unknown[] };
-    expect(one.deals).toHaveLength(1);
-    const plays = (await call("list_plays", { play_id: "champion_moved", limit: 2 })).result?.structuredContent as { plays: { id: string; running: boolean; matches: { domain: string }[] }[] };
-    expect(plays.plays).toHaveLength(1);
-    expect(plays.plays[0]).toMatchObject({ id: "champion_moved", running: true });
-    expect(plays.plays[0].matches.map((m) => m.domain)).toEqual(expect.arrayContaining(["glassmoor.example"]));
+    // The workspace was seeded at NOW. Evaluate its forecast at the same date, rather than letting
+    // the real calendar move its pipeline past the quarter's creation cutoff.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const f = (await call("get_forecast", {})).result?.structuredContent as { commit_usd: number; best_case_usd: number; deals: { id: string; category: string; risks: unknown[] }[]; plan: { verdict: string } };
+      expect(f.commit_usd).toBeLessThanOrEqual(f.best_case_usd);
+      expect(f.deals.map((d) => d.category)).toEqual(expect.arrayContaining(["best_case"]));
+      expect(f.plan.verdict).toBe("behind");
+      const one = (await call("get_forecast", { deal_id: f.deals[0].id })).result?.structuredContent as { deals: unknown[] };
+      expect(one.deals).toHaveLength(1);
+      const plays = (await call("list_plays", { play_id: "champion_moved", limit: 2 })).result?.structuredContent as { plays: { id: string; running: boolean; matches: { domain: string }[] }[] };
+      expect(plays.plays).toHaveLength(1);
+      expect(plays.plays[0]).toMatchObject({ id: "champion_moved", running: true });
+      expect(plays.plays[0].matches.map((m) => m.domain)).toEqual(expect.arrayContaining(["glassmoor.example"]));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("adds accounts and people to the workspace on disk, skipping free mail and suppressed domains", async () => {
